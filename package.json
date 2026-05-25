@@ -1,0 +1,41 @@
+{
+  "name": "works-reruiter",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reasoning-First Recruitment Management System",
+  "workspaces": [
+    "packages/*",
+    "services/*",
+    "webapp"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,mjs,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mjs,json,md}\"",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "db:generate": "npm run generate --workspace=packages/database",
+    "db:migrate:dev": "npm run migrate:dev --workspace=packages/database",
+    "db:push": "npm run push --workspace=packages/database",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "dev:gateway": "npm run dev --workspace=services/gateway",
+    "dev:identity": "npm run dev --workspace=services/identity",
+    "dev:recruiting": "npm run dev --workspace=services/recruiting",
+    "dev:profiles": "npm run dev --workspace=services/profiles",
+    "dev:review": "npm run dev --workspace=services/review",
+    "dev:worker": "npm run dev --workspace=services/worker",
+    "dev:webapp": "npm run dev --workspace=webapp"
+  },
+  "devDependencies": {
+    "prettier": "^3.5.3",
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "packageManager": "npm@10.9.2"
+}

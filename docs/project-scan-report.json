@@ -1,0 +1,141 @@
+{
+  "workflow_version": "1.0.0",
+  "timestamps": {
+    "started": "2026-05-20T08:28:00Z",
+    "last_updated": "2026-05-20T08:34:00Z",
+    "completed": "2026-05-20T08:34:00Z"
+  },
+  "workflow_mode": "full_rescan",
+  "scan_level": "quick",
+  "project_root": "/home/minh_dev/workspaces/works-reruiter",
+  "project_knowledge": "/home/minh_dev/workspaces/works-reruiter/docs",
+  "project_type": "monorepo",
+  "project_parts": [
+    {
+      "part_id": "gateway",
+      "part_type": "web",
+      "path": "services/gateway",
+      "description": "HTTP API Gateway — NestJS (:3001)",
+      "ts_files": 8
+    },
+    {
+      "part_id": "identity",
+      "part_type": "web",
+      "path": "services/identity",
+      "description": "Auth/Users/Orgs/Departments/Approvals — NestJS TCP (:3010)",
+      "ts_files": 10
+    },
+    {
+      "part_id": "recruiting",
+      "part_type": "web",
+      "path": "services/recruiting",
+      "description": "HiringRequests/Roles/Applications/Evaluations/TalentSearch — NestJS TCP (:3011)",
+      "ts_files": 19
+    },
+    {
+      "part_id": "profiles",
+      "part_type": "web",
+      "path": "services/profiles",
+      "description": "CandidateProfiles/CVDocuments/Evidence — NestJS TCP (:3012)",
+      "ts_files": 13
+    },
+    {
+      "part_id": "review",
+      "part_type": "web",
+      "path": "services/review",
+      "description": "ReviewerFeedback/CandidatePackets — NestJS TCP (:3013)",
+      "ts_files": 10
+    },
+    {
+      "part_id": "worker",
+      "part_type": "web",
+      "path": "services/worker",
+      "description": "BullMQ async job processor — plain TS (NOT NestJS)",
+      "ts_files": 2
+    },
+    {
+      "part_id": "webapp",
+      "part_type": "web",
+      "path": "webapp",
+      "description": "React 19 SPA — Vite 6 (:3000)",
+      "ts_files": 2
+    },
+    {
+      "part_id": "contracts",
+      "part_type": "library",
+      "path": "packages/contracts",
+      "description": "@wr/contracts — Enums, Zod schemas, types (SSOT)",
+      "ts_files": 4
+    },
+    {
+      "part_id": "config",
+      "part_type": "library",
+      "path": "packages/config",
+      "description": "@wr/config — Zod-validated env schemas",
+      "ts_files": 1
+    },
+    {
+      "part_id": "database",
+      "part_type": "library",
+      "path": "packages/database",
+      "description": "@wr/database — Prisma schema (420 lines) + client",
+      "ts_files": 1,
+      "prisma_models": 20
+    },
+    {
+      "part_id": "queue",
+      "part_type": "library",
+      "path": "packages/queue",
+      "description": "@wr/queue — BullMQ job definitions",
+      "ts_files": 1
+    },
+    {
+      "part_id": "ai",
+      "part_type": "library",
+      "path": "packages/ai",
+      "description": "@wr/ai — Hybrid search engine (NO DB dep)",
+      "ts_files": 9
+    },
+    {
+      "part_id": "ui",
+      "part_type": "library",
+      "path": "packages/ui",
+      "description": "@wr/ui — Shared UI components (Radix)",
+      "ts_files": 1
+    }
+  ],
+  "current_step": "completed",
+  "completed_steps": [
+    {"step": "step_1", "status": "completed", "summary": "Loaded config and workflow mode"},
+    {"step": "step_2", "status": "completed", "summary": "Determined monorepo with 13 parts"},
+    {"step": "step_3", "status": "completed", "summary": "Matched project type: web (services) + library (packages)"},
+    {"step": "step_4", "status": "completed", "summary": "Quick scan: config, entry points, key patterns"},
+    {"step": "step_5", "status": "skipped", "summary": "State management deferred (webapp early-stage)"},
+    {"step": "step_6", "status": "completed", "summary": "Docker Compose: PostgreSQL 16 pgvector + Redis 7"},
+    {"step": "step_7", "status": "completed", "summary": "Integration: Gateway→TCP→Services, BullMQ→Worker"},
+    {"step": "step_8", "status": "completed", "summary": "Architecture doc generated"},
+    {"step": "step_9", "status": "completed", "summary": "Component inventory + data models + API contracts"},
+    {"step": "step_10", "status": "completed", "summary": "Index generated with all doc links"},
+    {"step": "step_11", "status": "completed", "summary": "Validation complete — 0 incomplete markers"},
+    {"step": "step_12", "status": "completed", "summary": "Workflow complete"}
+  ],
+  "outputs": [
+    "project-overview.md",
+    "source-tree-analysis.md",
+    "architecture.md",
+    "data-models.md",
+    "api-contracts.md",
+    "component-inventory.md",
+    "development-guide.md",
+    "index.md"
+  ],
+  "metrics": {
+    "total_ts_files": 82,
+    "prisma_models": 20,
+    "services": 6,
+    "packages": 7,
+    "frontend_apps": 1,
+    "docker_services": 2,
+    "schema_lines": 420
+  }
+}

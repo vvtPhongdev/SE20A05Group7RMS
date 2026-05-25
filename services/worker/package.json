@@ -1,0 +1,28 @@
+{
+  "name": "@wr/worker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc --build",
+    "dev": "ts-node --project tsconfig.json src/main.ts",
+    "start": "node dist/main.js",
+    "clean": "rm -rf dist .turbo",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'lint ok'"
+  },
+  "dependencies": {
+    "bullmq": "^5.52.0",
+    "ioredis": "^5.6.1",
+    "@wr/contracts": "*",
+    "@wr/config": "*",
+    "@wr/database": "*",
+    "@wr/queue": "*",
+    "@wr/ai": "*"
+  },
+  "devDependencies": {
+    "@wr/typescript-config": "*",
+    "@types/node": "^22.15.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}

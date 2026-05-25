@@ -1,0 +1,5 @@
+{
+  "extends": "@wr/typescript-config/nextjs.json",
+  "compilerOptions": { "outDir": "./dist", "rootDir": "./src" },
+  "include": ["src"]
+}

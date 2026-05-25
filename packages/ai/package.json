@@ -1,0 +1,21 @@
+{
+  "name": "@wr/ai",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist .turbo",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'lint ok'"
+  },
+  "dependencies": {
+    "@wr/contracts": "*",
+    "zod": "^3.25.1"
+  },
+  "devDependencies": {
+    "@wr/typescript-config": "*",
+    "typescript": "^5.8.3"
+  }
+}
