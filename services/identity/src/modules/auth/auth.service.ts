@@ -2,7 +2,7 @@ import { Injectable, HttpStatus, OnModuleDestroy } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../common/database/prisma.service';
-import { RegisterUserSchema, RegisterUserInput, AuthTokenResponse } from '@wr/contracts';
+import { RegisterUserSchema, RegisterUserInput, AuthTokenResponse, LoginSchema, LoginInput } from '@wr/contracts';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import IORedis from 'ioredis';
@@ -65,6 +65,69 @@ export class AuthService implements OnModuleDestroy {
       displayName: user.displayName,
       role: user.role,
       organizationId: null, // Initial registration doesn't assign an org
+    };
+    const accessToken = this.jwtService.sign(payload);
+
+    // 6. Generate Refresh Token (64-byte random hex)
+    const refreshToken = crypto.randomBytes(64).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+
+    // 7. Store Refresh Token in Redis (30 days TTL = 2592000s)
+    await this.redis.set(`refresh:${tokenHash}`, user.id, 'EX', 2592000);
+
+    return {
+      accessToken,
+      refreshToken,
+      expiresIn: 3600,
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        role: user.role,
+      },
+    };
+  }
+
+  /**
+   * Login a user: validates credentials, verifies bcrypt password, issues JWT + refresh tokens.
+   */
+  async login(dto: LoginInput): Promise<AuthTokenResponse> {
+    // 1. Validate payload
+    const parsed = LoginSchema.parse(dto);
+
+    // 2. Find user by email
+    const user = await this.prisma.user.findUnique({
+      where: { email: parsed.email },
+    });
+    if (!user || !user.passwordHash) {
+      throw new RpcException({
+        status: HttpStatus.UNAUTHORIZED,
+        message: 'Invalid email or password',
+      });
+    }
+
+    // 3. Verify password
+    const isPasswordValid = await bcrypt.compare(parsed.password, user.passwordHash);
+    if (!isPasswordValid) {
+      throw new RpcException({
+        status: HttpStatus.UNAUTHORIZED,
+        message: 'Invalid email or password',
+      });
+    }
+
+    // 4. Find primary organization membership if any
+    const membership = await this.prisma.organizationMember.findFirst({
+      where: { userId: user.id },
+    });
+    const organizationId = membership?.organizationId || null;
+
+    // 5. Generate Access Token (JWT)
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.role,
+      organizationId,
     };
     const accessToken = this.jwtService.sign(payload);
 

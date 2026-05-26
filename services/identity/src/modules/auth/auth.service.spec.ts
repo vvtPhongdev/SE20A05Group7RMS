@@ -4,6 +4,13 @@ import { RpcException } from '@nestjs/microservices';
 import { HttpStatus } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../../common/database/prisma.service';
+import * as bcrypt from 'bcrypt';
+
+// Mock bcrypt
+jest.mock('bcrypt', () => ({
+  hash: jest.fn().mockResolvedValue('hashed-password'),
+  compare: jest.fn(),
+}));
 
 // Mock IORedis
 jest.mock('ioredis', () => {
@@ -24,6 +31,9 @@ describe('AuthService', () => {
     user: {
       findUnique: jest.fn(),
       create: jest.fn(),
+    },
+    organizationMember: {
+      findFirst: jest.fn(),
     },
   };
 
@@ -116,6 +126,88 @@ describe('AuthService', () => {
         where: { email: dto.email },
       });
       expect(prisma.user.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('login', () => {
+    const dto = {
+      email: 'test@example.com',
+      password: 'Password123!',
+    };
+
+    it('should successfully login and return token response', async () => {
+      const user = {
+        id: 'uuid-1234',
+        email: dto.email,
+        displayName: 'Test User',
+        role: 'CANDIDATE',
+        passwordHash: 'hashed-password',
+      };
+      mockPrismaService.user.findUnique.mockResolvedValue(user);
+      mockPrismaService.organizationMember.findFirst.mockResolvedValue({
+        organizationId: 'org-123',
+      });
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+
+      const result = await service.login(dto);
+
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { email: dto.email },
+      });
+      expect(bcrypt.compare).toHaveBeenCalledWith(dto.password, user.passwordHash);
+      expect(prisma.organizationMember.findFirst).toHaveBeenCalledWith({
+        where: { userId: user.id },
+      });
+      expect(jwtService.sign).toHaveBeenCalledWith({
+        sub: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        role: user.role,
+        organizationId: 'org-123',
+      });
+      expect(result).toHaveProperty('accessToken');
+      expect(result).toHaveProperty('refreshToken');
+      expect(result.expiresIn).toBe(3600);
+      expect(result.user).toEqual({
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        role: user.role,
+      });
+    });
+
+    it('should throw Unauthorized RpcException if email does not exist', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.login(dto)).rejects.toThrow(
+        new RpcException({
+          status: HttpStatus.UNAUTHORIZED,
+          message: 'Invalid email or password',
+        }),
+      );
+
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { email: dto.email },
+      });
+    });
+
+    it('should throw Unauthorized RpcException if password is wrong', async () => {
+      const user = {
+        id: 'uuid-1234',
+        email: dto.email,
+        passwordHash: 'hashed-password',
+      };
+      mockPrismaService.user.findUnique.mockResolvedValue(user);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+      await expect(service.login(dto)).rejects.toThrow(
+        new RpcException({
+          status: HttpStatus.UNAUTHORIZED,
+          message: 'Invalid email or password',
+        }),
+      );
+
+      expect(bcrypt.compare).toHaveBeenCalledWith(dto.password, user.passwordHash);
     });
   });
 });

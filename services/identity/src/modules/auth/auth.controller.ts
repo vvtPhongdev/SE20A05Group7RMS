@@ -10,4 +10,9 @@ export class AuthController {
   async register(@Payload() data: any) {
     return this.service.register(data);
   }
+
+  @MessagePattern('auth.login')
+  async login(@Payload() data: any) {
+    return this.service.login(data);
+  }
 }
