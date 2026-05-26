@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
+import { PassportModule } from '@nestjs/passport';
 import { SERVICE_TOKENS, SERVICE_PORTS } from './constants';
+import { JwtStrategy } from './auth/strategies/jwt.strategy';
 import { HealthController } from './controllers/health.controller';
 import { IdentityController } from './controllers/identity.controller';
 import { RecruitingController } from './controllers/recruiting.controller';
@@ -9,6 +11,7 @@ import { ReviewController } from './controllers/review.controller';
 
 @Module({
   imports: [
+    PassportModule.register({ defaultStrategy: 'jwt' }),
     ClientsModule.register([
       {
         name: SERVICE_TOKENS.IDENTITY,
@@ -32,6 +35,7 @@ import { ReviewController } from './controllers/review.controller';
       },
     ]),
   ],
+  providers: [JwtStrategy],
   controllers: [
     HealthController,
     IdentityController,
