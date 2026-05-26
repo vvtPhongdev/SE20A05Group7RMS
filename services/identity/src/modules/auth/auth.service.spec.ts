@@ -5,7 +5,10 @@ import { HttpStatus } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../../common/database/prisma.service';
 import * as bcrypt from 'bcrypt';
+<<<<<<< HEAD
 import * as crypto from 'crypto';
+=======
+>>>>>>> 6b3ef18c554ad388ebedb3c2b539448949d26d68
 
 // Mock bcrypt
 jest.mock('bcrypt', () => ({
@@ -18,8 +21,11 @@ jest.mock('ioredis', () => {
   return jest.fn().mockImplementation(() => {
     return {
       set: jest.fn().mockResolvedValue('OK'),
+<<<<<<< HEAD
       get: jest.fn().mockResolvedValue(null),
       del: jest.fn().mockResolvedValue(1),
+=======
+>>>>>>> 6b3ef18c554ad388ebedb3c2b539448949d26d68
       quit: jest.fn().mockResolvedValue('OK'),
     };
   });
@@ -213,6 +219,7 @@ describe('AuthService', () => {
       expect(bcrypt.compare).toHaveBeenCalledWith(dto.password, user.passwordHash);
     });
   });
+<<<<<<< HEAD
 
   describe('refresh', () => {
     const refreshToken = 'refresh-token-123';
@@ -288,4 +295,6 @@ describe('AuthService', () => {
       expect(redisInstance.del).toHaveBeenCalledWith(redisKey);
     });
   });
+=======
+>>>>>>> 6b3ef18c554ad388ebedb3c2b539448949d26d68
 });

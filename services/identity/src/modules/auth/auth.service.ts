@@ -2,7 +2,11 @@ import { Injectable, HttpStatus, OnModuleDestroy } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../common/database/prisma.service';
+<<<<<<< HEAD
 import { RegisterUserSchema, RegisterUserInput, AuthTokenResponse, LoginSchema, LoginInput, RefreshTokenSchema } from '@wr/contracts';
+=======
+import { RegisterUserSchema, RegisterUserInput, AuthTokenResponse, LoginSchema, LoginInput } from '@wr/contracts';
+>>>>>>> 6b3ef18c554ad388ebedb3c2b539448949d26d68
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import IORedis from 'ioredis';
@@ -150,6 +154,7 @@ export class AuthService implements OnModuleDestroy {
       },
     };
   }
+<<<<<<< HEAD
 
   /**
    * Refresh an existing refresh token and rotate to a new pair.
@@ -221,4 +226,6 @@ export class AuthService implements OnModuleDestroy {
       },
     };
   }
+=======
+>>>>>>> 6b3ef18c554ad388ebedb3c2b539448949d26d68
 }

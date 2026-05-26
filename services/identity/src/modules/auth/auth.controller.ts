@@ -15,9 +15,12 @@ export class AuthController {
   async login(@Payload() data: any) {
     return this.service.login(data);
   }
+<<<<<<< HEAD
 
   @MessagePattern('identity.auth.refresh')
   async refresh(@Payload() data: any) {
     return this.service.refresh(data);
   }
+=======
+>>>>>>> 6b3ef18c554ad388ebedb3c2b539448949d26d68
 }

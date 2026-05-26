@@ -1,0 +1,1 @@
+{"version":3,"file":"reviewer-feedback.service.js","sourceRoot":"","sources":["../../../src/modules/reviewer-feedback/reviewer-feedback.service.ts"],"names":[],"mappings":";;;;;;;;;AAAA,2CAA4C;AAGrC,IAAM,uBAAuB,GAA7B,MAAM,uBAAuB;IAClC,OAAO;QACL,OAAO,EAAE,OAAO,EAAE,iDAAiD,EAAE,CAAC;IACxE,CAAC;CACF,CAAA;AAJY,0DAAuB;kCAAvB,uBAAuB;IADnC,IAAA,mBAAU,GAAE;GACA,uBAAuB,CAInC"}
