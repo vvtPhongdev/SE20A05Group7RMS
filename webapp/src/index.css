@@ -1,0 +1,58 @@
+/**
+ * Works Reruiter — Global Styles
+ *
+ * Import order matters:
+ *   1. Design tokens (CSS variables)
+ *   2. Reset (normalize + base typography + IBM Plex fonts)
+ *   3. App-specific overrides (below)
+ */
+
+@import '../../packages/ui/src/styles/tokens.css';
+@import '../../packages/ui/src/styles/reset.css';
+
+/* ─── App Shell ────────────────────────────────────────────────── */
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Animations (used by Dialog, Toast, etc.) ─────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes dialogIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ─── Radix active states (data-attributes) ────────────────────── */
+[data-state='active'] {
+  color: var(--wr-accent-primary);
+  border-bottom-color: var(--wr-accent-primary);
+}
+
+/* Select/Dropdown highlight */
+[data-highlighted] {
+  background: var(--wr-bg-elevated);
+  color: var(--wr-text-primary);
+}

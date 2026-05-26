@@ -1,0 +1,163 @@
+/**
+ * Global Reset + Base Typography
+ *
+ * Import order:
+ *   1. tokens.css (design tokens)
+ *   2. reset.css  (this file — normalize + base styles)
+ */
+
+/* ─── Google Fonts: IBM Plex Sans + IBM Plex Mono ──────────────── */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
+
+/* ─── Box Model Reset ──────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ─── Root / HTML ──────────────────────────────────────────────── */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  -webkit-text-size-adjust: 100%;
+  tab-size: 4;
+}
+
+/* ─── Body ─────────────────────────────────────────────────────── */
+body {
+  min-height: 100vh;
+  font-family: var(--wr-font-sans);
+  font-size: var(--wr-text-base);
+  font-weight: var(--wr-font-normal);
+  line-height: var(--wr-leading-normal);
+  color: var(--wr-text-primary);
+  background-color: var(--wr-bg-page);
+}
+
+/* ─── Typography Defaults ──────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: var(--wr-font-semibold);
+  line-height: var(--wr-leading-tight);
+  color: var(--wr-text-primary);
+}
+
+h1 { font-size: var(--wr-text-3xl); }
+h2 { font-size: var(--wr-text-2xl); }
+h3 { font-size: var(--wr-text-xl); }
+h4 { font-size: var(--wr-text-lg); }
+h5 { font-size: var(--wr-text-md); }
+h6 { font-size: var(--wr-text-base); }
+
+p {
+  line-height: var(--wr-leading-relaxed);
+}
+
+small {
+  font-size: var(--wr-text-sm);
+}
+
+/* ─── Evidence / Provenance Monospace ──────────────────────────── */
+code, kbd, pre, samp,
+[data-mono] {
+  font-family: var(--wr-font-mono);
+  font-size: var(--wr-text-sm);
+}
+
+pre {
+  overflow-x: auto;
+  padding: var(--wr-space-4);
+  background: var(--wr-bg-elevated);
+  border-radius: var(--wr-radius-md);
+  border: 1px solid var(--wr-border-subtle);
+}
+
+/* ─── Links ────────────────────────────────────────────────────── */
+a {
+  color: var(--wr-accent-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--wr-accent-primary-hover);
+  text-decoration: underline;
+}
+
+/* ─── Lists ────────────────────────────────────────────────────── */
+ul, ol {
+  list-style: none;
+}
+
+/* ─── Images & Media ───────────────────────────────────────────── */
+img, picture, video, canvas, svg {
+  display: block;
+  max-width: 100%;
+}
+
+/* ─── Form Elements ────────────────────────────────────────────── */
+input, button, textarea, select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+/* ─── Tables ───────────────────────────────────────────────────── */
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+/* ─── Focus Visible (Global) ──────────────────────────────────── */
+:focus-visible {
+  outline: var(--wr-focus-ring-width) solid var(--wr-focus-ring);
+  outline-offset: var(--wr-focus-ring-offset);
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ─── Reduced Motion ───────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ─── Selection ────────────────────────────────────────────────── */
+::selection {
+  background: rgba(43, 122, 142, 0.2);
+  color: var(--wr-text-primary);
+}
+
+/* ─── Scrollbar (Webkit) ───────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--wr-border-default);
+  border-radius: var(--wr-radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--wr-border-strong);
+}
