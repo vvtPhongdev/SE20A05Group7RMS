@@ -310,4 +310,24 @@ export class AuthService implements OnModuleDestroy {
 
     return { success: true };
   }
+
+  /**
+   * Logout a user session: revokes the specified refresh token in Redis.
+   */
+  async logout(dto: { refreshToken: string }): Promise<{ success: boolean }> {
+    // 1. Validate payload
+    const validationResult = RefreshTokenSchema.safeParse(dto);
+    if (!validationResult.success) {
+      return { success: true };
+    }
+
+    const parsed = validationResult.data;
+    const tokenHash = crypto.createHash('sha256').update(parsed.refreshToken).digest('hex');
+    const redisKey = `refresh:${tokenHash}`;
+
+    // 2. Delete the refresh token from Redis
+    await this.redis.del(redisKey);
+
+    return { success: true };
+  }
 }

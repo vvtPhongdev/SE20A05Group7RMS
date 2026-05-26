@@ -24,4 +24,9 @@ export class AuthController {
   async forgotPassword(@Payload() data: any) {
     return this.service.forgotPassword(data);
   }
+
+  @MessagePattern('identity.auth.logout')
+  async logout(@Payload() data: any) {
+    return this.service.logout(data);
+  }
 }

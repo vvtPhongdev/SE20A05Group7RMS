@@ -367,4 +367,40 @@ describe('AuthService', () => {
       expect(redisInstance.get).toHaveBeenCalledWith(rateLimitKey);
     });
   });
+
+  describe('logout', () => {
+    const refreshToken = 'refresh-token-123';
+    const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    const redisKey = `refresh:${tokenHash}`;
+
+    it('should successfully delete refresh token from Redis and return success', async () => {
+      const redisInstance = (service as any).redis;
+      redisInstance.del.mockResolvedValueOnce(1);
+
+      const result = await service.logout({ refreshToken });
+
+      expect(result).toEqual({ success: true });
+      expect(redisInstance.del).toHaveBeenCalledWith(redisKey);
+    });
+
+    it('should return success even if the token does not exist in Redis', async () => {
+      const redisInstance = (service as any).redis;
+      redisInstance.del.mockResolvedValueOnce(0);
+
+      const result = await service.logout({ refreshToken });
+
+      expect(result).toEqual({ success: true });
+      expect(redisInstance.del).toHaveBeenCalledWith(redisKey);
+    });
+
+    it('should return success immediately if the token is invalid format', async () => {
+      const redisInstance = (service as any).redis;
+      redisInstance.del.mockClear();
+
+      const result = await service.logout({ refreshToken: '' });
+
+      expect(result).toEqual({ success: true });
+      expect(redisInstance.del).not.toHaveBeenCalled();
+    });
+  });
 });
