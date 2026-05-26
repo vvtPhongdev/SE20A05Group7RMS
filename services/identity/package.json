@@ -20,6 +20,7 @@
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "bcrypt": "^5.1.1",
     "@wr/contracts": "*",
     "@wr/config": "*",
     "@wr/database": "*"
@@ -28,6 +29,7 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@wr/typescript-config": "*",
+    "@types/bcrypt": "^5.0.2",
     "@types/passport-jwt": "^4.0.1",
     "@types/node": "^22.15.0",
     "typescript": "^5.8.3"

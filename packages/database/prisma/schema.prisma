@@ -3,6 +3,14 @@
 // Reasoning-First Recruitment Management System
 // ──────────────────────────────────────────────────────────────────
 
+// generator erd {
+//   provider = "prisma-erd-generator"
+//   output   = "./erd.svg"
+// }
+
+
+
+
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
@@ -10,7 +18,7 @@ generator client {
 
 datasource db {
   provider   = "postgresql"
-  url        = env("DATABASE_URL")
+  url        = env("DATABASE_URL") 
   extensions = [vector]
 }
 

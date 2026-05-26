@@ -209,10 +209,10 @@ async function main() {
 
   for (const skill of skills) {
     await prisma.skillNode.upsert({
-      where: { canonicalName: skill.canonicalName },
+      where: { name: skill.canonicalName },
       update: {},
       create: {
-        canonicalName: skill.canonicalName,
+        name: skill.canonicalName,
         category: skill.category,
         aliases: skill.aliases,
       },
@@ -222,7 +222,7 @@ async function main() {
 
   // ─── Skill Edges ───────────────────────────────────────────────
   const skillNodes = await prisma.skillNode.findMany();
-  const nodeMap = new Map(skillNodes.map((n) => [n.canonicalName, n.id]));
+  const nodeMap = new Map(skillNodes.map((n) => [n.name, n.id]));
 
   const edges = [
     // IS_A relationships
@@ -263,16 +263,16 @@ async function main() {
 
     await prisma.skillEdge.upsert({
       where: {
-        fromNodeId_toNodeId_relationship: {
-          fromNodeId: fromId,
-          toNodeId: toId,
+        sourceId_targetId_relationship: {
+          sourceId: fromId,
+          targetId: toId,
           relationship: edge.rel,
         },
       },
       update: {},
       create: {
-        fromNodeId: fromId,
-        toNodeId: toId,
+        sourceId: fromId,
+        targetId: toId,
         relationship: edge.rel,
         weight: 1.0,
       },
@@ -298,8 +298,12 @@ async function main() {
   ];
 
   for (let i = 0; i < candidateEmails.length; i++) {
-    const user = createdUsers[candidateEmails[i]];
+    const email = candidateEmails[i];
+    if (!email) continue;
+    const user = createdUsers[email];
+    if (!user) continue;
     const data = profileData[i];
+    if (!data) continue;
 
     await prisma.candidateProfile.upsert({
       where: { userId: user.id },
