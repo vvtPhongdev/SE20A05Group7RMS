@@ -110,7 +110,7 @@ export class IdentityController {
   @Public()
   @ApiOperation({ summary: 'Reset password with token' })
   resetPassword(@Body() body: ResetPasswordDto) {
-    return firstValueFrom(this.identityClient.send('auth.reset-password', body));
+    return firstValueFrom(this.identityClient.send('identity.auth.reset-password', body));
   }
 
   // ─── Users ───────────────────────────────────────────────────────
