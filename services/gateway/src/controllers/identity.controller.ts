@@ -53,6 +53,11 @@ export class ResetPasswordDto {
   newPassword!: string;
 }
 
+export class LogoutDto {
+  @ApiProperty({ description: 'Refresh token to invalidate' })
+  refreshToken!: string;
+}
+
 /**
  * Thin proxy controller for Identity service (auth + users).
  * All business logic lives in services/identity.
@@ -85,6 +90,13 @@ export class IdentityController {
   @ApiOperation({ summary: 'Refresh JWT token' })
   refresh(@Body() body: RefreshTokenDto) {
     return firstValueFrom(this.identityClient.send('identity.auth.refresh', body));
+  }
+
+  @Post('auth/logout')
+  @Public()
+  @ApiOperation({ summary: 'Logout and revoke refresh token' })
+  logout(@Body() body: LogoutDto) {
+    return firstValueFrom(this.identityClient.send('identity.auth.logout', body));
   }
 
   @Post('auth/forgot-password')
