@@ -11,6 +11,12 @@ describe('AuthController - Login Message Pattern', () => {
     accessToken: 'mock-access-token',
     refreshToken: 'mock-refresh-token',
     expiresIn: 3600,
+    user: {
+      id: 'uuid-1234',
+      email: 'test@example.com',
+      displayName: 'Test User',
+      role: 'CANDIDATE',
+    },
   };
 
   beforeEach(async () => {

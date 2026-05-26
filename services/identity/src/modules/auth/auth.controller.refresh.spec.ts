@@ -11,6 +11,12 @@ describe('AuthController - Refresh Message Pattern', () => {
     accessToken: 'new-access-token',
     refreshToken: 'new-refresh-token',
     expiresIn: 3600,
+    user: {
+      id: 'uuid-1234',
+      email: 'test@example.com',
+      displayName: 'Test User',
+      role: 'CANDIDATE',
+    },
   };
 
   beforeEach(async () => {
@@ -180,9 +186,10 @@ describe('AuthController - Refresh Message Pattern', () => {
       const results = await Promise.allSettled(payloads.map((p) => controller.refresh(p)));
 
       // Assert
-      expect(results[0].status).toBe('fulfilled');
-      expect(results[1].status).toBe('rejected');
-      expect(results[2].status).toBe('fulfilled');
+      const [res1, res2, res3] = results as [PromiseFulfilledResult<any>, PromiseRejectedResult, PromiseFulfilledResult<any>];
+      expect(res1.status).toBe('fulfilled');
+      expect(res2.status).toBe('rejected');
+      expect(res3.status).toBe('fulfilled');
     });
   });
 
@@ -259,12 +266,14 @@ describe('AuthController - Refresh Message Pattern', () => {
         accessToken: 'first-access-token',
         refreshToken: 'first-refresh-token',
         expiresIn: 3600,
+        user: { id: 'uuid-1', email: 'user1@test.com', displayName: 'User One', role: 'CANDIDATE' },
       };
 
       const secondResponse: AuthTokenResponse = {
         accessToken: 'second-access-token',
         refreshToken: 'second-refresh-token',
         expiresIn: 3600,
+        user: { id: 'uuid-2', email: 'user2@test.com', displayName: 'User Two', role: 'CANDIDATE' },
       };
 
       jest
@@ -300,7 +309,7 @@ describe('AuthController - Refresh Message Pattern', () => {
       jest.spyOn(authService, 'refresh').mockResolvedValueOnce(mockAuthTokenResponse);
 
       // Act
-      const loginResult = await controller.refresh(refreshPayload);
+      const loginResult = await controller.login(loginPayload);
       const refreshResult = await controller.refresh(refreshPayload);
 
       // Assert

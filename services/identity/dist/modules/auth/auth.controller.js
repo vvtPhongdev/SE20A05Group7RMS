@@ -24,6 +24,15 @@ let AuthController = class AuthController {
     async register(data) {
         return this.service.register(data);
     }
+    async login(data) {
+        return this.service.login(data);
+    }
+    async refresh(data) {
+        return this.service.refresh(data);
+    }
+    async forgotPassword(data) {
+        return this.service.forgotPassword(data);
+    }
 };
 exports.AuthController = AuthController;
 __decorate([
@@ -33,6 +42,27 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "register", null);
+__decorate([
+    (0, microservices_1.MessagePattern)('auth.login'),
+    __param(0, (0, microservices_1.Payload)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "login", null);
+__decorate([
+    (0, microservices_1.MessagePattern)('identity.auth.refresh'),
+    __param(0, (0, microservices_1.Payload)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "refresh", null);
+__decorate([
+    (0, microservices_1.MessagePattern)('identity.auth.forgot-password'),
+    __param(0, (0, microservices_1.Payload)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "forgotPassword", null);
 exports.AuthController = AuthController = __decorate([
     (0, common_1.Controller)(),
     __metadata("design:paramtypes", [auth_service_1.AuthService])

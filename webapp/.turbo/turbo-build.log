@@ -10,4 +10,4 @@ computing gzip size...
 [2mdist/[22m[32mindex.html                 [39m[1m[2m  0.76 kB[22m[1m[22m[2m │ gzip:  0.41 kB[22m
 [2mdist/[22m[35massets/index-CN-5rrUf.css  [39m[1m[2m  5.95 kB[22m[1m[22m[2m │ gzip:  2.04 kB[22m
 [2mdist/[22m[36massets/index-BkNJPNqZ.js   [39m[1m[2m231.69 kB[22m[1m[22m[2m │ gzip: 74.07 kB[22m
-[32m✓ built in 1.78s[39m
+[32m✓ built in 2.15s[39m

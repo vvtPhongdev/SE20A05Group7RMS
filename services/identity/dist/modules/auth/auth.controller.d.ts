@@ -13,5 +13,30 @@ export declare class AuthController {
         accessToken: string;
         expiresIn: number;
     }>;
+    login(data: any): Promise<{
+        user: {
+            id: string;
+            email: string;
+            displayName: string;
+            role: string;
+        };
+        refreshToken: string;
+        accessToken: string;
+        expiresIn: number;
+    }>;
+    refresh(data: any): Promise<{
+        user: {
+            id: string;
+            email: string;
+            displayName: string;
+            role: string;
+        };
+        refreshToken: string;
+        accessToken: string;
+        expiresIn: number;
+    }>;
+    forgotPassword(data: any): Promise<{
+        success: boolean;
+    }>;
 }
 //# sourceMappingURL=auth.controller.d.ts.map

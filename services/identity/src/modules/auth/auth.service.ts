@@ -2,14 +2,11 @@ import { Injectable, HttpStatus, OnModuleDestroy } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../common/database/prisma.service';
-<<<<<<< HEAD
-import { RegisterUserSchema, RegisterUserInput, AuthTokenResponse, LoginSchema, LoginInput, RefreshTokenSchema } from '@wr/contracts';
-=======
-import { RegisterUserSchema, RegisterUserInput, AuthTokenResponse, LoginSchema, LoginInput } from '@wr/contracts';
->>>>>>> 6b3ef18c554ad388ebedb3c2b539448949d26d68
+import { RegisterUserSchema, RegisterUserInput, AuthTokenResponse, LoginSchema, LoginInput, RefreshTokenSchema, ForgotPasswordSchema } from '@wr/contracts';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import IORedis from 'ioredis';
+import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class AuthService implements OnModuleDestroy {
@@ -154,8 +151,6 @@ export class AuthService implements OnModuleDestroy {
       },
     };
   }
-<<<<<<< HEAD
-
   /**
    * Refresh an existing refresh token and rotate to a new pair.
    */
@@ -226,6 +221,93 @@ export class AuthService implements OnModuleDestroy {
       },
     };
   }
-=======
->>>>>>> 6b3ef18c554ad388ebedb3c2b539448949d26d68
+
+  /**
+   * Generates a 6-digit code for password reset, stores it in Redis (15-min TTL), and sends via SMTP.
+   * Rates limits: max 5 requests per 15 min per email.
+   * If email does not exist, returns success immediately (prevents email harvesting).
+   */
+  async forgotPassword(dto: { email: string }): Promise<{ success: boolean }> {
+    // 1. Validate payload
+    const parsed = ForgotPasswordSchema.parse(dto);
+    const email = parsed.email.toLowerCase();
+
+    // 2. Rate limiting (max 5 requests per 15 min per email)
+    const rateLimitKey = `forgot-limit:${email}`;
+    const requests = await this.redis.get(rateLimitKey);
+    const requestCount = requests ? parseInt(requests, 10) : 0;
+
+    if (requestCount >= 5) {
+      throw new RpcException({
+        status: HttpStatus.TOO_MANY_REQUESTS,
+        message: 'Too many password reset requests. Please try again later.',
+      });
+    }
+
+    // Increment request count in Redis
+    if (requestCount === 0) {
+      await this.redis.set(rateLimitKey, 1, 'EX', 900); // 15 min TTL = 900s
+    } else {
+      await this.redis.incr(rateLimitKey);
+    }
+
+    // 3. Verify user exists
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+    if (!user) {
+      // Non-existent email returns success (no email leak)
+      return { success: true };
+    }
+
+    // 4. Generate 6-digit code
+    const code = crypto.randomInt(100000, 1000000).toString();
+
+    // 5. Store code in Redis with 15-min TTL
+    const redisKey = `reset:${email}`;
+    await this.redis.set(redisKey, code, 'EX', 900);
+
+    // 6. Send verification code via SMTP (nodemailer)
+    const host = process.env.SMTP_HOST || 'localhost';
+    const port = parseInt(process.env.SMTP_PORT || '1025', 10);
+    const userAuth = process.env.SMTP_USER || '';
+    const passAuth = process.env.SMTP_PASS || '';
+    const from = process.env.SMTP_FROM || '"Works Reruiter" <noreply@worksreruiter.com>';
+
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: userAuth && passAuth ? { user: userAuth, pass: passAuth } : undefined,
+    });
+
+    const mailOptions = {
+      from,
+      to: email,
+      subject: 'Works Reruiter — Password Reset Verification Code',
+      text: `Your password reset verification code is: ${code}. This code is valid for 15 minutes.`,
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; line-height: 1.6;">
+          <h2>Password Reset Request</h2>
+          <p>We received a request to reset your password. Use the following 6-digit verification code to proceed:</p>
+          <div style="font-size: 24px; font-weight: bold; background-color: #f3f4f6; padding: 10px 20px; display: inline-block; letter-spacing: 2px; margin: 10px 0;">
+            ${code}
+          </div>
+          <p>This code is valid for <strong>15 minutes</strong>. If you did not request a password reset, please ignore this email.</p>
+        </div>
+      `,
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+    } catch (err: any) {
+      console.error(`Failed to send email to ${email}:`, err.message);
+      throw new RpcException({
+        status: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Failed to send verification email. Please try again later.',
+      });
+    }
+
+    return { success: true };
+  }
 }

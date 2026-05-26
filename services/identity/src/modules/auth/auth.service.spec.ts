@@ -5,10 +5,8 @@ import { HttpStatus } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../../common/database/prisma.service';
 import * as bcrypt from 'bcrypt';
-<<<<<<< HEAD
 import * as crypto from 'crypto';
-=======
->>>>>>> 6b3ef18c554ad388ebedb3c2b539448949d26d68
+import * as nodemailer from 'nodemailer';
 
 // Mock bcrypt
 jest.mock('bcrypt', () => ({
@@ -16,16 +14,23 @@ jest.mock('bcrypt', () => ({
   compare: jest.fn(),
 }));
 
+// Mock nodemailer
+jest.mock('nodemailer', () => {
+  const sendMail = jest.fn().mockResolvedValue({ messageId: 'mock-message-id' });
+  return {
+    createTransport: jest.fn().mockReturnValue({
+      sendMail,
+    }),
+  };
+});
+
 // Mock IORedis
 jest.mock('ioredis', () => {
   return jest.fn().mockImplementation(() => {
     return {
       set: jest.fn().mockResolvedValue('OK'),
-<<<<<<< HEAD
       get: jest.fn().mockResolvedValue(null),
       del: jest.fn().mockResolvedValue(1),
-=======
->>>>>>> 6b3ef18c554ad388ebedb3c2b539448949d26d68
       quit: jest.fn().mockResolvedValue('OK'),
     };
   });
@@ -219,8 +224,6 @@ describe('AuthService', () => {
       expect(bcrypt.compare).toHaveBeenCalledWith(dto.password, user.passwordHash);
     });
   });
-<<<<<<< HEAD
-
   describe('refresh', () => {
     const refreshToken = 'refresh-token-123';
     const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
@@ -236,6 +239,7 @@ describe('AuthService', () => {
       };
 
       mockPrismaService.user.findUnique.mockResolvedValueOnce(user);
+      mockPrismaService.organizationMember.findFirst.mockResolvedValueOnce(null);
       const redisInstance = (service as any).redis;
       redisInstance.get.mockResolvedValueOnce(user.id);
       redisInstance.del.mockResolvedValueOnce(1);
@@ -295,6 +299,72 @@ describe('AuthService', () => {
       expect(redisInstance.del).toHaveBeenCalledWith(redisKey);
     });
   });
-=======
->>>>>>> 6b3ef18c554ad388ebedb3c2b539448949d26d68
+
+  describe('forgotPassword', () => {
+    const email = 'test@example.com';
+    const rateLimitKey = `forgot-limit:${email}`;
+    const redisKey = `reset:${email}`;
+
+    it('should successfully generate code, store in Redis, and send email', async () => {
+      const user = {
+        id: 'uuid-1234',
+        email,
+      };
+
+      mockPrismaService.user.findUnique.mockResolvedValueOnce(user);
+      const redisInstance = (service as any).redis;
+      redisInstance.get.mockResolvedValueOnce(null); // No previous attempts
+      redisInstance.set.mockResolvedValueOnce('OK'); // Rate limit set
+      redisInstance.set.mockResolvedValueOnce('OK'); // Reset code set
+
+      const mockSendMail = (nodemailer.createTransport() as any).sendMail;
+      mockSendMail.mockClear();
+
+      const result = await service.forgotPassword({ email });
+
+      expect(result).toEqual({ success: true });
+      expect(redisInstance.get).toHaveBeenCalledWith(rateLimitKey);
+      expect(redisInstance.set).toHaveBeenCalledWith(rateLimitKey, 1, 'EX', 900);
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { email } });
+      expect(redisInstance.set).toHaveBeenCalledWith(
+        redisKey,
+        expect.stringMatching(/^\d{6}$/),
+        'EX',
+        900,
+      );
+      expect(mockSendMail).toHaveBeenCalled();
+    });
+
+    it('should return success immediately without generating code or email if user does not exist', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValueOnce(null);
+      const redisInstance = (service as any).redis;
+      redisInstance.get.mockResolvedValueOnce(null);
+      redisInstance.set.mockResolvedValueOnce('OK');
+
+      const mockSendMail = (nodemailer.createTransport() as any).sendMail;
+      mockSendMail.mockClear();
+
+      const result = await service.forgotPassword({ email });
+
+      expect(result).toEqual({ success: true });
+      expect(redisInstance.set).toHaveBeenCalledWith(rateLimitKey, 1, 'EX', 900);
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { email } });
+      expect(redisInstance.set).not.toHaveBeenCalledWith(redisKey, expect.any(String), 'EX', 900);
+      expect(mockSendMail).not.toHaveBeenCalled();
+    });
+
+    it('should throw TooManyRequests RpcException if email has reached the rate limit', async () => {
+      const redisInstance = (service as any).redis;
+      redisInstance.get.mockResolvedValueOnce('5'); // 5 attempts already made
+
+      await expect(service.forgotPassword({ email })).rejects.toThrow(
+        new RpcException({
+          status: HttpStatus.TOO_MANY_REQUESTS,
+          message: 'Too many password reset requests. Please try again later.',
+        }),
+      );
+
+      expect(redisInstance.get).toHaveBeenCalledWith(rateLimitKey);
+    });
+  });
 });
