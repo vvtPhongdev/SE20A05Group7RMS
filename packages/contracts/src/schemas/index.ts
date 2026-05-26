@@ -196,6 +196,8 @@ export const ResetPasswordSchema = z.object({
   newPassword: z.string().min(8).max(128),
 });
 
+export type ResetPasswordInput = z.infer<typeof ResetPasswordSchema>;
+
 export const AuthTokenResponseSchema = z.object({
   accessToken: z.string(),
   refreshToken: z.string(),

@@ -24,4 +24,9 @@ export class AuthController {
   async forgotPassword(@Payload() data: any) {
     return this.service.forgotPassword(data);
   }
+
+  @MessagePattern('identity.auth.reset-password')
+  async resetPassword(@Payload() data: any) {
+    return this.service.resetPassword(data);
+  }
 }
