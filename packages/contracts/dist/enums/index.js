@@ -28,6 +28,20 @@ export var ApprovalLevel;
     ApprovalLevel["LEVEL_2"] = "LEVEL_2";
     ApprovalLevel["LEVEL_3"] = "LEVEL_3";
 })(ApprovalLevel || (ApprovalLevel = {}));
+export var HiringRequestPriority;
+(function (HiringRequestPriority) {
+    HiringRequestPriority["LOW"] = "LOW";
+    HiringRequestPriority["NORMAL"] = "NORMAL";
+    HiringRequestPriority["HIGH"] = "HIGH";
+    HiringRequestPriority["URGENT"] = "URGENT";
+})(HiringRequestPriority || (HiringRequestPriority = {}));
+export var ApprovalDecision;
+(function (ApprovalDecision) {
+    ApprovalDecision["PENDING"] = "PENDING";
+    ApprovalDecision["APPROVED"] = "APPROVED";
+    ApprovalDecision["REJECTED"] = "REJECTED";
+    ApprovalDecision["REVISION_REQUESTED"] = "REVISION_REQUESTED";
+})(ApprovalDecision || (ApprovalDecision = {}));
 export var RecruitmentStatus;
 (function (RecruitmentStatus) {
     RecruitmentStatus["OPEN"] = "OPEN";

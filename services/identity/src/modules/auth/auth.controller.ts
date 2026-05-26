@@ -1,14 +1,13 @@
-import { Controller, Get } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { Controller } from '@nestjs/common';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 import { AuthService } from './auth.service';
 
-@ApiTags('auth')
-@Controller('auth')
+@Controller()
 export class AuthController {
   constructor(private readonly service: AuthService) {}
 
-  @Get()
-  findAll() {
-    return this.service.findAll();
+  @MessagePattern('auth.register')
+  async register(@Payload() data: any) {
+    return this.service.register(data);
   }
 }

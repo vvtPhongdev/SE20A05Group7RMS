@@ -1,8 +1,11 @@
-import { NestFactory } from '@nestjs/core';
+import { NestFactory, Reflector } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { GatewayModule } from './gateway.module';
 import { SERVICE_PORTS } from './constants';
+import { JwtAuthGuard } from './auth/decorators/guard/jwt-auth.guard';
+import { RolesGuard } from './auth/decorators/guard/roles.guard';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(GatewayModule);
@@ -16,6 +19,9 @@ async function bootstrap() {
     credentials: true,
   });
 
+  // Global filters
+  app.useGlobalFilters(new AllExceptionsFilter());
+
   // Validation pipes
   app.useGlobalPipes(
     new ValidationPipe({
@@ -24,6 +30,12 @@ async function bootstrap() {
       transform: true,
       transformOptions: { enableImplicitConversion: true },
     }),
+  );
+
+  const reflector = app.get(Reflector);
+  app.useGlobalGuards(
+    new JwtAuthGuard(reflector), // Chạy trước để xác thực danh tính
+    new RolesGuard(reflector)    // Chạy sau để phân quyền dựa trên danh tính đã xác thực
   );
 
   // Swagger / OpenAPI

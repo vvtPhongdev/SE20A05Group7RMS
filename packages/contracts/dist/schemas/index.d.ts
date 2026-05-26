@@ -414,4 +414,462 @@ export declare const TalentSearchResultSchema: z.ZodObject<{
     headline?: string | undefined;
 }>;
 export type TalentSearchResult = z.infer<typeof TalentSearchResultSchema>;
+export declare const RegisterUserSchema: z.ZodObject<{
+    email: z.ZodString;
+    displayName: z.ZodString;
+    password: z.ZodString;
+    role: z.ZodEnum<["CANDIDATE", "RECRUITER", "HIRING_MANAGER", "DEPARTMENT_HEAD", "ADMIN"]>;
+}, "strip", z.ZodTypeAny, {
+    email: string;
+    displayName: string;
+    role: "CANDIDATE" | "RECRUITER" | "HIRING_MANAGER" | "DEPARTMENT_HEAD" | "ADMIN";
+    password: string;
+}, {
+    email: string;
+    displayName: string;
+    role: "CANDIDATE" | "RECRUITER" | "HIRING_MANAGER" | "DEPARTMENT_HEAD" | "ADMIN";
+    password: string;
+}>;
+export type RegisterUserInput = z.infer<typeof RegisterUserSchema>;
+export declare const LoginSchema: z.ZodObject<{
+    email: z.ZodString;
+    password: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    email: string;
+    password: string;
+}, {
+    email: string;
+    password: string;
+}>;
+export type LoginInput = z.infer<typeof LoginSchema>;
+export declare const RefreshTokenSchema: z.ZodObject<{
+    refreshToken: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    refreshToken: string;
+}, {
+    refreshToken: string;
+}>;
+export declare const ForgotPasswordSchema: z.ZodObject<{
+    email: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    email: string;
+}, {
+    email: string;
+}>;
+export declare const ResetPasswordSchema: z.ZodObject<{
+    email: z.ZodString;
+    code: z.ZodString;
+    newPassword: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    code: string;
+    email: string;
+    newPassword: string;
+}, {
+    code: string;
+    email: string;
+    newPassword: string;
+}>;
+export declare const AuthTokenResponseSchema: z.ZodObject<{
+    accessToken: z.ZodString;
+    refreshToken: z.ZodString;
+    expiresIn: z.ZodNumber;
+    user: z.ZodObject<{
+        id: z.ZodString;
+        email: z.ZodString;
+        displayName: z.ZodString;
+        role: z.ZodString;
+    }, "strip", z.ZodTypeAny, {
+        email: string;
+        displayName: string;
+        role: string;
+        id: string;
+    }, {
+        email: string;
+        displayName: string;
+        role: string;
+        id: string;
+    }>;
+}, "strip", z.ZodTypeAny, {
+    refreshToken: string;
+    accessToken: string;
+    expiresIn: number;
+    user: {
+        email: string;
+        displayName: string;
+        role: string;
+        id: string;
+    };
+}, {
+    refreshToken: string;
+    accessToken: string;
+    expiresIn: number;
+    user: {
+        email: string;
+        displayName: string;
+        role: string;
+        id: string;
+    };
+}>;
+export type AuthTokenResponse = z.infer<typeof AuthTokenResponseSchema>;
+export declare const CreateOrganizationSchema: z.ZodObject<{
+    name: z.ZodString;
+    slug: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    name: string;
+    slug: string;
+}, {
+    name: string;
+    slug: string;
+}>;
+export type CreateOrganizationInput = z.infer<typeof CreateOrganizationSchema>;
+export declare const AddOrganizationMemberSchema: z.ZodObject<{
+    userId: z.ZodString;
+    memberRole: z.ZodEnum<["OWNER", "ADMIN", "MEMBER"]>;
+}, "strip", z.ZodTypeAny, {
+    userId: string;
+    memberRole: "ADMIN" | "OWNER" | "MEMBER";
+}, {
+    userId: string;
+    memberRole: "ADMIN" | "OWNER" | "MEMBER";
+}>;
+export declare const CreateDepartmentSchema: z.ZodObject<{
+    name: z.ZodString;
+    code: z.ZodString;
+    headUserId: z.ZodOptional<z.ZodString>;
+    parentId: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    code: string;
+    name: string;
+    headUserId?: string | undefined;
+    parentId?: string | undefined;
+}, {
+    code: string;
+    name: string;
+    headUserId?: string | undefined;
+    parentId?: string | undefined;
+}>;
+export type CreateDepartmentInput = z.infer<typeof CreateDepartmentSchema>;
+export declare const UpdateDepartmentSchema: z.ZodObject<{
+    name: z.ZodOptional<z.ZodString>;
+    code: z.ZodOptional<z.ZodString>;
+    headUserId: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    parentId: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+}, "strip", z.ZodTypeAny, {
+    code?: string | undefined;
+    name?: string | undefined;
+    headUserId?: string | undefined;
+    parentId?: string | undefined;
+}, {
+    code?: string | undefined;
+    name?: string | undefined;
+    headUserId?: string | undefined;
+    parentId?: string | undefined;
+}>;
+export declare const CreateApprovalChainSchema: z.ZodObject<{
+    name: z.ZodString;
+    departmentId: z.ZodOptional<z.ZodString>;
+    isDefault: z.ZodOptional<z.ZodBoolean>;
+    levels: z.ZodArray<z.ZodObject<{
+        level: z.ZodNumber;
+        approverUserId: z.ZodString;
+        role: z.ZodEnum<["LEVEL_1", "LEVEL_2", "LEVEL_3"]>;
+    }, "strip", z.ZodTypeAny, {
+        role: "LEVEL_1" | "LEVEL_2" | "LEVEL_3";
+        level: number;
+        approverUserId: string;
+    }, {
+        role: "LEVEL_1" | "LEVEL_2" | "LEVEL_3";
+        level: number;
+        approverUserId: string;
+    }>, "many">;
+}, "strip", z.ZodTypeAny, {
+    name: string;
+    levels: {
+        role: "LEVEL_1" | "LEVEL_2" | "LEVEL_3";
+        level: number;
+        approverUserId: string;
+    }[];
+    departmentId?: string | undefined;
+    isDefault?: boolean | undefined;
+}, {
+    name: string;
+    levels: {
+        role: "LEVEL_1" | "LEVEL_2" | "LEVEL_3";
+        level: number;
+        approverUserId: string;
+    }[];
+    departmentId?: string | undefined;
+    isDefault?: boolean | undefined;
+}>;
+export type CreateApprovalChainInput = z.infer<typeof CreateApprovalChainSchema>;
+export declare const CreateHiringRequestSchema: z.ZodObject<{
+    departmentId: z.ZodString;
+    title: z.ZodString;
+    description: z.ZodOptional<z.ZodString>;
+    justification: z.ZodOptional<z.ZodString>;
+    headcount: z.ZodDefault<z.ZodNumber>;
+    priority: z.ZodDefault<z.ZodEnum<["LOW", "NORMAL", "HIGH", "URGENT"]>>;
+    workMode: z.ZodOptional<z.ZodNativeEnum<typeof WorkMode>>;
+    location: z.ZodOptional<z.ZodString>;
+    budgetRange: z.ZodOptional<z.ZodObject<{
+        min: z.ZodNumber;
+        max: z.ZodNumber;
+        currency: z.ZodString;
+    }, "strip", z.ZodTypeAny, {
+        min: number;
+        max: number;
+        currency: string;
+    }, {
+        min: number;
+        max: number;
+        currency: string;
+    }>>;
+    targetStartDate: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    title: string;
+    departmentId: string;
+    headcount: number;
+    priority: "LOW" | "NORMAL" | "HIGH" | "URGENT";
+    workMode?: WorkMode | undefined;
+    location?: string | undefined;
+    description?: string | undefined;
+    justification?: string | undefined;
+    budgetRange?: {
+        min: number;
+        max: number;
+        currency: string;
+    } | undefined;
+    targetStartDate?: string | undefined;
+}, {
+    title: string;
+    departmentId: string;
+    workMode?: WorkMode | undefined;
+    location?: string | undefined;
+    description?: string | undefined;
+    justification?: string | undefined;
+    headcount?: number | undefined;
+    priority?: "LOW" | "NORMAL" | "HIGH" | "URGENT" | undefined;
+    budgetRange?: {
+        min: number;
+        max: number;
+        currency: string;
+    } | undefined;
+    targetStartDate?: string | undefined;
+}>;
+export type CreateHiringRequestInput = z.infer<typeof CreateHiringRequestSchema>;
+export declare const UpdateHiringRequestSchema: z.ZodObject<{
+    departmentId: z.ZodOptional<z.ZodString>;
+    title: z.ZodOptional<z.ZodString>;
+    description: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    justification: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    headcount: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    priority: z.ZodOptional<z.ZodDefault<z.ZodEnum<["LOW", "NORMAL", "HIGH", "URGENT"]>>>;
+    workMode: z.ZodOptional<z.ZodOptional<z.ZodNativeEnum<typeof WorkMode>>>;
+    location: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+    budgetRange: z.ZodOptional<z.ZodOptional<z.ZodObject<{
+        min: z.ZodNumber;
+        max: z.ZodNumber;
+        currency: z.ZodString;
+    }, "strip", z.ZodTypeAny, {
+        min: number;
+        max: number;
+        currency: string;
+    }, {
+        min: number;
+        max: number;
+        currency: string;
+    }>>>;
+    targetStartDate: z.ZodOptional<z.ZodOptional<z.ZodString>>;
+}, "strip", z.ZodTypeAny, {
+    title?: string | undefined;
+    workMode?: WorkMode | undefined;
+    location?: string | undefined;
+    description?: string | undefined;
+    departmentId?: string | undefined;
+    justification?: string | undefined;
+    headcount?: number | undefined;
+    priority?: "LOW" | "NORMAL" | "HIGH" | "URGENT" | undefined;
+    budgetRange?: {
+        min: number;
+        max: number;
+        currency: string;
+    } | undefined;
+    targetStartDate?: string | undefined;
+}, {
+    title?: string | undefined;
+    workMode?: WorkMode | undefined;
+    location?: string | undefined;
+    description?: string | undefined;
+    departmentId?: string | undefined;
+    justification?: string | undefined;
+    headcount?: number | undefined;
+    priority?: "LOW" | "NORMAL" | "HIGH" | "URGENT" | undefined;
+    budgetRange?: {
+        min: number;
+        max: number;
+        currency: string;
+    } | undefined;
+    targetStartDate?: string | undefined;
+}>;
+export declare const SubmitHiringRequestSchema: z.ZodObject<{
+    id: z.ZodString;
+}, "strip", z.ZodTypeAny, {
+    id: string;
+}, {
+    id: string;
+}>;
+export declare const ApproveRejectRequestSchema: z.ZodObject<{
+    decision: z.ZodEnum<["APPROVED", "REJECTED", "REVISION_REQUESTED"]>;
+    comments: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    decision: "APPROVED" | "REJECTED" | "REVISION_REQUESTED";
+    comments?: string | undefined;
+}, {
+    decision: "APPROVED" | "REJECTED" | "REVISION_REQUESTED";
+    comments?: string | undefined;
+}>;
+export type ApproveRejectRequestInput = z.infer<typeof ApproveRejectRequestSchema>;
+export declare const CreateInviteSchema: z.ZodObject<{
+    roleId: z.ZodString;
+    candidateId: z.ZodString;
+    message: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    roleId: string;
+    candidateId: string;
+    message?: string | undefined;
+}, {
+    roleId: string;
+    candidateId: string;
+    message?: string | undefined;
+}>;
+export type CreateInviteInput = z.infer<typeof CreateInviteSchema>;
+export declare const RespondToInviteSchema: z.ZodObject<{
+    decision: z.ZodEnum<["ACCEPTED", "DECLINED"]>;
+}, "strip", z.ZodTypeAny, {
+    decision: "ACCEPTED" | "DECLINED";
+}, {
+    decision: "ACCEPTED" | "DECLINED";
+}>;
+export declare const CreateReviewerFeedbackSchema: z.ZodObject<{
+    evaluationRunId: z.ZodString;
+    sectionTag: z.ZodString;
+    comment: z.ZodString;
+    isChallenge: z.ZodDefault<z.ZodBoolean>;
+}, "strip", z.ZodTypeAny, {
+    evaluationRunId: string;
+    sectionTag: string;
+    comment: string;
+    isChallenge: boolean;
+}, {
+    evaluationRunId: string;
+    sectionTag: string;
+    comment: string;
+    isChallenge?: boolean | undefined;
+}>;
+export type CreateReviewerFeedbackInput = z.infer<typeof CreateReviewerFeedbackSchema>;
+export declare const ExplanationBoxSchema: z.ZodObject<{
+    evaluationRunId: z.ZodString;
+    headline: z.ZodString;
+    sections: z.ZodArray<z.ZodObject<{
+        title: z.ZodString;
+        body: z.ZodString;
+        evidenceIds: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    }, "strip", z.ZodTypeAny, {
+        title: string;
+        body: string;
+        evidenceIds?: string[] | undefined;
+    }, {
+        title: string;
+        body: string;
+        evidenceIds?: string[] | undefined;
+    }>, "many">;
+    confidence: z.ZodNumber;
+}, "strip", z.ZodTypeAny, {
+    headline: string;
+    evaluationRunId: string;
+    confidence: number;
+    sections: {
+        title: string;
+        body: string;
+        evidenceIds?: string[] | undefined;
+    }[];
+}, {
+    headline: string;
+    evaluationRunId: string;
+    confidence: number;
+    sections: {
+        title: string;
+        body: string;
+        evidenceIds?: string[] | undefined;
+    }[];
+}>;
+export type ExplanationBox = z.infer<typeof ExplanationBoxSchema>;
+export declare const InterviewFocusItemSchema: z.ZodObject<{
+    evaluationRunId: z.ZodString;
+    topic: z.ZodString;
+    rationale: z.ZodString;
+    suggestedQuestions: z.ZodArray<z.ZodString, "many">;
+    linkedGapId: z.ZodOptional<z.ZodString>;
+    linkedEvidenceIds: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    priority: z.ZodEnum<["HIGH", "MEDIUM", "LOW"]>;
+}, "strip", z.ZodTypeAny, {
+    evaluationRunId: string;
+    priority: "LOW" | "HIGH" | "MEDIUM";
+    topic: string;
+    rationale: string;
+    suggestedQuestions: string[];
+    linkedGapId?: string | undefined;
+    linkedEvidenceIds?: string[] | undefined;
+}, {
+    evaluationRunId: string;
+    priority: "LOW" | "HIGH" | "MEDIUM";
+    topic: string;
+    rationale: string;
+    suggestedQuestions: string[];
+    linkedGapId?: string | undefined;
+    linkedEvidenceIds?: string[] | undefined;
+}>;
+export type InterviewFocusItem = z.infer<typeof InterviewFocusItemSchema>;
+export declare const GeneratePacketSchema: z.ZodObject<{
+    applicationId: z.ZodString;
+    evaluationRunId: z.ZodString;
+    sections: z.ZodArray<z.ZodEnum<["READINESS", "EVIDENCE", "GAPS", "INTERVIEW_FOCUS", "EXPLANATION", "REVIEWER_FEEDBACK"]>, "many">;
+}, "strip", z.ZodTypeAny, {
+    evaluationRunId: string;
+    applicationId: string;
+    sections: ("INTERVIEW_FOCUS" | "READINESS" | "EVIDENCE" | "GAPS" | "EXPLANATION" | "REVIEWER_FEEDBACK")[];
+}, {
+    evaluationRunId: string;
+    applicationId: string;
+    sections: ("INTERVIEW_FOCUS" | "READINESS" | "EVIDENCE" | "GAPS" | "EXPLANATION" | "REVIEWER_FEEDBACK")[];
+}>;
+export type GeneratePacketInput = z.infer<typeof GeneratePacketSchema>;
+export declare const SharePacketSchema: z.ZodObject<{
+    packetId: z.ZodString;
+    recipientUserIds: z.ZodArray<z.ZodString, "many">;
+    expiresInHours: z.ZodOptional<z.ZodNumber>;
+}, "strip", z.ZodTypeAny, {
+    packetId: string;
+    recipientUserIds: string[];
+    expiresInHours?: number | undefined;
+}, {
+    packetId: string;
+    recipientUserIds: string[];
+    expiresInHours?: number | undefined;
+}>;
+export type SharePacketInput = z.infer<typeof SharePacketSchema>;
+export declare const SkillNodeSchema: z.ZodObject<{
+    canonicalName: z.ZodString;
+    category: z.ZodEnum<["LANGUAGE", "FRAMEWORK", "LIBRARY", "DATABASE", "CLOUD", "DEVOPS", "PARADIGM", "ROLE", "DOMAIN", "TOOL", "PLATFORM"]>;
+    aliases: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+}, "strip", z.ZodTypeAny, {
+    canonicalName: string;
+    category: "LANGUAGE" | "FRAMEWORK" | "LIBRARY" | "DATABASE" | "CLOUD" | "DEVOPS" | "PARADIGM" | "ROLE" | "DOMAIN" | "TOOL" | "PLATFORM";
+    aliases?: string[] | undefined;
+}, {
+    canonicalName: string;
+    category: "LANGUAGE" | "FRAMEWORK" | "LIBRARY" | "DATABASE" | "CLOUD" | "DEVOPS" | "PARADIGM" | "ROLE" | "DOMAIN" | "TOOL" | "PLATFORM";
+    aliases?: string[] | undefined;
+}>;
+export type SkillNode = z.infer<typeof SkillNodeSchema>;
 //# sourceMappingURL=index.d.ts.map

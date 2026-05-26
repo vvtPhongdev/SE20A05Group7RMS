@@ -23,6 +23,18 @@ export declare enum ApprovalLevel {
     LEVEL_2 = "LEVEL_2",
     LEVEL_3 = "LEVEL_3"
 }
+export declare enum HiringRequestPriority {
+    LOW = "LOW",
+    NORMAL = "NORMAL",
+    HIGH = "HIGH",
+    URGENT = "URGENT"
+}
+export declare enum ApprovalDecision {
+    PENDING = "PENDING",
+    APPROVED = "APPROVED",
+    REJECTED = "REJECTED",
+    REVISION_REQUESTED = "REVISION_REQUESTED"
+}
 export declare enum RecruitmentStatus {
     OPEN = "OPEN",
     PAUSED = "PAUSED",
