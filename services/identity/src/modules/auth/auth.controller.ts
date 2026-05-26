@@ -25,14 +25,13 @@ export class AuthController {
     return this.service.forgotPassword(data);
   }
 
-<<<<<<< HEAD
   @MessagePattern('identity.auth.reset-password')
   async resetPassword(@Payload() data: any) {
     return this.service.resetPassword(data);
-=======
+  }
+
   @MessagePattern('identity.auth.logout')
   async logout(@Payload() data: any) {
     return this.service.logout(data);
->>>>>>> 842c2560097b6dd225a313bc4bd16417a7625132
   }
 }

@@ -312,7 +312,6 @@ export class AuthService implements OnModuleDestroy {
   }
 
   /**
-<<<<<<< HEAD
    * Validate 6-digit code from Redis, hash new password (bcrypt 12 rounds),
    * update User.passwordHash, and delete ALL refresh tokens for user.
    */
@@ -382,7 +381,12 @@ export class AuthService implements OnModuleDestroy {
     } while (scanCursor !== '0');
 
     // 8. Delete the reset code from Redis
-=======
+    await this.redis.del(redisKey);
+
+    return { success: true };
+  }
+
+  /**
    * Logout a user session: revokes the specified refresh token in Redis.
    */
   async logout(dto: { refreshToken: string }): Promise<{ success: boolean }> {
@@ -397,7 +401,6 @@ export class AuthService implements OnModuleDestroy {
     const redisKey = `refresh:${tokenHash}`;
 
     // 2. Delete the refresh token from Redis
->>>>>>> 842c2560097b6dd225a313bc4bd16417a7625132
     await this.redis.del(redisKey);
 
     return { success: true };
