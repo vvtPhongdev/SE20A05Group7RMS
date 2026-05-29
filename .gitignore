@@ -43,3 +43,10 @@ coverage/
 scripts/__pycache__/
 
 /generated/prisma
+
+_bmad**/
+.agents/
+.stitch/
+archive/
+.codex/
+.gemini/

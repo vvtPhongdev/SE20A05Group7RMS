@@ -1,7 +1,7 @@
 # Development Guide — Works Reruiter
 
-**Generated:** 2026-05-20  
-**Scan mode:** Full rescan (quick)
+**Updated:** 2026-05-28  
+**Scan mode:** Full rescan
 
 ---
 
@@ -125,12 +125,12 @@ endOfLine: "lf"
 
 | Entity | Pattern | Example |
 |--------|---------|---------|
-| Files | kebab-case | `talent-search.service.ts` |
-| Classes | PascalCase | `TalentSearchService` |
-| Functions | camelCase | `scoreCandidate()` |
-| Enums | PascalCase / UPPER_SNAKE | `ReadinessLabel.READY_NOW` |
-| DB tables | snake_case (via `@@map`) | `candidate_profiles` |
-| Message patterns | dot.notation | `talent.search` |
+| Files | kebab-case | `recruitment-request.service.ts` |
+| Classes | PascalCase | `RecruitmentRequestService` |
+| Functions | camelCase | `createRequest()` |
+| Enums | PascalCase / UPPER_SNAKE | `UserRole.DEPARTMENT_HEAD` |
+| DB tables | snake_case (via `@@map`) | `recruitment_requests` |
+| Message patterns | dot.notation | `recruiting.create-request` |
 | Packages | `@wr/{name}` | `@wr/contracts` |
 
 ### TypeScript Rules
@@ -156,7 +156,7 @@ endOfLine: "lf"
 3. ❌ Never add HTTP decorators to microservice controllers
 4. ❌ Never import PrismaClient directly — always inject PrismaService
 5. ❌ Never bypass the approval chain
-6. ✅ Always use Tailwind CSS + CSS Variables for styling
+6. ❌ Never use Tailwind CSS — use CSS Variables design system only
 7. ❌ Never create separate databases (ADR-006)
 8. ❌ Never add pgvector columns to Prisma schema — use raw SQL
 9. ❌ Never use SSR/Next.js patterns (ADR-005)

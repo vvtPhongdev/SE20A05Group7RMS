@@ -1,7 +1,8 @@
 # Source Tree Analysis — Works Reruiter
 
-**Generated:** 2026-05-20  
+**Updated:** 2026-05-28  
 **Repository type:** Turborepo monorepo  
+**Scope:** Recruitment Workflow Management System (RMS)  
 **Total TypeScript source files:** ~80+
 
 ---
@@ -20,9 +21,8 @@ works-reruiter/
 │   │       ├── controllers/           # HTTP → TCP proxy layer
 │   │       │   ├── health.controller.ts       # GET /health
 │   │       │   ├── identity.controller.ts     # Auth/User/Org endpoints
-│   │       │   ├── recruiting.controller.ts   # Roles/HiringRequests endpoints
-│   │       │   ├── profiles.controller.ts     # CandidateProfile endpoints
-│   │       │   └── review.controller.ts       # ReviewerFeedback endpoints
+│   │       │   ├── recruiting.controller.ts   # RecruitmentRequest/Plan/Interview endpoints
+│   │       │   └── profiles.controller.ts     # CandidateProfile/CV endpoints
 │   │       └── common/
 │   │           └── database/          # PrismaService (Global)
 │   │
@@ -32,43 +32,39 @@ works-reruiter/
 │   │       ├── identity.module.ts     # Root module
 │   │       └── modules/
 │   │           ├── auth/              # Authentication module (JWT)
-│   │           ├── users/             # User CRUD
+│   │           ├── users/             # User CRUD (4 roles)
 │   │           ├── organizations/     # Organization management
-│   │           ├── departments/       # Department hierarchy
-│   │           └── approval-chains/   # Multi-level approval config
+│   │           └── departments/       # Department hierarchy
 │   │
-│   ├── recruiting/                    # HiringRequests + Roles + Applications (TCP :3011)
+│   ├── recruiting/                    # RecruitmentRequests + Plans + Interviews (TCP :3011)
 │   │   └── src/
 │   │       ├── main.ts
 │   │       ├── recruiting.module.ts
 │   │       └── modules/
-│   │           ├── hiring-requests/   # DRAFT→PENDING→APPROVED→RECRUITING
-│   │           ├── roles/             # Role/JD management
-│   │           ├── applications/      # Candidate applications
-│   │           ├── evaluations/       # Evaluation runs
-│   │           └── talent-search/     # Hybrid search orchestration
+│   │           ├── recruitment-requests/  # 13-state lifecycle (DRAFT → COMPLETED)
+│   │           ├── overall-plans/         # Campaign plan management
+│   │           ├── task-plans/            # Individual task execution
+│   │           ├── interviews/            # Interview scheduling
+│   │           └── interview-results/     # PASS/FAIL recording
 │   │
-│   ├── profiles/                      # Candidate Profiles + Documents (TCP :3012)
+│   ├── profiles/                      # Candidate Profiles + CV Management (TCP :3012)
 │   │   └── src/
 │   │       ├── main.ts
 │   │       ├── profiles.module.ts
 │   │       └── modules/
 │   │           ├── candidate-profiles/ # Profile CRUD
-│   │           ├── cv-documents/       # CV upload + parsing
-│   │           └── evidence/           # Evidence record management
+│   │           ├── cv-documents/       # CV upload + text extraction
+│   │           └── cv-embeddings/      # Vector embedding + semantic search
 │   │
-│   ├── review/                        # Reviewer Feedback + Packets (TCP :3013)
+│   ├── review/                        # [LEGACY — repurposing as Notification service]
 │   │   └── src/
-│   │       ├── main.ts
-│   │       ├── review.module.ts
-│   │       └── modules/
-│   │           ├── feedback/          # Agree/Challenge/Comment
-│   │           └── packets/           # Candidate review packets
+│   │       ├── main.ts                # Will become notification.module.ts
+│   │       └── modules/               # Legacy: feedback/, packets/ → notifications/, email/
 │   │
 │   └── worker/                        # BullMQ Async Job Processor (NOT NestJS)
 │       └── src/
 │           ├── index.ts               # 🚀 Plain TS entry — BullMQ Worker
-│           └── processors/            # Job-specific handlers
+│           └── processors/            # CV text extraction, embedding generation
 │
 ├── packages/                          # ─── Shared Libraries (@wr/*) ───────
 │   ├── contracts/                     # @wr/contracts — SINGLE SOURCE OF TRUTH
@@ -84,19 +80,16 @@ works-reruiter/
 │   │
 │   ├── database/                      # @wr/database — Prisma schema + client
 │   │   └── prisma/
-│   │       └── schema.prisma          # 420 lines — all domain entities
+│   │       └── schema.prisma          # Domain entities (in transition to target schema)
 │   │
 │   ├── queue/                         # @wr/queue — BullMQ job definitions
 │   │   └── src/index.ts
 │   │
-│   ├── ai/                            # @wr/ai — Matching engine (NO DB dep)
+│   ├── ai/                            # @wr/ai — CV parsing utilities + vector search (NO DB dep)
 │   │   └── src/
 │   │       ├── search/
-│   │       │   ├── rule-based/        # Lane 1: Dice + TF-IDF
-│   │       │   ├── vector/            # Lane 2: MiniLM embeddings
-│   │       │   └── fusion/rrf.ts      # RRF result fusion
-│   │       ├── skill-graph/           # In-memory knowledge graph (~200 nodes)
-│   │       └── scoring/               # Readiness labels, gap classification
+│   │       │   └── vector/            # MiniLM embedding generation + cosine similarity
+│   │       └── parsers/               # CV text extraction (PDF/DOCX)
 │   │
 │   ├── ui/                            # @wr/ui — Shared Radix components
 │   │   └── src/index.ts
@@ -119,15 +112,14 @@ works-reruiter/
 │   │   ├── prds/                      # PRD + addendum
 │   │   ├── briefs/                    # Product brief
 │   │   ├── architecture.md            # Technical architecture doc
-│   │   ├── epics.md                   # 5 Epics, 30+ stories
-│   │   ├── ux-design-specification.md
-│   │   └── implementation-readiness-report-2026-05-20.md
+│   │   ├── epics.md                   # Epics and stories
+│   │   └── ux-design-specification.md
 │   ├── implementation-artifacts/
 │   │   ├── sprint-status.yaml         # Sprint tracking
-│   │   └── 1-*.md, 2-*.md            # Story files (Epic 1 + Epic 2)
-│   ├── brainstorming/                 # 3 brainstorming sessions
-│   └── project-context.md            # AI agent context file
+│   │   └── *.md                       # Story files
+│   └── brainstorming/                 # Brainstorming sessions
 │
+├── project-context.md                 # 📋 AI agent context — source of truth
 ├── docker-compose.yml                 # PostgreSQL 16 (pgvector) + Redis 7
 ├── turbo.json                         # Build pipeline config
 ├── tsconfig.base.json                 # Shared TypeScript config
@@ -141,19 +133,19 @@ works-reruiter/
 | Folder | Purpose | Entry Point |
 |--------|---------|-------------|
 | `services/gateway/` | HTTP API — only service with `@Get()`, `@Post()` | `main.ts` |
-| `services/identity/` | Auth, users, orgs, departments, approval chains | `main.ts` (TCP) |
-| `services/recruiting/` | HiringRequests, roles, applications, evaluations | `main.ts` (TCP) |
-| `services/profiles/` | Candidate profiles, CV documents, evidence | `main.ts` (TCP) |
-| `services/review/` | Reviewer feedback, candidate packets | `main.ts` (TCP) |
+| `services/identity/` | Auth, users, orgs, departments | `main.ts` (TCP) |
+| `services/recruiting/` | RecruitmentRequests, plans, interviews, results | `main.ts` (TCP) |
+| `services/profiles/` | Candidate profiles, CV documents, embeddings | `main.ts` (TCP) |
+| `services/review/` | **LEGACY** — being repurposed as Notification service | `main.ts` (TCP) |
 | `services/worker/` | BullMQ job processor (plain TS, NOT NestJS) | `index.ts` |
 | `packages/contracts/` | Enums + Zod schemas — single source of truth | `index.ts` |
-| `packages/database/` | Prisma schema (420 lines) + client | `schema.prisma` |
-| `packages/ai/` | Hybrid search engine — NO database dependency | `index.ts` |
+| `packages/database/` | Prisma schema + client | `schema.prisma` |
+| `packages/ai/` | CV parsing + vector search — NO database dependency | `index.ts` |
 
 ## Integration Points
 
 ```
-webapp ──HTTP──→ gateway ──TCP──→ identity / recruiting / profiles / review
+webapp ──HTTP──→ gateway ──TCP──→ identity / recruiting / profiles / notification
                    │
                    └── BullMQ ──→ worker ──→ PostgreSQL + Redis
 ```

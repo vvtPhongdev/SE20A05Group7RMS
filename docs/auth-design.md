@@ -1,4 +1,4 @@
-# Authentication & Authorization Design — Works Reruiter
+# Authentication & Authorization Design — Recruitment Workflow Management System
 
 **Created:** 2026-05-23
 **Status:** SPECIFICATION (not yet implemented)
@@ -47,9 +47,10 @@
   {
     "sub": "uuid",
     "email": "user@company.com",
-    "displayName": "John Doe",
-    "role": "RECRUITER",
+    "displayName": "Nguyen Van A",
+    "role": "HR_MANAGER",
     "organizationId": "uuid-or-null",
+    "departmentId": "uuid-or-null",
     "iat": 1716500000,
     "exp": 1716503600
   }
@@ -81,7 +82,7 @@ services/identity/src/
 │   │   └── roles.guard.ts      # @Roles() decorator guard
 │   └── decorators/
 │       ├── current-user.ts     # @CurrentUser() param decorator
-│       └── roles.ts            # @Roles('RECRUITER') decorator
+│       └── roles.ts            # @Roles('HR_MANAGER') decorator
 ```
 
 ### 2. Auth Service Logic
@@ -166,20 +167,19 @@ REDIS_URL=redis://localhost:6379
 # Email (for password reset)
 SMTP_HOST=smtp.example.com
 SMTP_PORT=587
-SMTP_USER=noreply@worksreruiter.com
+SMTP_USER=noreply@recruitment-rms.com
 SMTP_PASS=<secret>
 ```
 
 ## Role-Based Access Control (RBAC)
 
-### Role Hierarchy
+### Role Hierarchy (4 Roles)
 
 ```
-ADMIN → full system access, org/dept/user management
-DEPARTMENT_HEAD → create/manage hiring requests for own department
-HIRING_MANAGER → approve/reject hiring requests, review evaluations
-RECRUITER → manage roles, applications, talent search, evaluations
-CANDIDATE → manage own profile, apply, respond to invites
+ADMIN           → Phê duyệt yêu cầu/kế hoạch, quyết định tuyển dụng, báo cáo chiến lược
+DEPARTMENT_HEAD → Tạo/gửi yêu cầu tuyển dụng, theo dõi tiến độ, tham gia phỏng vấn
+HR_MANAGER      → Tiếp nhận yêu cầu, lập kế hoạch, tổ chức tuyển dụng, sàng lọc CV
+CANDIDATE       → Upload CV, nhận thông báo phỏng vấn/kết quả
 ```
 
 ### Guard Application Strategy
@@ -189,9 +189,9 @@ CANDIDATE → manage own profile, apply, respond to invites
 app.useGlobalGuards(new JwtAuthGuard());
 
 // Per-endpoint role restrictions
-@Roles('RECRUITER', 'ADMIN')
-@Post('roles')
-createRole(@Body() dto) { ... }
+@Roles('HR_MANAGER', 'ADMIN')
+@Post('recruitment-requests/:id/forward-to-boss')
+forwardToBoss(@Param('id') id: string) { ... }
 
 // Public endpoints skip JWT guard
 @Public()  // custom decorator + metadata

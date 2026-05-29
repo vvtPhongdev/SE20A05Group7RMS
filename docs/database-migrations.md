@@ -49,18 +49,18 @@ Examples:
 20260523_add_approval_chain_levels
 ```
 
-### Current Model Inventory (26 models)
+### Target Model Inventory (RMS)
 
 | Domain | Models | Status |
 |--------|--------|--------|
-| Identity | User, Organization, OrganizationMember | ✅ Migrated |
-| Enterprise Structure | Department, ApprovalChain, ApprovalChainLevel | ⬜ Pending migration |
-| Enterprise Workflow | HiringRequest, HiringRequestApproval | ⬜ Pending migration |
-| Recruiting | Role, JobCapabilityModel, Application, Invite, EvaluationRun | ✅ Migrated |
-| Profiles | CandidateProfile, CandidateCapabilityModel, Document | ✅ Migrated |
-| Evidence | EvidenceRecord, GapFinding, ExplanationBox, InterviewFocusItem | ✅ Migrated |
-| Review | ReviewerFeedback, CandidatePacket | ✅ Migrated |
-| AI | SkillNode, SkillEdge | ✅ Migrated |
+| Identity | User, Organization, Department | ✅ Core |
+| Workflow | RecruitmentRequest, RequestLog | 🎯 Target |
+| Planning | OverallPlan, TaskPlan | 🎯 Target |
+| Interview | Interview, InterviewResult | 🎯 Target |
+| Profiles | CandidateProfile, CvDocument, CvEmbedding | 🎯 Target |
+| Notification | Notification, EmailLog | 🎯 Target |
+
+> **Note:** All models above are part of the current RMS schema. See `architecture/project-structure-boundaries.md` for the full domain-to-service mapping.
 
 ## Raw SQL Migrations (pgvector)
 
@@ -70,7 +70,7 @@ These are NOT managed by Prisma and must be applied separately.
 ```
 packages/database/migrations/sql/
 ├── 001_enable_pgvector.sql
-├── 002_create_evidence_embeddings.sql
+├── 002_create_cv_embeddings.sql
 └── 003_create_ivfflat_index.sql
 ```
 
@@ -80,16 +80,18 @@ packages/database/migrations/sql/
 CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
-### Migration 002: Evidence Embeddings Table
+### Migration 002: CV Embeddings Table
 ```sql
--- 002_create_evidence_embeddings.sql
-CREATE TABLE IF NOT EXISTS evidence_embeddings (
+-- 002_create_cv_embeddings.sql
+CREATE TABLE IF NOT EXISTS cv_embeddings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  evidence_record_id UUID NOT NULL REFERENCES evidence_records(id) ON DELETE CASCADE,
+  cv_document_id UUID NOT NULL REFERENCES cv_documents(id) ON DELETE CASCADE,
+  chunk_index INTEGER NOT NULL DEFAULT 0,
+  chunk_text TEXT NOT NULL,
   embedding vector(384) NOT NULL,  -- MiniLM-L6-v2 output
   model_version VARCHAR(50) NOT NULL DEFAULT 'all-MiniLM-L6-v2',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CONSTRAINT uq_evidence_embeddings_record UNIQUE (evidence_record_id)
+  CONSTRAINT uq_cv_embeddings_document_chunk UNIQUE (cv_document_id, chunk_index)
 );
 ```
 
@@ -97,8 +99,8 @@ CREATE TABLE IF NOT EXISTS evidence_embeddings (
 ```sql
 -- 003_create_ivfflat_index.sql
 -- Create after >1000 rows for optimal clustering
-CREATE INDEX IF NOT EXISTS idx_evidence_embeddings_vector
-  ON evidence_embeddings
+CREATE INDEX IF NOT EXISTS idx_cv_embeddings_vector
+  ON cv_embeddings
   USING ivfflat (embedding vector_cosine_ops)
   WITH (lists = 100);
 ```
@@ -130,15 +132,11 @@ Seed file: `packages/database/prisma/seed.ts`
 | Organizations | 1 | "Acme Corp" |
 | Departments | 3 | Engineering, Product, Design |
 | Users (ADMIN) | 1 | admin@acme.com |
-| Users (DEPT_HEAD) | 2 | Per department |
-| Users (HIRING_MANAGER) | 2 | Senior managers |
-| Users (RECRUITER) | 2 | HR team |
+| Users (DEPARTMENT_HEAD) | 3 | One per department |
+| Users (HR_MANAGER) | 2 | HR team |
 | Users (CANDIDATE) | 5 | Test candidates |
-| Approval Chains | 1 | Default 2-level chain |
-| Hiring Requests | 3 | DRAFT, PENDING, APPROVED |
-| Roles | 2 | From approved requests |
-| Skill Nodes | ~50 | Core skill taxonomy |
-| Skill Edges | ~40 | Relationships |
+| RecruitmentRequests | 3 | DRAFT, PENDING_HR_REVIEW, APPROVED |
+| OverallPlans | 1 | Linked to an approved request |
 
 ## Environment Variables
 

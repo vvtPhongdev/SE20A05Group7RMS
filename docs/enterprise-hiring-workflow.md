@@ -1,178 +1,190 @@
-# Enterprise Hiring Workflow Design — Works Reruiter
+# Enterprise Hiring Workflow — Detailed Specification
 
-**Created:** 2026-05-23
-**Status:** SPECIFICATION
-**Epic:** Epic 1 — Publish a Scoped Supported Job
-**FRs covered:** FR1, FR2, FR3, FR24, FR27, FR28, FR29, FR30, FR31
+## 1. Tổng Quan Luồng Nghiệp Vụ
+
+Luồng tuyển dụng của hệ thống tuân theo chuỗi phê duyệt nhiều cấp:
+
+```
+Trưởng Phòng Ban → Phòng Tuyển Dụng → Admin/Boss → Phòng Tuyển Dụng triển khai → Kết quả
+```
+
+### Nguyên tắc cốt lõi:
+1. **Không bỏ bước**: Mọi giai đoạn phải hoàn thành trước khi chuyển sang bước tiếp theo
+2. **Kế hoạch phải được duyệt**: Không có hành động tuyển dụng nào ngoài khung kế hoạch đã duyệt
+3. **Lưu vết toàn bộ**: Hệ thống ghi log chi tiết mỗi lần chuyển trạng thái
+4. **Thông báo tức thì**: Mỗi thay đổi trạng thái → notification đến các bên liên quan
 
 ---
 
-## Workflow Overview
+## 2. State Machine: RecruitmentRequest
 
-The Enterprise Hiring Workflow is a multi-step approval process that ensures all recruitment activities are properly authorized before resources are committed. It bridges the gap between organizational need and active recruitment.
+### Trạng thái (States)
 
-```
-┌──────────────┐     Submit     ┌──────────────────┐    Approve    ┌──────────────┐
-│  DEPARTMENT   │──────────────→│  HIRING MANAGER  │─────────────→│ HR RECRUITER │
-│    HEAD       │               │  (Approval Queue) │              │ (Role Setup) │
-│               │  ←── Revise ──│                    │              │              │
-│ Create Hiring │               │ Approve / Reject / │              │ Create Role  │
-│   Request     │               │ Request Revision   │              │ Publish Job  │
-└──────────────┘               └──────────────────┘              └──────────────┘
-```
+| Status | Mô tả | Actor chịu trách nhiệm |
+|--------|--------|------------------------|
+| `DRAFT` | Yêu cầu mới tạo, chưa gửi | Trưởng Phòng Ban |
+| `PENDING_HR_REVIEW` | Đã gửi, chờ Phòng Tuyển Dụng xem xét | Phòng Tuyển Dụng |
+| `PENDING_BOSS_APPROVAL` | Phòng TD đã chuyển lên, chờ Sếp duyệt | Admin/Boss |
+| `APPROVED` | Sếp đã phê duyệt, sẵn sàng lập kế hoạch | Phòng Tuyển Dụng |
+| `REJECTED` | Sếp từ chối yêu cầu (**terminal**) | — |
+| `PLANNING` | Đang lập kế hoạch tuyển dụng | Phòng Tuyển Dụng |
+| `PLAN_PENDING_APPROVAL` | Kế hoạch đã gửi, chờ Sếp duyệt | Admin/Boss |
+| `ACTIVE` | Chiến dịch đang triển khai | Phòng Tuyển Dụng |
+| `INTERVIEWING` | Đang tổ chức phỏng vấn | Phòng Tuyển Dụng |
+| `DECISION_PENDING` | Chờ quyết định tuyển dụng cuối cùng | Admin/Boss |
+| `HIRED` | Đã tuyển → gửi Offer Letter | Phòng Tuyển Dụng |
+| `NOT_HIRED` | Không tuyển → gửi thư từ chối | Phòng Tuyển Dụng |
+| `COMPLETED` | Ứng viên nhận việc, chiến dịch đóng (**terminal**) | — |
 
-## State Machine: HiringRequest
-
-```mermaid
-stateDiagram-v2
-    [*] --> DRAFT: Dept Head creates
-    DRAFT --> PENDING_APPROVAL: Dept Head submits
-    PENDING_APPROVAL --> APPROVED: All levels approve
-    PENDING_APPROVAL --> REJECTED: Any level rejects
-    PENDING_APPROVAL --> REVISION_REQUESTED: Any level requests changes
-    REVISION_REQUESTED --> DRAFT: Dept Head edits and re-saves
-    DRAFT --> DRAFT: Dept Head edits
-    APPROVED --> [*]: HR Recruiter creates Role
-    REJECTED --> [*]: Terminal state
-```
-
-### Valid Transitions
-
-| From | To | Actor | Action |
-|------|----|-------|--------|
-| — | `DRAFT` | DEPT_HEAD | Create request |
-| `DRAFT` | `DRAFT` | DEPT_HEAD | Edit request fields |
-| `DRAFT` | `PENDING_APPROVAL` | DEPT_HEAD | Submit for approval |
-| `PENDING_APPROVAL` | `APPROVED` | HM (last level) | Approve (all levels complete) |
-| `PENDING_APPROVAL` | `REJECTED` | HM (any level) | Reject with reason |
-| `PENDING_APPROVAL` | `REVISION_REQUESTED` | HM (any level) | Request revision with notes |
-| `REVISION_REQUESTED` | `DRAFT` | DEPT_HEAD | Acknowledge and re-edit |
-
-## Multi-Level Approval Algorithm
-
-### How It Works
-
-1. When a HiringRequest is submitted, the system looks up the `ApprovalChain` for the request's department (or org-wide default)
-2. For each `ApprovalChainLevel` (ordered by `level` ASC), a `HiringRequestApproval` record is created with `decision = PENDING`
-3. Only the **current level** approver sees the request in their queue
-4. When level N approves, `currentLevel` increments and level N+1 is activated
-5. If **all levels** approve, the request status transitions to `APPROVED`
-6. If **any level** rejects, the entire request transitions to `REJECTED`
-7. If **any level** requests revision, the request goes to `REVISION_REQUESTED`
-
-### Pseudocode
-
-```typescript
-async submitForApproval(requestId: string, actorId: string) {
-  const request = await findRequest(requestId);
-  assert(request.status === 'DRAFT');
-  assert(request.requestedById === actorId);
-
-  const chain = await findApprovalChain(request.departmentId);
-  assert(chain.levels.length > 0);
-
-  // Create approval records for each level
-  for (const level of chain.levels) {
-    await createApproval({
-      hiringRequestId: request.id,
-      approverUserId: level.approverUserId,
-      level: level.level,
-      decision: 'PENDING',
-    });
-  }
-
-  await updateRequest(request.id, {
-    status: 'PENDING_APPROVAL',
-    currentLevel: 1,
-    submittedAt: new Date(),
-  });
-}
-
-async processDecision(requestId: string, approverId: string, dto: ApproveRejectInput) {
-  const request = await findRequest(requestId);
-  assert(request.status === 'PENDING_APPROVAL');
-
-  const approval = await findApproval(requestId, approverId, request.currentLevel);
-  assert(approval.decision === 'PENDING');
-
-  await updateApproval(approval.id, {
-    decision: dto.decision,
-    comments: dto.comments,
-    decidedAt: new Date(),
-  });
-
-  if (dto.decision === 'APPROVED') {
-    const nextLevel = request.currentLevel + 1;
-    const hasMoreLevels = await existsApproval(requestId, nextLevel);
-
-    if (hasMoreLevels) {
-      await updateRequest(requestId, { currentLevel: nextLevel });
-    } else {
-      await updateRequest(requestId, {
-        status: 'APPROVED',
-        approvedAt: new Date(),
-      });
-    }
-  } else if (dto.decision === 'REJECTED') {
-    await updateRequest(requestId, {
-      status: 'REJECTED',
-      rejectionReason: dto.comments,
-      rejectedAt: new Date(),
-    });
-  } else if (dto.decision === 'REVISION_REQUESTED') {
-    await updateRequest(requestId, {
-      status: 'REVISION_REQUESTED',
-      revisionNotes: dto.comments,
-    });
-  }
-}
-```
-
-## Data Flow: Request → Role → Job
+### Transition Rules
 
 ```
-1. Dept Head creates HiringRequest (DRAFT)
-   └─ Fills: title, description, justification, headcount, priority, workMode, location, budget
+DRAFT → PENDING_HR_REVIEW
+  Khi: Trưởng PB nhấn "Gửi yêu cầu"
+  Validate: Đầy đủ vị trí, số lượng, JD, yêu cầu kỹ năng, lý do tuyển dụng
+  Action: Notification → Phòng Tuyển Dụng
 
-2. Dept Head submits → PENDING_APPROVAL
-   └─ System creates HiringRequestApproval records per chain level
+PENDING_HR_REVIEW → PENDING_BOSS_APPROVAL
+  Khi: Phòng TD review xong, chuyển lên Sếp
+  Action: Notification → Admin/Boss
 
-3. Hiring Manager(s) approve in sequence
-   └─ Level 1 approves → Level 2 activates → ... → APPROVED
+PENDING_BOSS_APPROVAL → APPROVED
+  Khi: Sếp phê duyệt
+  Action: Notification → Phòng TD + Trưởng PB
+  Note: Ghi log approvedBy, approvedAt
 
-4. HR Recruiter creates Role from approved request
-   └─ Role.hiringRequestId = request.id
-   └─ Pre-populates: title, description, workMode, location from request
+PENDING_BOSS_APPROVAL → REJECTED
+  Khi: Sếp từ chối (phải ghi lý do)
+  Action: Notification → Phòng TD + Trưởng PB
+  Note: Terminal state — yêu cầu đóng
 
-5. HR Recruiter opens JD Wizard
-   └─ Pastes/uploads JD text → Document created (type=JD, linked to Role)
-   └─ Worker parses JD → JobCapabilityModel created
+APPROVED → PLANNING
+  Khi: Phòng TD bắt đầu lập kế hoạch
+  Auto-transition: Ngay khi Phòng TD tạo RecruitmentPlan
 
-6. HR Recruiter reviews & edits capabilities
-   └─ Edits hard constraints, preferred vs required skills
+PLANNING → PLAN_PENDING_APPROVAL
+  Khi: Phòng TD gửi kế hoạch chờ Sếp duyệt
+  Validate: Có kế hoạch tổng thể + kế hoạch triển khai đầy đủ
+  Action: Notification → Admin/Boss
 
-7. HR Recruiter publishes Role
-   └─ Role.isActive = true
-   └─ Job appears in Candidate marketplace
+PLAN_PENDING_APPROVAL → ACTIVE
+  Khi: Sếp phê duyệt kế hoạch
+  Action: Unlock recruitment activities
+  Note: Từ đây Phòng TD mới được đăng tin, thu CV, lên lịch PV
+
+PLAN_PENDING_APPROVAL → PLANNING
+  Khi: Sếp yêu cầu chỉnh sửa kế hoạch (có ghi chú)
+  Action: Notification → Phòng TD
+
+ACTIVE → INTERVIEWING
+  Khi: Phòng TD lên lịch phỏng vấn cho ứng viên đầu tiên
+  Action: Gửi thư mời phỏng vấn → Ứng viên + Trưởng PB/Boss
+
+INTERVIEWING → DECISION_PENDING
+  Khi: Phỏng vấn hoàn tất, kết quả được ghi nhận
+  Action: Notification → Admin/Boss chờ quyết định
+
+DECISION_PENDING → HIRED
+  Khi: Boss phê duyệt tuyển dụng
+  Action: Phòng TD gửi Offer Letter (email tự động)
+
+DECISION_PENDING → NOT_HIRED
+  Khi: Boss từ chối tuyển dụng
+  Action: Phòng TD gửi thư từ chối kèm lý do (email tự động)
+
+HIRED → COMPLETED
+  Khi: Ứng viên xác nhận nhận việc, chiến dịch đóng
+
+NOT_HIRED → ACTIVE
+  Khi: Phòng TD tiếp tục tìm ứng viên khác cho vị trí
 ```
 
-## Screen Mapping
+---
 
-| UX Screen | Stitch ID | User Role | Purpose |
-|-----------|-----------|-----------|---------|
-| DH Dashboard | `dh-dashboard` | DEPT_HEAD | Overview + quick actions |
-| Hiring Request Flow | `dh-hiring-request` | DEPT_HEAD | Create/edit/submit requests |
-| HM Dashboard | `hm-dashboard` | HIRING_MANAGER | Overview + approval queue |
-| Approval Dashboard | `hm-approval-dashboard` | HIRING_MANAGER | Review/approve/reject requests |
-| HR Dashboard | `hr-dashboard` | HR_RECRUITER | Overview + pipeline stats |
-| JD Wizard | `hr-jd-wizard` | HR_RECRUITER | Create role from approved request |
+## 3. Entity: RecruitmentPlan
 
-## Notifications (Future)
+Kế hoạch tuyển dụng gồm 2 phần:
 
-| Event | Recipient | Channel |
+### 3.1 Kế hoạch tổng thể (OverallPlan)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | UUID | Primary key |
+| `requestId` | UUID | FK → RecruitmentRequest |
+| `startDate` | Date | Ngày bắt đầu chiến dịch |
+| `endDate` | Date | Ngày kết thúc chiến dịch |
+| `status` | PlanStatus | DRAFT / PENDING_APPROVAL / APPROVED / REVISION_REQUIRED |
+| `approvedBy` | UUID | FK → User (Boss) |
+| `approvedAt` | DateTime | Thời điểm phê duyệt |
+| `notes` | Text | Ghi chú từ Boss (nếu yêu cầu chỉnh sửa) |
+
+### 3.2 Kế hoạch triển khai (TaskPlan)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | UUID | Primary key |
+| `overallPlanId` | UUID | FK → OverallPlan |
+| `taskType` | TaskType | JOB_POSTING / CV_COLLECTION / CV_SCREENING / INTERVIEW_COORDINATION |
+| `assignedTo` | UUID | FK → User (nhân viên HR được phân công) |
+| `startDate` | Date | Ngày bắt đầu task |
+| `endDate` | Date | Ngày hoàn thành dự kiến |
+| `status` | TaskStatus | PENDING / IN_PROGRESS / COMPLETED |
+| `notes` | Text | Ghi chú chi tiết |
+
+---
+
+## 4. Entity: Interview
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | UUID | Primary key |
+| `requestId` | UUID | FK → RecruitmentRequest |
+| `candidateId` | UUID | FK → CandidateProfile |
+| `scheduledAt` | DateTime | Thời gian phỏng vấn |
+| `duration` | Integer | Thời lượng (phút) |
+| `location` | String | Địa điểm / link online |
+| `interviewers` | UUID[] | Danh sách người phỏng vấn |
+| `status` | InterviewStatus | SCHEDULED / COMPLETED / CANCELLED / RESCHEDULED |
+| `result` | InterviewResult | PASS / FAIL / PENDING |
+| `notes` | Text | Ghi chú đánh giá |
+
+---
+
+## 5. Notification Triggers
+
+| Event | Recipients | Channel |
 |-------|-----------|---------|
-| Request submitted | Next-level approver | In-app + email |
-| Request approved (final) | Dept Head + HR Recruiter | In-app + email |
-| Request rejected | Dept Head | In-app + email |
-| Revision requested | Dept Head | In-app + email |
-| Role published | Dept Head | In-app |
+| Request created | Phòng Tuyển Dụng | In-app + Email |
+| Request forwarded to Boss | Admin/Boss | In-app + Email |
+| Request approved by Boss | Trưởng PB + Phòng TD | In-app + Email |
+| Request rejected by Boss | Trưởng PB + Phòng TD | In-app + Email |
+| Plan submitted for approval | Admin/Boss | In-app + Email |
+| Plan approved | Phòng TD + Trưởng PB | In-app |
+| Plan revision required | Phòng TD | In-app + Email |
+| Interview scheduled | Ứng viên + Trưởng PB + Boss (nếu tham gia) | Email |
+| Interview result recorded | Admin/Boss | In-app |
+| Offer Letter sent | Ứng viên | Email |
+| Rejection Letter sent | Ứng viên | Email |
+
+---
+
+## 6. Tracking Dashboard
+
+### Trưởng Phòng Ban Dashboard
+
+Trưởng phòng ban truy cập dashboard để theo dõi:
+- **Trạng thái yêu cầu hiện tại**: Ai đang xử lý, bước nào
+- **Số lượng đã tuyển**: X/Y vị trí đã có ứng viên được chọn
+- **Timeline**: Kế hoạch vs thực tế
+- **Log chi tiết**: Lịch sử mọi thao tác từ khi gửi yêu cầu
+
+### Admin/Boss Dashboard
+
+- **Hàng chờ phê duyệt**: Danh sách yêu cầu + kế hoạch chờ duyệt
+- **Tổng quan chiến dịch**: Tất cả chiến dịch tuyển dụng đang diễn ra
+- **Thống kê năm**: Biểu đồ tuyển dụng theo phòng ban, thời gian, chi phí
+- **Quyết định nhanh**: Quick approve/reject trực tiếp từ dashboard
+
+---
+
+*Last updated: 2026-05-28*

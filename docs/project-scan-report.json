@@ -1,15 +1,16 @@
 {
-  "workflow_version": "1.0.0",
+  "workflow_version": "2.0.0",
   "timestamps": {
     "started": "2026-05-20T08:28:00Z",
-    "last_updated": "2026-05-20T08:34:00Z",
-    "completed": "2026-05-20T08:34:00Z"
+    "last_updated": "2026-05-28T03:33:00Z",
+    "completed": "2026-05-28T03:33:00Z"
   },
   "workflow_mode": "full_rescan",
   "scan_level": "quick",
-  "project_root": "/home/minh_dev/workspaces/works-reruiter",
-  "project_knowledge": "/home/minh_dev/workspaces/works-reruiter/docs",
+  "project_root": "/home/minh_dev/workspaces/SE20A05Group7RMS",
+  "project_knowledge": "/home/minh_dev/workspaces/SE20A05Group7RMS/docs",
   "project_type": "monorepo",
+  "scope_pivot": "Recruitment Workflow Management System (RMS) — pivoted from reasoning-first marketplace (2026-05-28)",
   "project_parts": [
     {
       "part_id": "gateway",
@@ -22,35 +23,36 @@
       "part_id": "identity",
       "part_type": "web",
       "path": "services/identity",
-      "description": "Auth/Users/Orgs/Departments/Approvals — NestJS TCP (:3010)",
+      "description": "Auth/Users/Orgs/Departments — NestJS TCP (:3010)",
       "ts_files": 10
     },
     {
       "part_id": "recruiting",
       "part_type": "web",
       "path": "services/recruiting",
-      "description": "HiringRequests/Roles/Applications/Evaluations/TalentSearch — NestJS TCP (:3011)",
+      "description": "RecruitmentRequests/Plans/Interviews/Results — NestJS TCP (:3011)",
       "ts_files": 19
     },
     {
       "part_id": "profiles",
       "part_type": "web",
       "path": "services/profiles",
-      "description": "CandidateProfiles/CVDocuments/Evidence — NestJS TCP (:3012)",
+      "description": "CandidateProfiles/CVDocuments/Embeddings — NestJS TCP (:3012)",
       "ts_files": 13
     },
     {
       "part_id": "review",
       "part_type": "web",
       "path": "services/review",
-      "description": "ReviewerFeedback/CandidatePackets — NestJS TCP (:3013)",
-      "ts_files": 10
+      "description": "[LEGACY] Will be repurposed as Notification service (:3013) or removed",
+      "ts_files": 10,
+      "status": "legacy"
     },
     {
       "part_id": "worker",
       "part_type": "web",
       "path": "services/worker",
-      "description": "BullMQ async job processor — plain TS (NOT NestJS)",
+      "description": "BullMQ async job processor — plain TS (NOT NestJS): CV parsing + embedding generation",
       "ts_files": 2
     },
     {
@@ -64,7 +66,7 @@
       "part_id": "contracts",
       "part_type": "library",
       "path": "packages/contracts",
-      "description": "@wr/contracts — Enums, Zod schemas, types (SSOT)",
+      "description": "@wr/contracts — Enums (UserRole, RecruitmentRequestStatus, PlanStatus, etc.), Zod schemas, types (SSOT)",
       "ts_files": 4
     },
     {
@@ -78,7 +80,7 @@
       "part_id": "database",
       "part_type": "library",
       "path": "packages/database",
-      "description": "@wr/database — Prisma schema (420 lines) + client",
+      "description": "@wr/database — Prisma schema (in transition to target RMS schema) + client",
       "ts_files": 1,
       "prisma_models": 20
     },
@@ -86,14 +88,14 @@
       "part_id": "queue",
       "part_type": "library",
       "path": "packages/queue",
-      "description": "@wr/queue — BullMQ job definitions",
+      "description": "@wr/queue — BullMQ job definitions (CV parsing, embedding generation)",
       "ts_files": 1
     },
     {
       "part_id": "ai",
       "part_type": "library",
       "path": "packages/ai",
-      "description": "@wr/ai — Hybrid search engine (NO DB dep)",
+      "description": "@wr/ai — CV parsing utilities + vector search helpers (NO DB dep, NO LLM scoring)",
       "ts_files": 9
     },
     {
@@ -117,7 +119,7 @@
     {"step": "step_9", "status": "completed", "summary": "Component inventory + data models + API contracts"},
     {"step": "step_10", "status": "completed", "summary": "Index generated with all doc links"},
     {"step": "step_11", "status": "completed", "summary": "Validation complete — 0 incomplete markers"},
-    {"step": "step_12", "status": "completed", "summary": "Workflow complete"}
+    {"step": "step_12", "status": "completed", "summary": "Workflow complete — RMS scope update applied (2026-05-28)"}
   ],
   "outputs": [
     "project-overview.md",
@@ -127,6 +129,9 @@
     "api-contracts.md",
     "component-inventory.md",
     "development-guide.md",
+    "enterprise-hiring-workflow.md",
+    "auth-design.md",
+    "database-migrations.md",
     "index.md"
   ],
   "metrics": {
@@ -136,6 +141,7 @@
     "packages": 7,
     "frontend_apps": 1,
     "docker_services": 2,
-    "schema_lines": 420
+    "actors": 4,
+    "request_states": 13
   }
 }
