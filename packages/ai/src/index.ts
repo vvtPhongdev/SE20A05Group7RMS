@@ -3,6 +3,9 @@ import { z } from 'zod';
 // ─── Sub-module re-exports ─────────────────────────────────────────
 export * from './skill-graph';
 export * from './matching';
+export * from './embedding';
+export * from './cv-parser';
+export * from './similarity';
 
 /**
  * LLM Client Interface.

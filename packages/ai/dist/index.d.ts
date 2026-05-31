@@ -1,6 +1,9 @@
 import { z } from 'zod';
 export * from './skill-graph';
 export * from './matching';
+export * from './embedding';
+export * from './cv-parser';
+export * from './similarity';
 /**
  * LLM Client Interface.
  * The LLM is a narrator, NOT a scoring authority.

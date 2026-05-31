@@ -43,7 +43,6 @@ export class TalentSearchService {
       where,
       include: {
         user: { select: { displayName: true } },
-        candidateCapabilityModel: true,
       },
       take: pageSize * 3, // Over-fetch for scoring then trim
       skip: 0,
@@ -55,9 +54,9 @@ export class TalentSearchService {
       : expanded.expandedSkills.slice(0, 20);
 
     const scoredResults = candidates
-      .map((candidate) => {
-        // Extract skills from the capability model JSONB
-        const capabilities = candidate.candidateCapabilityModel?.capabilities as
+      .map((candidate: any) => {
+        // Extract skills from the structured data JSONB
+        const capabilities = candidate.structuredData as
           | { skills?: string[] }
           | null;
         const candidateSkills = capabilities?.skills ?? [];
@@ -75,8 +74,8 @@ export class TalentSearchService {
           headline: candidate.headline,
         };
       })
-      .filter((r) => r.overallScore > 0.1)
-      .sort((a, b) => b.overallScore - a.overallScore);
+      .filter((r: any) => r.overallScore > 0.1)
+      .sort((a: any, b: any) => b.overallScore - a.overallScore);
 
     // Step 4: Paginate
     const total = scoredResults.length;

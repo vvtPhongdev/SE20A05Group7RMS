@@ -2,6 +2,9 @@ import { z } from 'zod';
 // ─── Sub-module re-exports ─────────────────────────────────────────
 export * from './skill-graph';
 export * from './matching';
+export * from './embedding';
+export * from './cv-parser';
+export * from './similarity';
 // ─── LLM Output Schemas ────────────────────────────────────────────
 export const InterviewFocusOutputSchema = z.object({
     items: z.array(z.object({
