@@ -2,12 +2,6 @@
   "name": "works-reruiter",
   "version": "0.1.0",
   "private": true,
-  "description": "Reasoning-First Recruitment Management System",
-  "workspaces": [
-    "packages/*",
-    "services/*",
-    "webapp"
-  ],
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
@@ -16,31 +10,34 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,mjs,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mjs,json,md}\"",
     "clean": "turbo run clean && rm -rf node_modules",
-    "db:generate": "npm run generate --workspace=packages/database",
-    "db:migrate:dev": "npm run migrate:dev --workspace=packages/database",
-    "db:push": "npm run push --workspace=packages/database",
+    "db:generate": "pnpm --filter @wr/database generate",
+    "db:migrate:dev": "pnpm --filter @wr/database migrate:dev",
+    "db:push": "pnpm --filter @wr/database push",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
-    "dev:gateway": "npm run dev --workspace=services/gateway",
-    "dev:identity": "npm run dev --workspace=services/identity",
-    "dev:recruiting": "npm run dev --workspace=services/recruiting",
-    "dev:profiles": "npm run dev --workspace=services/profiles",
-    "dev:review": "npm run dev --workspace=services/review",
-    "dev:worker": "npm run dev --workspace=services/worker",
-    "dev:webapp": "npm run dev --workspace=webapp"
+    "dev:gateway": "pnpm --filter @wr/gateway dev",
+    "dev:identity": "pnpm --filter @wr/identity dev",
+    "dev:recruiting": "pnpm --filter @wr/recruiting dev",
+    "dev:profiles": "pnpm --filter @wr/profiles dev",
+    "dev:review": "pnpm --filter @wr/review dev",
+    "dev:worker": "pnpm --filter @wr/worker dev",
+    "dev:webapp": "pnpm --filter @wr/webapp dev"
   },
   "devDependencies": {
+    "@eslint/js": "^9.20.0",
     "@mermaid-js/mermaid-cli": "^11.15.0",
+    "eslint": "^9.20.0",
     "prettier": "^3.5.3",
     "prisma": "^6.19.3",
     "prisma-erd-generator": "^2.4.2",
     "turbo": "^2.5.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.24.0"
   },
   "engines": {
     "node": ">=22.0.0"
   },
-  "packageManager": "npm@10.9.2",
+  "packageManager": "pnpm@10.0.0",
   "dependencies": {
     "@prisma/client": "^6.19.3"
   }
