@@ -1,14 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { RpcException } from '@nestjs/microservices';
 import { PrismaService } from '../../common/database/prisma.service';
 import { AuthService } from './auth.service';
-import * as bcrypt from 'bcrypt';
-import * as crypto from 'crypto';
+import * as bcrypt from 'bcryptjs';
 
 // Mock dependencies
-jest.mock('bcrypt');
+jest.mock('bcryptjs');
 jest.mock('crypto');
 jest.mock('ioredis');
 
@@ -27,7 +26,6 @@ jest.mock('ioredis', () => {
 describe('AuthService - resetPassword', () => {
   let service: AuthService;
   let prisma: PrismaService;
-  let jwtService: JwtService;
   let redisMock: any;
 
   const mockUser = {
@@ -57,8 +55,9 @@ describe('AuthService - resetPassword', () => {
               findUnique: jest.fn(),
               update: jest.fn(),
             },
-            organizationMember: {
+            organization: {
               findFirst: jest.fn(),
+              create: jest.fn(),
             },
           },
         },
@@ -74,7 +73,6 @@ describe('AuthService - resetPassword', () => {
 
     service = module.get<AuthService>(AuthService);
     prisma = module.get<PrismaService>(PrismaService);
-    jwtService = module.get<JwtService>(JwtService);
 
     // Get Redis mock from AuthService
     redisMock = (service as any).redis;
@@ -166,7 +164,8 @@ describe('AuthService - resetPassword', () => {
     it('should delete all refresh tokens for the user', async () => {
       (redisMock.get as jest.Mock)
         .mockResolvedValueOnce('123456') // Reset code
-        .mockResolvedValueOnce(mockUser.id); // Refresh token belongs to user
+        .mockResolvedValueOnce(mockUser.id) // First refresh token
+        .mockResolvedValueOnce(mockUser.id); // Second refresh token
 
       (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
       (bcrypt.hash as jest.Mock).mockResolvedValue('$2b$12$new_hash');

@@ -4,12 +4,13 @@ import { RpcException } from '@nestjs/microservices';
 import { HttpStatus } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../../common/database/prisma.service';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import * as nodemailer from 'nodemailer';
+import { UserRole } from '@wr/contracts';
 
 // Mock bcrypt
-jest.mock('bcrypt', () => ({
+jest.mock('bcryptjs', () => ({
   hash: jest.fn().mockResolvedValue('hashed-password'),
   compare: jest.fn(),
 }));
@@ -46,8 +47,9 @@ describe('AuthService', () => {
       findUnique: jest.fn(),
       create: jest.fn(),
     },
-    organizationMember: {
+    organization: {
       findFirst: jest.fn(),
+      create: jest.fn(),
     },
   };
 
@@ -80,12 +82,17 @@ describe('AuthService', () => {
       email: 'test@example.com',
       displayName: 'Test User',
       password: 'Password123!',
-      role: 'CANDIDATE' as const,
+      role: UserRole.CANDIDATE,
     };
 
     it('should successfully register a new user and return token response', async () => {
       // Setup mock returns
       mockPrismaService.user.findUnique.mockResolvedValue(null);
+      mockPrismaService.organization.findFirst.mockResolvedValue({
+        id: 'org-uuid-1234',
+        name: 'Acme Corporation',
+        slug: 'acme-corp',
+      });
 
       const createdUser = {
         id: 'uuid-1234',
@@ -93,6 +100,7 @@ describe('AuthService', () => {
         displayName: dto.displayName,
         role: dto.role,
         passwordHash: 'hashed-password',
+        organizationId: 'org-uuid-1234',
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -109,7 +117,7 @@ describe('AuthService', () => {
         email: createdUser.email,
         displayName: createdUser.displayName,
         role: createdUser.role,
-        organizationId: null,
+        organizationId: 'org-uuid-1234',
       });
       expect(result).toHaveProperty('accessToken');
       expect(result).toHaveProperty('refreshToken');
@@ -156,11 +164,9 @@ describe('AuthService', () => {
         displayName: 'Test User',
         role: 'CANDIDATE',
         passwordHash: 'hashed-password',
+        organizationId: 'org-123',
       };
       mockPrismaService.user.findUnique.mockResolvedValue(user);
-      mockPrismaService.organizationMember.findFirst.mockResolvedValue({
-        organizationId: 'org-123',
-      });
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
       const result = await service.login(dto);
@@ -169,9 +175,6 @@ describe('AuthService', () => {
         where: { email: dto.email },
       });
       expect(bcrypt.compare).toHaveBeenCalledWith(dto.password, user.passwordHash);
-      expect(prisma.organizationMember.findFirst).toHaveBeenCalledWith({
-        where: { userId: user.id },
-      });
       expect(jwtService.sign).toHaveBeenCalledWith({
         sub: user.id,
         email: user.email,
@@ -236,10 +239,10 @@ describe('AuthService', () => {
         displayName: 'Test User',
         role: 'CANDIDATE',
         passwordHash: 'hashed-password',
+        organizationId: null as any,
       };
 
       mockPrismaService.user.findUnique.mockResolvedValueOnce(user);
-      mockPrismaService.organizationMember.findFirst.mockResolvedValueOnce(null);
       const redisInstance = (service as any).redis;
       redisInstance.get.mockResolvedValueOnce(user.id);
       redisInstance.del.mockResolvedValueOnce(1);

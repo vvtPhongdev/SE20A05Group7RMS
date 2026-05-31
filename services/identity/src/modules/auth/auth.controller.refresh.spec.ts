@@ -162,7 +162,7 @@ describe('AuthController - Refresh Message Pattern', () => {
 
       // Assert
       expect(results).toHaveLength(3);
-      results.forEach((result) => {
+      results.forEach((result: any) => {
         expect(result).toEqual(mockAuthTokenResponse);
       });
       expect(authService.refresh).toHaveBeenCalledTimes(3);
