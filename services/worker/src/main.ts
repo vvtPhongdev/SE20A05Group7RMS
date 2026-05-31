@@ -1,5 +1,4 @@
 import { Worker } from 'bullmq';
-import IORedis from 'ioredis';
 import { QUEUE_NAMES } from '@wr/queue';
 
 /**
@@ -9,65 +8,53 @@ async function bootstrap() {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const redisPort = parseInt(process.env.REDIS_PORT || '6379', 10);
 
-  const connection = new IORedis({
+  const connectionOptions = {
     host: redisHost,
     port: redisPort,
     maxRetriesPerRequest: null,
-  });
+  };
 
   console.log(`🔌 Worker connecting to Redis at ${redisHost}:${redisPort}`);
 
-  // Document Processing Queue
-  const documentWorker = new Worker(
-    QUEUE_NAMES.DOCUMENT_PROCESSING,
+  // CV Parse Queue Worker
+  const cvParseWorker = new Worker(
+    QUEUE_NAMES.CV_PARSE,
     async (job) => {
-      console.log(`📄 Processing document job: ${job.name} [${job.id}]`);
-      // TODO: implement cv.parse, jd.parse, evidence.extract processors
-      console.log(`✅ Document job ${job.id} completed (stub)`);
+      console.log(`📄 Processing CV parse job: ${job.name} [${job.id}]`);
+      // TODO: implement CV parsing logic
+      console.log(`✅ CV parse job ${job.id} completed (stub)`);
     },
-    { connection },
+    { connection: connectionOptions },
   );
 
-  // Embedding Generation Queue
+  // Embedding Generation Queue Worker
   const embeddingWorker = new Worker(
-    QUEUE_NAMES.EMBEDDING_GENERATION,
+    QUEUE_NAMES.EMBEDDING_GENERATE,
     async (job) => {
       console.log(`🧬 Processing embedding job: ${job.name} [${job.id}]`);
-      // TODO: implement embedding.generate processor
+      // TODO: implement embedding generation logic
       console.log(`✅ Embedding job ${job.id} completed (stub)`);
     },
-    { connection },
+    { connection: connectionOptions },
   );
 
-  // Evaluation Queue
-  const evaluationWorker = new Worker(
-    QUEUE_NAMES.EVALUATION,
+  // Email Send Queue Worker
+  const emailWorker = new Worker(
+    QUEUE_NAMES.EMAIL_SEND,
     async (job) => {
-      console.log(`🎯 Processing evaluation job: ${job.name} [${job.id}]`);
-      // TODO: implement application.evaluate processor
-      console.log(`✅ Evaluation job ${job.id} completed (stub)`);
+      console.log(`📧 Processing email send job: ${job.name} [${job.id}]`);
+      // TODO: implement email sending logic
+      console.log(`✅ Email send job ${job.id} completed (stub)`);
     },
-    { connection },
-  );
-
-  // Packet Export Queue
-  const packetWorker = new Worker(
-    QUEUE_NAMES.PACKET_EXPORT,
-    async (job) => {
-      console.log(`📦 Processing packet job: ${job.name} [${job.id}]`);
-      // TODO: implement packet.export processor
-      console.log(`✅ Packet job ${job.id} completed (stub)`);
-    },
-    { connection },
+    { connection: connectionOptions },
   );
 
   // Graceful shutdown
-  const workers = [documentWorker, embeddingWorker, evaluationWorker, packetWorker];
+  const workers = [cvParseWorker, embeddingWorker, emailWorker];
 
   const shutdown = async () => {
     console.log('\n🛑 Shutting down workers...');
     await Promise.all(workers.map((w) => w.close()));
-    await connection.quit();
     process.exit(0);
   };
 
