@@ -3,9 +3,9 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Seeding Works Reruiter database...');
+  console.log('🌱 Seeding Works Reruiter database with workflow-first models...');
 
-  // ─── Organization ──────────────────────────────────────────────
+  // 1. Create Organization
   const org = await prisma.organization.upsert({
     where: { slug: 'acme-corp' },
     update: {},
@@ -14,313 +14,297 @@ async function main() {
       slug: 'acme-corp',
     },
   });
-  console.log(`  ✅ Organization: ${org.name}`);
+  console.log(`  Org: ${org.name}`);
 
-  // ─── Users ─────────────────────────────────────────────────────
-  // Password hash for "Password123!" (bcrypt 12 rounds)
-  // In production, generate with: await bcrypt.hash('Password123!', 12)
-  const passwordHash = '$2b$12$LJ3m4ys9xCR.pPJ0qkbKqeHHmN0BVPGz7v8TmJ6q4.kIqz1uPrO7K';
+  // 2. Clear out existing tables to prevent duplicate key conflicts in relations
+  // In reverse order of dependencies
+  await prisma.emailLog.deleteMany({});
+  await prisma.notification.deleteMany({});
+  await prisma.interviewResult.deleteMany({});
+  await prisma.interviewSchedule.deleteMany({});
+  await prisma.cvEmbedding.deleteMany({});
+  await prisma.candidateCV.deleteMany({});
+  await prisma.candidateProfile.deleteMany({});
+  await prisma.taskPlan.deleteMany({});
+  await prisma.overallPlan.deleteMany({});
+  await prisma.requestLog.deleteMany({});
+  await prisma.approvalRecord.deleteMany({});
+  await prisma.recruitmentRequest.deleteMany({});
+  await prisma.user.deleteMany({});
+  await prisma.department.deleteMany({});
 
-  const users = [
-    { email: 'admin@acme.com', displayName: 'Admin User', role: 'ADMIN' },
-    { email: 'dh.engineering@acme.com', displayName: 'Sarah Chen', role: 'DEPARTMENT_HEAD' },
-    { email: 'dh.product@acme.com', displayName: 'Marcus Johnson', role: 'DEPARTMENT_HEAD' },
-    { email: 'hm.senior@acme.com', displayName: 'Emily Wong', role: 'HIRING_MANAGER' },
-    { email: 'hm.vp@acme.com', displayName: 'David Park', role: 'HIRING_MANAGER' },
-    { email: 'recruiter1@acme.com', displayName: 'Lisa Thompson', role: 'RECRUITER' },
-    { email: 'recruiter2@acme.com', displayName: 'James Wilson', role: 'RECRUITER' },
-    { email: 'candidate1@gmail.com', displayName: 'Alex Rivera', role: 'CANDIDATE' },
-    { email: 'candidate2@gmail.com', displayName: 'Priya Sharma', role: 'CANDIDATE' },
-    { email: 'candidate3@gmail.com', displayName: 'Tomás García', role: 'CANDIDATE' },
-    { email: 'candidate4@gmail.com', displayName: 'Yuki Tanaka', role: 'CANDIDATE' },
-    { email: 'candidate5@gmail.com', displayName: 'Olena Kovalenko', role: 'CANDIDATE' },
-  ];
+  const passwordHash = '$2b$12$LJ3m4ys9xCR.pPJ0qkbKqeHHmN0BVPGz7v8TmJ6q4.kIqz1uPrO7K'; // Password123!
 
-  const createdUsers: Record<string, any> = {};
-  for (const u of users) {
-    const user = await prisma.user.upsert({
-      where: { email: u.email },
-      update: {},
-      create: { ...u, passwordHash },
-    });
-    createdUsers[u.email] = user;
-  }
-  console.log(`  ✅ Users: ${users.length} created`);
-
-  // ─── Organization Members ──────────────────────────────────────
-  const adminUser = createdUsers['admin@acme.com'];
-  await prisma.organizationMember.upsert({
-    where: {
-      userId_organizationId: {
-        userId: adminUser.id,
-        organizationId: org.id,
-      },
-    },
-    update: {},
-    create: {
-      userId: adminUser.id,
+  // 3. Create Department heads and users
+  const admin = await prisma.user.create({
+    data: {
+      email: 'admin@acme.com',
+      displayName: 'Admin User',
+      role: 'ADMIN',
+      passwordHash,
       organizationId: org.id,
-      memberRole: 'OWNER',
     },
   });
 
-  // Add all non-candidate users as members
-  for (const [email, user] of Object.entries(createdUsers)) {
-    if (user.role === 'CANDIDATE') continue;
-    if (email === 'admin@acme.com') continue; // already added
+  const dhEng = await prisma.user.create({
+    data: {
+      email: 'dh.engineering@acme.com',
+      displayName: 'Sarah Chen',
+      role: 'DEPARTMENT_HEAD',
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
 
-    await prisma.organizationMember.upsert({
-      where: {
-        userId_organizationId: {
-          userId: user.id,
-          organizationId: org.id,
-        },
-      },
-      update: {},
-      create: {
-        userId: user.id,
-        organizationId: org.id,
-        memberRole: 'MEMBER',
-      },
-    });
-  }
-  console.log(`  ✅ Organization members assigned`);
+  const dhProd = await prisma.user.create({
+    data: {
+      email: 'dh.product@acme.com',
+      displayName: 'Marcus Johnson',
+      role: 'DEPARTMENT_HEAD',
+      passwordHash,
+      organizationId: org.id,
+    },
+  });
 
-  // ─── Departments ───────────────────────────────────────────────
-  const departments = [
-    {
-      name: 'Engineering',
-      code: 'ENG',
-      headUserId: createdUsers['dh.engineering@acme.com'].id,
+  const hrManager = await prisma.user.create({
+    data: {
+      email: 'hm.senior@acme.com',
+      displayName: 'Emily Wong',
+      role: 'HR_MANAGER',
+      passwordHash,
+      organizationId: org.id,
     },
-    {
-      name: 'Product Management',
-      code: 'PRODUCT',
-      headUserId: createdUsers['dh.product@acme.com'].id,
+  });
+
+  const hrStaff = await prisma.user.create({
+    data: {
+      email: 'recruiter1@acme.com',
+      displayName: 'Lisa Thompson',
+      role: 'HR_MANAGER',
+      passwordHash,
+      organizationId: org.id,
     },
-    {
-      name: 'Design',
-      code: 'DESIGN',
-      headUserId: null,
-    },
+  });
+
+  // Candidates
+  const candidates = [
+    { email: 'candidate1@gmail.com', displayName: 'Alex Rivera' },
+    { email: 'candidate2@gmail.com', displayName: 'Priya Sharma' },
+    { email: 'candidate3@gmail.com', displayName: 'Tomás García' },
   ];
 
-  const createdDepts: Record<string, any> = {};
-  for (const d of departments) {
-    const dept = await prisma.department.upsert({
-      where: {
-        organizationId_code: {
-          organizationId: org.id,
-          code: d.code,
-        },
-      },
-      update: {},
-      create: {
+  const createdCandidates = [];
+  for (const c of candidates) {
+    const u = await prisma.user.create({
+      data: {
+        email: c.email,
+        displayName: c.displayName,
+        role: 'CANDIDATE',
+        passwordHash,
         organizationId: org.id,
-        name: d.name,
-        code: d.code,
-        headUserId: d.headUserId,
       },
     });
-    createdDepts[d.code] = dept;
+    createdCandidates.push(u);
   }
-  console.log(`  ✅ Departments: ${departments.length} created`);
 
-  // ─── Approval Chain ────────────────────────────────────────────
-  const chain = await prisma.approvalChain.create({
+  // 4. Create Departments
+  const deptEng = await prisma.department.create({
     data: {
       organizationId: org.id,
-      name: 'Default 2-Level Approval',
-      isDefault: true,
-      levels: {
-        create: [
-          {
-            level: 1,
-            approverUserId: createdUsers['hm.senior@acme.com'].id,
-            role: 'LEVEL_1',
-          },
-          {
-            level: 2,
-            approverUserId: createdUsers['hm.vp@acme.com'].id,
-            role: 'LEVEL_2',
-          },
-        ],
-      },
+      name: 'Engineering',
+      code: 'ENG',
+      headUserId: dhEng.id,
     },
   });
-  console.log(`  ✅ Approval chain: ${chain.name} (${2} levels)`);
 
-  // ─── Skill Nodes ───────────────────────────────────────────────
-  const skills = [
-    // Languages
-    { canonicalName: 'JavaScript', category: 'LANGUAGE', aliases: ['JS', 'ECMAScript'] },
-    { canonicalName: 'TypeScript', category: 'LANGUAGE', aliases: ['TS'] },
-    { canonicalName: 'Python', category: 'LANGUAGE', aliases: ['Python3', 'Py'] },
-    { canonicalName: 'Java', category: 'LANGUAGE', aliases: [] },
-    { canonicalName: 'Go', category: 'LANGUAGE', aliases: ['Golang'] },
-    { canonicalName: 'Rust', category: 'LANGUAGE', aliases: [] },
-    { canonicalName: 'C#', category: 'LANGUAGE', aliases: ['CSharp', 'C Sharp'] },
-    { canonicalName: 'SQL', category: 'LANGUAGE', aliases: [] },
-    // Frameworks
-    { canonicalName: 'React', category: 'FRAMEWORK', aliases: ['ReactJS', 'React.js'] },
-    { canonicalName: 'Next.js', category: 'FRAMEWORK', aliases: ['NextJS'] },
-    { canonicalName: 'NestJS', category: 'FRAMEWORK', aliases: ['Nest.js'] },
-    { canonicalName: 'Express.js', category: 'FRAMEWORK', aliases: ['Express'] },
-    { canonicalName: 'Angular', category: 'FRAMEWORK', aliases: ['AngularJS'] },
-    { canonicalName: 'Vue.js', category: 'FRAMEWORK', aliases: ['Vue', 'VueJS'] },
-    { canonicalName: 'Django', category: 'FRAMEWORK', aliases: [] },
-    { canonicalName: 'FastAPI', category: 'FRAMEWORK', aliases: [] },
-    { canonicalName: 'Spring Boot', category: 'FRAMEWORK', aliases: ['Spring'] },
-    // Databases
-    { canonicalName: 'PostgreSQL', category: 'DATABASE', aliases: ['Postgres', 'PG'] },
-    { canonicalName: 'MongoDB', category: 'DATABASE', aliases: ['Mongo'] },
-    { canonicalName: 'Redis', category: 'DATABASE', aliases: [] },
-    { canonicalName: 'MySQL', category: 'DATABASE', aliases: [] },
-    { canonicalName: 'Elasticsearch', category: 'DATABASE', aliases: ['ES', 'Elastic'] },
-    // Cloud
-    { canonicalName: 'AWS', category: 'CLOUD', aliases: ['Amazon Web Services'] },
-    { canonicalName: 'Google Cloud', category: 'CLOUD', aliases: ['GCP', 'Google Cloud Platform'] },
-    { canonicalName: 'Azure', category: 'CLOUD', aliases: ['Microsoft Azure'] },
-    // DevOps
-    { canonicalName: 'Docker', category: 'DEVOPS', aliases: [] },
-    { canonicalName: 'Kubernetes', category: 'DEVOPS', aliases: ['K8s'] },
-    { canonicalName: 'Terraform', category: 'DEVOPS', aliases: ['TF'] },
-    { canonicalName: 'CI/CD', category: 'DEVOPS', aliases: ['Continuous Integration'] },
-    { canonicalName: 'GitHub Actions', category: 'DEVOPS', aliases: ['GHA'] },
-    // Tools
-    { canonicalName: 'Git', category: 'TOOL', aliases: [] },
-    { canonicalName: 'Prisma', category: 'TOOL', aliases: ['Prisma ORM'] },
-    { canonicalName: 'GraphQL', category: 'TOOL', aliases: ['GQL'] },
-    { canonicalName: 'REST API', category: 'TOOL', aliases: ['RESTful'] },
-    // Paradigms
-    { canonicalName: 'Microservices', category: 'PARADIGM', aliases: [] },
-    { canonicalName: 'Event-Driven Architecture', category: 'PARADIGM', aliases: ['EDA'] },
-    { canonicalName: 'Domain-Driven Design', category: 'PARADIGM', aliases: ['DDD'] },
-    { canonicalName: 'Test-Driven Development', category: 'PARADIGM', aliases: ['TDD'] },
-    // Domains
-    { canonicalName: 'Machine Learning', category: 'DOMAIN', aliases: ['ML'] },
-    { canonicalName: 'Data Engineering', category: 'DOMAIN', aliases: [] },
-    { canonicalName: 'Frontend Development', category: 'DOMAIN', aliases: ['FE', 'Front-end'] },
-    { canonicalName: 'Backend Development', category: 'DOMAIN', aliases: ['BE', 'Back-end'] },
-    { canonicalName: 'DevOps Engineering', category: 'DOMAIN', aliases: ['SRE', 'Platform Engineering'] },
-    { canonicalName: 'Mobile Development', category: 'DOMAIN', aliases: ['Mobile Dev'] },
-    { canonicalName: 'System Design', category: 'DOMAIN', aliases: ['Architecture'] },
+  const deptProd = await prisma.department.create({
+    data: {
+      organizationId: org.id,
+      name: 'Product Management',
+      code: 'PRODUCT',
+      headUserId: dhProd.id,
+    },
+  });
+
+  // Update Users with their departmentId
+  await prisma.user.update({
+    where: { id: dhEng.id },
+    data: { departmentId: deptEng.id },
+  });
+  await prisma.user.update({
+    where: { id: dhProd.id },
+    data: { departmentId: deptProd.id },
+  });
+
+  // 5. Create Candidate Profiles
+  const profileDetails = [
+    { phone: '123-456-7890', summary: 'Senior Full-Stack Developer with 8 years of experience in React and Node.js.' },
+    { phone: '987-654-3210', summary: 'ML Engineer and Data Scientist specializing in neural networks.' },
+    { phone: '555-555-5555', summary: 'DevOps engineer with extensive AWS and Kubernetes experience.' },
   ];
 
-  for (const skill of skills) {
-    await prisma.skillNode.upsert({
-      where: { name: skill.canonicalName },
-      update: {},
-      create: {
-        name: skill.canonicalName,
-        category: skill.category,
-        aliases: skill.aliases,
+  const createdProfiles = [];
+  for (let i = 0; i < createdCandidates.length; i++) {
+    const c = createdCandidates[i];
+    const details = profileDetails[i];
+    if (!c || !details) continue;
+
+    const profile = await prisma.candidateProfile.create({
+      data: {
+        userId: c.id,
+        fullName: c.displayName,
+        email: c.email,
+        phone: details.phone,
+        summary: details.summary,
+        structuredData: { skills: ['JavaScript', 'TypeScript', 'Node.js', 'React'] },
       },
     });
+    createdProfiles.push(profile);
   }
-  console.log(`  ✅ Skill nodes: ${skills.length} created`);
 
-  // ─── Skill Edges ───────────────────────────────────────────────
-  const skillNodes = await prisma.skillNode.findMany();
-  const nodeMap = new Map(skillNodes.map((n) => [n.name, n.id]));
-
-  const edges = [
-    // IS_A relationships
-    { from: 'React', to: 'Frontend Development', rel: 'IS_A' },
-    { from: 'Angular', to: 'Frontend Development', rel: 'IS_A' },
-    { from: 'Vue.js', to: 'Frontend Development', rel: 'IS_A' },
-    { from: 'NestJS', to: 'Backend Development', rel: 'IS_A' },
-    { from: 'Express.js', to: 'Backend Development', rel: 'IS_A' },
-    { from: 'Django', to: 'Backend Development', rel: 'IS_A' },
-    { from: 'FastAPI', to: 'Backend Development', rel: 'IS_A' },
-    { from: 'Spring Boot', to: 'Backend Development', rel: 'IS_A' },
-    // REQUIRES relationships
-    { from: 'React', to: 'JavaScript', rel: 'REQUIRES' },
-    { from: 'Next.js', to: 'React', rel: 'REQUIRES' },
-    { from: 'NestJS', to: 'TypeScript', rel: 'REQUIRES' },
-    { from: 'Angular', to: 'TypeScript', rel: 'REQUIRES' },
-    { from: 'Express.js', to: 'JavaScript', rel: 'REQUIRES' },
-    { from: 'Django', to: 'Python', rel: 'REQUIRES' },
-    { from: 'FastAPI', to: 'Python', rel: 'REQUIRES' },
-    { from: 'Spring Boot', to: 'Java', rel: 'REQUIRES' },
-    { from: 'Kubernetes', to: 'Docker', rel: 'REQUIRES' },
-    // RELATED_TO relationships
-    { from: 'React', to: 'Angular', rel: 'RELATED_TO' },
-    { from: 'React', to: 'Vue.js', rel: 'RELATED_TO' },
-    { from: 'PostgreSQL', to: 'MySQL', rel: 'RELATED_TO' },
-    { from: 'AWS', to: 'Google Cloud', rel: 'RELATED_TO' },
-    { from: 'AWS', to: 'Azure', rel: 'RELATED_TO' },
-    { from: 'TypeScript', to: 'JavaScript', rel: 'VARIANT_OF' },
-    // PART_OF relationships
-    { from: 'Prisma', to: 'NestJS', rel: 'PART_OF' },
-    { from: 'Express.js', to: 'NestJS', rel: 'PART_OF' },
-  ];
-
-  for (const edge of edges) {
-    const fromId = nodeMap.get(edge.from);
-    const toId = nodeMap.get(edge.to);
-    if (!fromId || !toId) continue;
-
-    await prisma.skillEdge.upsert({
-      where: {
-        sourceId_targetId_relationship: {
-          sourceId: fromId,
-          targetId: toId,
-          relationship: edge.rel,
-        },
-      },
-      update: {},
-      create: {
-        sourceId: fromId,
-        targetId: toId,
-        relationship: edge.rel,
-        weight: 1.0,
-      },
-    });
+  const firstProfile = createdProfiles[0];
+  const firstCandidate = createdCandidates[0];
+  if (!firstProfile || !firstCandidate) {
+    throw new Error('Failed to create candidate or profile for seeding.');
   }
-  console.log(`  ✅ Skill edges: ${edges.length} created`);
 
-  // ─── Candidate Profiles ────────────────────────────────────────
-  const candidateEmails = [
-    'candidate1@gmail.com',
-    'candidate2@gmail.com',
-    'candidate3@gmail.com',
-    'candidate4@gmail.com',
-    'candidate5@gmail.com',
-  ];
+  // 6. Create a Recruitment Request
+  const request = await prisma.recruitmentRequest.create({
+    data: {
+      departmentId: deptEng.id,
+      createdById: dhEng.id,
+      position: 'Senior TypeScript Engineer',
+      headcount: 2,
+      jobDescription: 'Looking for a Senior TypeScript Engineer to lead core systems development.',
+      skillRequirements: { required: ['TypeScript', 'Node.js', 'Prisma', 'PostgreSQL'] },
+      justification: 'Increasing team bandwidth for new enterprise capabilities.',
+      urgency: 'HIGH',
+      status: 'PLAN_APPROVED',
+      reviewedById: hrManager.id,
+      approvedById: admin.id,
+    },
+  });
 
-  const profileData = [
-    { headline: 'Senior Full-Stack Developer', summary: '8 years of experience in React, Node.js, and PostgreSQL. Built and scaled SaaS products serving 100K+ users.', visibility: 'PUBLIC', preferredWorkMode: 'REMOTE', yearsOfExperience: 8 },
-    { headline: 'ML Engineer & Data Scientist', summary: 'PhD in Computer Science. 5 years building ML pipelines with Python, TensorFlow, and AWS SageMaker.', visibility: 'PUBLIC', preferredWorkMode: 'HYBRID', yearsOfExperience: 5 },
-    { headline: 'DevOps & Platform Engineer', summary: 'Expert in Kubernetes, Terraform, and AWS. Reduced deployment times by 80% at previous startup.', visibility: 'REGISTERED_ONLY', preferredWorkMode: 'ONSITE', yearsOfExperience: 6 },
-    { headline: 'Frontend Developer (React/TypeScript)', summary: '4 years of experience building responsive web applications with React, TypeScript, and Next.js.', visibility: 'PUBLIC', preferredWorkMode: 'REMOTE', yearsOfExperience: 4 },
-    { headline: 'Backend Engineer (Go/Rust)', summary: 'Systems programmer with 7 years experience. Focus on high-performance APIs and distributed systems.', visibility: 'PRIVATE', preferredWorkMode: 'HYBRID', yearsOfExperience: 7 },
-  ];
+  // 7. Request logs & approval records
+  await prisma.requestLog.create({
+    data: {
+      requestId: request.id,
+      action: 'STATUS_CHANGE',
+      fromStatus: 'DRAFT',
+      toStatus: 'PENDING_REVIEW',
+      performedById: dhEng.id,
+      metadata: { note: 'Initial submission' },
+    },
+  });
 
-  for (let i = 0; i < candidateEmails.length; i++) {
-    const email = candidateEmails[i];
-    if (!email) continue;
-    const user = createdUsers[email];
-    if (!user) continue;
-    const data = profileData[i];
-    if (!data) continue;
+  await prisma.approvalRecord.create({
+    data: {
+      requestId: request.id,
+      approverId: admin.id,
+      decision: 'APPROVED',
+      comments: 'Approved request for ENG headcount increase.',
+    },
+  });
 
-    await prisma.candidateProfile.upsert({
-      where: { userId: user.id },
-      update: {},
-      create: {
-        userId: user.id,
-        headline: data.headline,
-        summary: data.summary,
-        visibility: data.visibility,
-        preferredWorkMode: data.preferredWorkMode,
-        yearsOfExperience: data.yearsOfExperience,
-      },
-    });
-  }
-  console.log(`  ✅ Candidate profiles: ${candidateEmails.length} created`);
+  // 8. Overall Plan and Task Plans
+  const plan = await prisma.overallPlan.create({
+    data: {
+      requestId: request.id,
+      startDate: new Date(),
+      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+      status: 'APPROVED',
+      createdById: hrManager.id,
+      approvedById: admin.id,
+    },
+  });
 
-  console.log('\n🎉 Seed complete!');
+  await prisma.taskPlan.create({
+    data: {
+      overallPlanId: plan.id,
+      taskType: 'JOB_POSTING',
+      assignedToId: hrStaff.id,
+      startDate: new Date(),
+      endDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+      status: 'COMPLETED',
+    },
+  });
+
+  await prisma.taskPlan.create({
+    data: {
+      overallPlanId: plan.id,
+      taskType: 'CV_COLLECTION',
+      assignedToId: hrStaff.id,
+      startDate: new Date(),
+      endDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
+      status: 'IN_PROGRESS',
+    },
+  });
+
+  // 9. Candidate CV & CV Embedding (pgvector column is raw and separate)
+  const candidateCv = await prisma.candidateCV.create({
+    data: {
+      candidateId: firstProfile.id,
+      fileName: 'alex_rivera_cv.pdf',
+      fileType: 'PDF',
+      filePath: '/storage/cvs/alex_rivera_cv.pdf',
+      rawText: 'Alex Rivera CV: Senior TypeScript Engineer. Skilled in React, Node, PostgreSQL, and Prisma.',
+      parsedAt: new Date(),
+    },
+  });
+
+  await prisma.cvEmbedding.create({
+    data: {
+      cvDocumentId: candidateCv.id,
+      chunkIndex: 0,
+      chunkText: 'Alex Rivera CV: Senior TypeScript Engineer. Skilled in React, Node, PostgreSQL, and Prisma.',
+    },
+  });
+
+  // 10. Interview schedule and result
+  const interview = await prisma.interviewSchedule.create({
+    data: {
+      requestId: request.id,
+      candidateId: firstProfile.id,
+      scheduledAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // 2 days
+      duration: 60,
+      location: 'https://meet.google.com/abc-defg-hij',
+      interviewers: [hrManager.id, dhEng.id],
+      status: 'COMPLETED',
+    },
+  });
+
+  await prisma.interviewResult.create({
+    data: {
+      interviewId: interview.id,
+      result: 'PASS',
+      notes: 'Excellent coding skills. Deep knowledge of microservices and SQL.',
+    },
+  });
+
+  // 11. Notification and Email logs
+  await prisma.notification.create({
+    data: {
+      userId: dhEng.id,
+      type: 'REQUEST_UPDATE',
+      title: 'Recruitment Plan Approved',
+      body: `Your recruitment campaign plan for ${request.position} has been approved by the Admin.`,
+      relatedEntityId: request.id,
+      relatedEntityType: 'RecruitmentRequest',
+    },
+  });
+
+  await prisma.emailLog.create({
+    data: {
+      userId: firstCandidate.id,
+      toEmail: firstCandidate.email,
+      subject: 'Interview Invitation',
+      body: 'You have been invited to interview for the Senior TypeScript Engineer position.',
+      status: 'SENT',
+      sentAt: new Date(),
+    },
+  });
+
+  console.log('🎉 Seed complete! Seeding finished successfully.');
 }
 
 main()
