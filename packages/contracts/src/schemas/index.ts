@@ -1,186 +1,43 @@
 import { z } from 'zod';
-import { DocumentType, WorkMode, CandidateVisibility, ApplicationStatus, ReadinessLabel } from '../enums';
+import {
+  UserRole,
+  RecruitmentRequestStatus,
+  Urgency,
+  PlanStatus,
+  TaskType,
+  TaskStatus,
+  InterviewStatus,
+  InterviewResult,
+  NotificationType,
+  EmailStatus,
+} from '../enums';
 
-/**
- * Shared Zod schemas for runtime validation.
- * Used across API DTOs and worker payloads.
- */
-
-// ─── Base Schemas ──────────────────────────────────────────────────
+// ─── Common / Base Schemas ─────────────────────────────────────────
 
 export const UuidSchema = z.string().uuid();
 
-export const SourceLocationSchema = z.object({
-  sourceDocumentId: z.string().uuid(),
-  pageNumber: z.number().int().optional(),
-  sectionTitle: z.string().optional(),
-  startOffset: z.number().int().optional(),
-  endOffset: z.number().int().optional(),
-  rawText: z.string().optional(),
-});
-
-export type SourceLocation = z.infer<typeof SourceLocationSchema>;
-
-// ─── User & Auth ───────────────────────────────────────────────────
+// ─── User & Auth Schemas ───────────────────────────────────────────
 
 export const CreateUserSchema = z.object({
   email: z.string().email(),
   displayName: z.string().min(1).max(255),
-  role: z.enum(['CANDIDATE', 'RECRUITER', 'HIRING_MANAGER', 'DEPARTMENT_HEAD', 'ADMIN']),
-});
-
-// ─── Role / JD ─────────────────────────────────────────────────────
-
-export const CreateRoleSchema = z.object({
-  title: z.string().min(1).max(500),
+  role: z.nativeEnum(UserRole),
   organizationId: z.string().uuid(),
-  workMode: z.nativeEnum(WorkMode).optional(),
-  location: z.string().max(255).optional(),
-  description: z.string().optional(),
+  departmentId: z.string().uuid().optional().nullable(),
+  phone: z.string().max(20).optional().nullable(),
 });
-
-// ─── Candidate Profile ─────────────────────────────────────────────
-
-export const UpdateCandidateProfileSchema = z.object({
-  headline: z.string().max(500).optional(),
-  summary: z.string().optional(),
-  visibility: z.nativeEnum(CandidateVisibility).optional(),
-  preferredWorkMode: z.nativeEnum(WorkMode).optional(),
-  preferredLocations: z.array(z.string()).optional(),
-  yearsOfExperience: z.number().int().nonnegative().optional(),
-});
-
-// ─── Document Upload ───────────────────────────────────────────────
-
-export const DocumentUploadSchema = z.object({
-  documentType: z.nativeEnum(DocumentType),
-  fileName: z.string().min(1),
-  mimeType: z.enum([
-    'application/pdf',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  ]),
-  fileSizeBytes: z.number().int().positive(),
-});
-
-// ─── Application ───────────────────────────────────────────────────
-
-export const CreateApplicationSchema = z.object({
-  roleId: z.string().uuid(),
-  coverNote: z.string().max(2000).optional(),
-});
-
-export const UpdateApplicationStatusSchema = z.object({
-  status: z.nativeEnum(ApplicationStatus),
-  reason: z.string().max(1000).optional(),
-});
-
-// ─── Evidence Record ───────────────────────────────────────────────
-
-export const EvidenceRecordSchema = z.object({
-  id: z.string().uuid(),
-  evaluationRunId: z.string().uuid(),
-  evidenceType: z.enum(['CLAIM', 'GAP', 'HARD_CONSTRAINT', 'INTERVIEW_FOCUS']),
-  content: z.string(),
-  confidence: z.number().min(0).max(1).optional(),
-  sourceLocations: z.array(SourceLocationSchema),
-  metadata: z.record(z.unknown()).optional(),
-});
-
-export type EvidenceRecord = z.infer<typeof EvidenceRecordSchema>;
-
-// ─── BullMQ Job Payloads ───────────────────────────────────────────
-
-export const BaseJobPayloadSchema = z.object({
-  jobId: z.string(),
-  idempotencyKey: z.string(),
-  actorId: z.string().uuid().optional(),
-  resourceId: z.string().uuid(),
-  resourceVersion: z.string().optional(),
-  requestedAt: z.string().datetime(),
-});
-
-export type BaseJobPayload = z.infer<typeof BaseJobPayloadSchema>;
-
-export const DocumentParsePayloadSchema = BaseJobPayloadSchema.extend({
-  documentType: z.nativeEnum(DocumentType),
-  filePath: z.string(),
-});
-
-export const EvaluationPayloadSchema = BaseJobPayloadSchema.extend({
-  applicationId: z.string().uuid(),
-  roleId: z.string().uuid(),
-  candidateProfileId: z.string().uuid(),
-});
-
-// ─── Talent Search ─────────────────────────────────────────────────
-
-export const TalentSearchSchema = z.object({
-  query: z.string().min(1).max(500),
-  filters: z
-    .object({
-      workMode: z.nativeEnum(WorkMode).optional(),
-      location: z.string().max(255).optional(),
-      minYearsExperience: z.number().int().nonnegative().optional(),
-      visibility: z.nativeEnum(CandidateVisibility).optional(),
-    })
-    .optional(),
-  pagination: z
-    .object({
-      page: z.number().int().positive().default(1),
-      pageSize: z.number().int().positive().max(50).default(20),
-    })
-    .optional(),
-});
-
-export type TalentSearchInput = z.infer<typeof TalentSearchSchema>;
-
-export const MatchedSkillSchema = z.object({
-  skill: z.string(),
-  source: z.enum(['exact', 'alias', 'graph_expansion', 'vector_similarity']),
-  confidence: z.number().min(0).max(1),
-  evidence: z.string().optional(),
-});
-
-export type MatchedSkill = z.infer<typeof MatchedSkillSchema>;
-
-export const TalentSearchResultSchema = z.object({
-  candidateProfileId: z.string().uuid(),
-  displayName: z.string(),
-  headline: z.string().optional(),
-  overallScore: z.number().min(0).max(1),
-  vectorScore: z.number().min(0).max(1),
-  graphScore: z.number().min(0).max(1),
-  coverageScore: z.number().min(0).max(1),
-  readinessLabel: z.nativeEnum(ReadinessLabel),
-  matchedSkills: z.array(MatchedSkillSchema),
-  gaps: z.array(
-    z.object({
-      skill: z.string(),
-      gapType: z.string(),
-      severity: z.string(),
-    }),
-  ),
-});
-
-export type TalentSearchResult = z.infer<typeof TalentSearchResultSchema>;
-
-// ─── Auth ──────────────────────────────────────────────────────────
 
 export const RegisterUserSchema = z.object({
   email: z.string().email(),
   displayName: z.string().min(1).max(255),
   password: z.string().min(8).max(128),
-  role: z.enum(['CANDIDATE', 'RECRUITER', 'HIRING_MANAGER', 'DEPARTMENT_HEAD', 'ADMIN']),
+  role: z.nativeEnum(UserRole),
 });
-
-export type RegisterUserInput = z.infer<typeof RegisterUserSchema>;
 
 export const LoginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
 });
-
-export type LoginInput = z.infer<typeof LoginSchema>;
 
 export const RefreshTokenSchema = z.object({
   refreshToken: z.string().min(1),
@@ -196,7 +53,11 @@ export const ResetPasswordSchema = z.object({
   newPassword: z.string().min(8).max(128),
 });
 
-export type ResetPasswordInput = z.infer<typeof ResetPasswordSchema>;
+export const UpdateUserSchema = z.object({
+  displayName: z.string().min(1).max(255).optional(),
+  phone: z.string().max(20).optional().nullable(),
+  isActive: z.boolean().optional(),
+});
 
 export const AuthTokenResponseSchema = z.object({
   accessToken: z.string(),
@@ -210,9 +71,15 @@ export const AuthTokenResponseSchema = z.object({
   }),
 });
 
+export type CreateUserInput = z.infer<typeof CreateUserSchema>;
+export type RegisterUserInput = z.infer<typeof RegisterUserSchema>;
+export type LoginInput = z.infer<typeof LoginSchema>;
+export type UpdateUserInput = z.infer<typeof UpdateUserSchema>;
+export type ForgotPasswordInput = z.infer<typeof ForgotPasswordSchema>;
+export type ResetPasswordInput = z.infer<typeof ResetPasswordSchema>;
 export type AuthTokenResponse = z.infer<typeof AuthTokenResponseSchema>;
 
-// ─── Organization Management ───────────────────────────────────────
+// ─── Organization Schemas ──────────────────────────────────────────
 
 export const CreateOrganizationSchema = z.object({
   name: z.string().min(1).max(255),
@@ -220,183 +87,198 @@ export const CreateOrganizationSchema = z.object({
     .string()
     .min(2)
     .max(63)
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Must be lowercase letters, numbers, hyphens'),
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric and hyphens'),
 });
+
+export const UpdateOrganizationSchema = CreateOrganizationSchema.partial();
 
 export type CreateOrganizationInput = z.infer<typeof CreateOrganizationSchema>;
+export type UpdateOrganizationInput = z.infer<typeof UpdateOrganizationSchema>;
 
-export const AddOrganizationMemberSchema = z.object({
-  userId: z.string().uuid(),
-  memberRole: z.enum(['OWNER', 'ADMIN', 'MEMBER']),
-});
-
-// ─── Department Management ─────────────────────────────────────────
+// ─── Department Schemas ────────────────────────────────────────────
 
 export const CreateDepartmentSchema = z.object({
+  organizationId: z.string().uuid(),
   name: z.string().min(1).max(255),
   code: z
     .string()
     .min(2)
     .max(20)
-    .regex(/^[A-Z0-9_]+$/, 'Must be uppercase letters, numbers, underscores'),
-  headUserId: z.string().uuid().optional(),
-  parentId: z.string().uuid().optional(),
+    .regex(/^[A-Z0-9_]+$/, 'Code must be uppercase letters, numbers, and underscores'),
+  headUserId: z.string().uuid().optional().nullable(),
+  parentId: z.string().uuid().optional().nullable(),
 });
+
+export const UpdateDepartmentSchema = CreateDepartmentSchema.partial().omit({ organizationId: true });
 
 export type CreateDepartmentInput = z.infer<typeof CreateDepartmentSchema>;
+export type UpdateDepartmentInput = z.infer<typeof UpdateDepartmentSchema>;
 
-export const UpdateDepartmentSchema = CreateDepartmentSchema.partial();
+// ─── Recruitment Request Schemas ───────────────────────────────────
 
-// ─── Approval Chains ───────────────────────────────────────────────
-
-export const CreateApprovalChainSchema = z.object({
-  name: z.string().min(1).max(255),
-  departmentId: z.string().uuid().optional(),
-  isDefault: z.boolean().optional(),
-  levels: z
-    .array(
-      z.object({
-        level: z.number().int().positive(),
-        approverUserId: z.string().uuid(),
-        role: z.enum(['LEVEL_1', 'LEVEL_2', 'LEVEL_3']),
-      }),
-    )
-    .min(1)
-    .max(3),
-});
-
-export type CreateApprovalChainInput = z.infer<typeof CreateApprovalChainSchema>;
-
-// ─── Hiring Requests ───────────────────────────────────────────────
-
-export const CreateHiringRequestSchema = z.object({
+export const CreateRecruitmentRequestSchema = z.object({
   departmentId: z.string().uuid(),
-  title: z.string().min(1).max(500),
-  description: z.string().max(5000).optional(),
-  justification: z.string().max(5000).optional(),
-  headcount: z.number().int().positive().max(100).default(1),
-  priority: z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT']).default('NORMAL'),
-  workMode: z.nativeEnum(WorkMode).optional(),
-  location: z.string().max(255).optional(),
-  budgetRange: z
-    .object({
-      min: z.number().nonnegative(),
-      max: z.number().nonnegative(),
-      currency: z.string().length(3),
-    })
-    .optional(),
-  targetStartDate: z.string().datetime().optional(),
+  position: z.string().min(1).max(255),
+  headcount: z.number().int().positive().min(1),
+  jobDescription: z.string().min(1),
+  skillRequirements: z.record(z.unknown()).default({}),
+  justification: z.string().min(1),
+  urgency: z.nativeEnum(Urgency).default(Urgency.MEDIUM),
 });
 
-export type CreateHiringRequestInput = z.infer<typeof CreateHiringRequestSchema>;
-
-export const UpdateHiringRequestSchema = CreateHiringRequestSchema.partial();
-
-export const SubmitHiringRequestSchema = z.object({
-  id: z.string().uuid(),
+export const UpdateRecruitmentRequestSchema = CreateRecruitmentRequestSchema.partial().extend({
+  status: z.nativeEnum(RecruitmentRequestStatus).optional(),
+  reviewedById: z.string().uuid().optional().nullable(),
+  approvedById: z.string().uuid().optional().nullable(),
+  rejectionReason: z.string().optional().nullable(),
 });
 
 export const ApproveRejectRequestSchema = z.object({
-  decision: z.enum(['APPROVED', 'REJECTED', 'REVISION_REQUESTED']),
+  decision: z.enum([
+    RecruitmentRequestStatus.APPROVED,
+    RecruitmentRequestStatus.REJECTED,
+    RecruitmentRequestStatus.REVISION_NEEDED,
+  ]),
   comments: z.string().max(2000).optional(),
 });
 
+export type CreateRecruitmentRequestInput = z.infer<typeof CreateRecruitmentRequestSchema>;
+export type UpdateRecruitmentRequestInput = z.infer<typeof UpdateRecruitmentRequestSchema>;
 export type ApproveRejectRequestInput = z.infer<typeof ApproveRejectRequestSchema>;
 
-// ─── Invites ───────────────────────────────────────────────────────
+// ─── Planning Schemas ──────────────────────────────────────────────
 
-export const CreateInviteSchema = z.object({
-  roleId: z.string().uuid(),
+export const CreateOverallPlanSchema = z.object({
+  requestId: z.string().uuid(),
+  startDate: z.string().datetime(),
+  endDate: z.string().datetime(),
+});
+
+export const UpdateOverallPlanSchema = z.object({
+  startDate: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional(),
+  status: z.nativeEnum(PlanStatus).optional(),
+  revisionNotes: z.string().optional().nullable(),
+  approvedById: z.string().uuid().optional().nullable(),
+});
+
+export const CreateTaskPlanSchema = z.object({
+  overallPlanId: z.string().uuid(),
+  taskType: z.nativeEnum(TaskType),
+  assignedToId: z.string().uuid(),
+  startDate: z.string().datetime(),
+  endDate: z.string().datetime(),
+});
+
+export const UpdateTaskPlanSchema = CreateTaskPlanSchema.partial().extend({
+  status: z.nativeEnum(TaskStatus).optional(),
+});
+
+export type CreateOverallPlanInput = z.infer<typeof CreateOverallPlanSchema>;
+export type UpdateOverallPlanInput = z.infer<typeof UpdateOverallPlanSchema>;
+export type CreateTaskPlanInput = z.infer<typeof CreateTaskPlanSchema>;
+export type UpdateTaskPlanInput = z.infer<typeof UpdateTaskPlanSchema>;
+
+// ─── Candidate Profile & CV Schemas ────────────────────────────────
+
+export const CreateCandidateProfileSchema = z.object({
+  userId: z.string().uuid(),
+  fullName: z.string().min(1).max(255),
+  email: z.string().email(),
+  phone: z.string().max(20).optional().nullable(),
+  summary: z.string().optional().nullable(),
+  structuredData: z.record(z.unknown()).optional().nullable(),
+});
+
+export const UpdateCandidateProfileSchema = CreateCandidateProfileSchema.partial().omit({ userId: true });
+
+export const CreateCandidateCVSchema = z.object({
   candidateId: z.string().uuid(),
-  message: z.string().max(2000).optional(),
+  fileName: z.string().min(1).max(255),
+  fileType: z.enum(['PDF', 'DOCX']),
+  filePath: z.string().min(1),
+  rawText: z.string().min(1),
 });
 
-export type CreateInviteInput = z.infer<typeof CreateInviteSchema>;
-
-export const RespondToInviteSchema = z.object({
-  decision: z.enum(['ACCEPTED', 'DECLINED']),
+export const UpdateCandidateCVSchema = CreateCandidateCVSchema.partial().extend({
+  parsedAt: z.string().datetime().optional().nullable(),
 });
 
-// ─── Reviewer Feedback ─────────────────────────────────────────────
+export type CreateCandidateProfileInput = z.infer<typeof CreateCandidateProfileSchema>;
+export type UpdateCandidateProfileInput = z.infer<typeof UpdateCandidateProfileSchema>;
+export type CreateCandidateCVInput = z.infer<typeof CreateCandidateCVSchema>;
+export type UpdateCandidateCVInput = z.infer<typeof UpdateCandidateCVSchema>;
 
-export const CreateReviewerFeedbackSchema = z.object({
-  evaluationRunId: z.string().uuid(),
-  sectionTag: z.string().max(100),
-  comment: z.string().max(5000),
-  isChallenge: z.boolean().default(false),
+// ─── Interview Schemas ─────────────────────────────────────────────
+
+export const CreateInterviewScheduleSchema = z.object({
+  requestId: z.string().uuid(),
+  candidateId: z.string().uuid(),
+  scheduledAt: z.string().datetime(),
+  duration: z.number().int().positive(), // in minutes
+  location: z.string().min(1).max(500),
+  interviewers: z.array(z.string().uuid()).min(1),
 });
 
-export type CreateReviewerFeedbackInput = z.infer<typeof CreateReviewerFeedbackSchema>;
-
-// ─── Explanation Box ───────────────────────────────────────────────
-
-export const ExplanationBoxSchema = z.object({
-  evaluationRunId: z.string().uuid(),
-  headline: z.string(),
-  sections: z.array(
-    z.object({
-      title: z.string(),
-      body: z.string(),
-      evidenceIds: z.array(z.string().uuid()).optional(),
-    }),
-  ),
-  confidence: z.number().min(0).max(1),
+export const UpdateInterviewScheduleSchema = CreateInterviewScheduleSchema.partial().extend({
+  status: z.nativeEnum(InterviewStatus).optional(),
 });
 
-export type ExplanationBox = z.infer<typeof ExplanationBoxSchema>;
-
-// ─── Interview Focus ───────────────────────────────────────────────
-
-export const InterviewFocusItemSchema = z.object({
-  evaluationRunId: z.string().uuid(),
-  topic: z.string(),
-  rationale: z.string(),
-  suggestedQuestions: z.array(z.string()),
-  linkedGapId: z.string().uuid().optional(),
-  linkedEvidenceIds: z.array(z.string().uuid()).optional(),
-  priority: z.enum(['HIGH', 'MEDIUM', 'LOW']),
+export const CreateInterviewResultSchema = z.object({
+  interviewId: z.string().uuid(),
+  result: z.nativeEnum(InterviewResult),
+  notes: z.string().optional().nullable(),
 });
 
-export type InterviewFocusItem = z.infer<typeof InterviewFocusItemSchema>;
+export const UpdateInterviewResultSchema = CreateInterviewResultSchema.partial().omit({ interviewId: true });
 
-// ─── Candidate Packet ──────────────────────────────────────────────
+export type CreateInterviewScheduleInput = z.infer<typeof CreateInterviewScheduleSchema>;
+export type UpdateInterviewScheduleInput = z.infer<typeof UpdateInterviewScheduleSchema>;
+export type CreateInterviewResultInput = z.infer<typeof CreateInterviewResultSchema>;
+export type UpdateInterviewResultInput = z.infer<typeof UpdateInterviewResultSchema>;
 
-export const GeneratePacketSchema = z.object({
-  applicationId: z.string().uuid(),
-  evaluationRunId: z.string().uuid(),
-  sections: z
-    .array(
-      z.enum([
-        'READINESS',
-        'EVIDENCE',
-        'GAPS',
-        'INTERVIEW_FOCUS',
-        'EXPLANATION',
-        'REVIEWER_FEEDBACK',
-      ]),
-    )
-    .min(1),
+// ─── Notification & Email Schemas ──────────────────────────────────
+
+export const CreateNotificationSchema = z.object({
+  userId: z.string().uuid(),
+  type: z.nativeEnum(NotificationType),
+  title: z.string().min(1).max(255),
+  body: z.string().min(1),
+  relatedEntityId: z.string().uuid().optional().nullable(),
+  relatedEntityType: z.string().max(100).optional().nullable(),
 });
 
-export type GeneratePacketInput = z.infer<typeof GeneratePacketSchema>;
-
-export const SharePacketSchema = z.object({
-  packetId: z.string().uuid(),
-  recipientUserIds: z.array(z.string().uuid()).min(1),
-  expiresInHours: z.number().int().positive().max(720).optional(),
+export const CreateEmailLogSchema = z.object({
+  userId: z.string().uuid().optional().nullable(),
+  toEmail: z.string().email(),
+  subject: z.string().min(1).max(255),
+  body: z.string().min(1),
+  status: z.nativeEnum(EmailStatus).default(EmailStatus.PENDING),
+  errorMessage: z.string().optional().nullable(),
 });
 
-export type SharePacketInput = z.infer<typeof SharePacketSchema>;
+export type CreateNotificationInput = z.infer<typeof CreateNotificationSchema>;
+export type CreateEmailLogInput = z.infer<typeof CreateEmailLogSchema>;
 
-// ─── Skill Knowledge Graph ────────────────────────────────────────
+// ─── BullMQ Job Payload Schemas ────────────────────────────────────
 
-export const SkillNodeSchema = z.object({
-  canonicalName: z.string(),
-  category: z.enum([
-    'LANGUAGE', 'FRAMEWORK', 'LIBRARY', 'DATABASE', 'CLOUD',
-    'DEVOPS', 'PARADIGM', 'ROLE', 'DOMAIN', 'TOOL', 'PLATFORM',
-  ]),
-  aliases: z.array(z.string()).optional(),
+export const CvParseJobPayloadSchema = z.object({
+  cvDocumentId: z.string().uuid(),
+  filePath: z.string().min(1),
 });
 
-export type SkillNode = z.infer<typeof SkillNodeSchema>;
+export const EmbeddingGenerateJobPayloadSchema = z.object({
+  cvDocumentId: z.string().uuid(),
+  rawText: z.string().min(1),
+});
+
+export const EmailSendJobPayloadSchema = z.object({
+  emailLogId: z.string().uuid(),
+  to: z.string().email(),
+  subject: z.string().min(1),
+  body: z.string().min(1),
+});
+
+export type CvParseJobPayload = z.infer<typeof CvParseJobPayloadSchema>;
+export type EmbeddingGenerateJobPayload = z.infer<typeof EmbeddingGenerateJobPayloadSchema>;
+export type EmailSendJobPayload = z.infer<typeof EmailSendJobPayloadSchema>;
