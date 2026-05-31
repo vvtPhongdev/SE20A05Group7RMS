@@ -3,7 +3,7 @@ import { RpcException } from '@nestjs/microservices';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../common/database/prisma.service';
 import { RegisterUserSchema, RegisterUserInput, AuthTokenResponse, LoginSchema, LoginInput, RefreshTokenSchema, ForgotPasswordSchema, ResetPasswordSchema, ResetPasswordInput } from '@wr/contracts';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import IORedis from 'ioredis';
 import * as nodemailer from 'nodemailer';
@@ -49,6 +49,17 @@ export class AuthService implements OnModuleDestroy {
     // 3. Hash password
     const passwordHash = await bcrypt.hash(parsed.password, 12);
 
+    // Find or create a default organization for registered users
+    let organization = await this.prisma.organization.findFirst();
+    if (!organization) {
+      organization = await this.prisma.organization.create({
+        data: {
+          name: 'Acme Corporation',
+          slug: 'acme-corp',
+        },
+      });
+    }
+
     // 4. Create user in database
     const user = await this.prisma.user.create({
       data: {
@@ -56,6 +67,7 @@ export class AuthService implements OnModuleDestroy {
         displayName: parsed.displayName,
         role: parsed.role,
         passwordHash,
+        organizationId: organization.id,
       },
     });
 
@@ -65,7 +77,7 @@ export class AuthService implements OnModuleDestroy {
       email: user.email,
       displayName: user.displayName,
       role: user.role,
-      organizationId: null, // Initial registration doesn't assign an org
+      organizationId: organization.id,
     };
     const accessToken = this.jwtService.sign(payload);
 
@@ -117,10 +129,7 @@ export class AuthService implements OnModuleDestroy {
     }
 
     // 4. Find primary organization membership if any
-    const membership = await this.prisma.organizationMember.findFirst({
-      where: { userId: user.id },
-    });
-    const organizationId = membership?.organizationId || null;
+    const organizationId = user.organizationId;
 
     // 5. Generate Access Token (JWT)
     const payload = {
@@ -187,10 +196,7 @@ export class AuthService implements OnModuleDestroy {
       });
     }
 
-    const membership = await this.prisma.organizationMember.findFirst({
-      where: { userId: user.id },
-    });
-    const organizationId = membership?.organizationId || null;
+    const organizationId = user.organizationId;
 
     await this.redis.del(redisKey);
 
