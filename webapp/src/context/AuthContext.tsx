@@ -96,6 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
 
         localStorage.setItem('token', data.accessToken);
+        localStorage.setItem('refreshToken', data.refreshToken);
         localStorage.setItem('user', JSON.stringify(loggedUser));
         setToken(data.accessToken);
         setUser(loggedUser);
@@ -110,6 +111,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (mockUser && password === 'Password123!') {
       const mockToken = `mock-jwt-token-for-${mockUser.role}`;
       localStorage.setItem('token', mockToken);
+      localStorage.setItem('refreshToken', 'mock-refresh-token');
       localStorage.setItem('user', JSON.stringify(mockUser));
       setToken(mockToken);
       setUser(mockUser);
@@ -123,6 +125,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
     setToken(null);
     setUser(null);
