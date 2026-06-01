@@ -21,4 +21,5 @@ export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 export { Separator } from './primitives/Separator';
 export { ScrollArea } from './primitives/ScrollArea';
 export { Toast, ToastProvider } from './primitives/Toast';
+export { Table, TableHeader, TableBody, TableFooter, TableRow, TableHead, TableCell, TableCaption, } from './primitives/Table';
 //# sourceMappingURL=index.d.ts.map

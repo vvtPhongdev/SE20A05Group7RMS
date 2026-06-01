@@ -51,7 +51,7 @@ const microservices_1 = require("@nestjs/microservices");
 const jwt_1 = require("@nestjs/jwt");
 const prisma_service_1 = require("../../common/database/prisma.service");
 const contracts_1 = require("@wr/contracts");
-const bcrypt = __importStar(require("bcrypt"));
+const bcrypt = __importStar(require("bcryptjs"));
 const crypto = __importStar(require("crypto"));
 const ioredis_1 = __importDefault(require("ioredis"));
 const nodemailer = __importStar(require("nodemailer"));
@@ -90,6 +90,16 @@ let AuthService = class AuthService {
         }
         // 3. Hash password
         const passwordHash = await bcrypt.hash(parsed.password, 12);
+        // Find or create a default organization for registered users
+        let organization = await this.prisma.organization.findFirst();
+        if (!organization) {
+            organization = await this.prisma.organization.create({
+                data: {
+                    name: 'Acme Corporation',
+                    slug: 'acme-corp',
+                },
+            });
+        }
         // 4. Create user in database
         const user = await this.prisma.user.create({
             data: {
@@ -97,6 +107,7 @@ let AuthService = class AuthService {
                 displayName: parsed.displayName,
                 role: parsed.role,
                 passwordHash,
+                organizationId: organization.id,
             },
         });
         // 5. Generate Access Token (JWT)
@@ -105,7 +116,7 @@ let AuthService = class AuthService {
             email: user.email,
             displayName: user.displayName,
             role: user.role,
-            organizationId: null, // Initial registration doesn't assign an org
+            organizationId: organization.id,
         };
         const accessToken = this.jwtService.sign(payload);
         // 6. Generate Refresh Token (64-byte random hex)
@@ -150,10 +161,7 @@ let AuthService = class AuthService {
             });
         }
         // 4. Find primary organization membership if any
-        const membership = await this.prisma.organizationMember.findFirst({
-            where: { userId: user.id },
-        });
-        const organizationId = membership?.organizationId || null;
+        const organizationId = user.organizationId;
         // 5. Generate Access Token (JWT)
         const payload = {
             sub: user.id,
@@ -211,10 +219,7 @@ let AuthService = class AuthService {
                 message: 'Refresh token is invalid or has expired',
             });
         }
-        const membership = await this.prisma.organizationMember.findFirst({
-            where: { userId: user.id },
-        });
-        const organizationId = membership?.organizationId || null;
+        const organizationId = user.organizationId;
         await this.redis.del(redisKey);
         const accessTokenPayload = {
             sub: user.id,
@@ -317,6 +322,79 @@ let AuthService = class AuthService {
                 message: 'Failed to send verification email. Please try again later.',
             });
         }
+        return { success: true };
+    }
+    /**
+     * Validate 6-digit code from Redis, hash new password (bcrypt 12 rounds),
+     * update User.passwordHash, and delete ALL refresh tokens for user.
+     */
+    async resetPassword(dto) {
+        // 1. Validate payload
+        const parsed = contracts_1.ResetPasswordSchema.parse(dto);
+        const email = parsed.email.toLowerCase();
+        // 2. Retrieve code from Redis
+        const redisKey = `reset:${email}`;
+        const storedCode = await this.redis.get(redisKey);
+        // 3. Validate code (invalid or expired)
+        if (!storedCode || storedCode !== parsed.code) {
+            throw new microservices_1.RpcException({
+                status: common_1.HttpStatus.BAD_REQUEST,
+                message: 'Invalid or expired reset code',
+            });
+        }
+        // 4. Find user by email
+        const user = await this.prisma.user.findUnique({
+            where: { email },
+        });
+        if (!user) {
+            throw new microservices_1.RpcException({
+                status: common_1.HttpStatus.BAD_REQUEST,
+                message: 'Invalid or expired reset code',
+            });
+        }
+        // 5. Hash new password with bcrypt (12 rounds)
+        const newPasswordHash = await bcrypt.hash(parsed.newPassword, 12);
+        // 6. Update user password in database
+        await this.prisma.user.update({
+            where: { id: user.id },
+            data: { passwordHash: newPasswordHash },
+        });
+        // 7. Delete ALL refresh tokens for the user (force re-login)
+        // Scan Redis for all refresh tokens belonging to this user and delete them
+        const cursor = '0';
+        let deletedCount = 0;
+        let scanCursor = cursor;
+        do {
+            const result = await this.redis.scan(scanCursor, 'MATCH', 'refresh:*', 'COUNT', 100);
+            scanCursor = result[0];
+            const keys = result[1];
+            // Check each key to see if it belongs to this user
+            for (const key of keys) {
+                const storedUserId = await this.redis.get(key);
+                if (storedUserId === user.id) {
+                    await this.redis.del(key);
+                    deletedCount++;
+                }
+            }
+        } while (scanCursor !== '0');
+        // 8. Delete the reset code from Redis
+        await this.redis.del(redisKey);
+        return { success: true };
+    }
+    /**
+     * Logout a user session: revokes the specified refresh token in Redis.
+     */
+    async logout(dto) {
+        // 1. Validate payload
+        const validationResult = contracts_1.RefreshTokenSchema.safeParse(dto);
+        if (!validationResult.success) {
+            return { success: true };
+        }
+        const parsed = validationResult.data;
+        const tokenHash = crypto.createHash('sha256').update(parsed.refreshToken).digest('hex');
+        const redisKey = `refresh:${tokenHash}`;
+        // 2. Delete the refresh token from Redis
+        await this.redis.del(redisKey);
         return { success: true };
     }
 };

@@ -38,5 +38,11 @@ export declare class AuthController {
     forgotPassword(data: any): Promise<{
         success: boolean;
     }>;
+    resetPassword(data: any): Promise<{
+        success: boolean;
+    }>;
+    logout(data: any): Promise<{
+        success: boolean;
+    }>;
 }
 //# sourceMappingURL=auth.controller.d.ts.map

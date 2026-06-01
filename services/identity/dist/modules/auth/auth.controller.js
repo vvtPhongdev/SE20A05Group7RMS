@@ -33,6 +33,12 @@ let AuthController = class AuthController {
     async forgotPassword(data) {
         return this.service.forgotPassword(data);
     }
+    async resetPassword(data) {
+        return this.service.resetPassword(data);
+    }
+    async logout(data) {
+        return this.service.logout(data);
+    }
 };
 exports.AuthController = AuthController;
 __decorate([
@@ -63,6 +69,20 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], AuthController.prototype, "forgotPassword", null);
+__decorate([
+    (0, microservices_1.MessagePattern)('identity.auth.reset-password'),
+    __param(0, (0, microservices_1.Payload)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "resetPassword", null);
+__decorate([
+    (0, microservices_1.MessagePattern)('identity.auth.logout'),
+    __param(0, (0, microservices_1.Payload)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], AuthController.prototype, "logout", null);
 exports.AuthController = AuthController = __decorate([
     (0, common_1.Controller)(),
     __metadata("design:paramtypes", [auth_service_1.AuthService])

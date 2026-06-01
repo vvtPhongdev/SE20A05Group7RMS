@@ -1,7 +1,7 @@
 import { OnModuleDestroy } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../common/database/prisma.service';
-import { RegisterUserInput, AuthTokenResponse, LoginInput } from '@wr/contracts';
+import { RegisterUserInput, AuthTokenResponse, LoginInput, ResetPasswordInput } from '@wr/contracts';
 export declare class AuthService implements OnModuleDestroy {
     private readonly prisma;
     private readonly jwtService;
@@ -30,6 +30,21 @@ export declare class AuthService implements OnModuleDestroy {
      */
     forgotPassword(dto: {
         email: string;
+    }): Promise<{
+        success: boolean;
+    }>;
+    /**
+     * Validate 6-digit code from Redis, hash new password (bcrypt 12 rounds),
+     * update User.passwordHash, and delete ALL refresh tokens for user.
+     */
+    resetPassword(dto: ResetPasswordInput): Promise<{
+        success: boolean;
+    }>;
+    /**
+     * Logout a user session: revokes the specified refresh token in Redis.
+     */
+    logout(dto: {
+        refreshToken: string;
     }): Promise<{
         success: boolean;
     }>;
