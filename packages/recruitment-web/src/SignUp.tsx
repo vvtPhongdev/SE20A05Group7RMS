@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 
+// Định nghĩa đầy đủ kiểu dữ liệu nhận vào (Props) cho SignUp component
 interface SignUpProps {
   onSignInClick: () => void;
+  onSignUpSuccess: () => void; // Cổng kết nối điều hướng sang trang xác thực OTP
 }
 
-export default function SignUp({ onSignInClick }: SignUpProps) {
+export default function SignUp({ onSignInClick, onSignUpSuccess }: SignUpProps) {
   // --- State quản lý Form ---
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -18,12 +20,15 @@ export default function SignUp({ onSignInClick }: SignUpProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // --- Hàm xử lý khi submit Form ---
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault(); // Ngăn trang bị reload lại mặc định
+    
     if (password !== confirmPassword) {
       alert('Mật khẩu xác nhận không khớp!');
       return;
     }
+    
     console.log('Xử lý đăng ký tài khoản:', {
       fullName,
       email,
@@ -32,11 +37,15 @@ export default function SignUp({ onSignInClick }: SignUpProps) {
       password,
       agreeTOS,
     });
+
+    // KÍCH HOẠT: Chuyển hướng sang trang VerifyEmail để nhập OTP
+    onSignUpSuccess();
   };
 
   return (
     <div className="bg-[#FAF8F5] text-[#57534E] font-['IBM_Plex_Sans'] antialiased min-h-screen">
       <main className="flex min-h-screen max-w-[1440px] mx-auto overflow-hidden shadow-2xl">
+        
         {/* CỘT TRÁI: Thương hiệu & Tính năng hệ thống */}
         <section className="hidden lg:flex lg:w-[55%] relative flex-col justify-between p-8 overflow-hidden bg-[#008378]">
           {/* Background Decorations */}
@@ -166,7 +175,9 @@ export default function SignUp({ onSignInClick }: SignUpProps) {
               </p>
             </div>
 
+            {/* ĐÃ SỬA: Chuyển sang sử dụng onSubmit chuẩn React */}
             <form className="space-y-6" onSubmit={handleSubmit}>
+              
               {/* Name */}
               <div>
                 <label className="block text-sm text-[#3d4947] font-medium mb-1.5" htmlFor="full_name">
@@ -324,7 +335,7 @@ export default function SignUp({ onSignInClick }: SignUpProps) {
                 </label>
               </div>
 
-              {/* Submit */}
+              {/* Submit Button */}
               <button
                 className="w-full py-4 bg-[#0D9488] text-white font-semibold rounded-lg hover:bg-[#00685f] active:scale-[0.98] transition-all shadow-md"
                 type="submit"
