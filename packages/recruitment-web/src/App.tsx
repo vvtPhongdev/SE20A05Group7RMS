@@ -1,33 +1,27 @@
 import React, { useState } from "react";
 import RecruitmentSystem from "./RecruitmentSystem";
 import Login from "./Login";
-import SignUp from "./SignUp"; // Import thêm component SignUp vừa tạo
+import SignUp from "./SignUp";
+import ForgotPassword from "./ForgotPassword"; // Import tệp Quên mật khẩu
 
 function App() {
-  // Quản lý trạng thái trang hiện tại: mở rộng gồm 'landing', 'login', hoặc 'signup'
-  const [currentPage, setCurrentPage] = useState<'landing' | 'login' | 'signup'>('landing');
-
-  // Các hàm điều hướng tập trung
-  const navigateToLanding = () => setCurrentPage('landing');
-  const navigateToLogin = () => setCurrentPage('login');
-  const navigateToSignUp = () => setCurrentPage('signup');
+  // Quản lý 4 trạng thái trang: 'landing', 'login', 'signup', hoặc 'forgot'
+  const [currentPage, setCurrentPage] = useState<'landing' | 'login' | 'signup' | 'forgot'>('landing');
 
   return (
     <>
       {currentPage === 'landing' ? (
-        // Trang chủ: Bấm Sign In điều hướng sang trang Login
-        <RecruitmentSystem onSignInClick={navigateToLogin} />
+        <RecruitmentSystem onSignInClick={() => setCurrentPage('login')} />
       ) : currentPage === 'login' ? (
-        // Trang Login: 
-        // - Bấm logo RMS về lại Landing
-        // - Bấm Sign Up chuyển tiếp sang trang Đăng ký
         <Login 
-          onLogoClick={navigateToLanding} 
-          onSignUpClick={navigateToSignUp} 
+          onLogoClick={() => setCurrentPage('landing')} 
+          onSignUpClick={() => setCurrentPage('signup')} 
+          onForgotPasswordClick={() => setCurrentPage('forgot')} // Điều hướng sang Forgot Password
         />
+      ) : currentPage === 'signup' ? (
+        <SignUp onSignInClick={() => setCurrentPage('login')} />
       ) : (
-        // Trang SignUp: Bấm Sign In chuyển ngược lại trang Login
-        <SignUp onSignInClick={navigateToLogin} />
+        <ForgotPassword onBackToSignIn={() => setCurrentPage('login')} /> // Từ Forgot quay lại Login
       )}
     </>
   );

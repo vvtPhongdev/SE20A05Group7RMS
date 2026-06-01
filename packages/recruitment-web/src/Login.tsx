@@ -4,9 +4,11 @@ import React, { useState } from "react";
 interface LoginProps {
   onLogoClick: () => void;
   onSignUpClick: () => void; // Cổng kết nối điều hướng sang trang Đăng ký
+  onForgotPasswordClick: () => void; // Cổng kết nối điều hướng sang trang Quên mật khẩu
 }
 
-export default function Login({ onLogoClick, onSignUpClick }: LoginProps) {
+// LỖI CŨ CỦA BẠN: Thiếu tham số onForgotPasswordClick ở đây
+export default function Login({ onLogoClick, onSignUpClick, onForgotPasswordClick }: LoginProps) {
   // --- State quản lý Form ---
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -159,9 +161,14 @@ export default function Login({ onLogoClick, onSignUpClick }: LoginProps) {
                     Remember me
                   </span>
                 </label>
-                <a className="text-sm text-[#0D9488] hover:underline font-semibold transition-all" href="#forgot-password">
+                
+                <button 
+                  type="button"
+                  onClick={onForgotPasswordClick}
+                  className="text-sm text-[#0D9488] hover:underline font-semibold transition-all active:scale-95"
+                >
                   Forgot password?
-                </a>
+                </button>
               </div>
 
               {/* Nút Đăng nhập hệ thống */}
