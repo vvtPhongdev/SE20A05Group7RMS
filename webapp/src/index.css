@@ -61,3 +61,100 @@
   background: var(--wr-bg-elevated);
   color: var(--wr-text-primary);
 }
+
+/* ─── Sidebar Custom Navigation ────────────────────────────────── */
+.wr-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: none;
+  background: none;
+  color: var(--wr-text-secondary);
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--wr-radius-md);
+  font-family: inherit;
+  font-size: var(--wr-text-sm);
+  transition: all var(--wr-transition-fast);
+  width: 100%;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.wr-sidebar-item:hover {
+  color: var(--wr-text-primary);
+  background-color: var(--wr-bg-elevated);
+}
+
+.wr-sidebar-item.active {
+  color: var(--wr-accent-primary-text);
+  background-color: var(--wr-accent-primary);
+  font-weight: var(--wr-font-semibold);
+}
+
+.wr-sidebar-item svg {
+  stroke: var(--wr-text-secondary);
+  transition: stroke var(--wr-transition-fast), transform var(--wr-transition-fast);
+}
+
+.wr-sidebar-item:hover svg {
+  stroke: var(--wr-text-primary);
+}
+
+.wr-sidebar-item.active svg {
+  stroke: var(--wr-accent-primary-text);
+}
+
+.wr-sidebar-item.active:hover {
+  background-color: var(--wr-accent-primary-hover);
+}
+
+.wr-sidebar-item.active:active {
+  background-color: var(--wr-accent-primary-active);
+}
+
+.wr-sidebar-subitem {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem 0.5rem 2.5rem;
+  border: none;
+  background: none;
+  color: var(--wr-text-secondary);
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--wr-radius-md);
+  font-family: inherit;
+  font-size: var(--wr-text-sm);
+  transition: all var(--wr-transition-fast);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.wr-sidebar-subitem:hover {
+  color: var(--wr-text-primary);
+  background-color: var(--wr-bg-elevated);
+}
+
+.wr-sidebar-subitem.active {
+  color: var(--wr-accent-primary);
+  background-color: var(--wr-bg-page);
+  font-weight: var(--wr-font-semibold);
+}
+
+.wr-sidebar-subitem svg {
+  stroke: var(--wr-text-secondary);
+  width: 16px;
+  height: 16px;
+  transition: stroke var(--wr-transition-fast);
+}
+
+.wr-sidebar-subitem:hover svg {
+  stroke: var(--wr-text-primary);
+}
+
+.wr-sidebar-subitem.active svg {
+  stroke: var(--wr-accent-primary);
+}
+
