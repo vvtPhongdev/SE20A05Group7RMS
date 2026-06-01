@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Đảm bảo toàn bộ trang áp dụng đúng màu nền và font chữ hệ thống */
+body {
+  background-color: #FAF8F5;
+  color: #1C1917;
+  font-family: 'IBM Plex Sans', sans-serif;
+}
