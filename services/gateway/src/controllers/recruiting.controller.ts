@@ -1,9 +1,11 @@
 import { Controller, Get, Post, Patch, Body, Param, Query, Inject } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam, ApiQuery, ApiBody, ApiProperty } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiParam, ApiQuery, ApiBody, ApiProperty, ApiForbiddenResponse } from '@nestjs/swagger';
 import { SERVICE_TOKENS } from '../constants';
 import { firstValueFrom } from 'rxjs';
 import { CurrentUser, JwtPayload } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '@wr/contracts';
 
 // ─── Recruitment-Request DTOs (for Swagger) ──────────────────────────────────
 
@@ -192,10 +194,12 @@ export class RecruitingController {
   // ─── Recruitment Requests ─────────────────────────────────────────
 
   @Post('recruitment-requests')
+  @Roles(UserRole.DEPARTMENT_HEAD)
   @ApiOperation({
     summary: 'Create a recruitment request (DRAFT)',
     description: 'Creates a new hiring request in DRAFT status. The requestedById and organizationId are taken from the JWT.',
   })
+  @ApiForbiddenResponse({ description: 'Requires DEPARTMENT_HEAD role' })
   createRecruitmentRequest(
     @Body() body: CreateRecruitmentRequestDto,
     @CurrentUser() user: JwtPayload,
@@ -232,10 +236,12 @@ export class RecruitingController {
   }
 
   @Patch('recruitment-requests/:id')
+  @Roles(UserRole.DEPARTMENT_HEAD)
   @ApiOperation({
     summary: 'Update a recruitment request',
     description: 'Updates a DRAFT or REVISION_REQUESTED request. Only the owning DEPARTMENT_HEAD should call this.',
   })
+  @ApiForbiddenResponse({ description: 'Requires DEPARTMENT_HEAD role' })
   @ApiParam({ name: 'id', description: 'Hiring request UUID' })
   updateRecruitmentRequest(
     @Param('id') id: string,
@@ -247,20 +253,24 @@ export class RecruitingController {
   }
 
   @Post('recruitment-requests/:id/submit')
+  @Roles(UserRole.DEPARTMENT_HEAD)
   @ApiOperation({
     summary: 'Submit a recruitment request for approval',
     description: 'Transitions the request from DRAFT (or REVISION_REQUESTED) → PENDING_APPROVAL at level 1.',
   })
+  @ApiForbiddenResponse({ description: 'Requires DEPARTMENT_HEAD role' })
   @ApiParam({ name: 'id', description: 'Hiring request UUID' })
   submitRecruitmentRequest(@Param('id') id: string) {
     return firstValueFrom(this.recruitingClient.send('recruitment-requests.submit', { id }));
   }
 
   @Post('recruitment-requests/:id/forward-to-boss')
+  @Roles(UserRole.HIRING_MANAGER)
   @ApiOperation({
     summary: 'Forward a recruitment request to the next approval level',
     description: 'Increments the currentLevel on a PENDING_APPROVAL request (HR → Boss).',
   })
+  @ApiForbiddenResponse({ description: 'Requires HIRING_MANAGER role' })
   @ApiParam({ name: 'id', description: 'Hiring request UUID' })
   forwardRecruitmentRequestToBoss(@Param('id') id: string) {
     return firstValueFrom(
@@ -269,10 +279,12 @@ export class RecruitingController {
   }
 
   @Post('recruitment-requests/:id/approve')
+  @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Approve a recruitment request',
     description: 'Sets the request status to APPROVED and records an approval entry. Requires ADMIN role.',
   })
+  @ApiForbiddenResponse({ description: 'Requires ADMIN role' })
   @ApiParam({ name: 'id', description: 'Hiring request UUID' })
   @ApiBody({ type: ApproveRejectDto })
   approveRecruitmentRequest(
@@ -290,10 +302,12 @@ export class RecruitingController {
   }
 
   @Post('recruitment-requests/:id/reject')
+  @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Reject or request revision of a recruitment request',
     description: 'Sets status to REJECTED or REVISION_REQUESTED depending on the decision field. Requires ADMIN role.',
   })
+  @ApiForbiddenResponse({ description: 'Requires ADMIN role' })
   @ApiParam({ name: 'id', description: 'Hiring request UUID' })
   @ApiBody({ type: ApproveRejectDto })
   rejectRecruitmentRequest(
@@ -312,20 +326,24 @@ export class RecruitingController {
   }
 
   @Get('recruitment-requests/:id/logs')
+  @Roles(UserRole.DEPARTMENT_HEAD, UserRole.HIRING_MANAGER, UserRole.ADMIN)
   @ApiOperation({
     summary: 'Get audit trail for a recruitment request',
     description: 'Returns all approval/rejection entries for the request, ordered chronologically.',
   })
+  @ApiForbiddenResponse({ description: 'Requires DEPARTMENT_HEAD, HIRING_MANAGER, or ADMIN role' })
   @ApiParam({ name: 'id', description: 'Hiring request UUID' })
   getRecruitmentRequestLogs(@Param('id') id: string) {
     return firstValueFrom(this.recruitingClient.send('recruitment-requests.logs', { id }));
   }
 
   @Get('recruitment-requests/:id/tracking')
+  @Roles(UserRole.DEPARTMENT_HEAD, UserRole.HIRING_MANAGER, UserRole.ADMIN)
   @ApiOperation({
     summary: 'Get tracking dashboard data for a recruitment request',
     description: 'Returns status, approval progress, and key timestamps for the request.',
   })
+  @ApiForbiddenResponse({ description: 'Requires DEPARTMENT_HEAD, HIRING_MANAGER, or ADMIN role' })
   @ApiParam({ name: 'id', description: 'Hiring request UUID' })
   getRecruitmentRequestTracking(@Param('id') id: string) {
     return firstValueFrom(this.recruitingClient.send('recruitment-requests.tracking', { id }));
