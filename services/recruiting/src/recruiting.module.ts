@@ -6,8 +6,9 @@ import { InvitesModule } from './modules/invites/invites.module';
 import { EvaluationsModule } from './modules/evaluations/evaluations.module';
 import { TalentSearchModule } from './modules/talent-search/talent-search.module';
 import { RecruitmentRequestsModule } from './modules/recruitment-requests/recruitment-requests.module';
+import { OverallPlanModule } from './modules/overall-plan/overall-plan.module';
 
 @Module({
-  imports: [DatabaseModule, RolesModule, ApplicationsModule, InvitesModule, EvaluationsModule, TalentSearchModule, RecruitmentRequestsModule],
+  imports: [DatabaseModule, RolesModule, ApplicationsModule, InvitesModule, EvaluationsModule, TalentSearchModule, RecruitmentRequestsModule, OverallPlanModule],
 })
 export class RecruitingModule {}
