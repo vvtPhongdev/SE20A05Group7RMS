@@ -100,8 +100,11 @@ export class CreateOverallPlanDto {
   endDate!: string;
 }
 
-<<<<<<< Updated upstream
-=======
+export class RejectPlanDto {
+  @ApiProperty({ description: 'Mandatory reason for rejection / revision request' })
+  reason!: string;
+}
+
 export class CreateTaskPlanDto {
   @ApiProperty({ enum: ['JOB_POSTING', 'CV_COLLECTION', 'CV_SCREENING', 'INTERVIEW_COORDINATION'], example: 'CV_SCREENING' })
   taskType!: string;
@@ -141,7 +144,6 @@ export class UpdateTaskStatusDto {
   status!: string;
 }
 
->>>>>>> Stashed changes
 /**
  * Thin proxy controller for Recruiting service.
  */
@@ -240,8 +242,6 @@ export class RecruitingController {
   expandQuery(@Query('q') query: string) {
     return firstValueFrom(this.recruitingClient.send('talent.expand', { query }));
   }
-<<<<<<< Updated upstream
-=======
 
   // ─── Recruitment Requests ─────────────────────────────────────────
 
@@ -367,6 +367,31 @@ export class RecruitingController {
     return firstValueFrom(this.recruitingClient.send('overall-plan.getByRequest', { hiringRequestId }));
   }
 
+  @Post('recruitment-requests/:id/plan/approve')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Approve the overall recruitment plan',
+    description: 'Plan → APPROVED, HiringRequest → ACTIVE (downstream unlocked). Must be PENDING_APPROVAL.',
+  })
+  @ApiForbiddenResponse({ description: 'Requires ADMIN role' })
+  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
+  approveOverallPlan(@Param('id') hiringRequestId: string, @CurrentUser('sub') approverId: string) {
+    return firstValueFrom(this.recruitingClient.send('overall-plan.approve', { hiringRequestId, approverId }));
+  }
+
+  @Post('recruitment-requests/:id/plan/reject')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Reject the overall recruitment plan — requires reason, notifies HR',
+    description: 'Plan → REVISION_REQUIRED, revisionNotes set. HiringRequest stays PLANNING. Must be PENDING_APPROVAL.',
+  })
+  @ApiForbiddenResponse({ description: 'Requires ADMIN role' })
+  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
+  @ApiBody({ type: RejectPlanDto })
+  rejectOverallPlan(@Param('id') hiringRequestId: string, @Body() body: RejectPlanDto, @CurrentUser('sub') approverId: string) {
+    return firstValueFrom(this.recruitingClient.send('overall-plan.reject', { hiringRequestId, approverId, reason: body.reason }));
+  }
+
   // ─── Task Plans ───────────────────────────────────────────────────
 
   @Post('recruitment-requests/:id/plan/tasks')
@@ -419,5 +444,4 @@ export class RecruitingController {
   updateTaskPlanStatus(@Param('taskId') id: string, @Body() body: UpdateTaskStatusDto) {
     return firstValueFrom(this.recruitingClient.send('task-plan.updateStatus', { id, status: body.status }));
   }
->>>>>>> Stashed changes
 }

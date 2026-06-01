@@ -20,4 +20,14 @@ export class OverallPlanController {
   getByRequest(@Payload() payload: { hiringRequestId: string }) {
     return this.service.getByRequest(payload.hiringRequestId);
   }
+
+  @MessagePattern('overall-plan.approve')
+  approve(@Payload() payload: { hiringRequestId: string; approverId: string }) {
+    return this.service.approve(payload.hiringRequestId, payload.approverId);
+  }
+
+  @MessagePattern('overall-plan.reject')
+  reject(@Payload() payload: { hiringRequestId: string; approverId: string; reason: string }) {
+    return this.service.reject(payload.hiringRequestId, payload.approverId, payload.reason);
+  }
 }
