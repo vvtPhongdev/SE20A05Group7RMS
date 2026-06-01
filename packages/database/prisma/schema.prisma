@@ -46,6 +46,9 @@ model User {
   approvalChainLevels      ApprovalChainLevel[]    @relation("ApprovalChainApprover")
   hiringRequestsAuthored   HiringRequest[]         @relation("HiringRequestAuthor")
   hiringRequestsApproved   HiringRequestApproval[] @relation("HiringRequestApprover")
+  overallPlansCreated      OverallPlan[]           @relation("OverallPlanCreator")
+  overallPlansApproved     OverallPlan[]           @relation("OverallPlanApprover")
+  taskPlansAssigned        TaskPlan[]              @relation("TaskPlanAssignee")
 
   @@map("users")
 }
@@ -174,6 +177,7 @@ model HiringRequest {
   requestedBy  User                   @relation("HiringRequestAuthor", fields: [requestedById], references: [id])
   approvals    HiringRequestApproval[]
   roles        Role[]
+  overallPlan  OverallPlan?
 
   @@index([organizationId], map: "idx_hiring_requests_organization")
   @@index([departmentId], map: "idx_hiring_requests_department")
@@ -498,6 +502,51 @@ model CandidatePacket {
 
   @@index([applicationId], map: "idx_candidate_packets_application")
   @@map("candidate_packets")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Recruitment Planning
+// ═══════════════════════════════════════════════════════════════════
+
+model OverallPlan {
+  id              String    @id @default(uuid())
+  hiringRequestId String    @unique @map("hiring_request_id")
+  createdById     String    @map("created_by_id")
+  startDate       DateTime  @map("start_date") @db.Date
+  endDate         DateTime  @map("end_date") @db.Date
+  status          String    @default("PENDING_APPROVAL") // PlanStatus enum
+  approvedById    String?   @map("approved_by_id")
+  approvedAt      DateTime? @map("approved_at")
+  revisionNotes   String?   @map("revision_notes") @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  hiringRequest HiringRequest @relation(fields: [hiringRequestId], references: [id], onDelete: Cascade)
+  createdBy     User          @relation("OverallPlanCreator", fields: [createdById], references: [id])
+  approvedBy    User?         @relation("OverallPlanApprover", fields: [approvedById], references: [id])
+  taskPlans     TaskPlan[]
+
+  @@index([status], map: "idx_overall_plans_status")
+  @@map("overall_plans")
+}
+
+model TaskPlan {
+  id            String   @id @default(uuid())
+  overallPlanId String   @map("overall_plan_id")
+  taskType      String   @map("task_type") // PlanTaskType enum
+  assignedToId  String   @map("assigned_to_id")
+  startDate     DateTime @map("start_date") @db.Date
+  endDate       DateTime @map("end_date") @db.Date
+  status        String   @default("PENDING") // PlanTaskStatus enum
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  overallPlan OverallPlan @relation(fields: [overallPlanId], references: [id], onDelete: Cascade)
+  assignedTo  User        @relation("TaskPlanAssignee", fields: [assignedToId], references: [id])
+
+  @@index([overallPlanId], map: "idx_task_plans_overall_plan")
+  @@map("task_plans")
 }
 
 // ═══════════════════════════════════════════════════════════════════

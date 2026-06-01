@@ -1,0 +1,5 @@
+[33m09aa980[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeature/T-032-task-plan-list[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m Update Project
+[33mc017161[m Complete T033 and T034: CurrentUser decorator verified, global guards + tests
+[33m6eba95f[m Complete T032: @Public() decorator already implemented, fix reset-password message pattern
+[33mdc8b138[m Complete T031: implement @Roles() decorator and fix RolesGuard
+[33mabc8fe8[m Complete T030: implement JwtStrategy and wire PassportModule in gateway
