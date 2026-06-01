@@ -57,6 +57,7 @@ export const UpdateUserSchema = z.object({
   displayName: z.string().min(1).max(255).optional(),
   phone: z.string().max(20).optional().nullable(),
   isActive: z.boolean().optional(),
+  departmentId: z.string().uuid().optional().nullable(),
 });
 
 export const AuthTokenResponseSchema = z.object({

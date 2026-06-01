@@ -1,10 +1,14 @@
-import { Controller, Get, Post, Body, Param, Inject } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Inject } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
 import { SERVICE_TOKENS } from '../constants';
 import { firstValueFrom } from 'rxjs';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser, JwtPayload } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '@wr/contracts';
+import { IsEmail, IsString, IsNotEmpty, IsEnum, IsOptional, IsUUID, IsInt, Min, Max, IsBoolean } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class LoginDto {
   @ApiProperty({ example: 'admin@acme.com', description: 'User email' })
@@ -56,6 +60,105 @@ export class ResetPasswordDto {
 export class LogoutDto {
   @ApiProperty({ description: 'Refresh token to invalidate' })
   refreshToken!: string;
+}
+
+export class CreateUserDto {
+  @ApiProperty({ example: 'admin@acme.com', description: 'User email' })
+  @IsEmail()
+  email!: string;
+
+  @ApiProperty({ example: 'John Doe', description: 'Display name' })
+  @IsString()
+  @IsNotEmpty()
+  displayName!: string;
+
+  @ApiProperty({
+    example: 'HR_MANAGER',
+    enum: UserRole,
+    description: 'User role',
+  })
+  @IsEnum(UserRole)
+  role!: UserRole;
+
+  @ApiProperty({ example: 'uuid-of-organization', description: 'Organization ID' })
+  @IsUUID()
+  organizationId!: string;
+
+  @ApiProperty({ example: 'uuid-of-department', required: false, description: 'Department ID' })
+  @IsOptional()
+  @IsUUID()
+  departmentId?: string;
+
+  @ApiProperty({ example: '0912345678', required: false, description: 'Phone number' })
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @ApiProperty({ example: 'Password123!', required: false, description: 'Password' })
+  @IsOptional()
+  @IsString()
+  password?: string;
+}
+
+export class UpdateUserDto {
+  @ApiProperty({ example: 'John Doe Updated', required: false, description: 'Display name' })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  displayName?: string;
+
+  @ApiProperty({ example: '0987654321', required: false, description: 'Phone number' })
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @ApiProperty({ example: true, required: false, description: 'Active status' })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @ApiProperty({ example: 'uuid-of-department', required: false, description: 'Department ID' })
+  @IsOptional()
+  @IsUUID()
+  departmentId?: string;
+}
+
+export class UpdateUserRoleDto {
+  @ApiProperty({
+    example: 'HR_MANAGER',
+    enum: UserRole,
+    description: 'User role',
+  })
+  @IsEnum(UserRole)
+  role!: UserRole;
+}
+
+export class UpdateUserStatusDto {
+  @ApiProperty({ example: true, description: 'Active status' })
+  @IsBoolean()
+  isActive!: boolean;
+}
+
+export class ListUsersQueryDto {
+  @ApiProperty({ required: false, default: 1, description: 'Page number' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page: number = 1;
+
+  @ApiProperty({ required: false, default: 10, description: 'Users per page' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit: number = 10;
+
+  @ApiProperty({ required: false, enum: UserRole, description: 'Filter by role' })
+  @IsOptional()
+  @IsEnum(UserRole)
+  role?: UserRole;
 }
 
 /**
@@ -116,17 +219,59 @@ export class IdentityController {
   // ─── Users ───────────────────────────────────────────────────────
 
   @Get('users')
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'List users' })
-  listUsers() {
-    return firstValueFrom(this.identityClient.send('users.list', {}));
+  @ApiOperation({ summary: 'List users with pagination and role filter' })
+  listUsers(@Query() query: ListUsersQueryDto) {
+    return firstValueFrom(this.identityClient.send('users.list', query));
   }
 
   @Get('users/:id')
+  @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get user by ID' })
   getUser(@Param('id') id: string) {
     return firstValueFrom(this.identityClient.send('users.get', { id }));
+  }
+
+  @Post('users')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a new user' })
+  createUser(@Body() body: CreateUserDto) {
+    return firstValueFrom(this.identityClient.send('users.create', body));
+  }
+
+  @Patch('users/:id')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update user details' })
+  updateUser(@Param('id') id: string, @Body() body: UpdateUserDto) {
+    return firstValueFrom(this.identityClient.send('users.update', { id, ...body }));
+  }
+
+  @Delete('users/:id')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete user' })
+  deleteUser(@Param('id') id: string) {
+    return firstValueFrom(this.identityClient.send('users.delete', { id }));
+  }
+
+  @Patch('users/:id/role')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update user role' })
+  updateUserRole(@Param('id') id: string, @Body() body: UpdateUserRoleDto) {
+    return firstValueFrom(this.identityClient.send('users.update_role', { id, ...body }));
+  }
+
+  @Patch('users/:id/status')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update user active status' })
+  updateUserStatus(@Param('id') id: string, @Body() body: UpdateUserStatusDto) {
+    return firstValueFrom(this.identityClient.send('users.update_status', { id, ...body }));
   }
 
   @Get('me')
