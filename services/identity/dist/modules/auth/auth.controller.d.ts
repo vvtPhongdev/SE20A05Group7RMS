@@ -3,39 +3,45 @@ export declare class AuthController {
     private readonly service;
     constructor(service: AuthService);
     register(data: any): Promise<{
-        user: {
-            id: string;
-            email: string;
-            displayName: string;
-            role: string;
-        };
         refreshToken: string;
         accessToken: string;
         expiresIn: number;
+        user: {
+            email: string;
+            displayName: string;
+            role: string;
+            id: string;
+        };
     }>;
     login(data: any): Promise<{
-        user: {
-            id: string;
-            email: string;
-            displayName: string;
-            role: string;
-        };
         refreshToken: string;
         accessToken: string;
         expiresIn: number;
+        user: {
+            email: string;
+            displayName: string;
+            role: string;
+            id: string;
+        };
     }>;
     refresh(data: any): Promise<{
-        user: {
-            id: string;
-            email: string;
-            displayName: string;
-            role: string;
-        };
         refreshToken: string;
         accessToken: string;
         expiresIn: number;
+        user: {
+            email: string;
+            displayName: string;
+            role: string;
+            id: string;
+        };
     }>;
     forgotPassword(data: any): Promise<{
+        success: boolean;
+    }>;
+    resetPassword(data: any): Promise<{
+        success: boolean;
+    }>;
+    logout(data: any): Promise<{
         success: boolean;
     }>;
 }

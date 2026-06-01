@@ -319,6 +319,79 @@ let AuthService = class AuthService {
         }
         return { success: true };
     }
+    /**
+     * Validate 6-digit code from Redis, hash new password (bcrypt 12 rounds),
+     * update User.passwordHash, and delete ALL refresh tokens for user.
+     */
+    async resetPassword(dto) {
+        // 1. Validate payload
+        const parsed = contracts_1.ResetPasswordSchema.parse(dto);
+        const email = parsed.email.toLowerCase();
+        // 2. Retrieve code from Redis
+        const redisKey = `reset:${email}`;
+        const storedCode = await this.redis.get(redisKey);
+        // 3. Validate code (invalid or expired)
+        if (!storedCode || storedCode !== parsed.code) {
+            throw new microservices_1.RpcException({
+                status: common_1.HttpStatus.BAD_REQUEST,
+                message: 'Invalid or expired reset code',
+            });
+        }
+        // 4. Find user by email
+        const user = await this.prisma.user.findUnique({
+            where: { email },
+        });
+        if (!user) {
+            throw new microservices_1.RpcException({
+                status: common_1.HttpStatus.BAD_REQUEST,
+                message: 'Invalid or expired reset code',
+            });
+        }
+        // 5. Hash new password with bcrypt (12 rounds)
+        const newPasswordHash = await bcrypt.hash(parsed.newPassword, 12);
+        // 6. Update user password in database
+        await this.prisma.user.update({
+            where: { id: user.id },
+            data: { passwordHash: newPasswordHash },
+        });
+        // 7. Delete ALL refresh tokens for the user (force re-login)
+        // Scan Redis for all refresh tokens belonging to this user and delete them
+        const cursor = '0';
+        let deletedCount = 0;
+        let scanCursor = cursor;
+        do {
+            const result = await this.redis.scan(scanCursor, 'MATCH', 'refresh:*', 'COUNT', 100);
+            scanCursor = result[0];
+            const keys = result[1];
+            // Check each key to see if it belongs to this user
+            for (const key of keys) {
+                const storedUserId = await this.redis.get(key);
+                if (storedUserId === user.id) {
+                    await this.redis.del(key);
+                    deletedCount++;
+                }
+            }
+        } while (scanCursor !== '0');
+        // 8. Delete the reset code from Redis
+        await this.redis.del(redisKey);
+        return { success: true };
+    }
+    /**
+     * Logout a user session: revokes the specified refresh token in Redis.
+     */
+    async logout(dto) {
+        // 1. Validate payload
+        const validationResult = contracts_1.RefreshTokenSchema.safeParse(dto);
+        if (!validationResult.success) {
+            return { success: true };
+        }
+        const parsed = validationResult.data;
+        const tokenHash = crypto.createHash('sha256').update(parsed.refreshToken).digest('hex');
+        const redisKey = `refresh:${tokenHash}`;
+        // 2. Delete the refresh token from Redis
+        await this.redis.del(redisKey);
+        return { success: true };
+    }
 };
 exports.AuthService = AuthService;
 exports.AuthService = AuthService = __decorate([
