@@ -62,6 +62,75 @@ export class LogoutDto {
   refreshToken!: string;
 }
 
+export class CreateOrganizationDto {
+  @ApiProperty({ example: 'Acme Corporation', description: 'Organization name' })
+  @IsString()
+  @IsNotEmpty()
+  name!: string;
+
+  @ApiProperty({ example: 'acme-corp', description: 'Organization unique slug' })
+  @IsString()
+  @IsNotEmpty()
+  slug!: string;
+}
+
+export class CreateDepartmentDto {
+  @ApiProperty({ example: 'uuid-of-organization', description: 'Organization ID' })
+  @IsUUID()
+  organizationId!: string;
+
+  @ApiProperty({ example: 'Engineering', description: 'Department name' })
+  @IsString()
+  @IsNotEmpty()
+  name!: string;
+
+  @ApiProperty({ example: 'ENG', description: 'Department unique uppercase code' })
+  @IsString()
+  @IsNotEmpty()
+  code!: string;
+
+  @ApiProperty({ example: 'uuid-of-head-user', required: false, description: 'Department head user ID' })
+  @IsOptional()
+  @IsUUID()
+  headUserId?: string;
+
+  @ApiProperty({ example: 'uuid-of-parent-department', required: false, description: 'Parent department ID' })
+  @IsOptional()
+  @IsUUID()
+  parentId?: string;
+}
+
+export class UpdateDepartmentDto {
+  @ApiProperty({ example: 'Engineering Team', required: false, description: 'Department name' })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  name?: string;
+
+  @ApiProperty({ example: 'ENG_TEAM', required: false, description: 'Department code' })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  code?: string;
+
+  @ApiProperty({ example: 'uuid-of-head-user', required: false, description: 'Department head user ID' })
+  @IsOptional()
+  @IsUUID()
+  headUserId?: string;
+
+  @ApiProperty({ example: 'uuid-of-parent-department', required: false, description: 'Parent department ID' })
+  @IsOptional()
+  @IsUUID()
+  parentId?: string;
+}
+
+export class ListDepartmentsQueryDto {
+  @ApiProperty({ example: 'uuid-of-organization', required: false, description: 'Filter by organization ID' })
+  @IsOptional()
+  @IsUUID()
+  organizationId?: string;
+}
+
 export class CreateUserDto {
   @ApiProperty({ example: 'admin@acme.com', description: 'User email' })
   @IsEmail()
@@ -272,6 +341,74 @@ export class IdentityController {
   @ApiOperation({ summary: 'Update user active status' })
   updateUserStatus(@Param('id') id: string, @Body() body: UpdateUserStatusDto) {
     return firstValueFrom(this.identityClient.send('users.update_status', { id, ...body }));
+  }
+
+  // ─── Organizations ───────────────────────────────────────────────
+
+  @Post('organizations')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a new organization' })
+  createOrganization(@Body() body: CreateOrganizationDto) {
+    return firstValueFrom(this.identityClient.send('identity.create_organization', body));
+  }
+
+  @Get('organizations')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List organizations' })
+  listOrganizations() {
+    return firstValueFrom(this.identityClient.send('identity.list_organizations', {}));
+  }
+
+  @Get('organizations/:id')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get organization by ID' })
+  getOrganization(@Param('id') id: string) {
+    return firstValueFrom(this.identityClient.send('identity.get_organization', { id }));
+  }
+
+  // ─── Departments ─────────────────────────────────────────────────
+
+  @Post('departments')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a new department' })
+  createDepartment(@Body() body: CreateDepartmentDto) {
+    return firstValueFrom(this.identityClient.send('identity.create_department', body));
+  }
+
+  @Get('departments')
+  @Roles(UserRole.ADMIN, UserRole.HR_MANAGER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List departments with organization filtering' })
+  listDepartments(@Query() query: ListDepartmentsQueryDto) {
+    return firstValueFrom(this.identityClient.send('identity.list_departments', query));
+  }
+
+  @Get('departments/:id')
+  @Roles(UserRole.ADMIN, UserRole.HR_MANAGER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get department by ID' })
+  getDepartment(@Param('id') id: string) {
+    return firstValueFrom(this.identityClient.send('identity.get_department', { id }));
+  }
+
+  @Patch('departments/:id')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update department details' })
+  updateDepartment(@Param('id') id: string, @Body() body: UpdateDepartmentDto) {
+    return firstValueFrom(this.identityClient.send('identity.update_department', { id, ...body }));
+  }
+
+  @Delete('departments/:id')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete department' })
+  deleteDepartment(@Param('id') id: string) {
+    return firstValueFrom(this.identityClient.send('identity.delete_department', { id }));
   }
 
   @Get('me')
