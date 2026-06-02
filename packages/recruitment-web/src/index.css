@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Định nghĩa các cài đặt cơ bản cho toàn bộ trang web */
+@layer base {
+  html {
+    /* Kích hoạt cuộn mượt mà khi bấm vào các liên kết neo (#features, #how-it-works) */
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: #FAF8F5;
+    color: #1C1917;
+    font-family: 'IBM Plex Sans', sans-serif;
+    
+    /* Giúp font chữ hiển thị sắc nét, thanh mảnh hơn trên các hệ điều hành (macOS/Windows) */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    
+    /* Chống tràn chiều ngang không mong muốn khi chạy hiệu ứng dịch chuyển (translate) */
+    overflow-x: hidden;
+  }
+
+  /* Tối ưu hóa hiển thị cho các ô nhập liệu (Input) để tiệp màu với hệ thống */
+  input, button, select, textarea {
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+
+  /* Custom lại thanh cuộn (Scrollbar) cho tinh tế hơn, hợp với giao diện Ivory/Charcoal */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: #FAF8F5;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: #D6CEC4;
+    border-radius: 9999px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: #0D9488; /* Đổi sang màu Teal khi hover vào thanh cuộn */
+  }
+}
