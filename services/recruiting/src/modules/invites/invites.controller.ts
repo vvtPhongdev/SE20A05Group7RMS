@@ -1,14 +1,23 @@
-import { Controller, Get } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { Controller } from '@nestjs/common';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 import { InvitesService } from './invites.service';
 
-@ApiTags('invites')
-@Controller('invites')
+@Controller()
 export class InvitesController {
   constructor(private readonly service: InvitesService) {}
 
-  @Get()
-  findAll() {
-    return this.service.findAll();
+  @MessagePattern('invites.create')
+  create(@Payload() payload: any) {
+    return this.service.create(payload);
+  }
+
+  @MessagePattern('invites.list')
+  list(@Payload() payload: any) {
+    return this.service.list(payload);
+  }
+
+  @MessagePattern('invites.get')
+  get(@Payload() payload: { id: string }) {
+    return this.service.get(payload.id);
   }
 }

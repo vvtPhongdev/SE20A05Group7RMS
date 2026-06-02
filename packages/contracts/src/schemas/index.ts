@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DocumentType, WorkMode, CandidateVisibility, ApplicationStatus, ReadinessLabel } from '../enums';
+import { DocumentType, WorkMode, CandidateVisibility, ApplicationStatus, ReadinessLabel, TaskPlanType, TaskPlanStatus } from '../enums';
 
 /**
  * Shared Zod schemas for runtime validation.
@@ -387,6 +387,50 @@ export const SharePacketSchema = z.object({
 });
 
 export type SharePacketInput = z.infer<typeof SharePacketSchema>;
+
+// ─── Overall Plan ─────────────────────────────────────────────────
+
+export const CreateOverallPlanSchema = z.object({
+  hiringRequestId: z.string().uuid(),
+  createdById: z.string().uuid(),
+  startDate: z.string().datetime(),
+  endDate: z.string().datetime(),
+});
+
+export type CreateOverallPlanInput = z.infer<typeof CreateOverallPlanSchema>;
+
+export const ApproveRejectPlanSchema = z.object({
+  hiringRequestId: z.string().uuid(),
+  approverId: z.string().uuid(),
+  reason: z.string().max(2000).optional(),
+});
+
+export type ApproveRejectPlanInput = z.infer<typeof ApproveRejectPlanSchema>;
+
+// ─── Task Plan ────────────────────────────────────────────────────
+
+export const CreateTaskPlanSchema = z.object({
+  hiringRequestId: z.string().uuid(),
+  taskType: z.nativeEnum(TaskPlanType),
+  assignedToId: z.string().uuid(),
+  startDate: z.string().datetime(),
+  endDate: z.string().datetime(),
+  notes: z.string().max(2000).optional(),
+});
+
+export type CreateTaskPlanInput = z.infer<typeof CreateTaskPlanSchema>;
+
+export const UpdateTaskPlanSchema = z.object({
+  taskType: z.nativeEnum(TaskPlanType).optional(),
+  assignedToId: z.string().uuid().optional(),
+  startDate: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional(),
+  notes: z.string().max(2000).optional(),
+});
+
+export const UpdateTaskStatusSchema = z.object({
+  status: z.nativeEnum(TaskPlanStatus),
+});
 
 // ─── Skill Knowledge Graph ────────────────────────────────────────
 

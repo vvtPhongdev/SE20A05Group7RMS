@@ -23,6 +23,27 @@ export enum HiringRequestStatus {
   APPROVED = 'APPROVED',
   REJECTED = 'REJECTED',
   REVISION_REQUESTED = 'REVISION_REQUESTED',
+  PLANNING = 'PLANNING',   // OverallPlan created, awaiting plan approval
+  ACTIVE = 'ACTIVE',       // OverallPlan approved, recruitment activities unlocked
+}
+
+export enum OverallPlanStatus {
+  PENDING_APPROVAL = 'PENDING_APPROVAL',
+  APPROVED = 'APPROVED',
+  REVISION_REQUIRED = 'REVISION_REQUIRED',
+}
+
+export enum TaskPlanType {
+  JOB_POSTING = 'JOB_POSTING',
+  CV_COLLECTION = 'CV_COLLECTION',
+  CV_SCREENING = 'CV_SCREENING',
+  INTERVIEW_COORDINATION = 'INTERVIEW_COORDINATION',
+}
+
+export enum TaskPlanStatus {
+  PENDING = 'PENDING',
+  IN_PROGRESS = 'IN_PROGRESS',
+  COMPLETED = 'COMPLETED',
 }
 
 export enum ApprovalLevel {

@@ -159,7 +159,7 @@ model HiringRequest {
   location         String?
   budgetRange      Json?     @map("budget_range") // JSONB { min, max, currency }
   targetStartDate  DateTime? @map("target_start_date")
-  status           String    @default("DRAFT") // HiringRequestStatus enum
+  status           String    @default("DRAFT") // HiringRequestStatus: DRAFT|PENDING_APPROVAL|APPROVED|REJECTED|REVISION_REQUESTED|PLANNING|ACTIVE
   currentLevel     Int       @default(0) @map("current_level")
   rejectionReason  String?   @map("rejection_reason") @db.Text
   revisionNotes    String?   @map("revision_notes") @db.Text
@@ -174,12 +174,81 @@ model HiringRequest {
   requestedBy  User                   @relation("HiringRequestAuthor", fields: [requestedById], references: [id])
   approvals    HiringRequestApproval[]
   roles        Role[]
+  logs         HiringRequestLog[]
+  overallPlan  OverallPlan?
 
   @@index([organizationId], map: "idx_hiring_requests_organization")
   @@index([departmentId], map: "idx_hiring_requests_department")
   @@index([status], map: "idx_hiring_requests_status")
   @@index([requestedById], map: "idx_hiring_requests_requested_by")
   @@map("hiring_requests")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Hiring Request Log — Automatic Status Transition Audit Trail (T-027)
+// ═══════════════════════════════════════════════════════════════════
+
+model HiringRequestLog {
+  id              String   @id @default(uuid())
+  hiringRequestId String   @map("hiring_request_id")
+  actorId         String   @map("actor_id")
+  action          String   // e.g. "SUBMIT", "APPROVE", "REJECT", "REVISION_REQUESTED"
+  previousStatus  String?  @map("previous_status")
+  newStatus       String   @map("new_status")
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  hiringRequest HiringRequest @relation(fields: [hiringRequestId], references: [id], onDelete: Cascade)
+
+  @@index([hiringRequestId], map: "idx_hiring_request_logs_request")
+  @@map("hiring_request_logs")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Overall Plan — Recruitment Campaign Timeline (T-030, T-033)
+// ═══════════════════════════════════════════════════════════════════
+
+model OverallPlan {
+  id              String    @id @default(uuid())
+  hiringRequestId String    @unique @map("hiring_request_id")
+  createdById     String    @map("created_by_id")
+  startDate       DateTime  @map("start_date")
+  endDate         DateTime  @map("end_date")
+  status          String    @default("PENDING_APPROVAL") @map("status") // PENDING_APPROVAL|APPROVED|REVISION_REQUIRED
+  approvedById    String?   @map("approved_by_id")
+  revisionNotes   String?   @map("revision_notes") @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  hiringRequest HiringRequest @relation(fields: [hiringRequestId], references: [id], onDelete: Cascade)
+  taskPlans     TaskPlan[]
+
+  @@index([hiringRequestId], map: "idx_overall_plans_hiring_request")
+  @@index([status], map: "idx_overall_plans_status")
+  @@map("overall_plans")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Task Plan — Detailed Task Assignments within Overall Plan (T-031, T-032)
+// ═══════════════════════════════════════════════════════════════════
+
+model TaskPlan {
+  id            String   @id @default(uuid())
+  overallPlanId String   @map("overall_plan_id")
+  taskType      String   @map("task_type") // JOB_POSTING|CV_COLLECTION|CV_SCREENING|INTERVIEW_COORDINATION
+  assignedToId  String   @map("assigned_to_id")
+  startDate     DateTime @map("start_date")
+  endDate       DateTime @map("end_date")
+  status        String   @default("PENDING") // PENDING|IN_PROGRESS|COMPLETED
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  overallPlan OverallPlan @relation(fields: [overallPlanId], references: [id], onDelete: Cascade)
+
+  @@index([overallPlanId], map: "idx_task_plans_overall_plan")
+  @@index([assignedToId], map: "idx_task_plans_assignee")
+  @@map("task_plans")
 }
 
 model HiringRequestApproval {
@@ -534,6 +603,26 @@ model SkillEdge {
 
   @@unique([sourceId, targetId, relationship], map: "uq_skill_edges")
   @@map("skill_edges")
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// In-App Notifications (FR-02, FR-03, FR-05, FR-19)
+// ═══════════════════════════════════════════════════════════════════
+
+model Notification {
+  id           String   @id @default(uuid())
+  recipientId  String   @map("recipient_id")
+  type         String   // e.g. REQUEST_SUBMITTED | REQUEST_APPROVED | REQUEST_REJECTED | REVISION_REQUESTED | TASK_ASSIGNED | PLAN_APPROVED | PLAN_REJECTED
+  title        String
+  body         String   @db.Text
+  resourceId   String?  @map("resource_id")    // hiringRequestId, taskPlanId, etc.
+  resourceType String?  @map("resource_type")  // HIRING_REQUEST | TASK_PLAN | OVERALL_PLAN
+  isRead       Boolean  @default(false) @map("is_read")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([recipientId, isRead], map: "idx_notifications_recipient_read")
+  @@index([createdAt], map: "idx_notifications_created_at")
+  @@map("notifications")
 }
 
 // ═══════════════════════════════════════════════════════════════════

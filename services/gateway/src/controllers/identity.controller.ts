@@ -1,10 +1,12 @@
-import { Controller, Get, Post, Body, Param, Inject } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Inject } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty, ApiForbiddenResponse, ApiParam, ApiBody } from '@nestjs/swagger';
 import { SERVICE_TOKENS } from '../constants';
 import { firstValueFrom } from 'rxjs';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser, JwtPayload } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '@wr/contracts';
 
 export class LoginDto {
   @ApiProperty({ example: 'admin@acme.com', description: 'User email' })
@@ -56,6 +58,46 @@ export class ResetPasswordDto {
 export class LogoutDto {
   @ApiProperty({ description: 'Refresh token to invalidate' })
   refreshToken!: string;
+}
+
+// ─── Organization DTOs ────────────────────────────────────────────
+
+export class CreateOrganizationDto {
+  @ApiProperty({ example: 'Acme Corp', description: 'Organization display name' })
+  name!: string;
+
+  @ApiProperty({ example: 'acme-corp', description: 'URL-safe unique slug (lowercase, hyphens only)' })
+  slug!: string;
+}
+
+// ─── Department DTOs ──────────────────────────────────────────────
+
+export class CreateDepartmentDto {
+  @ApiProperty({ example: 'Engineering', description: 'Department display name' })
+  name!: string;
+
+  @ApiProperty({ example: 'ENG', description: 'Short uppercase code, unique per organization' })
+  code!: string;
+
+  @ApiProperty({ required: false, example: 'uuid-of-dept-head-user', description: 'Must be a user with DEPARTMENT_HEAD role' })
+  headUserId?: string;
+
+  @ApiProperty({ required: false, description: 'Parent department UUID for hierarchical structure' })
+  parentId?: string;
+}
+
+export class UpdateDepartmentDto {
+  @ApiProperty({ required: false })
+  name?: string;
+
+  @ApiProperty({ required: false })
+  code?: string;
+
+  @ApiProperty({ required: false })
+  headUserId?: string;
+
+  @ApiProperty({ required: false })
+  parentId?: string;
 }
 
 /**
@@ -143,5 +185,133 @@ export class IdentityController {
   getCurrentUserId(@CurrentUser('sub') userId: string) {
     // Example of extracting specific field (sub = user ID)
     return { userId };
+  }
+
+  // ─── Organizations (T-014) ────────────────────────────────────────
+
+  @Post('organizations')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '[ADMIN] Create a new organization' })
+  @ApiForbiddenResponse({ description: 'Requires ADMIN role' })
+  @ApiBody({ type: CreateOrganizationDto })
+  createOrganization(@Body() body: CreateOrganizationDto) {
+    return firstValueFrom(this.identityClient.send('organizations.create', body));
+  }
+
+  @Get('organizations')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '[ADMIN] List all organizations' })
+  @ApiForbiddenResponse({ description: 'Requires ADMIN role' })
+  listOrganizations(@Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+    return firstValueFrom(this.identityClient.send('organizations.list', {
+      page: page ? parseInt(page, 10) : 1,
+      pageSize: pageSize ? parseInt(pageSize, 10) : 20,
+    }));
+  }
+
+  @Get('organizations/:id')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '[ADMIN] Get organization by ID with departments' })
+  @ApiForbiddenResponse({ description: 'Requires ADMIN role' })
+  @ApiParam({ name: 'id', description: 'Organization UUID' })
+  getOrganization(@Param('id') id: string) {
+    return firstValueFrom(this.identityClient.send('organizations.get', { id }));
+  }
+
+  // ─── Departments (T-014) ──────────────────────────────────────────
+
+  @Post('organizations/:orgId/departments')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '[ADMIN] Create a department. headUserId must have DEPARTMENT_HEAD role.' })
+  @ApiForbiddenResponse({ description: 'Requires ADMIN role' })
+  @ApiParam({ name: 'orgId', description: 'Organization UUID' })
+  @ApiBody({ type: CreateDepartmentDto })
+  createDepartment(@Param('orgId') organizationId: string, @Body() body: CreateDepartmentDto) {
+    return firstValueFrom(this.identityClient.send('departments.create', { organizationId, ...body }));
+  }
+
+  @Get('organizations/:orgId/departments')
+  @Roles(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.HIRING_MANAGER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List departments in an organization' })
+  @ApiParam({ name: 'orgId', description: 'Organization UUID' })
+  listDepartments(
+    @Param('orgId') organizationId: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return firstValueFrom(this.identityClient.send('departments.list', {
+      organizationId,
+      page: page ? parseInt(page, 10) : 1,
+      pageSize: pageSize ? parseInt(pageSize, 10) : 20,
+    }));
+  }
+
+  @Get('departments/:id')
+  @Roles(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD, UserRole.HIRING_MANAGER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get department by ID' })
+  @ApiParam({ name: 'id', description: 'Department UUID' })
+  getDepartment(@Param('id') id: string) {
+    return firstValueFrom(this.identityClient.send('departments.get', { id }));
+  }
+
+  @Patch('departments/:id')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '[ADMIN] Update department (name, code, headUserId). headUserId must be DEPARTMENT_HEAD.' })
+  @ApiForbiddenResponse({ description: 'Requires ADMIN role' })
+  @ApiParam({ name: 'id', description: 'Department UUID' })
+  @ApiBody({ type: UpdateDepartmentDto })
+  updateDepartment(@Param('id') id: string, @Body() body: UpdateDepartmentDto) {
+    return firstValueFrom(this.identityClient.send('departments.update', { id, ...body }));
+  }
+
+  @Delete('departments/:id')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '[ADMIN] Delete a department' })
+  @ApiForbiddenResponse({ description: 'Requires ADMIN role' })
+  @ApiParam({ name: 'id', description: 'Department UUID' })
+  deleteDepartment(@Param('id') id: string) {
+    return firstValueFrom(this.identityClient.send('departments.delete', { id }));
+  }
+
+  // ─── Notifications (FR-19) ────────────────────────────────────────
+
+  @Get('notifications')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List in-app notifications for the current user. FR-19.' })
+  listNotifications(
+    @CurrentUser('sub') recipientId: string,
+    @Query('unreadOnly') unreadOnly?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return firstValueFrom(this.identityClient.send('notifications.list', {
+      recipientId,
+      unreadOnly: unreadOnly === 'true',
+      page: page ? parseInt(page, 10) : 1,
+      pageSize: pageSize ? parseInt(pageSize, 10) : 20,
+    }));
+  }
+
+  @Patch('notifications/:id/read')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Mark a specific notification as read.' })
+  @ApiParam({ name: 'id', description: 'Notification UUID' })
+  markNotificationRead(@Param('id') id: string, @CurrentUser('sub') recipientId: string) {
+    return firstValueFrom(this.identityClient.send('notifications.markRead', { id, recipientId }));
+  }
+
+  @Patch('notifications/read-all')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Mark all notifications as read for the current user.' })
+  markAllNotificationsRead(@CurrentUser('sub') recipientId: string) {
+    return firstValueFrom(this.identityClient.send('notifications.markAllRead', { recipientId }));
   }
 }

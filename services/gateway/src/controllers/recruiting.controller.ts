@@ -7,6 +7,72 @@ import { CurrentUser, JwtPayload } from '../auth/decorators/current-user.decorat
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '@wr/contracts';
 
+// ─── Recruitment Request DTOs ─────────────────────────────────────────────────
+
+export class CreateHiringRequestDto {
+  @ApiProperty({ example: 'uuid-of-department' })
+  departmentId!: string;
+
+  @ApiProperty({ example: 'Senior Backend Engineer' })
+  title!: string;
+
+  @ApiProperty({ required: false, description: 'Full job description' })
+  description?: string;
+
+  @ApiProperty({ required: false, description: 'Business justification for the hire' })
+  justification?: string;
+
+  @ApiProperty({ required: false, default: 1, description: 'Number of open positions' })
+  headcount?: number;
+
+  @ApiProperty({ required: false, enum: ['LOW', 'NORMAL', 'HIGH', 'URGENT'], default: 'NORMAL' })
+  priority?: string;
+
+  @ApiProperty({ required: false, enum: ['ONSITE', 'REMOTE', 'HYBRID'] })
+  workMode?: string;
+
+  @ApiProperty({ required: false })
+  location?: string;
+}
+
+export class UpdateHiringRequestDto {
+  @ApiProperty({ required: false })
+  title?: string;
+
+  @ApiProperty({ required: false })
+  description?: string;
+
+  @ApiProperty({ required: false })
+  justification?: string;
+
+  @ApiProperty({ required: false })
+  headcount?: number;
+
+  @ApiProperty({ required: false, enum: ['LOW', 'NORMAL', 'HIGH', 'URGENT'] })
+  priority?: string;
+
+  @ApiProperty({ required: false, enum: ['ONSITE', 'REMOTE', 'HYBRID'] })
+  workMode?: string;
+
+  @ApiProperty({ required: false })
+  location?: string;
+}
+
+export class ApproveRequestDto {
+  @ApiProperty({ required: false, description: 'Optional comments for the approval' })
+  comments?: string;
+}
+
+export class RejectRequestDto {
+  @ApiProperty({ description: 'Mandatory rejection reason, visible to Department Head' })
+  reason!: string;
+}
+
+export class RevisionRequestDto {
+  @ApiProperty({ description: 'Mandatory revision feedback, visible to Department Head' })
+  feedback!: string;
+}
+
 // ─── Plan DTOs ────────────────────────────────────────────────────────────────
 
 export class CreateOverallPlanDto {
@@ -158,6 +224,120 @@ export class RecruitingController {
   @ApiOperation({ summary: 'Expand a skill query via the knowledge graph' })
   expandQuery(@Query('q') query: string) {
     return firstValueFrom(this.recruitingClient.send('talent.expand', { query }));
+  }
+
+  // ─── Recruitment Requests (T-028 / T-029) ────────────────────────
+
+  @Post('recruitment-requests')
+  @Roles(UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: '[DEPT_HEAD] Create a recruitment request (starts as DRAFT). FR-02.' })
+  @ApiForbiddenResponse({ description: 'Requires DEPARTMENT_HEAD role' })
+  @ApiBody({ type: CreateHiringRequestDto })
+  createHiringRequest(
+    @Body() body: CreateHiringRequestDto,
+    @CurrentUser('sub') requestedById: string,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('hiring-requests.create', { ...body, requestedById, organizationId }),
+    );
+  }
+
+  @Get('recruitment-requests')
+  @Roles(UserRole.DEPARTMENT_HEAD, UserRole.HIRING_MANAGER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'List recruitment requests (role-filtered). FR-02.' })
+  @ApiForbiddenResponse({ description: 'Requires DEPARTMENT_HEAD, HIRING_MANAGER, or ADMIN role' })
+  listHiringRequests(
+    @Query('status') status: string | undefined,
+    @Query('departmentId') departmentId: string | undefined,
+    @Query('page') page: string | undefined,
+    @CurrentUser('sub') actorId: string,
+    @CurrentUser('role') actorRole: string,
+    @CurrentUser('organizationId') organizationId: string,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('hiring-requests.list', {
+        actorId,
+        actorRole,
+        organizationId,
+        status,
+        departmentId,
+        page: page ? parseInt(page, 10) : 1,
+      }),
+    );
+  }
+
+  @Get('recruitment-requests/:id')
+  @Roles(UserRole.DEPARTMENT_HEAD, UserRole.HIRING_MANAGER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get a single recruitment request with approvals and logs. FR-02.' })
+  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
+  getHiringRequest(@Param('id') id: string) {
+    return firstValueFrom(this.recruitingClient.send('hiring-requests.get', { id }));
+  }
+
+  @Patch('recruitment-requests/:id')
+  @Roles(UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: '[DEPT_HEAD] Update a DRAFT recruitment request. FR-02.' })
+  @ApiForbiddenResponse({ description: 'Requires DEPARTMENT_HEAD role' })
+  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
+  @ApiBody({ type: UpdateHiringRequestDto })
+  updateHiringRequest(
+    @Param('id') id: string,
+    @Body() body: UpdateHiringRequestDto,
+    @CurrentUser('sub') actorId: string,
+  ) {
+    return firstValueFrom(this.recruitingClient.send('hiring-requests.update', { id, actorId, ...body }));
+  }
+
+  @Post('recruitment-requests/:id/submit')
+  @Roles(UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: '[DEPT_HEAD] Submit request: DRAFT → PENDING_APPROVAL. FR-02.' })
+  @ApiForbiddenResponse({ description: 'Requires DEPARTMENT_HEAD role' })
+  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
+  submitHiringRequest(@Param('id') id: string, @CurrentUser('sub') actorId: string) {
+    return firstValueFrom(this.recruitingClient.send('hiring-requests.submit', { id, actorId }));
+  }
+
+  @Post('recruitment-requests/:id/approve')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: '[ADMIN] Approve request: PENDING_APPROVAL → APPROVED. Self-approval blocked. FR-03.' })
+  @ApiForbiddenResponse({ description: 'Requires ADMIN role' })
+  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
+  @ApiBody({ type: ApproveRequestDto })
+  approveHiringRequest(
+    @Param('id') id: string,
+    @Body() body: ApproveRequestDto,
+    @CurrentUser('sub') actorId: string,
+  ) {
+    return firstValueFrom(this.recruitingClient.send('hiring-requests.approve', { id, actorId, comments: body.comments }));
+  }
+
+  @Post('recruitment-requests/:id/reject')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: '[ADMIN] Reject request with mandatory reason. FR-03.' })
+  @ApiForbiddenResponse({ description: 'Requires ADMIN role' })
+  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
+  @ApiBody({ type: RejectRequestDto })
+  rejectHiringRequest(
+    @Param('id') id: string,
+    @Body() body: RejectRequestDto,
+    @CurrentUser('sub') actorId: string,
+  ) {
+    return firstValueFrom(this.recruitingClient.send('hiring-requests.reject', { id, actorId, reason: body.reason }));
+  }
+
+  @Post('recruitment-requests/:id/revision')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: '[ADMIN] Request revision with feedback: PENDING_APPROVAL → REVISION_REQUESTED. FR-03.' })
+  @ApiForbiddenResponse({ description: 'Requires ADMIN role' })
+  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
+  @ApiBody({ type: RevisionRequestDto })
+  requestRevision(
+    @Param('id') id: string,
+    @Body() body: RevisionRequestDto,
+    @CurrentUser('sub') actorId: string,
+  ) {
+    return firstValueFrom(this.recruitingClient.send('hiring-requests.requestRevision', { id, actorId, feedback: body.feedback }));
   }
 
   // ─── Overall Plan ─────────────────────────────────────────────────
