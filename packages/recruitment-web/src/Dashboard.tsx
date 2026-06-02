@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import ApprovalTable from './components/ApprovalTable';
 import AllRequests from './components/AllRequests';
+import Settings from './Settings';
 import { Page } from './App';
 
 interface DashboardProps {
@@ -12,6 +13,9 @@ interface DashboardProps {
 }
 
 const Dashboard = ({ currentPage, onNavigate, onLogout }: DashboardProps) => {
+  if (currentPage === Page.SETTINGS) {
+    return <Settings currentPage={currentPage} onNavigate={onNavigate} onLogout={onLogout} />;
+  }
   const renderPageContent = () => {
     switch (currentPage) {
       case Page.APPROVAL_QUEUE:
