@@ -2,6 +2,7 @@ import { KPICard } from './components/KPICard';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import ApprovalTable from './components/ApprovalTable';
+import AllRequests from './components/AllRequests';
 import { Page } from './App';
 
 interface DashboardProps {
@@ -26,16 +27,17 @@ const Dashboard = ({ currentPage, onNavigate, onLogout }: DashboardProps) => {
           </div>
         );
 
+      case Page.ALL_REQUESTS:
+        return <AllRequests />;
+
       default:
         return (
           <div className="p-8">
-            {/* Header Dashboard */}
             <header className="mb-8">
               <h2 className="text-2xl font-bold">Dashboard</h2>
               <p className="text-slate-600">Good morning, Mr. Tu</p>
             </header>
 
-            {/* KPI Row */}
             <div className="grid grid-cols-4 gap-6 mb-8">
               <KPICard 
                 title="Active Requests" 
@@ -61,13 +63,11 @@ const Dashboard = ({ currentPage, onNavigate, onLogout }: DashboardProps) => {
               </div>
             </div>
 
-            {/* Middle Section (60/40) */}
             <div className="grid grid-cols-10 gap-6 mb-8">
               <div className="col-span-6 bg-white p-6 rounded-xl border border-[#D6CEC4]/60">
                 <ApprovalTable />
               </div>
               
-              {/* Hiring Pipeline Summary */}
               <div className="col-span-4 bg-white p-6 rounded-xl border border-[#D6CEC4]/60">
                 <h3 className="font-bold mb-6">Hiring Pipeline Summary</h3>
                 <div className="space-y-4">
@@ -88,7 +88,7 @@ const Dashboard = ({ currentPage, onNavigate, onLogout }: DashboardProps) => {
                   ))}
                 </div>
                 <p className="mt-6 text-amber-600 text-sm font-medium">
-                  ⚠️ 3 decisions pending your review
+                  ?? 3 decisions pending your review
                 </p>
               </div>
             </div>
@@ -97,11 +97,19 @@ const Dashboard = ({ currentPage, onNavigate, onLogout }: DashboardProps) => {
     }
   };
 
+  const headerTitle = currentPage === Page.ALL_REQUESTS
+    ? 'All Requests'
+    : currentPage === Page.APPROVAL_QUEUE
+    ? 'Approval Queue'
+    : 'Dashboard';
+
+  const hideSearch = currentPage !== Page.DASHBOARD;
+
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#1C1917]">
       <Sidebar currentPage={currentPage} onNavigate={onNavigate} onLogout={onLogout} />
       <main className="ml-[260px]">
-        <Header />
+        <Header title={headerTitle} hideSearch={hideSearch} />
         {renderPageContent()}
       </main>
     </div>
