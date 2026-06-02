@@ -4,6 +4,7 @@ import Header from './components/Header';
 import ApprovalTable from './components/ApprovalTable';
 import AllRequests from './components/AllRequests';
 import Settings from './Settings';
+import UserManagement from './UserManagement';
 import { Page } from './App';
 
 interface DashboardProps {
@@ -33,6 +34,9 @@ const Dashboard = ({ currentPage, onNavigate, onLogout }: DashboardProps) => {
 
       case Page.ALL_REQUESTS:
         return <AllRequests />;
+
+      case Page.USERS:
+        return <UserManagement currentPage={currentPage} onNavigate={onNavigate} onLogout={onLogout} />;
 
       default:
         return (
