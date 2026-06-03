@@ -1,21 +1,18 @@
 import { Worker } from 'bullmq';
 import { QUEUE_NAMES } from '@wr/queue';
+import Redis from 'ioredis';
 
 /**
  * Worker bootstrap — starts BullMQ workers for each queue.
  */
 async function bootstrap() {
-  const redisHost = process.env.REDIS_HOST || 'localhost';
-  const redisPort = parseInt(process.env.REDIS_PORT || '6379', 10);
+  const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+  const client = new Redis(redisUrl, {
+    maxRetriesPerRequest: null, // Required by BullMQ for blocking operations
+  });
 
-  const connectionOptions = {
-    host: redisHost,
-    port: redisPort,
-    maxRetriesPerRequest: null,
-  };
-
-  console.log(`🔌 Worker connecting to Redis at ${redisHost}:${redisPort}`);
-
+  console.log(`🔌 Worker connecting to Redis at ${redisUrl}`);
+  
   // CV Parse Queue Worker
   const cvParseWorker = new Worker(
     QUEUE_NAMES.CV_PARSE,
@@ -24,7 +21,7 @@ async function bootstrap() {
       // TODO: implement CV parsing logic
       console.log(`✅ CV parse job ${job.id} completed (stub)`);
     },
-    { connection: connectionOptions },
+    { connection: client },
   );
 
   // Embedding Generation Queue Worker
@@ -35,7 +32,7 @@ async function bootstrap() {
       // TODO: implement embedding generation logic
       console.log(`✅ Embedding job ${job.id} completed (stub)`);
     },
-    { connection: connectionOptions },
+    { connection: client },
   );
 
   // Email Send Queue Worker
@@ -46,7 +43,7 @@ async function bootstrap() {
       // TODO: implement email sending logic
       console.log(`✅ Email send job ${job.id} completed (stub)`);
     },
-    { connection: connectionOptions },
+    { connection: client },
   );
 
   // Graceful shutdown

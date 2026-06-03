@@ -1,11 +1,17 @@
 # Dependencies
 node_modules/
+*/node_modules/
+**/node_modules/
 .npm
+pnpm-lock.yaml
 
 # Build outputs
 dist/
 .next/
 .turbo/
+**/.turbo/
+**/dist/
+**/tsconfig.tsbuildinfo
 
 # Environment
 .env
@@ -50,3 +56,5 @@ _bmad**/
 archive/
 .codex/
 .gemini/
+**/dist/
+

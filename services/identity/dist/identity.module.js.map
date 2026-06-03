@@ -1,1 +1,0 @@
-{"version":3,"file":"identity.module.js","sourceRoot":"","sources":["../src/identity.module.ts"],"names":[],"mappings":";;;;;;;;;AAAA,2CAAwC;AACxC,uEAAmE;AACnE,4DAAwD;AACxD,+DAA2D;AAKpD,IAAM,cAAc,GAApB,MAAM,cAAc;CAAG,CAAA;AAAjB,wCAAc;yBAAd,cAAc;IAH1B,IAAA,eAAM,EAAC;QACN,OAAO,EAAE,CAAC,gCAAc,EAAE,wBAAU,EAAE,0BAAW,CAAC;KACnD,CAAC;GACW,cAAc,CAAG"}

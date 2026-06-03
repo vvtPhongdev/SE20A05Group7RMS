@@ -10,8 +10,7 @@ import { z } from 'zod';
 const ApiEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   DATABASE_URL: z.string().url(),
-  REDIS_HOST: z.string().default('localhost'),
-  REDIS_PORT: z.coerce.number().int().default(6379),
+  REDIS_URL: z.string().default('localhost'),
   API_PORT: z.coerce.number().int().default(3001),
   API_CORS_ORIGIN: z.string().default('http://localhost:3000'),
   JWT_SECRET: z.string().min(10),
@@ -29,8 +28,7 @@ export function validateApiEnv(env: Record<string, string | undefined> = process
 const WorkerEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   DATABASE_URL: z.string().url(),
-  REDIS_HOST: z.string().default('localhost'),
-  REDIS_PORT: z.coerce.number().int().default(6379),
+  REDIS_URL: z.string().default('localhost'),
 });
 
 export type WorkerEnv = z.infer<typeof WorkerEnvSchema>;

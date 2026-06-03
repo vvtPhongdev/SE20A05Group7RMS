@@ -1,7 +1,14 @@
 {
   "name": "works-reruiter",
   "version": "0.1.0",
+  "packageManager": "npm@10.0.0",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*",
+    "webapp"
+  ],
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
@@ -10,22 +17,23 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,mjs,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mjs,json,md}\"",
     "clean": "turbo run clean && rm -rf node_modules",
-    "db:generate": "pnpm --filter @wr/database generate",
-    "db:migrate:dev": "pnpm --filter @wr/database migrate:dev",
-    "db:push": "pnpm --filter @wr/database push",
+    "db:generate": "npm --workspace=@wr/database run generate",
+    "db:migrate:dev": "npm --workspace=@wr/database run migrate:dev",
+    "db:push": "npm --workspace=@wr/database run push",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
-    "dev:gateway": "pnpm --filter @wr/gateway dev",
-    "dev:identity": "pnpm --filter @wr/identity dev",
-    "dev:recruiting": "pnpm --filter @wr/recruiting dev",
-    "dev:profiles": "pnpm --filter @wr/profiles dev",
-    "dev:review": "pnpm --filter @wr/review dev",
-    "dev:worker": "pnpm --filter @wr/worker dev",
-    "dev:webapp": "pnpm --filter @wr/webapp dev"
+    "dev:gateway": "npm --workspace=@wr/gateway run dev",
+    "dev:identity": "npm --workspace=@wr/identity run dev",
+    "dev:recruiting": "npm --workspace=@wr/recruiting run dev",
+    "dev:profiles": "npm --workspace=@wr/profiles run dev",
+    "dev:review": "npm --workspace=@wr/review run dev",
+    "dev:worker": "npm --workspace=@wr/worker run dev",
+    "dev:webapp": "npm --workspace=@wr/webapp run dev"
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",
     "@mermaid-js/mermaid-cli": "^11.15.0",
+    "@types/node": "^25.9.1",
     "eslint": "^9.20.0",
     "prettier": "^3.5.3",
     "prisma": "^6.19.3",
@@ -37,7 +45,6 @@
   "engines": {
     "node": ">=22.0.0"
   },
-  "packageManager": "pnpm@10.0.0",
   "dependencies": {
     "@prisma/client": "^6.19.3"
   }

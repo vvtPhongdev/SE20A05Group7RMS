@@ -9,14 +9,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   constructor() {}
 
   async onModuleInit() {
-    this.client = new Redis({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379', 10),
-      retryStrategy: (times) => {
-        const delay = Math.min(times * 50, 2000);
-        return delay;
-      },
-    });
+    this.client = new Redis(process.env.REDIS_URL??"");
 
     this.client.on('connect', () => {
       this.logger.log('Redis connected');
