@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, Inject } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Inject } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SERVICE_TOKENS } from '../constants';
@@ -101,5 +101,45 @@ export class RecruitingController {
   @ApiOperation({ summary: 'Expand a skill query via the knowledge graph' })
   expandQuery(@Query('q') query: string) {
     return firstValueFrom(this.recruitingClient.send('talent.expand', { query }));
+  }
+
+  // ─── Interviews ──────────────────────────────────────────────────
+
+  @Post('interviews')
+  @ApiOperation({ summary: 'Schedule an interview' })
+  scheduleInterview(@Body() body: any) {
+    return firstValueFrom(this.recruitingClient.send('interviews.schedule', body));
+  }
+
+  @Get('interviews')
+  @ApiOperation({ summary: 'List interviews' })
+  listInterviews(@Query() query: any) {
+    return firstValueFrom(this.recruitingClient.send('interviews.list', query));
+  }
+
+  @Get('interviews/:id')
+  @ApiOperation({ summary: 'Get interview by ID' })
+  getInterview(@Param('id') id: string) {
+    return firstValueFrom(this.recruitingClient.send('interviews.get', { id }));
+  }
+
+  @Patch('interviews/:id/reschedule')
+  @ApiOperation({ summary: 'Reschedule an interview' })
+  rescheduleInterview(@Param('id') id: string, @Body() body: any) {
+    return firstValueFrom(this.recruitingClient.send('interviews.reschedule', { id, ...body }));
+  }
+
+  @Delete('interviews/:id')
+  @ApiOperation({ summary: 'Cancel an interview' })
+  cancelInterview(@Param('id') id: string) {
+    return firstValueFrom(this.recruitingClient.send('interviews.cancel', { id }));
+  }
+
+  // ─── Interview Results ───────────────────────────────────────────
+
+  @Post('interview-results')
+  @ApiOperation({ summary: 'Record interview result (PASS / FAIL)' })
+  recordInterviewResult(@Body() body: any) {
+    return firstValueFrom(this.recruitingClient.send('interviews.recordResult', body));
   }
 }
