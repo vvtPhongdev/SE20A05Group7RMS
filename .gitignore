@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
+*/node_modules/
+**/node_modules/
 .npm
+pnpm-lock.yaml
 
 # Build outputs
 dist/
@@ -50,3 +53,6 @@ _bmad**/
 archive/
 .codex/
 .gemini/
+**/dist/
+
+.env

@@ -11,12 +11,20 @@ const common_1 = require("@nestjs/common");
 const database_module_1 = require("./common/database/database.module");
 const auth_module_1 = require("./modules/auth/auth.module");
 const users_module_1 = require("./modules/users/users.module");
+const organizations_module_1 = require("./modules/organizations/organizations.module");
+const departments_module_1 = require("./modules/departments/departments.module");
 let IdentityModule = class IdentityModule {
 };
 exports.IdentityModule = IdentityModule;
 exports.IdentityModule = IdentityModule = __decorate([
     (0, common_1.Module)({
-        imports: [database_module_1.DatabaseModule, auth_module_1.AuthModule, users_module_1.UsersModule],
+        imports: [
+            database_module_1.DatabaseModule,
+            auth_module_1.AuthModule,
+            users_module_1.UsersModule,
+            organizations_module_1.OrganizationsModule,
+            departments_module_1.DepartmentsModule,
+        ],
     })
 ], IdentityModule);
 //# sourceMappingURL=identity.module.js.map

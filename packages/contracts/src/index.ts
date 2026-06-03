@@ -7,6 +7,6 @@
  * - API response/error wrapper types and error codes
  */
 
-export * from './enums';
-export * from './schemas';
-export * from './api';
+export * from './enums/index';
+export * from './schemas/index';
+export * from './api/index';
