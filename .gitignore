@@ -9,6 +9,9 @@ pnpm-lock.yaml
 dist/
 .next/
 .turbo/
+**/.turbo/
+**/dist/
+**/tsconfig.tsbuildinfo
 
 # Environment
 .env
