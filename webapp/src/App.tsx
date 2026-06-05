@@ -10,6 +10,7 @@ import { ForgotPassword } from './pages/ForgotPassword';
 import { Unauthorized } from './pages/Unauthorized';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { AdminApprovalQueue } from './pages/AdminApprovalQueue';
+import { AdminAllRequests } from './pages/AdminAllRequests';
 import { DeptHeadDashboard } from './pages/DeptHeadDashboard';
 import { HrManagerDashboard } from './pages/HrManagerDashboard';
 import { CandidateDashboard } from './pages/CandidateDashboard';
@@ -87,7 +88,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
                 <Layout>
-                  <PlaceholderPage title="All Requests" description="Strategic view of all recruitment requests across all organizations." />
+                  <AdminAllRequests />
                 </Layout>
               </ProtectedRoute>
             }
