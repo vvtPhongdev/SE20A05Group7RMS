@@ -307,9 +307,9 @@ export const Login: React.FC = () => {
                     />
                     Remember me
                   </label>
-                  <a className="text-sm font-semibold text-[var(--wr-accent-primary)] hover:underline" href="#">
+                  <Link className="text-sm font-semibold text-[var(--wr-accent-primary)] hover:underline" to="/forgot-password">
                     Forgot password?
-                  </a>
+                  </Link>
                 </div>
 
                 <button
