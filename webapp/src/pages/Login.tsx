@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const demoAccounts = [
@@ -349,12 +349,14 @@ export const Login: React.FC = () => {
                 ))}
               </div>
 
-              <p className="mt-8 text-center text-sm text-[var(--wr-text-secondary)]">
-                Need an account?{' '}
-                <a className="font-semibold text-[var(--wr-accent-primary)] hover:underline" href="#">
-                  Contact your admin
-                </a>
-              </p>
+              <div className="mt-8">
+                <Link
+                  className="flex h-11 w-full items-center justify-center rounded-[var(--wr-radius-lg)] border border-[var(--wr-border-default)] bg-[#fefdfb] px-4 text-sm font-semibold text-[var(--wr-accent-primary)] transition duration-200 ease-out hover:-translate-y-[1px] hover:border-[var(--wr-border-strong)] hover:bg-[var(--wr-bg-elevated)] active:translate-y-0 active:scale-[0.98]"
+                  to="/signup"
+                >
+                  Create an account
+                </Link>
+              </div>
             </div>
           </div>
         </section>
