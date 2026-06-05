@@ -3,6 +3,9 @@ import { ClientProxy } from '@nestjs/microservices';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SERVICE_TOKENS } from '../constants';
 import { firstValueFrom } from 'rxjs';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '@wr/contracts';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 /**
  * Thin proxy controller for Recruiting service (roles, applications, invites, evaluations).
@@ -101,5 +104,36 @@ export class RecruitingController {
   @ApiOperation({ summary: 'Expand a skill query via the knowledge graph' })
   expandQuery(@Query('q') query: string) {
     return firstValueFrom(this.recruitingClient.send('talent.expand', { query }));
+  }
+
+  // ─── Reports ─────────────────────────────────────────────────────
+
+  @Get('reports/annual')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get annual recruitment report' })
+  getAnnualReport(@Query('year') year?: string) {
+    const parsedYear = year ? parseInt(year, 10) : new Date().getFullYear();
+    return firstValueFrom(this.recruitingClient.send('recruiting.annual_report', { year: parsedYear }));
+  }
+
+  @Get('reports/department/:id')
+  @Roles(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'Get department recruitment report' })
+  getDepartmentReport(@Param('id') id: string, @CurrentUser() user: any) {
+    return firstValueFrom(this.recruitingClient.send('recruiting.department_report', { id, userId: user.sub, role: user.role }));
+  }
+
+  @Get('reports/time-to-hire')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get time-to-hire metrics report' })
+  getTimeToHireReport() {
+    return firstValueFrom(this.recruitingClient.send('recruiting.time_to_hire', {}));
+  }
+
+  @Get('reports/pipeline')
+  @Roles(UserRole.ADMIN, UserRole.HR_MANAGER)
+  @ApiOperation({ summary: 'Get recruitment pipeline overview' })
+  getPipelineOverview() {
+    return firstValueFrom(this.recruitingClient.send('recruiting.pipeline_overview', {}));
   }
 }
