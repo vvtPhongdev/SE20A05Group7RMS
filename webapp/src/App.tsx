@@ -5,6 +5,7 @@ import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { LandingPage } from './pages/LandingPage';
 import { SignUp } from './pages/SignUp';
+import { ForgotPassword } from './pages/ForgotPassword';
 import { Unauthorized } from './pages/Unauthorized';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { DeptHeadDashboard } from './pages/DeptHeadDashboard';
@@ -42,6 +43,7 @@ export function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
 
           {/* Protected routes wrapped inside the app shell Layout */}
