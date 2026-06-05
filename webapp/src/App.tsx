@@ -11,6 +11,7 @@ import { Unauthorized } from './pages/Unauthorized';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { AdminApprovalQueue } from './pages/AdminApprovalQueue';
 import { AdminAllRequests } from './pages/AdminAllRequests';
+import { AdminSettings } from './pages/AdminSettings';
 import { DeptHeadDashboard } from './pages/DeptHeadDashboard';
 import { HrManagerDashboard } from './pages/HrManagerDashboard';
 import { CandidateDashboard } from './pages/CandidateDashboard';
@@ -118,7 +119,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
                 <Layout>
-                  <PlaceholderPage title="System Settings" description="Configure organizational settings, domains, and global platform parameters." />
+                  <AdminSettings />
                 </Layout>
               </ProtectedRoute>
             }
