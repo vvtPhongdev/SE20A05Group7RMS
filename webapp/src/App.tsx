@@ -9,6 +9,7 @@ import { EmailOtpVerification } from './pages/EmailOtpVerification';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { Unauthorized } from './pages/Unauthorized';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { AdminApprovalQueue } from './pages/AdminApprovalQueue';
 import { DeptHeadDashboard } from './pages/DeptHeadDashboard';
 import { HrManagerDashboard } from './pages/HrManagerDashboard';
 import { CandidateDashboard } from './pages/CandidateDashboard';
@@ -76,7 +77,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
                 <Layout>
-                  <PlaceholderPage title="Approval Queue" description="Review and approve pending recruitment requests forwarded by HR." />
+                  <AdminApprovalQueue />
                 </Layout>
               </ProtectedRoute>
             }
