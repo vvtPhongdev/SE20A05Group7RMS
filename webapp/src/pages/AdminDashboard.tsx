@@ -2,163 +2,81 @@ import React from 'react';
 
 export const AdminDashboard: React.FC = () => {
   return (
-    <div style={containerStyle}>
-      <h1 style={titleStyle}>Admin Console</h1>
-      <p style={subtitleStyle}>Configure system entities, manage organizations, departments, and user roles.</p>
+    <div className="flex flex-col">
+      <h1 className="text-[var(--wr-text-2xl)] font-[var(--wr-font-bold)] text-[var(--wr-text-primary)] mt-0 mb-2">
+        Admin Console
+      </h1>
+      <p className="text-[var(--wr-text-base)] text-[var(--wr-text-secondary)] mt-0 mb-8">
+        Configure system entities, manage organizations, departments, and user roles.
+      </p>
 
       {/* Grid of stats */}
-      <div style={statsGridStyle}>
-        <div style={statCardStyle}>
-          <div style={statLabelStyle}>Active Organizations</div>
-          <div style={statValueStyle}>12</div>
-          <div style={statTrendStyle}>+2 this month</div>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-10">
+        <div className="bg-[var(--wr-bg-surface)] border border-[var(--wr-border-default)] rounded-[var(--wr-radius-lg)] p-6 shadow-[var(--wr-shadow-sm)]">
+          <div className="text-[var(--wr-text-xs)] font-[var(--wr-font-semibold)] text-[var(--wr-text-secondary)] uppercase mb-2">
+            Active Organizations
+          </div>
+          <div className="text-[2rem] font-[var(--wr-font-bold)] text-[var(--wr-accent-primary)] mb-1">12</div>
+          <div className="text-[var(--wr-text-xs)] text-[var(--wr-text-muted)]">+2 this month</div>
         </div>
-        <div style={statCardStyle}>
-          <div style={statLabelStyle}>Total Departments</div>
-          <div style={statValueStyle}>48</div>
-          <div style={statTrendStyle}>Across all orgs</div>
+        <div className="bg-[var(--wr-bg-surface)] border border-[var(--wr-border-default)] rounded-[var(--wr-radius-lg)] p-6 shadow-[var(--wr-shadow-sm)]">
+          <div className="text-[var(--wr-text-xs)] font-[var(--wr-font-semibold)] text-[var(--wr-text-secondary)] uppercase mb-2">
+            Total Departments
+          </div>
+          <div className="text-[2rem] font-[var(--wr-font-bold)] text-[var(--wr-accent-primary)] mb-1">48</div>
+          <div className="text-[var(--wr-text-xs)] text-[var(--wr-text-muted)]">Across all orgs</div>
         </div>
-        <div style={statCardStyle}>
-          <div style={statLabelStyle}>Total System Users</div>
-          <div style={statValueStyle}>1,240</div>
-          <div style={statTrendStyle}>98 active sessions</div>
+        <div className="bg-[var(--wr-bg-surface)] border border-[var(--wr-border-default)] rounded-[var(--wr-radius-lg)] p-6 shadow-[var(--wr-shadow-sm)]">
+          <div className="text-[var(--wr-text-xs)] font-[var(--wr-font-semibold)] text-[var(--wr-text-secondary)] uppercase mb-2">
+            Total System Users
+          </div>
+          <div className="text-[2rem] font-[var(--wr-font-bold)] text-[var(--wr-accent-primary)] mb-1">1,240</div>
+          <div className="text-[var(--wr-text-xs)] text-[var(--wr-text-muted)]">98 active sessions</div>
         </div>
       </div>
 
       {/* Admin operations */}
-      <h2 style={sectionTitleStyle}>Quick Configurations</h2>
-      <div style={operationsGridStyle}>
-        <div style={opCardStyle}>
-          <div style={opIconStyle}>🏢</div>
-          <h3 style={opTitleStyle}>Organizations</h3>
-          <p style={opDescStyle}>Create new company workspaces, view workspaces listing, and update org domains.</p>
-          <button style={opButtonStyle}>Manage Organizations</button>
+      <h2 className="text-[var(--wr-text-lg)] font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)] mt-0 mb-5 border-b border-[var(--wr-border-subtle)] pb-2">
+        Quick Configurations
+      </h2>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6">
+        <div className="bg-[var(--wr-bg-surface)] border border-[var(--wr-border-default)] rounded-[var(--wr-radius-lg)] py-8 px-6 shadow-[var(--wr-shadow-sm)] flex flex-col items-start">
+          <div className="text-[2rem] mb-4">🏢</div>
+          <h3 className="text-[var(--wr-text-base)] font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)] mt-0 mb-2">
+            Organizations
+          </h3>
+          <p className="text-[var(--wr-text-sm)] text-[var(--wr-text-secondary)] leading-[var(--wr-leading-normal)] mt-0 mb-6 flex-grow">
+            Create new company workspaces, view workspaces listing, and update org domains.
+          </p>
+          <button className="py-2 px-4 rounded-[var(--wr-radius-md)] border border-[var(--wr-border-strong)] bg-white text-[var(--wr-text-primary)] text-sm font-[var(--wr-font-semibold)] cursor-pointer transition-all hover:bg-[var(--wr-bg-elevated)]">
+            Manage Organizations
+          </button>
         </div>
-        <div style={opCardStyle}>
-          <div style={opIconStyle}>📂</div>
-          <h3 style={opTitleStyle}>Departments</h3>
-          <p style={opDescStyle}>Establish department hierarchies, map parents, and assign official department heads.</p>
-          <button style={opButtonStyle}>Configure Departments</button>
+        <div className="bg-[var(--wr-bg-surface)] border border-[var(--wr-border-default)] rounded-[var(--wr-radius-lg)] py-8 px-6 shadow-[var(--wr-shadow-sm)] flex flex-col items-start">
+          <div className="text-[2rem] mb-4">📂</div>
+          <h3 className="text-[var(--wr-text-base)] font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)] mt-0 mb-2">
+            Departments
+          </h3>
+          <p className="text-[var(--wr-text-sm)] text-[var(--wr-text-secondary)] leading-[var(--wr-leading-normal)] mt-0 mb-6 flex-grow">
+            Establish department hierarchies, map parents, and assign official department heads.
+          </p>
+          <button className="py-2 px-4 rounded-[var(--wr-radius-md)] border border-[var(--wr-border-strong)] bg-white text-[var(--wr-text-primary)] text-sm font-[var(--wr-font-semibold)] cursor-pointer transition-all hover:bg-[var(--wr-bg-elevated)]">
+            Configure Departments
+          </button>
         </div>
-        <div style={opCardStyle}>
-          <div style={opIconStyle}>👤</div>
-          <h3 style={opTitleStyle}>User Directory</h3>
-          <p style={opDescStyle}>Modify roles, toggle user activation status, and manage registration codes.</p>
-          <button style={opButtonStyle}>Open User Directory</button>
+        <div className="bg-[var(--wr-bg-surface)] border border-[var(--wr-border-default)] rounded-[var(--wr-radius-lg)] py-8 px-6 shadow-[var(--wr-shadow-sm)] flex flex-col items-start">
+          <div className="text-[2rem] mb-4">👤</div>
+          <h3 className="text-[var(--wr-text-base)] font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)] mt-0 mb-2">
+            User Directory
+          </h3>
+          <p className="text-[var(--wr-text-sm)] text-[var(--wr-text-secondary)] leading-[var(--wr-leading-normal)] mt-0 mb-6 flex-grow">
+            Modify roles, toggle user activation status, and manage registration codes.
+          </p>
+          <button className="py-2 px-4 rounded-[var(--wr-radius-md)] border border-[var(--wr-border-strong)] bg-white text-[var(--wr-text-primary)] text-sm font-[var(--wr-font-semibold)] cursor-pointer transition-all hover:bg-[var(--wr-bg-elevated)]">
+            Open User Directory
+          </button>
         </div>
       </div>
     </div>
   );
-};
-
-const containerStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-};
-
-const titleStyle: React.CSSProperties = {
-  fontSize: 'var(--wr-text-2xl)',
-  fontWeight: 'var(--wr-font-bold)',
-  color: 'var(--wr-text-primary)',
-  margin: '0 0 0.5rem 0',
-};
-
-const subtitleStyle: React.CSSProperties = {
-  fontSize: 'var(--wr-text-base)',
-  color: 'var(--wr-text-secondary)',
-  margin: '0 0 2rem 0',
-};
-
-const statsGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-  gap: '1.5rem',
-  marginBottom: '2.5rem',
-};
-
-const statCardStyle: React.CSSProperties = {
-  backgroundColor: 'var(--wr-bg-surface)',
-  border: '1px solid var(--wr-border-default)',
-  borderRadius: 'var(--wr-radius-lg)',
-  padding: '1.5rem',
-  boxShadow: 'var(--wr-shadow-sm)',
-};
-
-const statLabelStyle: React.CSSProperties = {
-  fontSize: 'var(--wr-text-xs)',
-  fontWeight: 'var(--wr-font-semibold)',
-  color: 'var(--wr-text-secondary)',
-  textTransform: 'uppercase',
-  marginBottom: '0.5rem',
-};
-
-const statValueStyle: React.CSSProperties = {
-  fontSize: '2rem',
-  fontWeight: 'var(--wr-font-bold)',
-  color: 'var(--wr-accent-primary)',
-  marginBottom: '0.25rem',
-};
-
-const statTrendStyle: React.CSSProperties = {
-  fontSize: 'var(--wr-text-xs)',
-  color: 'var(--wr-text-muted)',
-};
-
-const sectionTitleStyle: React.CSSProperties = {
-  fontSize: 'var(--wr-text-lg)',
-  fontWeight: 'var(--wr-font-semibold)',
-  color: 'var(--wr-text-primary)',
-  margin: '0 0 1.25rem 0',
-  borderBottom: '1px solid var(--wr-border-subtle)',
-  paddingBottom: '0.5rem',
-};
-
-const operationsGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-  gap: '1.5rem',
-};
-
-const opCardStyle: React.CSSProperties = {
-  backgroundColor: 'var(--wr-bg-surface)',
-  border: '1px solid var(--wr-border-default)',
-  borderRadius: 'var(--wr-radius-lg)',
-  padding: '2rem 1.5rem',
-  boxShadow: 'var(--wr-shadow-sm)',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'flex-start',
-};
-
-const opIconStyle: React.CSSProperties = {
-  fontSize: '2rem',
-  marginBottom: '1rem',
-};
-
-const opTitleStyle: React.CSSProperties = {
-  fontSize: 'var(--wr-text-base)',
-  fontWeight: 'var(--wr-font-semibold)',
-  color: 'var(--wr-text-primary)',
-  margin: '0 0 0.5rem 0',
-};
-
-const opDescStyle: React.CSSProperties = {
-  fontSize: 'var(--wr-text-sm)',
-  color: 'var(--wr-text-secondary)',
-  lineHeight: 'var(--wr-leading-normal)',
-  margin: '0 0 1.5rem 0',
-  flex: 1,
-};
-
-const opButtonStyle: React.CSSProperties = {
-  padding: '0.5rem 1rem',
-  borderRadius: 'var(--wr-radius-md)',
-  border: '1px solid var(--wr-border-strong)',
-  backgroundColor: '#ffffff',
-  color: 'var(--wr-text-primary)',
-  fontSize: 'var(--wr-text-sm)',
-  fontWeight: 'var(--wr-font-semibold)',
-  cursor: 'pointer',
-  transition: 'all var(--wr-transition-fast)',
-  fontFamily: 'inherit',
 };

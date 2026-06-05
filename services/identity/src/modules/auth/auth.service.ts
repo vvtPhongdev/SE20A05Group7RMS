@@ -16,11 +16,18 @@ export class AuthService implements OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
   ) {
-    this.redis = new IORedis({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379', 10),
-      maxRetriesPerRequest: null,
-    });
+    const redisUrl = process.env.REDIS_URL;
+    if (redisUrl && redisUrl !== 'localhost') {
+      this.redis = new IORedis(redisUrl, {
+        maxRetriesPerRequest: null,
+      });
+    } else {
+      this.redis = new IORedis({
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379', 10),
+        maxRetriesPerRequest: null,
+      });
+    }
   }
 
   async onModuleDestroy() {

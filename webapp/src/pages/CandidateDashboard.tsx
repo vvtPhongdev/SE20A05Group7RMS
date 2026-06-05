@@ -9,93 +9,129 @@ export const CandidateDashboard: React.FC = () => {
   };
 
   return (
-    <div style={containerStyle}>
-      <h1 style={titleStyle}>Candidate Portal</h1>
-      <p style={subtitleStyle}>Manage your application documents, view profiles, and respond to interview invites.</p>
+    <div className="flex flex-col">
+      <h1 className="text-[var(--wr-text-2xl)] font-[var(--wr-font-bold)] text-[var(--wr-text-primary)] mt-0 mb-2">
+        Candidate Portal
+      </h1>
+      <p className="text-[var(--wr-text-base)] text-[var(--wr-text-secondary)] mt-0 mb-8">
+        Manage your application documents, view profiles, and respond to interview invites.
+      </p>
 
-      <div style={layoutGridStyle}>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-8">
         {/* Profile Card & Upload */}
-        <div style={columnStyle}>
-          <h2 style={sectionTitleStyle}>Document Center</h2>
-          <div style={cardStyle}>
-            <div style={cvStatusHeaderStyle}>
-              <span style={cvStatusTitleStyle}>Current Resume Doc</span>
+        <div className="flex flex-col gap-4">
+          <h2 className="text-[var(--wr-text-lg)] font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)] mt-0 mb-1 border-b border-[var(--wr-border-subtle)] pb-2">
+            Document Center
+          </h2>
+          <div className="bg-[var(--wr-bg-surface)] border border-[var(--wr-border-default)] rounded-[var(--wr-radius-lg)] p-6 shadow-[var(--wr-shadow-sm)] flex flex-col gap-5">
+            <div className="flex justify-between items-center">
+              <span className="font-[var(--wr-font-semibold)] text-[var(--wr-text-sm)] text-[var(--wr-text-primary)]">
+                Current Resume Doc
+              </span>
               {cvFile ? (
-                <span style={badgeUploadedStyle}>UPLOADED</span>
+                <span className="text-[10px] font-[var(--wr-font-bold)] py-0.5 px-2 rounded-full text-[var(--wr-success-text)] bg-[var(--wr-success-bg)] border border-[var(--wr-success-border)]">
+                  UPLOADED
+                </span>
               ) : (
-                <span style={badgeEmptyStyle}>MISSING</span>
+                <span className="text-[10px] font-[var(--wr-font-bold)] py-0.5 px-2 rounded-full text-[var(--wr-error-text)] bg-[var(--wr-error-bg)] border border-[var(--wr-error-border)]">
+                  MISSING
+                </span>
               )}
             </div>
 
             {cvFile ? (
-              <div style={cvFileInfoStyle}>
-                <span style={cvFileIconStyle}>📄</span>
-                <div style={cvFileMetaStyle}>
-                  <div style={cvFileNameStyle}>{cvFile}</div>
-                  <div style={cvFileSizeStyle}>PDF Format (142 KB)</div>
+              <div className="flex items-center gap-3 bg-[var(--wr-bg-elevated)] py-3 px-4 rounded-[var(--wr-radius-md)]">
+                <span className="text-2xl">📄</span>
+                <div className="flex flex-col">
+                  <div className="text-[var(--wr-text-sm)] font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)]">
+                    {cvFile}
+                  </div>
+                  <div className="text-[var(--wr-text-xs)] text-[var(--wr-text-muted)]">PDF Format (142 KB)</div>
                 </div>
               </div>
             ) : (
-              <p style={cvWarningTextStyle}>You have not uploaded any CV files yet. Please upload one to be considered for active campaigns.</p>
+              <p className="text-[var(--wr-text-sm)] text-[var(--wr-text-secondary)] leading-[var(--wr-leading-normal)] m-0">
+                You have not uploaded any CV files yet. Please upload one to be considered for active campaigns.
+              </p>
             )}
 
-            <form onSubmit={handleUploadFake} style={uploadFormStyle}>
-              <button type="submit" style={uploadButtonStyle}>
+            <form onSubmit={handleUploadFake} className="w-full">
+              <button
+                type="submit"
+                className="w-full p-2.5 bg-white border border-[var(--wr-border-strong)] rounded-[var(--wr-radius-md)] text-[var(--wr-text-primary)] font-[var(--wr-font-semibold)] text-[var(--wr-text-sm)] cursor-pointer transition-all hover:bg-[var(--wr-bg-elevated)]"
+              >
                 {cvFile ? 'Re-upload CV Document' : 'Upload CV Document (PDF/DOCX)'}
               </button>
             </form>
           </div>
 
-          <h2 style={sectionTitleStyle}>Application Status</h2>
-          <div style={cardStyle}>
-            <div style={statusRowStyle}>
-              <div style={statusLabelStyle}>Profile Data:</div>
-              <div style={statusValueStyle}>Completed (90%)</div>
+          <h2 className="text-[var(--wr-text-lg)] font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)] mt-0 mb-1 border-b border-[var(--wr-border-subtle)] pb-2">
+            Application Status
+          </h2>
+          <div className="bg-[var(--wr-bg-surface)] border border-[var(--wr-border-default)] rounded-[var(--wr-radius-lg)] p-6 shadow-[var(--wr-shadow-sm)] flex flex-col gap-5">
+            <div className="flex justify-between text-[var(--wr-text-sm)]">
+              <div className="text-[var(--wr-text-secondary)]">Profile Data:</div>
+              <div className="font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)]">Completed (90%)</div>
             </div>
-            <div style={statusRowStyle}>
-              <div style={statusLabelStyle}>Active Screenings:</div>
-              <div style={statusValueStyle}>1 Review Campaign</div>
+            <div className="flex justify-between text-[var(--wr-text-sm)]">
+              <div className="text-[var(--wr-text-secondary)]">Active Screenings:</div>
+              <div className="font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)]">1 Review Campaign</div>
             </div>
-            <div style={statusRowStyle}>
-              <div style={statusLabelStyle}>Evaluation Outcome:</div>
-              <div style={statusValueStyle}>Pending overall plan approval</div>
+            <div className="flex justify-between text-[var(--wr-text-sm)]">
+              <div className="text-[var(--wr-text-secondary)]">Evaluation Outcome:</div>
+              <div className="font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)]">
+                Pending overall plan approval
+              </div>
             </div>
           </div>
         </div>
 
         {/* Interviews & Invites */}
-        <div style={columnStyle}>
-          <h2 style={sectionTitleStyle}>My Scheduled Interviews</h2>
-          <div style={cardStyle}>
-            <div style={interviewItemStyle}>
-              <div style={interviewHeaderStyle}>
-                <span style={interviewSubjectStyle}>Technical Interview — Golang API Development</span>
-                <span style={badgeScheduledStyle}>SCHEDULED</span>
+        <div className="flex flex-col gap-4">
+          <h2 className="text-[var(--wr-text-lg)] font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)] mt-0 mb-1 border-b border-[var(--wr-border-subtle)] pb-2">
+            My Scheduled Interviews
+          </h2>
+          <div className="bg-[var(--wr-bg-surface)] border border-[var(--wr-border-default)] rounded-[var(--wr-radius-lg)] p-6 shadow-[var(--wr-shadow-sm)] flex flex-col gap-5">
+            <div className="border-b border-[var(--wr-border-subtle)] pb-5 flex flex-col gap-2">
+              <div className="flex justify-between items-start gap-3">
+                <span className="text-[var(--wr-text-sm)] font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)] leading-[var(--wr-leading-tight)]">
+                  Technical Interview — Golang API Development
+                </span>
+                <span className="text-[10px] font-[var(--wr-font-bold)] py-0.5 px-2 rounded-full text-[var(--wr-accent-primary-text)] bg-[var(--wr-accent-primary)] border-none whitespace-nowrap">
+                  SCHEDULED
+                </span>
               </div>
-              <div style={interviewMetaRowStyle}>
+              <div className="flex gap-4 text-[var(--wr-text-xs)] text-[var(--wr-text-secondary)]">
                 <span>📅 05 June 2026 at 10:00 AM</span>
                 <span>⏱ 45 minutes</span>
               </div>
-              <div style={interviewLocationStyle}>
+              <div className="text-[var(--wr-text-xs)] text-[var(--wr-text-secondary)]">
                 <span>📍 Online Meet: </span>
-                <a href="https://meet.google.com/abc-defg-hij" style={linkStyle}>
+                <a
+                  href="https://meet.google.com/abc-defg-hij"
+                  className="text-[var(--wr-accent-primary)] no-underline font-[var(--wr-font-medium)] hover:underline"
+                >
                   meet.google.com/abc-defg-hij
                 </a>
               </div>
             </div>
 
-            <div style={interviewItemStyle}>
-              <div style={interviewHeaderStyle}>
-                <span style={interviewSubjectStyle}>Recruiter Screen & Culture Fit</span>
-                <span style={badgeCompletedStyle}>COMPLETED</span>
+            <div className="flex flex-col gap-2">
+              <div className="flex justify-between items-start gap-3">
+                <span className="text-[var(--wr-text-sm)] font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)] leading-[var(--wr-leading-tight)]">
+                  Recruiter Screen & Culture Fit
+                </span>
+                <span className="text-[10px] font-[var(--wr-font-bold)] py-0.5 px-2 rounded-full text-[var(--wr-neutral-text)] bg-[var(--wr-neutral-bg)] border border-[var(--wr-neutral-border)] whitespace-nowrap">
+                  COMPLETED
+                </span>
               </div>
-              <div style={interviewMetaRowStyle}>
+              <div className="flex gap-4 text-[var(--wr-text-xs)] text-[var(--wr-text-secondary)]">
                 <span>📅 28 May 2026 at 02:00 PM</span>
                 <span>⏱ 30 minutes</span>
               </div>
-              <div style={interviewLocationStyle}>
+              <div className="text-[var(--wr-text-xs)] text-[var(--wr-text-secondary)]">
                 <span>📍 Online Call: </span>
-                <span style={textMutedStyle}>Google Meet session ended</span>
+                <span className="text-[var(--wr-text-muted)]">Google Meet session ended</span>
               </div>
             </div>
           </div>
@@ -103,216 +139,4 @@ export const CandidateDashboard: React.FC = () => {
       </div>
     </div>
   );
-};
-
-const containerStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-};
-
-const titleStyle: React.CSSProperties = {
-  fontSize: 'var(--wr-text-2xl)',
-  fontWeight: 'var(--wr-font-bold)',
-  color: 'var(--wr-text-primary)',
-  margin: '0 0 0.5rem 0',
-};
-
-const subtitleStyle: React.CSSProperties = {
-  fontSize: 'var(--wr-text-base)',
-  color: 'var(--wr-text-secondary)',
-  margin: '0 0 2rem 0',
-};
-
-const layoutGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-  gap: '2rem',
-};
-
-const columnStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '1rem',
-};
-
-const sectionTitleStyle: React.CSSProperties = {
-  fontSize: 'var(--wr-text-lg)',
-  fontWeight: 'var(--wr-font-semibold)',
-  color: 'var(--wr-text-primary)',
-  margin: '0 0 0.25rem 0',
-  borderBottom: '1px solid var(--wr-border-subtle)',
-  paddingBottom: '0.5rem',
-};
-
-const cardStyle: React.CSSProperties = {
-  backgroundColor: 'var(--wr-bg-surface)',
-  border: '1px solid var(--wr-border-default)',
-  borderRadius: 'var(--wr-radius-lg)',
-  padding: '1.5rem',
-  boxShadow: 'var(--wr-shadow-sm)',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '1.25rem',
-};
-
-const cvStatusHeaderStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-};
-
-const cvStatusTitleStyle: React.CSSProperties = {
-  fontWeight: 'var(--wr-font-semibold)',
-  fontSize: 'var(--wr-text-sm)',
-  color: 'var(--wr-text-primary)',
-};
-
-const badgeStyle: React.CSSProperties = {
-  fontSize: '10px',
-  fontWeight: 'var(--wr-font-bold)',
-  padding: '1px 8px',
-  borderRadius: 'var(--wr-radius-full)',
-};
-
-const badgeUploadedStyle: React.CSSProperties = {
-  ...badgeStyle,
-  color: 'var(--wr-success-text)',
-  backgroundColor: 'var(--wr-success-bg)',
-  border: '1px solid var(--wr-success-border)',
-};
-
-const badgeEmptyStyle: React.CSSProperties = {
-  ...badgeStyle,
-  color: 'var(--wr-error-text)',
-  backgroundColor: 'var(--wr-error-bg)',
-  border: '1px solid var(--wr-error-border)',
-};
-
-const cvFileInfoStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.75rem',
-  backgroundColor: 'var(--wr-bg-elevated)',
-  padding: '0.75rem 1rem',
-  borderRadius: 'var(--wr-radius-md)',
-};
-
-const cvFileIconStyle: React.CSSProperties = {
-  fontSize: '1.5rem',
-};
-
-const cvFileMetaStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-};
-
-const cvFileNameStyle: React.CSSProperties = {
-  fontSize: 'var(--wr-text-sm)',
-  fontWeight: 'var(--wr-font-semibold)',
-  color: 'var(--wr-text-primary)',
-};
-
-const cvFileSizeStyle: React.CSSProperties = {
-  fontSize: 'var(--wr-text-xs)',
-  color: 'var(--wr-text-muted)',
-};
-
-const cvWarningTextStyle: React.CSSProperties = {
-  fontSize: 'var(--wr-text-sm)',
-  color: 'var(--wr-text-secondary)',
-  lineHeight: 'var(--wr-leading-normal)',
-  margin: 0,
-};
-
-const uploadFormStyle: React.CSSProperties = {
-  width: '100%',
-};
-
-const uploadButtonStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '0.625rem',
-  backgroundColor: '#ffffff',
-  border: '1px solid var(--wr-border-strong)',
-  borderRadius: 'var(--wr-radius-md)',
-  color: 'var(--wr-text-primary)',
-  fontWeight: 'var(--wr-font-semibold)',
-  fontSize: 'var(--wr-text-sm)',
-  cursor: 'pointer',
-  transition: 'all var(--wr-transition-fast)',
-  fontFamily: 'inherit',
-};
-
-const statusRowStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  fontSize: 'var(--wr-text-sm)',
-};
-
-const statusLabelStyle: React.CSSProperties = {
-  color: 'var(--wr-text-secondary)',
-};
-
-const statusValueStyle: React.CSSProperties = {
-  fontWeight: 'var(--wr-font-semibold)',
-  color: 'var(--wr-text-primary)',
-};
-
-const interviewItemStyle: React.CSSProperties = {
-  borderBottom: '1px solid var(--wr-border-subtle)',
-  paddingBottom: '1.25rem',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.5rem',
-};
-
-const interviewHeaderStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'flex-start',
-  gap: '0.75rem',
-};
-
-const interviewSubjectStyle: React.CSSProperties = {
-  fontSize: 'var(--wr-text-sm)',
-  fontWeight: 'var(--wr-font-semibold)',
-  color: 'var(--wr-text-primary)',
-  lineHeight: 'var(--wr-leading-tight)',
-};
-
-const badgeScheduledStyle: React.CSSProperties = {
-  ...badgeStyle,
-  color: 'var(--wr-accent-primary-text)',
-  backgroundColor: 'var(--wr-accent-primary)',
-  border: 'none',
-  whiteSpace: 'nowrap',
-};
-
-const badgeCompletedStyle: React.CSSProperties = {
-  ...badgeStyle,
-  color: 'var(--wr-neutral-text)',
-  backgroundColor: 'var(--wr-neutral-bg)',
-  border: '1px solid var(--wr-neutral-border)',
-  whiteSpace: 'nowrap',
-};
-
-const interviewMetaRowStyle: React.CSSProperties = {
-  display: 'flex',
-  gap: '1rem',
-  fontSize: 'var(--wr-text-xs)',
-  color: 'var(--wr-text-secondary)',
-};
-
-const interviewLocationStyle: React.CSSProperties = {
-  fontSize: 'var(--wr-text-xs)',
-  color: 'var(--wr-text-secondary)',
-};
-
-const linkStyle: React.CSSProperties = {
-  color: 'var(--wr-accent-primary)',
-  textDecoration: 'none',
-  fontWeight: 'var(--wr-font-medium)',
-};
-
-const textMutedStyle: React.CSSProperties = {
-  color: 'var(--wr-text-muted)',
 };

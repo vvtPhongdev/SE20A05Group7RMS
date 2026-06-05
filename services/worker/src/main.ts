@@ -1,3 +1,7 @@
+import { config } from 'dotenv';
+import { resolve } from 'path';
+config({ path: resolve(__dirname, '../../../.env') });
+
 import { Worker } from 'bullmq';
 import { QUEUE_NAMES } from '@wr/queue';
 import Redis from 'ioredis';

@@ -1,28 +1,9 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 export default function HRDashBoard() {
   const [activeTab, setActiveTab] = useState(0);
-  useEffect(() => {
-    // Add hover effects to cards
-    const cards = document.querySelectorAll('.bg-clean-surface');
-    cards.forEach(card => {
-      card.addEventListener('mouseenter', () => {
-        (card as HTMLElement).style.transform = 'translateY(-2px)';
-      });
-      card.addEventListener('mouseleave', () => {
-        (card as HTMLElement).style.transform = 'translateY(0px)';
-      });
-    });
-
-    return () => {
-      cards.forEach(card => {
-        card.removeEventListener('mouseenter', () => {});
-        card.removeEventListener('mouseleave', () => {});
-      });
-    };
-  }, []);
 
   const tabs = [
     'Pending Review (8)',
@@ -219,7 +200,7 @@ export default function HRDashBoard() {
             {/* Request Cards */}
             <div className="space-y-4">
               {requests.map((request) => (
-                <div key={request.id} className="bg-white border border-border-warm rounded-xl p-6 shadow-sm flex flex-col gap-4 relative overflow-hidden group hover:border-teal-command/40 transition-all">
+                <div key={request.id} className="bg-white border border-border-warm rounded-xl p-6 shadow-sm flex flex-col gap-4 relative overflow-hidden group hover:border-teal-command/40 hover:-translate-y-0.5 transition-all duration-200">
                   <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${request.priorityColor === 'rejected' ? 'bg-rejected' : request.priorityColor === 'revision' ? 'bg-revision' : request.priorityColor === 'slate-ink' ? 'bg-slate-ink' : 'bg-teal-command'}`}></div>
                   <div className="flex justify-between items-start">
                     <div>

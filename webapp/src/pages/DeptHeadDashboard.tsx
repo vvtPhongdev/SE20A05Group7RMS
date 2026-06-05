@@ -2,79 +2,79 @@ import React from 'react';
 
 export const DeptHeadDashboard: React.FC = () => {
   return (
-    <div style={containerStyle}>
-      <div style={headerRowStyle}>
+    <div className="flex flex-col">
+      <div className="flex justify-between items-center mb-8 gap-4 flex-wrap">
         <div>
-          <h1 style={titleStyle}>Recruitment Dashboard</h1>
-          <p style={subtitleStyle}>Create and track staffing requests for your department.</p>
+          <h1 className="text-2xl font-bold text-[var(--wr-text-primary)] mt-0 mb-2">Recruitment Dashboard</h1>
+          <p className="text-base text-[var(--wr-text-secondary)] m-0">Create and track staffing requests for your department.</p>
         </div>
-        <button style={createButtonStyle}>➕ Create Recruitment Request</button>
+        <button className="py-2.5 px-5 rounded-[var(--wr-radius-md)] border-none bg-[var(--wr-accent-primary)] text-[var(--wr-accent-primary-text)] text-sm font-semibold cursor-pointer transition-colors duration-200 hover:bg-[var(--wr-accent-primary-hover)] active:bg-[var(--wr-accent-primary-active)]">➕ Create Recruitment Request</button>
       </div>
 
       {/* Grid of stats */}
-      <div style={statsGridStyle}>
-        <div style={statCardStyle}>
-          <div style={statLabelStyle}>Approved Staffing</div>
-          <div style={statValueStyle}>4</div>
-          <div style={statTrendStyle}>Active search underway</div>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-6 mb-10">
+        <div className="bg-[var(--wr-bg-surface)] border border-[var(--wr-border-default)] rounded-[var(--wr-radius-lg)] p-6 shadow-[var(--wr-shadow-sm)]">
+          <div className="text-xs font-semibold text-[var(--wr-text-secondary)] uppercase mb-2">Approved Staffing</div>
+          <div className="text-3xl font-bold text-[var(--wr-accent-primary)] mb-1">4</div>
+          <div className="text-xs text-[var(--wr-text-muted)]">Active search underway</div>
         </div>
-        <div style={statCardStyle}>
-          <div style={statLabelStyle}>Pending Approval</div>
-          <div style={statValueStyle}>2</div>
-          <div style={statTrendStyle}>Awaiting Admin review</div>
+        <div className="bg-[var(--wr-bg-surface)] border border-[var(--wr-border-default)] rounded-[var(--wr-radius-lg)] p-6 shadow-[var(--wr-shadow-sm)]">
+          <div className="text-xs font-semibold text-[var(--wr-text-secondary)] uppercase mb-2">Pending Approval</div>
+          <div className="text-3xl font-bold text-[var(--wr-accent-primary)] mb-1">2</div>
+          <div className="text-xs text-[var(--wr-text-muted)]">Awaiting Admin review</div>
         </div>
-        <div style={statCardStyle}>
-          <div style={statLabelStyle}>Open Headcount</div>
-          <div style={statValueStyle}>8</div>
-          <div style={statTrendStyle}>Target for Q2-Q3</div>
+        <div className="bg-[var(--wr-bg-surface)] border border-[var(--wr-border-default)] rounded-[var(--wr-radius-lg)] p-6 shadow-[var(--wr-shadow-sm)]">
+          <div className="text-xs font-semibold text-[var(--wr-text-secondary)] uppercase mb-2">Open Headcount</div>
+          <div className="text-3xl font-bold text-[var(--wr-accent-primary)] mb-1">8</div>
+          <div className="text-xs text-[var(--wr-text-muted)]">Target for Q2-Q3</div>
         </div>
       </div>
 
       {/* Table of requests */}
-      <h2 style={sectionTitleStyle}>Department Requests</h2>
-      <div style={tableContainerStyle}>
-        <table style={tableStyle}>
+      <h2 className="text-lg font-semibold text-[var(--wr-text-primary)] mt-0 mb-5 border-b border-[var(--wr-border-subtle)] pb-2">Department Requests</h2>
+      <div className="bg-[var(--wr-bg-surface)] border border-[var(--wr-border-default)] rounded-[var(--wr-radius-lg)] shadow-[var(--wr-shadow-sm)] overflow-hidden">
+        <table className="w-full border-collapse text-left">
           <thead>
-            <tr style={tableHeaderRowStyle}>
-              <th style={tableHeaderStyle}>Position</th>
-              <th style={tableHeaderStyle}>Headcount</th>
-              <th style={tableHeaderStyle}>Justification</th>
-              <th style={tableHeaderStyle}>Urgency</th>
-              <th style={tableHeaderStyle}>Status</th>
+            <tr className="bg-[var(--wr-bg-elevated)] border-b border-[var(--wr-border-default)]">
+              <th className="p-4 text-xs font-semibold text-[var(--wr-text-secondary)] uppercase">Position</th>
+              <th className="p-4 text-xs font-semibold text-[var(--wr-text-secondary)] uppercase">Headcount</th>
+              <th className="p-4 text-xs font-semibold text-[var(--wr-text-secondary)] uppercase">Justification</th>
+              <th className="p-4 text-xs font-semibold text-[var(--wr-text-secondary)] uppercase">Urgency</th>
+              <th className="p-4 text-xs font-semibold text-[var(--wr-text-secondary)] uppercase">Status</th>
             </tr>
           </thead>
           <tbody>
-            <tr style={tableRowStyle}>
-              <td style={tableCellBoldStyle}>Senior Backend Engineer</td>
-              <td style={tableCellStyle}>2</td>
-              <td style={tableCellStyle}>Backfill for key migrations</td>
-              <td style={tableCellStyle}>
-                <span style={urgencyHighStyle}>HIGH</span>
+            <tr className="border-b border-[var(--wr-border-subtle)]">
+              <td className="p-4 text-sm text-[var(--wr-text-primary)] font-semibold">Senior Backend Engineer</td>
+              <td className="p-4 text-sm text-[var(--wr-text-primary)]">2</td>
+              <td className="p-4 text-sm text-[var(--wr-text-primary)]">Backfill for key migrations</td>
+              <td className="p-4 text-sm text-[var(--wr-text-primary)]">
+                <span className="text-[11px] font-semibold py-0.5 px-2 rounded-full inline-block text-[var(--wr-error-text)] bg-[var(--wr-error-bg)] border border-[var(--wr-error-border)]">HIGH</span>
               </td>
-              <td style={tableCellStyle}>
-                <span style={statusPendingStyle}>PENDING_REVIEW</span>
-              </td>
-            </tr>
-            <tr style={tableRowStyle}>
-              <td style={tableCellBoldStyle}>Product Designer</td>
-              <td style={tableCellStyle}>1</td>
-              <td style={tableCellStyle}>Growth in talent tracking system</td>
-              <td style={tableCellStyle}>
-                <span style={urgencyMediumStyle}>MEDIUM</span>
-              </td>
-              <td style={tableCellStyle}>
-                <span style={statusApprovedStyle}>APPROVED</span>
+              <td className="p-4 text-sm text-[var(--wr-text-primary)]">
+                <span className="text-[11px] font-semibold py-0.5 px-2 rounded-full inline-block text-[var(--wr-warning-text)] bg-[var(--wr-warning-bg)] border border-[var(--wr-warning-border)]">PENDING_REVIEW</span>
               </td>
             </tr>
-            <tr style={tableRowStyle}>
-              <td style={tableCellBoldStyle}>QA Specialist</td>
-              <td style={tableCellStyle}>1</td>
-              <td style={tableCellStyle}>Test automation expansion</td>
-              <td style={tableCellStyle}>
-                <span style={urgencyLowStyle}>LOW</span>
+            <tr className="border-b border-[var(--wr-border-subtle)]">
+              <td className="p-4 text-sm text-[var(--wr-text-primary)] font-semibold">Product Designer</td>
+              <td className="p-4 text-sm text-[var(--wr-text-primary)]">1</td>
+              <td className="p-4 text-sm text-[var(--wr-text-primary)]">Growth in talent tracking system</td>
+              <td className="p-4 text-sm text-[var(--wr-text-primary)]">
+                <span className="text-[11px] font-semibold py-0.5 px-2 rounded-full inline-block text-[var(--wr-warning-text)] bg-[var(--wr-warning-bg)] border border-[var(--wr-warning-border)]">MEDIUM</span>
               </td>
-              <td style={tableCellStyle}>
-                <span style={statusDraftStyle}>DRAFT</span>
+              <td className="p-4 text-sm text-[var(--wr-text-primary)]">
+                <span className="text-[11px] font-semibold py-0.5 px-2 rounded-full inline-block text-[var(--wr-success-text)] bg-[var(--wr-success-bg)] border border-[var(--wr-success-border)]">APPROVED</span>
+              </td>
+            </tr>
+            <tr className="border-b border-[var(--wr-border-subtle)]">
+              <td className="p-4 text-sm text-[var(--wr-text-primary)] font-semibold">QA Specialist</td>
+              <td className="p-4 text-sm text-[var(--wr-text-primary)]">1</td>
+              <td className="p-4 text-sm text-[var(--wr-text-primary)]">Test automation expansion</td>
+              <td className="p-4 text-sm text-[var(--wr-text-primary)]">
+                <span className="text-[11px] font-semibold py-0.5 px-2 rounded-full inline-block text-[var(--wr-neutral-text)] bg-[var(--wr-neutral-bg)] border border-[var(--wr-neutral-border)]">LOW</span>
+              </td>
+              <td className="p-4 text-sm text-[var(--wr-text-primary)]">
+                <span className="text-[11px] font-semibold py-0.5 px-2 rounded-full inline-block text-[var(--wr-neutral-text)] bg-[var(--wr-neutral-bg)] border border-[var(--wr-neutral-border)]">DRAFT</span>
               </td>
             </tr>
           </tbody>
@@ -82,180 +82,4 @@ export const DeptHeadDashboard: React.FC = () => {
       </div>
     </div>
   );
-};
-
-const containerStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-};
-
-const headerRowStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  marginBottom: '2rem',
-  gap: '1rem',
-  flexWrap: 'wrap',
-};
-
-const titleStyle: React.CSSProperties = {
-  fontSize: 'var(--wr-text-2xl)',
-  fontWeight: 'var(--wr-font-bold)',
-  color: 'var(--wr-text-primary)',
-  margin: '0 0 0.5rem 0',
-};
-
-const subtitleStyle: React.CSSProperties = {
-  fontSize: 'var(--wr-text-base)',
-  color: 'var(--wr-text-secondary)',
-  margin: 0,
-};
-
-const createButtonStyle: React.CSSProperties = {
-  padding: '0.625rem 1.25rem',
-  borderRadius: 'var(--wr-radius-md)',
-  border: 'none',
-  backgroundColor: 'var(--wr-accent-primary)',
-  color: 'var(--wr-accent-primary-text)',
-  fontSize: 'var(--wr-text-sm)',
-  fontWeight: 'var(--wr-font-semibold)',
-  cursor: 'pointer',
-  transition: 'background-color var(--wr-transition-fast)',
-  fontFamily: 'inherit',
-};
-
-const statsGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-  gap: '1.5rem',
-  marginBottom: '2.5rem',
-};
-
-const statCardStyle: React.CSSProperties = {
-  backgroundColor: 'var(--wr-bg-surface)',
-  border: '1px solid var(--wr-border-default)',
-  borderRadius: 'var(--wr-radius-lg)',
-  padding: '1.5rem',
-  boxShadow: 'var(--wr-shadow-sm)',
-};
-
-const statLabelStyle: React.CSSProperties = {
-  fontSize: 'var(--wr-text-xs)',
-  fontWeight: 'var(--wr-font-semibold)',
-  color: 'var(--wr-text-secondary)',
-  textTransform: 'uppercase',
-  marginBottom: '0.5rem',
-};
-
-const statValueStyle: React.CSSProperties = {
-  fontSize: '2rem',
-  fontWeight: 'var(--wr-font-bold)',
-  color: 'var(--wr-accent-primary)',
-  marginBottom: '0.25rem',
-};
-
-const statTrendStyle: React.CSSProperties = {
-  fontSize: 'var(--wr-text-xs)',
-  color: 'var(--wr-text-muted)',
-};
-
-const sectionTitleStyle: React.CSSProperties = {
-  fontSize: 'var(--wr-text-lg)',
-  fontWeight: 'var(--wr-font-semibold)',
-  color: 'var(--wr-text-primary)',
-  margin: '0 0 1.25rem 0',
-  borderBottom: '1px solid var(--wr-border-subtle)',
-  paddingBottom: '0.5rem',
-};
-
-const tableContainerStyle: React.CSSProperties = {
-  backgroundColor: 'var(--wr-bg-surface)',
-  border: '1px solid var(--wr-border-default)',
-  borderRadius: 'var(--wr-radius-lg)',
-  boxShadow: 'var(--wr-shadow-sm)',
-  overflow: 'hidden',
-};
-
-const tableStyle: React.CSSProperties = {
-  width: '100%',
-  borderCollapse: 'collapse',
-  textAlign: 'left',
-};
-
-const tableHeaderRowStyle: React.CSSProperties = {
-  backgroundColor: 'var(--wr-bg-elevated)',
-  borderBottom: '1px solid var(--wr-border-default)',
-};
-
-const tableHeaderStyle: React.CSSProperties = {
-  padding: '1rem',
-  fontSize: 'var(--wr-text-xs)',
-  fontWeight: 'var(--wr-font-semibold)',
-  color: 'var(--wr-text-secondary)',
-  textTransform: 'uppercase',
-};
-
-const tableRowStyle: React.CSSProperties = {
-  borderBottom: '1px solid var(--wr-border-subtle)',
-};
-
-const tableCellStyle: React.CSSProperties = {
-  padding: '1rem',
-  fontSize: 'var(--wr-text-sm)',
-  color: 'var(--wr-text-primary)',
-};
-
-const tableCellBoldStyle: React.CSSProperties = {
-  ...tableCellStyle,
-  fontWeight: 'var(--wr-font-semibold)',
-};
-
-const badgeStyle: React.CSSProperties = {
-  fontSize: '11px',
-  fontWeight: 'var(--wr-font-semibold)',
-  padding: '2px 8px',
-  borderRadius: 'var(--wr-radius-full)',
-  display: 'inline-block',
-};
-
-const urgencyHighStyle: React.CSSProperties = {
-  ...badgeStyle,
-  color: 'var(--wr-error-text)',
-  backgroundColor: 'var(--wr-error-bg)',
-  border: '1px solid var(--wr-error-border)',
-};
-
-const urgencyMediumStyle: React.CSSProperties = {
-  ...badgeStyle,
-  color: 'var(--wr-warning-text)',
-  backgroundColor: 'var(--wr-warning-bg)',
-  border: '1px solid var(--wr-warning-border)',
-};
-
-const urgencyLowStyle: React.CSSProperties = {
-  ...badgeStyle,
-  color: 'var(--wr-neutral-text)',
-  backgroundColor: 'var(--wr-neutral-bg)',
-  border: '1px solid var(--wr-neutral-border)',
-};
-
-const statusPendingStyle: React.CSSProperties = {
-  ...badgeStyle,
-  color: 'var(--wr-warning-text)',
-  backgroundColor: 'var(--wr-warning-bg)',
-  border: '1px solid var(--wr-warning-border)',
-};
-
-const statusApprovedStyle: React.CSSProperties = {
-  ...badgeStyle,
-  color: 'var(--wr-success-text)',
-  backgroundColor: 'var(--wr-success-bg)',
-  border: '1px solid var(--wr-success-border)',
-};
-
-const statusDraftStyle: React.CSSProperties = {
-  ...badgeStyle,
-  color: 'var(--wr-neutral-text)',
-  backgroundColor: 'var(--wr-neutral-bg)',
-  border: '1px solid var(--wr-neutral-border)',
 };

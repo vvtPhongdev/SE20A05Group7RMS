@@ -17,13 +17,12 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   if (loading) {
     return (
-      <div style={spinnerContainerStyle}>
-        <div style={spinnerStyle}></div>
-        <p style={loadingTextStyle}>Loading system state...</p>
+      <div className="flex flex-col justify-center items-center min-h-screen bg-[var(--wr-bg-page)]">
+        <div className="w-10 h-10 border-[3px] border-solid border-[var(--wr-border-default)] border-t-[var(--wr-accent-primary)] rounded-full animate-spin"></div>
+        <p className="mt-4 text-[var(--wr-text-secondary)] text-sm">Loading system state...</p>
       </div>
     );
   }
-
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
@@ -34,30 +33,3 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   return children ? <>{children}</> : null;
 };
-
-const spinnerContainerStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  justifyContent: 'center',
-  alignItems: 'center',
-  minHeight: '100vh',
-  backgroundColor: 'var(--wr-bg-page)',
-  fontFamily: 'var(--wr-font-sans)',
-};
-
-const spinnerStyle: React.CSSProperties = {
-  width: '40px',
-  height: '40px',
-  border: '3px solid var(--wr-border-default)',
-  borderTop: '3px solid var(--wr-accent-primary)',
-  borderRadius: '50%',
-  animation: 'spin 1s linear infinite',
-};
-
-const loadingTextStyle: React.CSSProperties = {
-  marginTop: '1rem',
-  color: 'var(--wr-text-secondary)',
-  fontSize: 'var(--wr-text-sm)',
-};
-
-
