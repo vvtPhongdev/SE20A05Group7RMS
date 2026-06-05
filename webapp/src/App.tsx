@@ -12,6 +12,7 @@ import { AdminDashboard } from './pages/AdminDashboard';
 import { AdminApprovalQueue } from './pages/AdminApprovalQueue';
 import { AdminAllRequests } from './pages/AdminAllRequests';
 import { AdminSettings } from './pages/AdminSettings';
+import { AdminUsers } from './pages/AdminUsers';
 import { DeptHeadDashboard } from './pages/DeptHeadDashboard';
 import { HrManagerDashboard } from './pages/HrManagerDashboard';
 import { CandidateDashboard } from './pages/CandidateDashboard';
@@ -109,7 +110,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
                 <Layout>
-                  <PlaceholderPage title="User Management" description="Activate/deactivate system accounts and configure user role permissions." />
+                  <AdminUsers />
                 </Layout>
               </ProtectedRoute>
             }
