@@ -1,46 +1,7 @@
 /**
- * @wr/ui — Shared UI Design System
+ * Shared UI package entry.
  *
- * Case Review Ivory theme with Radix UI primitives.
- * All components use CSS variables from styles/tokens.css.
- *
- * Usage:
- *   1. Import styles/tokens.css + styles/reset.css in your app entry
- *   2. Import components from '@wr/ui'
+ * The webapp currently consumes this package for design-token CSS imports.
+ * Keep this module present so workspace builds have a valid TypeScript input.
  */
-
-// ─── Styles (import these in your app entry point) ────────────────
-// import '@wr/ui/src/styles/tokens.css';
-// import '@wr/ui/src/styles/reset.css';
-
-// ─── Primitives ───────────────────────────────────────────────────
-export { Button } from './primitives/Button';
-export { Input } from './primitives/Input';
-export { Textarea } from './primitives/Textarea';
-export { Select } from './primitives/Select';
-export { Badge } from './primitives/Badge';
-export { StatusBadge } from './primitives/StatusBadge';
-export { Tooltip, TooltipProvider } from './primitives/Tooltip';
-export { Dialog, DialogTrigger, DialogContent, DrawerContent } from './primitives/Dialog';
-export { Tabs, TabsList, TabsTrigger, TabsContent } from './primitives/Tabs';
-export {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuLabel,
-} from './primitives/DropdownMenu';
-export { Separator } from './primitives/Separator';
-export { ScrollArea } from './primitives/ScrollArea';
-export { Toast, ToastProvider } from './primitives/Toast';
-export {
-  Table,
-  TableHeader,
-  TableBody,
-  TableFooter,
-  TableRow,
-  TableHead,
-  TableCell,
-  TableCaption,
-} from './primitives/Table';
+export {};
