@@ -172,10 +172,10 @@ export const SignUp: React.FC = () => {
                   </p>
                   <button
                     className="mt-8 flex h-12 w-full items-center justify-center rounded-[var(--wr-radius-lg)] bg-[var(--wr-accent-primary)] px-4 text-sm font-semibold text-white transition hover:-translate-y-[1px] hover:bg-[var(--wr-accent-primary-hover)] active:translate-y-0 active:scale-[0.98]"
-                    onClick={() => navigate('/login')}
+                    onClick={() => navigate('/verify-email')}
                     type="button"
                   >
-                    Go to sign in
+                    Verify email
                   </button>
                 </div>
               ) : (
