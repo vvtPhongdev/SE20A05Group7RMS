@@ -4,6 +4,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { LandingPage } from './pages/LandingPage';
+import { SignUp } from './pages/SignUp';
 import { Unauthorized } from './pages/Unauthorized';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { DeptHeadDashboard } from './pages/DeptHeadDashboard';
@@ -40,6 +41,7 @@ export function App() {
           {/* Public routes */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<SignUp />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
 
           {/* Protected routes wrapped inside the app shell Layout */}

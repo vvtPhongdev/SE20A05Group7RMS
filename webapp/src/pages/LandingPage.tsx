@@ -74,7 +74,7 @@ export const LandingPage: React.FC = () => {
             </Link>
             <Link
               className="rounded-lg bg-teal-command px-5 py-2 text-sm font-semibold text-white transition hover:-translate-y-[1px] hover:bg-[#0f766e] active:translate-y-0 active:scale-[0.98]"
-              to="/login"
+              to="/signup"
             >
               Get Started
             </Link>
@@ -95,7 +95,7 @@ export const LandingPage: React.FC = () => {
             <div className="mt-10 flex flex-col gap-3 sm:flex-row">
               <Link
                 className="inline-flex h-12 items-center justify-center rounded-lg bg-teal-command px-7 text-sm font-semibold text-white transition hover:-translate-y-[1px] hover:bg-[#0f766e] active:translate-y-0 active:scale-[0.98]"
-                to="/login"
+                to="/signup"
               >
                 Start Free Trial
               </Link>
@@ -211,10 +211,10 @@ export const LandingPage: React.FC = () => {
                 Give every team a clear hiring path with request approvals, campaign planning, candidate screening, and final decisions in one place.
               </p>
               <div className="flex flex-col justify-center gap-3 sm:flex-row">
-                <Link className="inline-flex h-12 items-center justify-center rounded-lg bg-teal-command px-7 text-sm font-semibold text-white transition hover:bg-[#0f766e] active:scale-[0.98]" to="/login">
+                <Link className="inline-flex h-12 items-center justify-center rounded-lg bg-teal-command px-7 text-sm font-semibold text-white transition hover:bg-[#0f766e] active:scale-[0.98]" to="/signup">
                   Get Started Now
                 </Link>
-                <Link className="inline-flex h-12 items-center justify-center rounded-lg border border-white/20 px-7 text-sm font-semibold text-workflow-ivory transition hover:bg-white/10 active:scale-[0.98]" to="/login">
+                <Link className="inline-flex h-12 items-center justify-center rounded-lg border border-white/20 px-7 text-sm font-semibold text-workflow-ivory transition hover:bg-white/10 active:scale-[0.98]" to="/signup">
                   Request Demo
                 </Link>
               </div>
