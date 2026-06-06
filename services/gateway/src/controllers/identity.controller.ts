@@ -12,53 +12,72 @@ import { Type } from 'class-transformer';
 
 export class LoginDto {
   @ApiProperty({ example: 'admin@acme.com', description: 'User email' })
+  @IsEmail()
   email!: string;
 
   @ApiProperty({ example: 'Password123!', description: 'User password' })
+  @IsString()
+  @IsNotEmpty()
   password!: string;
 }
 
 export class RegisterDto {
   @ApiProperty({ example: 'test@example.com', description: 'User email' })
+  @IsEmail()
   email!: string;
 
   @ApiProperty({ example: 'John Doe', description: 'Display name' })
+  @IsString()
+  @IsNotEmpty()
   displayName!: string;
 
   @ApiProperty({ example: 'Password123!', description: 'User password' })
+  @IsString()
+  @IsNotEmpty()
   password!: string;
 
   @ApiProperty({
     example: 'CANDIDATE',
-    enum: ['CANDIDATE', 'RECRUITER', 'HIRING_MANAGER', 'DEPARTMENT_HEAD', 'ADMIN'],
+    enum: UserRole,
     description: 'User role',
   })
-  role!: 'CANDIDATE' | 'RECRUITER' | 'HIRING_MANAGER' | 'DEPARTMENT_HEAD' | 'ADMIN';
+  @IsEnum(UserRole)
+  role!: UserRole;
 }
 
 export class RefreshTokenDto {
   @ApiProperty({ description: 'Refresh token' })
+  @IsString()
+  @IsNotEmpty()
   refreshToken!: string;
 }
 
 export class ForgotPasswordDto {
   @ApiProperty({ example: 'admin@acme.com', description: 'User email' })
+  @IsEmail()
   email!: string;
 }
 
 export class ResetPasswordDto {
   @ApiProperty({ example: 'admin@acme.com', description: 'User email' })
+  @IsEmail()
   email!: string;
 
   @ApiProperty({ example: '123456', description: '6-digit verification code' })
+  @IsString()
+  @IsNotEmpty()
   code!: string;
 
   @ApiProperty({ example: 'NewPassword123!', description: 'New password' })
+  @IsString()
+  @IsNotEmpty()
   newPassword!: string;
 }
 
 export class LogoutDto {
   @ApiProperty({ description: 'Refresh token to invalidate' })
+  @IsString()
+  @IsNotEmpty()
   refreshToken!: string;
 }
 
