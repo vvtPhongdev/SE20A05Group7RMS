@@ -68,8 +68,11 @@ export class InterviewController {
 
   @Patch('schedules/:id/cancel')
   @Roles(UserRole.HR_MANAGER, UserRole.ADMIN)
-  @ApiOperation({ summary: 'Cancel an interview schedule' })
-  cancelSchedule(@Param('id') id: string, @Body() body: { cancelledBy: string }) {
+  @ApiOperation({ summary: 'T-052: Cancel interview with reason — notifies parties, logs to request timeline' })
+  cancelSchedule(
+    @Param('id') id: string,
+    @Body() body: { cancelledBy: string; reason: string },
+  ) {
     return firstValueFrom(
       this.interviewClient.send('interview.cancel_schedule', { id, ...body }),
     );

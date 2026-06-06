@@ -32,9 +32,12 @@ export class SchedulesController {
     return this.schedulesService.listSchedules(payload.requestId);
   }
 
+  /** T-052: Cancel with reason; notifies all parties + logs to request timeline. */
   @MessagePattern('interview.cancel_schedule')
-  async cancelSchedule(@Payload() payload: { id: string; cancelledBy: string }) {
-    return this.schedulesService.cancelSchedule(payload);
+  async cancelSchedule(
+    @Payload() payload: { id: string; cancelledBy: string; reason: string },
+  ) {
+    return this.schedulesService.cancel(payload);
   }
 
   /** T-051: Reschedule with reason; notifies candidate + interviewers. */

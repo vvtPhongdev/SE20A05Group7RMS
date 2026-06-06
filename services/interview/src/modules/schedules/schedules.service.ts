@@ -257,7 +257,17 @@ export class SchedulesService {
     });
   }
 
-  async cancelSchedule(payload: { id: string; cancelledBy: string }) {
+  /**
+   * T-052: Cancel an interview with a mandatory reason.
+   * - Guards: not already CANCELLED or COMPLETED.
+   * - Single $transaction:
+   *     1. Sets schedule status → CANCELLED.
+   *     2. Creates PENDING EmailLog for candidate + every interviewer.
+   *     3. Creates in-app Notification for candidate + every interviewer.
+   *     4. Appends a RequestLog entry on the parent RecruitmentRequest so its
+   *        timeline reflects this event ("Update request timeline", FR-14).
+   */
+  async cancel(payload: { id: string; cancelledBy: string; reason: string }) {
     const schedule = await this.prisma.interviewSchedule.findUnique({
       where: { id: payload.id },
     });
@@ -283,10 +293,140 @@ export class SchedulesService {
       });
     }
 
-    return this.prisma.interviewSchedule.update({
-      where: { id: payload.id },
-      data: { status: InterviewStatus.CANCELLED },
+    if (!payload.reason?.trim()) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'reason is required when cancelling an interview',
+      });
+    }
+
+    // Resolve contact details for all notified parties before the transaction.
+    const [candidateProfile, interviewerUsers] = await Promise.all([
+      this.prisma.candidateProfile.findUnique({
+        where: { id: schedule.candidateId },
+        select: { userId: true, fullName: true, email: true },
+      }),
+      this.prisma.user.findMany({
+        where: { id: { in: schedule.interviewers } },
+        select: { id: true, email: true, displayName: true },
+      }),
+    ]);
+
+    const scheduledDateStr = schedule.scheduledAt.toLocaleString('en-GB', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      dateStyle: 'full',
+      timeStyle: 'short',
     });
+
+    const emailSubject = `Interview Cancelled — ${scheduledDateStr} (ICT)`;
+
+    const buildEmailBody = (name: string, role: string) =>
+      [
+        `Dear ${name},`,
+        '',
+        `We regret to inform you that your interview scheduled as ${role} has been cancelled.`,
+        '',
+        `Original time : ${scheduledDateStr} (ICT)`,
+        `Location      : ${schedule.location}`,
+        '',
+        `Reason for cancellation: ${payload.reason.trim()}`,
+        '',
+        'We apologise for any inconvenience caused.',
+        '',
+        'Best regards,',
+        'HR Team — Recruitment Management System',
+      ].join('\n');
+
+    const notificationTitle = 'Interview Cancelled';
+    const buildNotificationBody = (role: string) =>
+      `Your interview (${role}) on ${scheduledDateStr} (ICT) has been cancelled. Reason: ${payload.reason.trim()}`;
+
+    // Atomic transaction: cancel + notify + log timeline event.
+    const [updatedSchedule] = await this.prisma.$transaction([
+      // 1. Mark schedule CANCELLED
+      this.prisma.interviewSchedule.update({
+        where: { id: payload.id },
+        data: { status: InterviewStatus.CANCELLED },
+      }),
+
+      // 2. EmailLog — candidate
+      ...(candidateProfile
+        ? [
+            this.prisma.emailLog.create({
+              data: {
+                toEmail: candidateProfile.email,
+                subject: emailSubject,
+                body: buildEmailBody(candidateProfile.fullName, 'Candidate'),
+                status: EmailStatus.PENDING,
+              },
+            }),
+          ]
+        : []),
+
+      // 2. EmailLog — interviewers
+      ...interviewerUsers.map((u) =>
+        this.prisma.emailLog.create({
+          data: {
+            toEmail: u.email,
+            subject: emailSubject,
+            body: buildEmailBody(u.displayName, 'Interviewer'),
+            status: EmailStatus.PENDING,
+          },
+        }),
+      ),
+
+      // 3. In-app Notification — candidate
+      ...(candidateProfile
+        ? [
+            this.prisma.notification.create({
+              data: {
+                userId: candidateProfile.userId,
+                type: NotificationType.SYSTEM,
+                title: notificationTitle,
+                body: buildNotificationBody('Candidate'),
+                relatedEntityId: payload.id,
+                relatedEntityType: 'InterviewSchedule',
+              },
+            }),
+          ]
+        : []),
+
+      // 3. In-app Notification — interviewers
+      ...interviewerUsers.map((u) =>
+        this.prisma.notification.create({
+          data: {
+            userId: u.id,
+            type: NotificationType.SYSTEM,
+            title: notificationTitle,
+            body: buildNotificationBody('Interviewer'),
+            relatedEntityId: payload.id,
+            relatedEntityType: 'InterviewSchedule',
+          },
+        }),
+      ),
+
+      // 4. RequestLog — update parent request timeline
+      this.prisma.requestLog.create({
+        data: {
+          requestId: schedule.requestId,
+          action: 'INTERVIEW_CANCELLED',
+          performedById: payload.cancelledBy,
+          metadata: {
+            interviewId: payload.id,
+            reason: payload.reason.trim(),
+            scheduledAt: schedule.scheduledAt.toISOString(),
+          },
+        },
+      }),
+    ]);
+
+    return {
+      schedule: updatedSchedule,
+      notified: {
+        candidate: candidateProfile?.email ?? null,
+        interviewers: interviewerUsers.map((u) => u.email),
+      },
+    };
   }
 
   // ─── Reschedule ─────────────────────────────────────────────────────
