@@ -1,14 +1,19 @@
-import { Controller, Get } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { Controller } from '@nestjs/common';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 import { CandidateProfilesService } from './candidate-profiles.service';
 
-@ApiTags('candidate-profiles')
-@Controller('candidate-profiles')
+@Controller()
 export class CandidateProfilesController {
   constructor(private readonly service: CandidateProfilesService) {}
 
-  @Get()
-  findAll() {
-    return this.service.findAll();
+  @MessagePattern('profiles.get')
+  getProfile(@Payload() payload: { id: string }) {
+    return this.service.getProfile(payload.id);
+  }
+
+  @MessagePattern('profiles.update')
+  updateProfile(@Payload() payload: { id: string; [key: string]: any }) {
+    const { id, ...data } = payload;
+    return this.service.updateProfile(id, data);
   }
 }

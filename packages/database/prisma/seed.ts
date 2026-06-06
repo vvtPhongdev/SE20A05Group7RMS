@@ -33,7 +33,7 @@ async function main() {
   await prisma.user.deleteMany({});
   await prisma.department.deleteMany({});
 
-  const passwordHash = '$2b$12$LJ3m4ys9xCR.pPJ0qkbKqeHHmN0BVPGz7v8TmJ6q4.kIqz1uPrO7K'; // Password123!
+  const passwordHash = '$2a$12$g5p8FcJec.uMk1l0/.VCAuVYS.EWtuPm8hsnSxyCIzEumMvbbdVa.'; // Password123!
 
   // 3. Create Department heads and users
   const admin = await prisma.user.create({

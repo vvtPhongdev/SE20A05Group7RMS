@@ -7,6 +7,8 @@ export const SERVICE_PORTS = {
   RECRUITING: parseInt(process.env.RECRUITING_PORT || '3011', 10),
   PROFILES: parseInt(process.env.PROFILES_PORT || '3012', 10),
   REVIEW: parseInt(process.env.REVIEW_PORT || '3013', 10),
+  NOTIFICATION: parseInt(process.env.NOTIFICATION_PORT || '3013', 10),
+  CV: parseInt(process.env.CV_PORT || '3014', 10),
 } as const;
 
 /**
@@ -17,4 +19,7 @@ export const SERVICE_TOKENS = {
   RECRUITING: 'RECRUITING_SERVICE',
   PROFILES: 'PROFILES_SERVICE',
   REVIEW: 'REVIEW_SERVICE',
+  NOTIFICATION: 'NOTIFICATION_SERVICE',
+  CV: 'CV_SERVICE',
 } as const;
+

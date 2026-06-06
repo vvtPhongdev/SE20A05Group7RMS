@@ -1,9 +1,8 @@
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from './common/database/database.module';
-import { ReviewerFeedbackModule } from './modules/reviewer-feedback/reviewer-feedback.module';
-import { PacketsModule } from './modules/packets/packets.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
-  imports: [DatabaseModule, ReviewerFeedbackModule, PacketsModule],
+  imports: [DatabaseModule, NotificationsModule],
 })
 export class ReviewModule {}
