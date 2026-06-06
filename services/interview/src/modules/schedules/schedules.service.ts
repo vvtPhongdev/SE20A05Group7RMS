@@ -7,6 +7,8 @@ import {
   PlanStatus,
   RecruitmentRequestStatus,
   TaskType,
+  NotificationType,
+  EmailStatus,
 } from '@wr/contracts';
 
 // Statuses that confirm the request has cleared initial approval and is active.
@@ -285,6 +287,231 @@ export class SchedulesService {
       where: { id: payload.id },
       data: { status: InterviewStatus.CANCELLED },
     });
+  }
+
+  // ─── Reschedule ─────────────────────────────────────────────────────
+
+  /**
+   * T-051: Reschedule an existing interview.
+   * - Validates the new slot (future, duration bounds, non-empty reason).
+   * - Re-runs conflict detection, excluding the current schedule from the check.
+   * - Atomically: updates the schedule to RESCHEDULED + creates PENDING EmailLog and
+   *   in-app Notification for the candidate and every listed interviewer.
+   */
+  async reschedule(payload: {
+    id: string;
+    scheduledAt: string;
+    duration: number;
+    location: string;
+    interviewers: string[];
+    reason: string;
+  }) {
+    const existing = await this.prisma.interviewSchedule.findUnique({
+      where: { id: payload.id },
+    });
+
+    if (!existing) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Interview schedule ${payload.id} not found`,
+      });
+    }
+
+    if (existing.status === InterviewStatus.CANCELLED) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: 'Cannot reschedule a cancelled interview',
+      });
+    }
+
+    if (existing.status === InterviewStatus.COMPLETED) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: 'Cannot reschedule a completed interview',
+      });
+    }
+
+    if (!payload.reason?.trim()) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'reason is required when rescheduling an interview',
+      });
+    }
+
+    const newStart = new Date(payload.scheduledAt);
+
+    if (isNaN(newStart.getTime())) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'scheduledAt is not a valid ISO-8601 date string',
+      });
+    }
+
+    if (newStart <= new Date()) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'scheduledAt must be in the future',
+      });
+    }
+
+    if (payload.duration < 15 || payload.duration > 480) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'duration must be between 15 and 480 minutes',
+      });
+    }
+
+    if (!payload.interviewers.length) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'At least one interviewer is required',
+      });
+    }
+
+    // Conflict check — exclude the schedule being rescheduled so it does not
+    // conflict against its own old slot.
+    const conflicts = await this.detectConflicts(
+      existing.candidateId,
+      payload.interviewers,
+      newStart,
+      payload.duration,
+      payload.id,
+    );
+
+    if (conflicts.length > 0) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: 'Scheduling conflict detected for the new time slot',
+        conflicts,
+      });
+    }
+
+    // Resolve email addresses for all notified parties before opening the transaction.
+    const [candidateProfile, interviewerUsers] = await Promise.all([
+      this.prisma.candidateProfile.findUnique({
+        where: { id: existing.candidateId },
+        select: { userId: true, fullName: true, email: true },
+      }),
+      this.prisma.user.findMany({
+        where: { id: { in: payload.interviewers } },
+        select: { id: true, email: true, displayName: true },
+      }),
+    ]);
+
+    const newDateStr = newStart.toLocaleString('en-GB', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      dateStyle: 'full',
+      timeStyle: 'short',
+    });
+
+    const oldDateStr = existing.scheduledAt.toLocaleString('en-GB', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      dateStyle: 'full',
+      timeStyle: 'short',
+    });
+
+    const emailSubject = `Interview Rescheduled — New time: ${newDateStr} (ICT)`;
+
+    const buildEmailBody = (name: string, role: string) =>
+      [
+        `Dear ${name},`,
+        '',
+        `Your interview scheduled as ${role} has been rescheduled.`,
+        '',
+        `Previous time : ${oldDateStr} (ICT)`,
+        `New time      : ${newDateStr} (ICT)`,
+        `Duration      : ${payload.duration} minutes`,
+        `Location      : ${payload.location}`,
+        '',
+        `Reason for rescheduling: ${payload.reason.trim()}`,
+        '',
+        'Please update your calendar accordingly.',
+        '',
+        'Best regards,',
+        'HR Team — Recruitment Management System',
+      ].join('\n');
+
+    const notificationTitle = 'Interview Rescheduled';
+    const buildNotificationBody = (role: string) =>
+      `Your interview (${role}) has been moved to ${newDateStr} (ICT). Reason: ${payload.reason.trim()}`;
+
+    // Single transaction: update schedule + create all notifications atomically.
+    const [updatedSchedule] = await this.prisma.$transaction([
+      this.prisma.interviewSchedule.update({
+        where: { id: payload.id },
+        data: {
+          scheduledAt: newStart,
+          duration: payload.duration,
+          location: payload.location,
+          interviewers: payload.interviewers,
+          status: InterviewStatus.RESCHEDULED,
+        },
+      }),
+
+      // EmailLog — candidate
+      ...(candidateProfile
+        ? [
+            this.prisma.emailLog.create({
+              data: {
+                toEmail: candidateProfile.email,
+                subject: emailSubject,
+                body: buildEmailBody(candidateProfile.fullName, 'Candidate'),
+                status: EmailStatus.PENDING,
+              },
+            }),
+          ]
+        : []),
+
+      // EmailLog — interviewers
+      ...interviewerUsers.map((u) =>
+        this.prisma.emailLog.create({
+          data: {
+            toEmail: u.email,
+            subject: emailSubject,
+            body: buildEmailBody(u.displayName, 'Interviewer'),
+            status: EmailStatus.PENDING,
+          },
+        }),
+      ),
+
+      // In-app Notification — candidate
+      ...(candidateProfile
+        ? [
+            this.prisma.notification.create({
+              data: {
+                userId: candidateProfile.userId,
+                type: NotificationType.INTERVIEW_INVITE,
+                title: notificationTitle,
+                body: buildNotificationBody('Candidate'),
+                relatedEntityId: payload.id,
+                relatedEntityType: 'InterviewSchedule',
+              },
+            }),
+          ]
+        : []),
+
+      // In-app Notification — interviewers
+      ...interviewerUsers.map((u) =>
+        this.prisma.notification.create({
+          data: {
+            userId: u.id,
+            type: NotificationType.INTERVIEW_INVITE,
+            title: notificationTitle,
+            body: buildNotificationBody('Interviewer'),
+            relatedEntityId: payload.id,
+            relatedEntityType: 'InterviewSchedule',
+          },
+        }),
+      ),
+    ]);
+
+    return {
+      schedule: updatedSchedule,
+      notified: {
+        candidate: candidateProfile?.email ?? null,
+        interviewers: interviewerUsers.map((u) => u.email),
+      },
+    };
   }
 
   // ─── FR-14: Record interview result ──────────────────────────────────

@@ -37,6 +37,22 @@ export class SchedulesController {
     return this.schedulesService.cancelSchedule(payload);
   }
 
+  /** T-051: Reschedule with reason; notifies candidate + interviewers. */
+  @MessagePattern('interview.reschedule_schedule')
+  async rescheduleSchedule(
+    @Payload()
+    payload: {
+      id: string;
+      scheduledAt: string;
+      duration: number;
+      location: string;
+      interviewers: string[];
+      reason: string;
+    },
+  ) {
+    return this.schedulesService.reschedule(payload);
+  }
+
   /** FR-14: Record PASS/FAIL result with mandatory panel notes. */
   @MessagePattern('interview.record_result')
   async recordResult(
