@@ -4,6 +4,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagg
 import { SERVICE_TOKENS } from '../constants';
 import { firstValueFrom } from 'rxjs';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import { UserRole } from '@wr/contracts';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { IsUUID, IsString, IsOptional, IsDateString, IsNotEmpty } from 'class-validator';
@@ -73,7 +74,6 @@ export class UpdateJobPostingDto {
   @IsString()
   status?: string;
 }
->>>>>>> 6229a5d8661dacd6498591455ea14cd18e6be9d8
 
 /**
  * Thin proxy controller for Recruiting service (roles, applications, invites, evaluations).
@@ -174,7 +174,6 @@ export class RecruitingController {
     return firstValueFrom(this.recruitingClient.send('talent.expand', { query }));
   }
 
-<<<<<<< HEAD
   // ─── Job Postings ────────────────────────────────────────────────
 
   @Post('job-postings')
@@ -185,6 +184,7 @@ export class RecruitingController {
   }
 
   @Get('job-postings')
+  @Public()
   @ApiOperation({ summary: 'List all job postings' })
   listJobPostings(@Query() query: any, @CurrentUser() user?: any) {
     return firstValueFrom(
@@ -197,6 +197,7 @@ export class RecruitingController {
   }
 
   @Get('job-postings/:id')
+  @Public()
   @ApiOperation({ summary: 'Get job posting by ID' })
   getJobPosting(@Param('id') id: string, @CurrentUser() user?: any) {
     return firstValueFrom(
@@ -227,7 +228,8 @@ export class RecruitingController {
   @ApiOperation({ summary: 'Close job posting' })
   closeJobPosting(@Param('id') id: string) {
     return firstValueFrom(this.recruitingClient.send('recruiting.job_posting.close', { id }));
-=======
+  }
+
   // ─── Reports ─────────────────────────────────────────────────────
 
   @Get('reports/annual')
