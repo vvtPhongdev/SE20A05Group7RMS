@@ -74,6 +74,19 @@ export enum InterviewResult {
   FAIL = 'FAIL',
 }
 
+// ─── Job Posting ───────────────────────────────────────────────────
+
+export enum JobVisibility {
+  PUBLIC = 'PUBLIC',
+  PRIVATE = 'PRIVATE',
+}
+
+export enum JobPostingStatus {
+  DRAFT = 'DRAFT',
+  PUBLISHED = 'PUBLISHED',
+  CLOSED = 'CLOSED',
+}
+
 // ─── Notifications & Communication ─────────────────────────────────
 
 export enum NotificationType {

@@ -14,6 +14,7 @@ interface AuthContextType {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithToken: (accessToken: string, loggedUser: User) => void;
   logout: () => void;
 }
 
@@ -121,6 +122,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     throw new Error('Invalid email or password');
   };
 
+  const loginWithToken = (accessToken: string, loggedUser: User) => {
+    localStorage.setItem('token', accessToken);
+    localStorage.setItem('user', JSON.stringify(loggedUser));
+    setToken(accessToken);
+    setUser(loggedUser);
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -129,7 +137,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, loginWithToken, logout }}>
       {children}
     </AuthContext.Provider>
   );

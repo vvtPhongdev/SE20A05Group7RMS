@@ -2,7 +2,7 @@ import { Injectable, HttpStatus, OnModuleDestroy } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../common/database/prisma.service';
-import { RegisterUserSchema, RegisterUserInput, AuthTokenResponse, LoginSchema, LoginInput, RefreshTokenSchema, ForgotPasswordSchema, ResetPasswordSchema, ResetPasswordInput } from '@wr/contracts';
+import { RegisterUserSchema, RegisterUserInput, AuthTokenResponse, LoginSchema, LoginInput, RefreshTokenSchema, ForgotPasswordSchema, ResetPasswordSchema, ResetPasswordInput, VerifyRegisterSchema, VerifyRegisterInput } from '@wr/contracts';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import IORedis from 'ioredis';
@@ -38,74 +38,114 @@ export class AuthService implements OnModuleDestroy {
    * Register a new user, hashes password, generates access token and refresh token.
    * Refresh token is stored in Redis under its SHA-256 hash.
    */
-  async register(dto: RegisterUserInput): Promise<AuthTokenResponse> {
+  async register(dto: RegisterUserInput): Promise<{ success: boolean; email: string }> {
     // 1. Validate payload
     const parsed = RegisterUserSchema.parse(dto);
+    const email = parsed.email.toLowerCase();
 
     // 2. Check duplicate email
     const existing = await this.prisma.user.findUnique({
-      where: { email: parsed.email },
+      where: { email },
     });
     if (existing) {
-      throw new RpcException({
-        status: HttpStatus.CONFLICT,
-        message: 'Email already exists',
-      });
-    }
-
-    // 3. Hash password
-    const passwordHash = await bcrypt.hash(parsed.password, 12);
-
-    // Find or create a default organization for registered users
-    let organization = await this.prisma.organization.findFirst();
-    if (!organization) {
-      organization = await this.prisma.organization.create({
+      if (existing.isActive) {
+        throw new RpcException({
+          status: HttpStatus.CONFLICT,
+          message: 'Email already exists',
+        });
+      }
+      // If user exists but is not active, update their information
+      const passwordHash = await bcrypt.hash(parsed.password, 12);
+      await this.prisma.user.update({
+        where: { id: existing.id },
         data: {
-          name: 'Acme Corporation',
-          slug: 'acme-corp',
+          displayName: parsed.displayName,
+          passwordHash,
+          role: parsed.role,
+        },
+      });
+    } else {
+      // 3. Hash password
+      const passwordHash = await bcrypt.hash(parsed.password, 12);
+
+      // Find or create a default organization for registered users
+      let organization = await this.prisma.organization.findFirst();
+      if (!organization) {
+        organization = await this.prisma.organization.create({
+          data: {
+            name: 'Acme Corporation',
+            slug: 'acme-corp',
+          },
+        });
+      }
+
+      // 4. Create user in database (inactive by default)
+      await this.prisma.user.create({
+        data: {
+          email,
+          displayName: parsed.displayName,
+          role: parsed.role,
+          passwordHash,
+          organizationId: organization.id,
+          isActive: false,
         },
       });
     }
 
-    // 4. Create user in database
-    const user = await this.prisma.user.create({
-      data: {
-        email: parsed.email,
-        displayName: parsed.displayName,
-        role: parsed.role,
-        passwordHash,
-        organizationId: organization.id,
-      },
+    // 5. Generate 6-digit code
+    const code = crypto.randomInt(100000, 1000000).toString();
+    console.log(`🔑 [DEVELOPMENT ONLY] Generated Registration OTP code for ${email}: ${code}`);
+
+    // 6. Store code in Redis with 15-min TTL
+    const redisKey = `register:${email}`;
+    await this.redis.set(redisKey, code, 'EX', 900);
+
+    // 7. Send verification code via SMTP (nodemailer)
+    const host = process.env.SMTP_HOST || 'localhost';
+    const port = parseInt(process.env.SMTP_PORT || '1025', 10);
+    const userAuth = process.env.SMTP_USER || '';
+    const passAuth = process.env.SMTP_PASS || '';
+    const from = process.env.SMTP_FROM || '"Works Reruiter" <noreply@worksreruiter.com>';
+
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: userAuth && passAuth ? { user: userAuth, pass: passAuth } : undefined,
     });
 
-    // 5. Generate Access Token (JWT)
-    const payload = {
-      sub: user.id,
-      email: user.email,
-      displayName: user.displayName,
-      role: user.role,
-      organizationId: organization.id,
+    const mailOptions = {
+      from,
+      to: email,
+      subject: 'Works Reruiter — Complete your Registration',
+      text: `Your registration verification code is: ${code}. This code is valid for 15 minutes.`,
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; line-height: 1.6;">
+          <h2>Complete your Registration</h2>
+          <p>Thank you for signing up for Works Reruiter. Use the following 6-digit verification code to complete your registration:</p>
+          <div style="font-size: 24px; font-weight: bold; background-color: #f3f4f6; padding: 10px 20px; display: inline-block; letter-spacing: 2px; margin: 10px 0;">
+            ${code}
+          </div>
+          <p>This code is valid for <strong>15 minutes</strong>. If you did not request this, you can ignore this email.</p>
+        </div>
+      `,
     };
-    const accessToken = this.jwtService.sign(payload);
 
-    // 6. Generate Refresh Token (64-byte random hex)
-    const refreshToken = crypto.randomBytes(64).toString('hex');
-    const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    try {
+      await transporter.sendMail(mailOptions);
+    } catch (err: any) {
+      console.error(`Failed to send email to ${email}:`, err.message);
+      if (process.env.NODE_ENV === 'development' || host === 'localhost') {
+        console.warn(`⚠️ [DEVELOPMENT ONLY] Bypassing SMTP mail failure. You can use the OTP code printed above.`);
+      } else {
+        throw new RpcException({
+          status: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to send verification email. Please try again later.',
+        });
+      }
+    }
 
-    // 7. Store Refresh Token in Redis (30 days TTL = 2592000s)
-    await this.redis.set(`refresh:${tokenHash}`, user.id, 'EX', 2592000);
-
-    return {
-      accessToken,
-      refreshToken,
-      expiresIn: 3600,
-      user: {
-        id: user.id,
-        email: user.email,
-        displayName: user.displayName,
-        role: user.role,
-      },
-    };
+    return { success: true, email };
   }
 
   /**
@@ -395,6 +435,148 @@ export class AuthService implements OnModuleDestroy {
 
     // 8. Delete the reset code from Redis
     await this.redis.del(redisKey);
+
+    return { success: true };
+  }
+
+  /**
+   * Validate registration 6-digit OTP code, update user to active,
+   * and generate login tokens.
+   */
+  async verifyRegister(dto: VerifyRegisterInput): Promise<AuthTokenResponse> {
+    // 1. Validate payload
+    const parsed = VerifyRegisterSchema.parse(dto);
+    const email = parsed.email.toLowerCase();
+
+    // 2. Retrieve code from Redis
+    const redisKey = `register:${email}`;
+    const storedCode = await this.redis.get(redisKey);
+
+    if (!storedCode || storedCode !== parsed.code) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'Invalid or expired verification code',
+      });
+    }
+
+    // 3. Find user by email
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: 'User not found',
+      });
+    }
+
+    // 4. Update user status in database to active
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { isActive: true },
+    });
+
+    // 5. Clean up code from Redis
+    await this.redis.del(redisKey);
+
+    // 6. Generate Access Token (JWT)
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.role,
+      organizationId: user.organizationId,
+    };
+    const accessToken = this.jwtService.sign(payload);
+
+    // 7. Generate Refresh Token (64-byte random hex)
+    const refreshToken = crypto.randomBytes(64).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+
+    // 8. Store Refresh Token in Redis (30 days TTL)
+    await this.redis.set(`refresh:${tokenHash}`, user.id, 'EX', 2592000);
+
+    return {
+      accessToken,
+      refreshToken,
+      expiresIn: 3600,
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        role: user.role,
+      },
+    };
+  }
+
+  /**
+   * Resend the registration OTP code via email.
+   */
+  async resendRegisterOtp(dto: { email: string }): Promise<{ success: boolean }> {
+    const email = dto.email.toLowerCase();
+
+    // Verify user exists and is not active
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user || user.isActive) {
+      return { success: true };
+    }
+
+    // Generate new OTP
+    const code = crypto.randomInt(100000, 1000000).toString();
+    console.log(`🔑 [DEVELOPMENT ONLY] Resent Registration OTP code for ${email}: ${code}`);
+
+    // Store in Redis
+    const redisKey = `register:${email}`;
+    await this.redis.set(redisKey, code, 'EX', 900);
+
+    // Send email
+    const host = process.env.SMTP_HOST || 'localhost';
+    const port = parseInt(process.env.SMTP_PORT || '1025', 10);
+    const userAuth = process.env.SMTP_USER || '';
+    const passAuth = process.env.SMTP_PASS || '';
+    const from = process.env.SMTP_FROM || '"Works Reruiter" <noreply@worksreruiter.com>';
+
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: userAuth && passAuth ? { user: userAuth, pass: passAuth } : undefined,
+    });
+
+    const mailOptions = {
+      from,
+      to: email,
+      subject: 'Works Reruiter — Complete your Registration (Resend)',
+      text: `Your new registration verification code is: ${code}. This code is valid for 15 minutes.`,
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 20px; line-height: 1.6;">
+          <h2>Complete your Registration</h2>
+          <p>Here is your new 6-digit verification code to complete your registration:</p>
+          <div style="font-size: 24px; font-weight: bold; background-color: #f3f4f6; padding: 10px 20px; display: inline-block; letter-spacing: 2px; margin: 10px 0;">
+            ${code}
+          </div>
+          <p>This code is valid for <strong>15 minutes</strong>. If you did not request this, you can ignore this email.</p>
+        </div>
+      `,
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+    } catch (err: any) {
+      console.error(`Failed to send email to ${email}:`, err.message);
+      if (process.env.NODE_ENV === 'development' || host === 'localhost') {
+        console.warn(`⚠️ [DEVELOPMENT ONLY] Bypassing SMTP mail failure. You can use the OTP code printed above.`);
+      } else {
+        throw new RpcException({
+          status: HttpStatus.INTERNAL_SERVER_ERROR,
+          message: 'Failed to send verification email. Please try again later.',
+        });
+      }
+    }
 
     return { success: true };
   }

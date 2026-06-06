@@ -10,6 +10,8 @@ import {
   InterviewResult,
   NotificationType,
   EmailStatus,
+  JobVisibility,
+  JobPostingStatus,
 } from '../enums';
 
 // ─── Common / Base Schemas ─────────────────────────────────────────
@@ -53,6 +55,11 @@ export const ResetPasswordSchema = z.object({
   newPassword: z.string().min(8).max(128),
 });
 
+export const VerifyRegisterSchema = z.object({
+  email: z.string().email(),
+  code: z.string().length(6),
+});
+
 export const UpdateUserSchema = z.object({
   displayName: z.string().min(1).max(255).optional(),
   phone: z.string().max(20).optional().nullable(),
@@ -74,6 +81,7 @@ export const AuthTokenResponseSchema = z.object({
 
 export type CreateUserInput = z.infer<typeof CreateUserSchema>;
 export type RegisterUserInput = z.infer<typeof RegisterUserSchema>;
+export type VerifyRegisterInput = z.infer<typeof VerifyRegisterSchema>;
 export type LoginInput = z.infer<typeof LoginSchema>;
 export type UpdateUserInput = z.infer<typeof UpdateUserSchema>;
 export type ForgotPasswordInput = z.infer<typeof ForgotPasswordSchema>;
@@ -237,6 +245,24 @@ export type CreateInterviewScheduleInput = z.infer<typeof CreateInterviewSchedul
 export type UpdateInterviewScheduleInput = z.infer<typeof UpdateInterviewScheduleSchema>;
 export type CreateInterviewResultInput = z.infer<typeof CreateInterviewResultSchema>;
 export type UpdateInterviewResultInput = z.infer<typeof UpdateInterviewResultSchema>;
+
+// ─── Job Posting Schemas ───────────────────────────────────────────
+
+export const CreateJobPostingSchema = z.object({
+  requestId: z.string().uuid(),
+  title: z.string().min(1).max(255).optional(),
+  description: z.string().min(1).optional(),
+  requirements: z.record(z.unknown()).default({}),
+  visibility: z.nativeEnum(JobVisibility).default(JobVisibility.PRIVATE),
+  expireDate: z.string().datetime().optional().nullable(),
+});
+
+export const UpdateJobPostingSchema = CreateJobPostingSchema.partial().extend({
+  status: z.nativeEnum(JobPostingStatus).optional(),
+});
+
+export type CreateJobPostingInput = z.infer<typeof CreateJobPostingSchema>;
+export type UpdateJobPostingInput = z.infer<typeof UpdateJobPostingSchema>;
 
 // ─── Notification & Email Schemas ──────────────────────────────────
 

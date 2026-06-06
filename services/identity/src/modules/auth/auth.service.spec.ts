@@ -85,7 +85,7 @@ describe('AuthService', () => {
       role: UserRole.CANDIDATE,
     };
 
-    it('should successfully register a new user and return token response', async () => {
+    it('should successfully register a new user and return success status', async () => {
       // Setup mock returns
       mockPrismaService.user.findUnique.mockResolvedValue(null);
       mockPrismaService.organization.findFirst.mockResolvedValue({
@@ -112,21 +112,9 @@ describe('AuthService', () => {
         where: { email: dto.email },
       });
       expect(prisma.user.create).toHaveBeenCalled();
-      expect(jwtService.sign).toHaveBeenCalledWith({
-        sub: createdUser.id,
-        email: createdUser.email,
-        displayName: createdUser.displayName,
-        role: createdUser.role,
-        organizationId: 'org-uuid-1234',
-      });
-      expect(result).toHaveProperty('accessToken');
-      expect(result).toHaveProperty('refreshToken');
-      expect(result.expiresIn).toBe(3600);
-      expect(result.user).toEqual({
-        id: createdUser.id,
-        email: createdUser.email,
-        displayName: createdUser.displayName,
-        role: createdUser.role,
+      expect(result).toEqual({
+        success: true,
+        email: dto.email,
       });
     });
 

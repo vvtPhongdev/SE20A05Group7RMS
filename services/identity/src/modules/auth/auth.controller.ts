@@ -30,6 +30,16 @@ export class AuthController {
     return this.service.resetPassword(data);
   }
 
+  @MessagePattern('identity.auth.verify-register')
+  async verifyRegister(@Payload() data: any) {
+    return this.service.verifyRegister(data);
+  }
+
+  @MessagePattern('identity.auth.resend-register-otp')
+  async resendRegisterOtp(@Payload() data: any) {
+    return this.service.resendRegisterOtp(data);
+  }
+
   @MessagePattern('identity.auth.logout')
   async logout(@Payload() data: any) {
     return this.service.logout(data);
