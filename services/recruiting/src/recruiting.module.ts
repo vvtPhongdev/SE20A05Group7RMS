@@ -15,7 +15,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     InvitesModule,
     EvaluationsModule,
     TalentSearchModule,
-    ReportsModule,
+    CvScreeningModule,
   ],
 })
 export class RecruitingModule {}
