@@ -47,6 +47,25 @@ export class InterviewController {
     return firstValueFrom(this.interviewClient.send('interview.list_schedules', { requestId }));
   }
 
+  @Patch('schedules/:id/reschedule')
+  @Roles(UserRole.HR_MANAGER)
+  @ApiOperation({ summary: 'T-051: Reschedule interview — conflict-checked, notifies all parties' })
+  rescheduleSchedule(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      scheduledAt: string;
+      duration: number;
+      location: string;
+      interviewers: string[];
+      reason: string;
+    },
+  ) {
+    return firstValueFrom(
+      this.interviewClient.send('interview.reschedule_schedule', { id, ...body }),
+    );
+  }
+
   @Patch('schedules/:id/cancel')
   @Roles(UserRole.HR_MANAGER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Cancel an interview schedule' })
