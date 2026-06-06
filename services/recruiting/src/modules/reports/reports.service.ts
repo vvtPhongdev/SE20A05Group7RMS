@@ -3,6 +3,30 @@ import { RpcException } from '@nestjs/microservices';
 import { PrismaService } from '../../common/database/prisma.service';
 import { UserRole } from '@wr/contracts';
 
+type RecruitmentRequestSummary = {
+  id: string;
+  status: string;
+  headcount: number;
+  createdAt: Date;
+};
+
+type DepartmentRequestSummary = {
+  status: string;
+  headcount: number;
+};
+
+type CompletedRequestSummary = {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type RequestLogEntry = {
+  requestId: string;
+  fromStatus: string | null;
+  createdAt: Date;
+};
+
 @Injectable()
 export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -12,7 +36,7 @@ export class ReportsService {
     const startOfYear = new Date(year, 0, 1);
     const endOfYear = new Date(year, 11, 31, 23, 59, 59, 999);
 
-    const requests = await this.prisma.recruitmentRequest.findMany({
+    const requests: RecruitmentRequestSummary[] = await this.prisma.recruitmentRequest.findMany({
       where: {
         createdAt: {
           gte: startOfYear,
@@ -29,8 +53,8 @@ export class ReportsService {
 
     const totalRequests = requests.length;
     const completedHires = requests
-      .filter((r) => r.status === 'CLOSED' || r.status === 'OFFER_ACCEPTED')
-      .reduce((sum, r) => sum + r.headcount, 0);
+      .filter((r: RecruitmentRequestSummary) => r.status === 'CLOSED' || r.status === 'OFFER_ACCEPTED')
+      .reduce((sum: number, r: RecruitmentRequestSummary) => sum + r.headcount, 0);
 
     const monthlyRequests = Array(12).fill(0);
     for (const req of requests) {
@@ -84,7 +108,7 @@ export class ReportsService {
       }
     }
 
-    const requests = await this.prisma.recruitmentRequest.findMany({
+    const requests: DepartmentRequestSummary[] = await this.prisma.recruitmentRequest.findMany({
       where: { departmentId },
       select: {
         status: true,
@@ -93,7 +117,7 @@ export class ReportsService {
     });
 
     const totalRequests = requests.length;
-    const totalHeadcount = requests.reduce((sum, r) => sum + r.headcount, 0);
+    const totalHeadcount = requests.reduce((sum: number, r: DepartmentRequestSummary) => sum + r.headcount, 0);
 
     const statusBreakdown: Record<string, number> = {};
     for (const req of requests) {
@@ -114,7 +138,7 @@ export class ReportsService {
   }
 
   async getTimeToHireReport() {
-    const completedRequests = await this.prisma.recruitmentRequest.findMany({
+    const completedRequests: CompletedRequestSummary[] = await this.prisma.recruitmentRequest.findMany({
       where: {
         status: { in: ['CLOSED', 'OFFER_ACCEPTED'] },
       },
@@ -134,9 +158,9 @@ export class ReportsService {
     }
 
     let totalTimeToHireMs = 0;
-    const requestIds = completedRequests.map((r) => r.id);
+    const requestIds = completedRequests.map((r: CompletedRequestSummary) => r.id);
 
-    const logs = await this.prisma.requestLog.findMany({
+    const logs: RequestLogEntry[] = await this.prisma.requestLog.findMany({
       where: {
         requestId: { in: requestIds },
       },
@@ -145,7 +169,7 @@ export class ReportsService {
       },
     });
 
-    const logsByRequest = new Map<string, typeof logs>();
+    const logsByRequest = new Map<string, RequestLogEntry[]>();
     for (const log of logs) {
       if (!logsByRequest.has(log.requestId)) {
         logsByRequest.set(log.requestId, []);
@@ -160,7 +184,7 @@ export class ReportsService {
       const reqLogs = logsByRequest.get(req.id) || [];
       const timeline = [
         { status: 'DRAFT', time: req.createdAt.getTime() },
-        ...reqLogs.map((log) => ({
+        ...reqLogs.map((log: RequestLogEntry) => ({
           status: log.fromStatus || 'DRAFT',
           time: log.createdAt.getTime(),
         })),
