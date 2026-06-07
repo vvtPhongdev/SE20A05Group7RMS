@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { RecruitmentRequestStatus } from '@wr/contracts';
+import { RecruitmentRequestStatus, UserRole } from '@wr/contracts';
 
 type UUID = string;
 
@@ -15,6 +15,14 @@ interface RecruitmentRequest {
   status: RecruitmentRequestStatus;
   createdAt: string;
   updatedAt?: string;
+  approvals: ApprovalRecord[];
+}
+
+interface ApprovalRecord {
+  actorId: string;
+  action: 'APPROVE' | 'REJECT' | 'REQUEST_REVISION';
+  reason?: string;
+  timestamp: string;
 }
 
 let COUNTER = 1;
@@ -45,6 +53,7 @@ export class RecruitmentRequestsService {
       createdBy,
       status: RecruitmentRequestStatus.DRAFT,
       createdAt: now,
+      approvals: [],
     };
 
     this.store.set(id, req);
@@ -74,6 +83,21 @@ export class RecruitmentRequestsService {
       throw new BadRequestException('Only DRAFT requests can be submitted');
     }
     req.status = RecruitmentRequestStatus.PENDING_REVIEW;
+    return req;
+  }
+
+  approve(id: string, approverId: string, approverRole: UserRole) {
+    const req = this.store.get(id);
+    if (!req) throw new NotFoundException('Request not found');
+    if (req.status !== RecruitmentRequestStatus.PENDING_REVIEW) {
+      throw new BadRequestException('Request must be in PENDING_REVIEW to approve');
+    }
+    // Block self-approval by Department Head
+    if (approverRole === UserRole.DEPARTMENT_HEAD && approverId === req.createdBy) {
+      throw new ForbiddenException('Department Head cannot self-approve their own request');
+    }
+    req.approvals.push({ actorId: approverId, action: 'APPROVE', timestamp: new Date().toISOString() });
+    req.status = RecruitmentRequestStatus.APPROVED;
     return req;
   }
 }
