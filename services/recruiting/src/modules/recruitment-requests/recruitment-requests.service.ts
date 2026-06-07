@@ -16,6 +16,7 @@ interface RecruitmentRequest {
   createdAt: string;
   updatedAt?: string;
   approvals: ApprovalRecord[];
+  feedback?: string;
 }
 
 interface ApprovalRecord {
@@ -107,6 +108,16 @@ export class RecruitmentRequestsService {
     if (!req) throw new NotFoundException('Request not found');
     req.approvals.push({ actorId: approverId, action: 'REJECT', reason, timestamp: new Date().toISOString() });
     req.status = RecruitmentRequestStatus.REJECTED;
+    return req;
+  }
+
+  requestRevision(id: string, approverId: string, feedback: string) {
+    if (!feedback) throw new BadRequestException('Feedback is required for revision request');
+    const req = this.store.get(id);
+    if (!req) throw new NotFoundException('Request not found');
+    req.approvals.push({ actorId: approverId, action: 'REQUEST_REVISION', reason: feedback, timestamp: new Date().toISOString() });
+    req.status = RecruitmentRequestStatus.REVISION_NEEDED;
+    req.feedback = feedback;
     return req;
   }
 }

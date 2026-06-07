@@ -31,5 +31,9 @@ export class RecruitmentRequestsController {
   reject(@Payload() payload: { id: string; approverId: string; reason: string }) {
     return this.service.reject(payload.id, payload.approverId, payload.reason);
   }
-}
 
+  @MessagePattern('recruiting.request.request_revision')
+  requestRevision(@Payload() payload: { id: string; approverId: string; feedback: string }) {
+    return this.service.requestRevision(payload.id, payload.approverId, payload.feedback);
+  }
+}
