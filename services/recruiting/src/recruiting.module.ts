@@ -7,6 +7,7 @@ import { EvaluationsModule } from './modules/evaluations/evaluations.module';
 import { TalentSearchModule } from './modules/talent-search/talent-search.module';
 import { JobPostingsModule } from './modules/job-postings/job-postings.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { HiringDecisionsModule } from './modules/hiring-decisions/hiring-decisions.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     TalentSearchModule,
     JobPostingsModule,
     ReportsModule,
+    HiringDecisionsModule,
   ],
 })
 export class RecruitingModule {}
