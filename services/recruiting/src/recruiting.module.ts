@@ -6,6 +6,7 @@ import { InvitesModule } from './modules/invites/invites.module';
 import { EvaluationsModule } from './modules/evaluations/evaluations.module';
 import { TalentSearchModule } from './modules/talent-search/talent-search.module';
 import { JobPostingsModule } from './modules/job-postings/job-postings.module';
+import { ReportsModule } from './modules/reports/reports.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { JobPostingsModule } from './modules/job-postings/job-postings.module';
     EvaluationsModule,
     TalentSearchModule,
     JobPostingsModule,
+    ReportsModule,
   ],
 })
 export class RecruitingModule {}

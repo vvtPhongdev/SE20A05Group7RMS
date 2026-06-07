@@ -73,6 +73,7 @@ export class UpdateJobPostingDto {
   @IsString()
   status?: string;
 }
+>>>>>>> 6229a5d8661dacd6498591455ea14cd18e6be9d8
 
 /**
  * Thin proxy controller for Recruiting service (roles, applications, invites, evaluations).
@@ -173,6 +174,7 @@ export class RecruitingController {
     return firstValueFrom(this.recruitingClient.send('talent.expand', { query }));
   }
 
+<<<<<<< HEAD
   // ─── Job Postings ────────────────────────────────────────────────
 
   @Post('job-postings')
@@ -225,5 +227,35 @@ export class RecruitingController {
   @ApiOperation({ summary: 'Close job posting' })
   closeJobPosting(@Param('id') id: string) {
     return firstValueFrom(this.recruitingClient.send('recruiting.job_posting.close', { id }));
+=======
+  // ─── Reports ─────────────────────────────────────────────────────
+
+  @Get('reports/annual')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get annual recruitment report' })
+  getAnnualReport(@Query('year') year?: string) {
+    const parsedYear = year ? parseInt(year, 10) : new Date().getFullYear();
+    return firstValueFrom(this.recruitingClient.send('recruiting.annual_report', { year: parsedYear }));
+  }
+
+  @Get('reports/department/:id')
+  @Roles(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'Get department recruitment report' })
+  getDepartmentReport(@Param('id') id: string, @CurrentUser() user: any) {
+    return firstValueFrom(this.recruitingClient.send('recruiting.department_report', { id, userId: user.sub, role: user.role }));
+  }
+
+  @Get('reports/time-to-hire')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get time-to-hire metrics report' })
+  getTimeToHireReport() {
+    return firstValueFrom(this.recruitingClient.send('recruiting.time_to_hire', {}));
+  }
+
+  @Get('reports/pipeline')
+  @Roles(UserRole.ADMIN, UserRole.HR_MANAGER)
+  @ApiOperation({ summary: 'Get recruitment pipeline overview' })
+  getPipelineOverview() {
+    return firstValueFrom(this.recruitingClient.send('recruiting.pipeline_overview', {}));
   }
 }

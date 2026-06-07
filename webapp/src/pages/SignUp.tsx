@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const accountTypes = [
   { value: 'candidate', label: 'Candidate', description: 'Upload CVs and track interview invitations.' },
@@ -50,11 +51,153 @@ export const SignUp: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
+  // States and refs for registration OTP verification flow
+  const { loginWithToken } = useAuth();
+  const [otpDigits, setOtpDigits] = useState<string[]>(Array(6).fill(''));
+  const [otpSecondsLeft, setOtpSecondsLeft] = useState(272);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const otpInputRefs = useRef<Array<HTMLInputElement | null>>([]);
+
+  const maskedEmail = useMemo(() => {
+    const [localPart, domain] = email.split('@');
+    if (!domain) return email;
+    if (localPart.length <= 3) return `${localPart[0]}***@${domain}`;
+    return `${localPart.substring(0, 3)}***@${domain}`;
+  }, [email]);
+
+  useEffect(() => {
+    if (submitted && !otpVerified) {
+      window.setTimeout(() => {
+        otpInputRefs.current[0]?.focus();
+      }, 50);
+    }
+  }, [submitted, otpVerified]);
+
+  useEffect(() => {
+    if (!submitted || otpSecondsLeft <= 0 || otpVerified) return;
+
+    const timer = window.setInterval(() => {
+      setOtpSecondsLeft((current) => Math.max(current - 1, 0));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [submitted, otpSecondsLeft, otpVerified]);
+
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
+  const handleOtpChange = (index: number, value: string) => {
+    const digit = value.replace(/\D/g, '').slice(-1);
+    setOtpError(null);
+    setOtpDigits((current) => {
+      const next = [...current];
+      next[index] = digit;
+      return next;
+    });
+
+    if (digit && index < 5) {
+      window.setTimeout(() => otpInputRefs.current[index + 1]?.focus(), 0);
+    }
+  };
+
+  const handleOtpKeyDown = (event: React.KeyboardEvent<HTMLInputElement>, index: number) => {
+    if (event.key === 'Backspace' && !otpDigits[index] && index > 0) {
+      event.preventDefault();
+      otpInputRefs.current[index - 1]?.focus();
+      otpInputRefs.current[index - 1]?.select();
+    }
+  };
+
+  const handleOtpPaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
+    event.preventDefault();
+    const pastedDigits = event.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6).split('');
+    if (!pastedDigits.length) return;
+
+    setOtpError(null);
+    setOtpDigits(Array.from({ length: 6 }, (_, index) => pastedDigits[index] ?? ''));
+    window.setTimeout(() => otpInputRefs.current[Math.min(pastedDigits.length, 6) - 1]?.focus(), 0);
+  };
+
+  const handleOtpResend = async () => {
+    if (otpSecondsLeft > 0) return;
+    setOtpDigits(Array(6).fill(''));
+    setOtpError(null);
+
+    try {
+      const response = await fetch('/api/v1/auth/resend-register-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to resend code');
+      }
+
+      setOtpSecondsLeft(272);
+      window.setTimeout(() => otpInputRefs.current[0]?.focus(), 0);
+    } catch (err: any) {
+      setOtpError(err.message || 'Failed to resend code. Please try again.');
+    }
+  };
+
+  const handleOtpVerify = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setOtpError(null);
+
+    const otpValue = otpDigits.join('');
+    if (otpValue.length !== 6 || !otpDigits.every(Boolean)) {
+      setOtpError('Enter the 6-digit verification code from your email.');
+      return;
+    }
+
+    if (otpSecondsLeft === 0) {
+      setOtpError('This code has expired. Request a new code to continue.');
+      return;
+    }
+
+    setOtpLoading(true);
+
+    try {
+      const response = await fetch('/api/v1/auth/verify-register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          code: otpValue,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Verification failed');
+      }
+
+      const data = await response.json();
+      setOtpVerified(true);
+      localStorage.removeItem('registered_email');
+
+      if (data.accessToken && data.user) {
+        loginWithToken(data.accessToken, data.user);
+      }
+    } catch (err: any) {
+      setOtpError(err.message || 'Invalid or expired code. Please try again.');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
   const passwordScore = useMemo(() => {
     return [password.length >= 8, /[A-Z]/.test(password), /\d/.test(password), /[^A-Za-z0-9]/.test(password)].filter(Boolean).length;
   }, [password]);
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
 
@@ -74,10 +217,44 @@ export const SignUp: React.FC = () => {
     }
 
     setLoading(true);
-    window.setTimeout(() => {
-      setLoading(false);
+
+    const mapRole = (frontendRole: string): string => {
+      switch (frontendRole) {
+        case 'department-head':
+          return 'DEPARTMENT_HEAD';
+        case 'hr-manager':
+          return 'HR_MANAGER';
+        case 'candidate':
+          return 'CANDIDATE';
+        default:
+          return 'CANDIDATE';
+      }
+    };
+
+    try {
+      const response = await fetch('/api/v1/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          displayName: fullName,
+          password,
+          role: mapRole(accountType),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Registration failed');
+      }
+
+      localStorage.setItem('registered_email', email);
       setSubmitted(true);
-    }, 650);
+    } catch (err: any) {
+      setError(err.message || 'An error occurred during signup.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -162,22 +339,123 @@ export const SignUp: React.FC = () => {
 
             <div className="rounded-[18px] border border-[var(--wr-border-default)] bg-white p-6 shadow-[0_26px_70px_-54px_rgba(28,28,40,0.65)] sm:p-8">
               {submitted ? (
-                <div className="py-8">
-                  <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--wr-success-bg)] text-[var(--wr-success-text)]">
-                    <CheckIcon />
+                otpVerified ? (
+                  <div className="py-8 text-center">
+                    <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--wr-success-bg)] text-[var(--wr-success-text)] shadow-sm">
+                      <CheckIcon />
+                    </div>
+                    <h2 className="text-3xl font-semibold leading-tight tracking-tight text-[var(--wr-text-primary)]">Email verified</h2>
+                    <p className="mt-3 text-sm leading-6 text-[var(--wr-text-secondary)]">
+                      Your email address has been confirmed and your account is now active.
+                    </p>
+                    <button
+                      className="mt-8 flex h-12 w-full items-center justify-center rounded-[var(--wr-radius-lg)] bg-[var(--wr-accent-primary)] px-4 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-[1px] hover:bg-[var(--wr-accent-primary-hover)] active:translate-y-0 active:scale-[0.98]"
+                      onClick={() => navigate('/dashboard')}
+                      type="button"
+                    >
+                      Go to Dashboard
+                    </button>
                   </div>
-                  <h2 className="text-3xl font-semibold leading-tight tracking-tight">Account request received</h2>
-                  <p className="mt-3 text-sm leading-6 text-[var(--wr-text-secondary)]">
-                    RMS captured your signup request for {email}. An administrator can now review the organization and activate the right workspace role.
-                  </p>
-                  <button
-                    className="mt-8 flex h-12 w-full items-center justify-center rounded-[var(--wr-radius-lg)] bg-[var(--wr-accent-primary)] px-4 text-sm font-semibold text-white transition hover:-translate-y-[1px] hover:bg-[var(--wr-accent-primary-hover)] active:translate-y-0 active:scale-[0.98]"
-                    onClick={() => navigate('/verify-email')}
-                    type="button"
-                  >
-                    Verify email
-                  </button>
-                </div>
+                ) : (
+                  <div className="py-4">
+                    <div className="mb-6">
+                      <p className="mb-2 text-sm font-semibold text-[var(--wr-accent-primary)]">Security verification</p>
+                      <h2 className="text-3xl font-semibold leading-tight tracking-tight text-[var(--wr-text-primary)]">Verify your email</h2>
+                      <p className="mt-2 text-sm leading-6 text-[var(--wr-text-secondary)]">
+                        We sent a 6-digit code to <span className="font-semibold text-[var(--wr-accent-primary)]">{maskedEmail}</span>
+                      </p>
+                    </div>
+
+                    {otpError && (
+                      <div className="mb-5 rounded-[var(--wr-radius-lg)] border border-[var(--wr-error-border)] bg-[var(--wr-error-bg)] px-4 py-3 text-sm font-medium text-[var(--wr-error-text)]">
+                        {otpError}
+                      </div>
+                    )}
+
+                    <form onSubmit={handleOtpVerify} className="space-y-6">
+                      <div className="grid grid-cols-6 gap-2 sm:gap-3">
+                        {otpDigits.map((digit, index) => (
+                          <input
+                            key={index}
+                            aria-label={`Digit ${index + 1}`}
+                            className={`h-14 min-w-0 rounded-[var(--wr-radius-lg)] border bg-white text-center font-mono text-[24px] font-semibold text-[var(--wr-text-primary)] shadow-sm outline-none transition focus:border-[var(--wr-focus-ring)] focus:ring-2 focus:ring-[var(--wr-focus-ring)]/20 ${
+                              digit ? 'border-[var(--wr-accent-primary)] bg-[var(--wr-accent-soft)]' : 'border-[var(--wr-border-default)]'
+                            }`}
+                            inputMode="numeric"
+                            maxLength={1}
+                            ref={(el) => {
+                              otpInputRefs.current[index] = el;
+                            }}
+                            type="text"
+                            value={digit}
+                            onChange={(e) => handleOtpChange(index, e.target.value)}
+                            onKeyDown={(e) => handleOtpKeyDown(e, index)}
+                            onPaste={handleOtpPaste}
+                          />
+                        ))}
+                      </div>
+
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="flex items-center gap-2 text-[var(--wr-text-secondary)] text-sm">
+                          <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="10" />
+                            <path d="M12 6v6l4 2" />
+                          </svg>
+                          <span>
+                            Code expires in{' '}
+                            <span className={`font-semibold ${otpSecondsLeft === 0 ? 'text-[var(--wr-error-text)]' : 'text-[var(--wr-text-primary)]'}`}>
+                              {formatTime(otpSecondsLeft)}
+                            </span>
+                          </span>
+                        </div>
+                        <button
+                          className={`text-sm transition ${
+                            otpSecondsLeft === 0
+                              ? 'font-semibold text-[var(--wr-accent-primary)] hover:underline'
+                              : 'cursor-not-allowed text-[var(--wr-text-muted)]'
+                          }`}
+                          disabled={otpSecondsLeft !== 0}
+                          onClick={handleOtpResend}
+                          type="button"
+                        >
+                          Did not receive a code? <span className="font-semibold text-[var(--wr-accent-primary)]">Resend code</span>
+                        </button>
+                      </div>
+
+                      <button
+                        className="flex h-12 w-full items-center justify-center rounded-[var(--wr-radius-lg)] bg-[var(--wr-accent-primary)] px-4 text-sm font-semibold text-white shadow-[var(--wr-shadow-sm)] transition duration-200 ease-out hover:-translate-y-[1px] hover:bg-[var(--wr-accent-primary-hover)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
+                        disabled={otpDigits.some((d) => !d) || otpLoading}
+                        type="submit"
+                      >
+                        {otpLoading ? (
+                          <span className="flex w-28 items-center justify-center gap-1.5" aria-label="Verifying">
+                            <span className="h-1.5 w-6 rounded-full bg-white/45 animate-pulse" />
+                            <span className="h-1.5 w-10 rounded-full bg-white/70 animate-pulse [animation-delay:120ms]" />
+                            <span className="h-1.5 w-4 rounded-full bg-white/45 animate-pulse [animation-delay:240ms]" />
+                          </span>
+                        ) : (
+                          'Verify email'
+                        )}
+                      </button>
+                    </form>
+
+                    <div className="mt-8 flex w-full flex-col items-center gap-3 border-t border-[var(--wr-border-subtle)] pt-6">
+                      <button
+                        className="flex items-center gap-1 text-sm font-medium text-[var(--wr-accent-primary)] hover:underline"
+                        onClick={() => {
+                          setSubmitted(false);
+                          setOtpDigits(Array(6).fill(''));
+                          setOtpError(null);
+                        }}
+                      >
+                        <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+                          <path d="M19 12H5M11 6l-6 6 6 6" />
+                        </svg>
+                        Wrong email? Go back
+                      </button>
+                    </div>
+                  </div>
+                )
               ) : (
                 <>
                   <div className="mb-8">

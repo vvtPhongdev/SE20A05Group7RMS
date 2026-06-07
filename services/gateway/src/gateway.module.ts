@@ -8,6 +8,9 @@ import { IdentityController } from './controllers/identity.controller';
 import { RecruitingController } from './controllers/recruiting.controller';
 import { ProfilesController } from './controllers/profiles.controller';
 import { ReviewController } from './controllers/review.controller';
+import { NotificationsController } from './controllers/notifications.controller';
+import { CvController } from './controllers/cv.controller';
+import { InterviewController } from './controllers/interview.controller';
 
 @Module({
   imports: [
@@ -33,6 +36,21 @@ import { ReviewController } from './controllers/review.controller';
         transport: Transport.TCP,
         options: { host: '127.0.0.1', port: SERVICE_PORTS.REVIEW },
       },
+      {
+        name: SERVICE_TOKENS.NOTIFICATION,
+        transport: Transport.TCP,
+        options: { host: '127.0.0.1', port: SERVICE_PORTS.NOTIFICATION },
+      },
+      {
+        name: SERVICE_TOKENS.CV,
+        transport: Transport.TCP,
+        options: { host: '127.0.0.1', port: SERVICE_PORTS.CV },
+      },
+      {
+        name: SERVICE_TOKENS.INTERVIEW,
+        transport: Transport.TCP,
+        options: { host: '127.0.0.1', port: SERVICE_PORTS.INTERVIEW },
+      },
     ]),
   ],
   providers: [JwtStrategy],
@@ -42,6 +60,9 @@ import { ReviewController } from './controllers/review.controller';
     RecruitingController,
     ProfilesController,
     ReviewController,
+    NotificationsController,
+    CvController,
+    InterviewController,
   ],
 })
 export class GatewayModule {}

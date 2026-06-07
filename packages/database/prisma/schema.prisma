@@ -121,6 +121,7 @@ model RecruitmentRequest {
   overallPlan     OverallPlan?
   interviews      InterviewSchedule[]
   jobPosting      JobPosting?
+  applications    Application[]
 
   @@index([departmentId], map: "idx_recruitment_requests_department")
   @@index([createdById], map: "idx_recruitment_requests_created_by")
@@ -243,6 +244,7 @@ model CandidateProfile {
   user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   cvDocuments CandidateCV[]
   interviews  InterviewSchedule[]
+  applications Application[]
 
   @@map("candidate_profiles")
 }
@@ -356,4 +358,21 @@ model EmailLog {
 
   @@index([userId], map: "idx_email_logs_user")
   @@map("email_logs")
+}
+
+model Application {
+  id           String             @id @default(uuid())
+  requestId    String             @map("request_id")
+  candidateId  String             @map("candidate_id")
+  status       String             @default("SUBMITTED") // e.g. SUBMITTED, SCREENING, INTERVIEWING, OFFER_EXTENDED, OFFER_ACCEPTED, REJECTED
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+
+  request      RecruitmentRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  candidate    CandidateProfile   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, candidateId], map: "uq_applications_request_candidate")
+  @@index([requestId], map: "idx_applications_request")
+  @@index([candidateId], map: "idx_applications_candidate")
+  @@map("applications")
 }
