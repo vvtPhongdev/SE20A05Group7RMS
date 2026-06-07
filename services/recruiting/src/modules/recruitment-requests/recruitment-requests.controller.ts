@@ -15,5 +15,10 @@ export class RecruitmentRequestsController {
   update(@Payload() payload: { id: string; actorId: string; updates: any }) {
     return this.service.update(payload.id, payload.actorId, payload.updates);
   }
+
+  @MessagePattern('recruiting.request.submit')
+  submit(@Payload() payload: { id: string; actorId: string }) {
+    return this.service.submit(payload.id, payload.actorId);
+  }
 }
 
