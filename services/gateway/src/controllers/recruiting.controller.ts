@@ -73,7 +73,11 @@ export class UpdateJobPostingDto {
   @IsString()
   status?: string;
 }
->>>>>>> 6229a5d8661dacd6498591455ea14cd18e6be9d8
+
+export class RejectPlanDto {
+  @ApiProperty({ description: 'Mandatory reason for rejection / revision request' })
+  reason!: string;
+}
 
 /**
  * Thin proxy controller for Recruiting service (roles, applications, invites, evaluations).
@@ -174,7 +178,7 @@ export class RecruitingController {
     return firstValueFrom(this.recruitingClient.send('talent.expand', { query }));
   }
 
-<<<<<<< HEAD
+
   // ─── Job Postings ────────────────────────────────────────────────
 
   @Post('job-postings')
@@ -227,7 +231,8 @@ export class RecruitingController {
   @ApiOperation({ summary: 'Close job posting' })
   closeJobPosting(@Param('id') id: string) {
     return firstValueFrom(this.recruitingClient.send('recruiting.job_posting.close', { id }));
-=======
+  }
+
   // ─── Reports ─────────────────────────────────────────────────────
 
   @Get('reports/annual')
@@ -257,5 +262,39 @@ export class RecruitingController {
   @ApiOperation({ summary: 'Get recruitment pipeline overview' })
   getPipelineOverview() {
     return firstValueFrom(this.recruitingClient.send('recruiting.pipeline_overview', {}));
+  }
+
+  // ─── Overall Plan Approval/Rejection ──────────────────────────────
+
+  @Post('recruiting/requests/:id/plan/approve')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Approve the overall recruitment plan',
+    description: 'Plan → APPROVED, HiringRequest → ACTIVE (downstream unlocked). Must be PENDING_APPROVAL.',
+  })
+  @ApiForbiddenResponse({ description: 'Requires ADMIN role' })
+  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
+  approveOverallPlan(
+    @Param('id') hiringRequestId: string,
+    @CurrentUser('sub') approverId: string,
+  ) {
+    return firstValueFrom(this.recruitingClient.send('overall-plan.approve', { hiringRequestId, approverId }));
+  }
+
+  @Post('recruiting/requests/:id/plan/reject')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Reject the overall recruitment plan — requires reason, notifies HR',
+    description: 'Plan → REVISION_REQUIRED, revisionNotes set. HiringRequest stays PLANNING. Must be PENDING_APPROVAL.',
+  })
+  @ApiForbiddenResponse({ description: 'Requires ADMIN role' })
+  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
+  @ApiBody({ type: RejectPlanDto })
+  rejectOverallPlan(
+    @Param('id') hiringRequestId: string,
+    @Body() body: RejectPlanDto,
+    @CurrentUser('sub') approverId: string,
+  ) {
+    return firstValueFrom(this.recruitingClient.send('overall-plan.reject', { hiringRequestId, approverId, reason: body.reason }));
   }
 }
