@@ -35,4 +35,19 @@ export class SchedulesController {
   async cancelSchedule(@Payload() payload: { id: string; cancelledBy: string }) {
     return this.schedulesService.cancelSchedule(payload);
   }
+
+  @MessagePattern('interview.reschedule_schedule')
+  async rescheduleSchedule(
+    @Payload()
+    payload: {
+      id: string;
+      scheduledAt: string;
+      duration: number;
+      location: string;
+      interviewers: string[];
+      reason: string;
+    },
+  ) {
+    return this.schedulesService.reschedule(payload);
+  }
 }
