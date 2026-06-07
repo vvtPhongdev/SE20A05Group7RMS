@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { RecruitmentRequestStatus } from '@wr/contracts';
 
 type UUID = string;
@@ -14,6 +14,7 @@ interface RecruitmentRequest {
   createdBy: string;
   status: RecruitmentRequestStatus;
   createdAt: string;
+  updatedAt?: string;
 }
 
 let COUNTER = 1;
@@ -47,6 +48,17 @@ export class RecruitmentRequestsService {
     };
 
     this.store.set(id, req);
+    return req;
+  }
+
+  update(id: string, actorId: string, updates: Partial<Pick<RecruitmentRequest, 'positionTitle' | 'jdText' | 'headcount' | 'urgency' | 'justification'>>) {
+    const req = this.store.get(id);
+    if (!req) throw new NotFoundException('Request not found');
+    if (req.status !== RecruitmentRequestStatus.DRAFT) {
+      throw new ForbiddenException('Only DRAFT requests can be edited');
+    }
+    Object.assign(req, updates);
+    req.updatedAt = new Date().toISOString();
     return req;
   }
 }
