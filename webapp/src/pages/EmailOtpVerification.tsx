@@ -50,7 +50,11 @@ export const EmailOtpVerification: React.FC = () => {
   const canResend = secondsLeft === 0;
 
   const maskedEmail = useMemo(() => {
-    return 'tran.ngoc.mai@gmail.com';
+    const emailStr = localStorage.getItem('registered_email') || 'your.email@company.com';
+    const [localPart, domain] = emailStr.split('@');
+    if (!domain) return emailStr;
+    if (localPart.length <= 3) return `${localPart[0]}***@${domain}`;
+    return `${localPart.substring(0, 3)}***@${domain}`;
   }, []);
 
   useEffect(() => {
@@ -99,15 +103,33 @@ export const EmailOtpVerification: React.FC = () => {
     }
   };
 
-  const handleResend = () => {
+  const handleResend = async () => {
     if (!canResend) return;
     setDigits(Array(OTP_LENGTH).fill(''));
     setError(null);
-    setSecondsLeft(INITIAL_SECONDS);
-    window.setTimeout(() => focusInput(0), 0);
+
+    const emailStr = localStorage.getItem('registered_email') || 'your.email@company.com';
+
+    try {
+      const response = await fetch('/api/v1/auth/resend-register-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailStr }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to resend code');
+      }
+
+      setSecondsLeft(INITIAL_SECONDS);
+      window.setTimeout(() => focusInput(0), 0);
+    } catch (err: any) {
+      setError(err.message || 'Failed to resend code. Please try again.');
+    }
   };
 
-  const handleVerify = (event: React.FormEvent) => {
+  const handleVerify = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
 
@@ -122,10 +144,30 @@ export const EmailOtpVerification: React.FC = () => {
     }
 
     setLoading(true);
-    window.setTimeout(() => {
-      setLoading(false);
+    const emailStr = localStorage.getItem('registered_email') || 'your.email@company.com';
+
+    try {
+      const response = await fetch('/api/v1/auth/verify-register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: emailStr,
+          code: otpValue,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Verification failed');
+      }
+
       setVerified(true);
-    }, 700);
+      localStorage.removeItem('registered_email');
+    } catch (err: any) {
+      setError(err.message || 'Invalid or expired code. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
