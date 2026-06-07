@@ -120,5 +120,29 @@ export class RecruitmentRequestsService {
     req.feedback = feedback;
     return req;
   }
+
+  list(actorId: string, actorRole: UserRole, filters?: { status?: RecruitmentRequestStatus; departmentId?: string; from?: string; to?: string }) {
+    const items = Array.from(this.store.values());
+    let result = items;
+    // role-based filtering
+    if (actorRole === UserRole.DEPARTMENT_HEAD) {
+      result = result.filter(r => r.departmentId === (filters?.departmentId ?? r.departmentId));
+    } else if (actorRole === UserRole.HR_MANAGER) {
+      // HR Manager sees all active campaigns (exclude CLOSED/CANCELLED)
+      result = result.filter(r => r.status !== RecruitmentRequestStatus.CLOSED && r.status !== RecruitmentRequestStatus.CANCELLED);
+    } else if (actorRole === UserRole.ADMIN) {
+      // admin sees everything
+    } else {
+      // other roles see nothing
+      result = [];
+    }
+
+    if (filters?.status) result = result.filter(r => r.status === filters.status);
+    if (filters?.departmentId) result = result.filter(r => r.departmentId === filters.departmentId);
+    if (filters?.from) result = result.filter(r => r.createdAt >= filters.from);
+    if (filters?.to) result = result.filter(r => r.createdAt <= filters.to);
+
+    return result;
+  }
 }
 

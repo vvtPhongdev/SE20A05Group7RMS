@@ -36,4 +36,9 @@ export class RecruitmentRequestsController {
   requestRevision(@Payload() payload: { id: string; approverId: string; feedback: string }) {
     return this.service.requestRevision(payload.id, payload.approverId, payload.feedback);
   }
+
+  @MessagePattern('recruiting.request.list')
+  list(@Payload() payload: { actorId: string; actorRole: UserRole; filters?: any }) {
+    return this.service.list(payload.actorId, payload.actorRole, payload.filters);
+  }
 }
