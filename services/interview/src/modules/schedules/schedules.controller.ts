@@ -6,8 +6,8 @@ import { SchedulesService } from './schedules.service';
 export class SchedulesController {
   constructor(private readonly schedulesService: SchedulesService) {}
 
-  @MessagePattern('interview.schedule_interview')
-  async scheduleInterview(
+  @MessagePattern('interview.create_schedule')
+  async createSchedule(
     @Payload()
     payload: {
       requestId: string;
@@ -18,7 +18,7 @@ export class SchedulesController {
       interviewers: string[];
     },
   ) {
-    return this.schedulesService.scheduleInterview(payload);
+    return this.schedulesService.create(payload);
   }
 
   @MessagePattern('interview.get_schedule')
