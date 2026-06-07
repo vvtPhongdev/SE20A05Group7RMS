@@ -73,7 +73,45 @@ export class UpdateJobPostingDto {
   @IsString()
   status?: string;
 }
->>>>>>> 6229a5d8661dacd6498591455ea14cd18e6be9d8
+
+export class CreateTaskPlanDto {
+  @ApiProperty({ enum: ['JOB_POSTING', 'CV_COLLECTION', 'CV_SCREENING', 'INTERVIEW_COORDINATION'], example: 'CV_SCREENING' })
+  taskType!: string;
+
+  @ApiProperty({ example: 'uuid-of-hr-staff' })
+  assignedToId!: string;
+
+  @ApiProperty({ example: '2026-07-01', description: 'Task start date (ISO date). Must be within plan window.' })
+  startDate!: string;
+
+  @ApiProperty({ example: '2026-08-15', description: 'Task deadline (ISO date). Must be within plan window.' })
+  endDate!: string;
+
+  @ApiProperty({ required: false })
+  notes?: string;
+}
+
+export class UpdateTaskPlanDto {
+  @ApiProperty({ required: false, enum: ['JOB_POSTING', 'CV_COLLECTION', 'CV_SCREENING', 'INTERVIEW_COORDINATION'] })
+  taskType?: string;
+
+  @ApiProperty({ required: false })
+  assignedToId?: string;
+
+  @ApiProperty({ required: false })
+  startDate?: string;
+
+  @ApiProperty({ required: false })
+  endDate?: string;
+
+  @ApiProperty({ required: false })
+  notes?: string;
+}
+
+export class UpdateTaskStatusDto {
+  @ApiProperty({ enum: ['PENDING', 'IN_PROGRESS', 'COMPLETED'] })
+  status!: string;
+}
 
 /**
  * Thin proxy controller for Recruiting service (roles, applications, invites, evaluations).
@@ -174,7 +212,7 @@ export class RecruitingController {
     return firstValueFrom(this.recruitingClient.send('talent.expand', { query }));
   }
 
-<<<<<<< HEAD
+
   // ─── Job Postings ────────────────────────────────────────────────
 
   @Post('job-postings')
@@ -227,7 +265,8 @@ export class RecruitingController {
   @ApiOperation({ summary: 'Close job posting' })
   closeJobPosting(@Param('id') id: string) {
     return firstValueFrom(this.recruitingClient.send('recruiting.job_posting.close', { id }));
-=======
+  }
+
   // ─── Reports ─────────────────────────────────────────────────────
 
   @Get('reports/annual')
@@ -257,5 +296,49 @@ export class RecruitingController {
   @ApiOperation({ summary: 'Get recruitment pipeline overview' })
   getPipelineOverview() {
     return firstValueFrom(this.recruitingClient.send('recruiting.pipeline_overview', {}));
+  }
+
+  // ─── Task Plans ───────────────────────────────────────────────────
+
+  @Post('recruiting/requests/:id/plan/tasks')
+  @Roles(UserRole.HIRING_MANAGER)
+  @ApiOperation({
+    summary: 'Add a task to the recruitment plan',
+    description: 'Validates task dates are within the OverallPlan window. Notifies the assignee.',
+  })
+  @ApiForbiddenResponse({ description: 'Requires HIRING_MANAGER role' })
+  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
+  @ApiBody({ type: CreateTaskPlanDto })
+  createTaskPlan(@Param('id') hiringRequestId: string, @Body() body: CreateTaskPlanDto) {
+    return firstValueFrom(this.recruitingClient.send('task-plan.createByRequest', { hiringRequestId, ...body }));
+  }
+
+  @Get('plan-tasks/:taskId')
+  @Roles(UserRole.HIRING_MANAGER, UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'Get a single task plan by ID' })
+  @ApiForbiddenResponse({ description: 'Requires HIRING_MANAGER, ADMIN, or DEPARTMENT_HEAD role' })
+  @ApiParam({ name: 'taskId', description: 'TaskPlan UUID' })
+  getTaskPlan(@Param('taskId') id: string) {
+    return firstValueFrom(this.recruitingClient.send('task-plan.get', { id }));
+  }
+
+  @Patch('plan-tasks/:taskId')
+  @Roles(UserRole.HIRING_MANAGER)
+  @ApiOperation({ summary: 'Update a task plan (dates, assignee, notes)' })
+  @ApiForbiddenResponse({ description: 'Requires HIRING_MANAGER role' })
+  @ApiParam({ name: 'taskId', description: 'TaskPlan UUID' })
+  @ApiBody({ type: UpdateTaskPlanDto })
+  updateTaskPlan(@Param('taskId') id: string, @Body() body: UpdateTaskPlanDto) {
+    return firstValueFrom(this.recruitingClient.send('task-plan.update', { id, ...body }));
+  }
+
+  @Patch('plan-tasks/:taskId/status')
+  @Roles(UserRole.HIRING_MANAGER)
+  @ApiOperation({ summary: 'Update task completion status (PENDING → IN_PROGRESS → COMPLETED)' })
+  @ApiForbiddenResponse({ description: 'Requires HIRING_MANAGER role' })
+  @ApiParam({ name: 'taskId', description: 'TaskPlan UUID' })
+  @ApiBody({ type: UpdateTaskStatusDto })
+  updateTaskStatus(@Param('taskId') id: string, @Body() body: UpdateTaskStatusDto) {
+    return firstValueFrom(this.recruitingClient.send('task-plan.updateStatus', { id, status: body.status }));
   }
 }
