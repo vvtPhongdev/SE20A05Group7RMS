@@ -73,7 +73,14 @@ export class UpdateJobPostingDto {
   @IsString()
   status?: string;
 }
->>>>>>> 6229a5d8661dacd6498591455ea14cd18e6be9d8
+
+export class CreateOverallPlanDto {
+  @ApiProperty({ example: '2026-07-01', description: 'Campaign start date (ISO date)' })
+  startDate!: string;
+
+  @ApiProperty({ example: '2026-09-30', description: 'Campaign end date (ISO date). Must be after startDate.' })
+  endDate!: string;
+}
 
 /**
  * Thin proxy controller for Recruiting service (roles, applications, invites, evaluations).
@@ -174,7 +181,7 @@ export class RecruitingController {
     return firstValueFrom(this.recruitingClient.send('talent.expand', { query }));
   }
 
-<<<<<<< HEAD
+
   // ─── Job Postings ────────────────────────────────────────────────
 
   @Post('job-postings')
@@ -227,7 +234,8 @@ export class RecruitingController {
   @ApiOperation({ summary: 'Close job posting' })
   closeJobPosting(@Param('id') id: string) {
     return firstValueFrom(this.recruitingClient.send('recruiting.job_posting.close', { id }));
-=======
+  }
+
   // ─── Reports ─────────────────────────────────────────────────────
 
   @Get('reports/annual')
@@ -257,5 +265,40 @@ export class RecruitingController {
   @ApiOperation({ summary: 'Get recruitment pipeline overview' })
   getPipelineOverview() {
     return firstValueFrom(this.recruitingClient.send('recruiting.pipeline_overview', {}));
+  }
+
+  // ─── Overall Plan ─────────────────────────────────────────────────
+
+  @Post('recruiting/requests/:id/plan')
+  @Roles(UserRole.HIRING_MANAGER)
+  @ApiOperation({
+    summary: 'Create an overall recruitment plan for an APPROVED request',
+    description: 'Validates: request must be APPROVED, endDate > startDate, no existing plan. Transitions request to PLANNING.',
+  })
+  @ApiForbiddenResponse({ description: 'Requires HIRING_MANAGER role' })
+  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
+  @ApiBody({ type: CreateOverallPlanDto })
+  createOverallPlan(
+    @Param('id') hiringRequestId: string,
+    @Body() body: CreateOverallPlanDto,
+    @CurrentUser('sub') createdById: string,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('overall-plan.create', {
+        hiringRequestId,
+        createdById,
+        startDate: body.startDate,
+        endDate: body.endDate,
+      }),
+    );
+  }
+
+  @Get('recruiting/requests/:id/plan')
+  @Roles(UserRole.HIRING_MANAGER, UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'Get the overall plan (with all tasks) for a recruitment request' })
+  @ApiForbiddenResponse({ description: 'Requires HIRING_MANAGER, ADMIN, or DEPARTMENT_HEAD role' })
+  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
+  getOverallPlanByRequest(@Param('id') hiringRequestId: string) {
+    return firstValueFrom(this.recruitingClient.send('overall-plan.getByRequest', { hiringRequestId }));
   }
 }
