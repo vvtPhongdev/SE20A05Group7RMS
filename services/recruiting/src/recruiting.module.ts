@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
 import { DatabaseModule } from './common/database/database.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
@@ -7,10 +8,33 @@ import { EvaluationsModule } from './modules/evaluations/evaluations.module';
 import { TalentSearchModule } from './modules/talent-search/talent-search.module';
 import { JobPostingsModule } from './modules/job-postings/job-postings.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { OffersModule } from './modules/offers/offers.module';
+
+function getRedisConnection() {
+  const redisUrl = process.env.REDIS_URL;
+  if (redisUrl) {
+    const parsed = new URL(redisUrl);
+    return {
+      host: parsed.hostname,
+      port: parseInt(parsed.port || '6379', 10),
+      username: parsed.username || undefined,
+      password: parsed.password || undefined,
+      tls: parsed.protocol === 'rediss:' ? {} : undefined,
+    };
+  }
+
+  return {
+    host: process.env.REDIS_HOST || 'localhost',
+    port: parseInt(process.env.REDIS_PORT || '6379', 10),
+  };
+}
 
 @Module({
   imports: [
     DatabaseModule,
+    BullModule.forRoot({
+      connection: getRedisConnection(),
+    }),
     RolesModule,
     ApplicationsModule,
     InvitesModule,
@@ -18,6 +42,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     TalentSearchModule,
     JobPostingsModule,
     ReportsModule,
+    OffersModule,
   ],
 })
 export class RecruitingModule {}
