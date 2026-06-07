@@ -9,6 +9,7 @@ import { RecruitingController } from './controllers/recruiting.controller';
 import { ProfilesController } from './controllers/profiles.controller';
 import { ReviewController } from './controllers/review.controller';
 import { NotificationsController } from './controllers/notifications.controller';
+import { CvController } from './controllers/cv.controller';
 
 @Module({
   imports: [
@@ -39,6 +40,11 @@ import { NotificationsController } from './controllers/notifications.controller'
         transport: Transport.TCP,
         options: { host: '127.0.0.1', port: SERVICE_PORTS.NOTIFICATION },
       },
+      {
+        name: SERVICE_TOKENS.CV,
+        transport: Transport.TCP,
+        options: { host: '127.0.0.1', port: SERVICE_PORTS.CV },
+      },
     ]),
   ],
   providers: [JwtStrategy],
@@ -49,6 +55,7 @@ import { NotificationsController } from './controllers/notifications.controller'
     ProfilesController,
     ReviewController,
     NotificationsController,
+    CvController,
   ],
 })
 export class GatewayModule {}

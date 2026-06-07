@@ -1,12 +1,17 @@
-import { Controller } from '@nestjs/common';
+import { Controller, UseGuards } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { ApplicationsService } from './applications.service';
+import { PlanLockedGuard } from '../../common/guards/plan-locked.guard';
+import { PlanLocked } from '../../common/decorators/plan-locked.decorator';
+import { TaskType } from '@wr/contracts';
 
 @Controller()
 export class ApplicationsController {
   constructor(private readonly service: ApplicationsService) {}
 
   @MessagePattern('applications.create')
+  @UseGuards(PlanLockedGuard)
+  @PlanLocked(TaskType.CV_COLLECTION)
   async createApplication(
     @Payload() payload: { requestId: string; candidateId?: string; userId?: string },
   ) {
