@@ -26,5 +26,10 @@ export class RecruitmentRequestsController {
   approve(@Payload() payload: { id: string; approverId: string; approverRole: UserRole }) {
     return this.service.approve(payload.id, payload.approverId, payload.approverRole);
   }
+
+  @MessagePattern('recruiting.request.reject')
+  reject(@Payload() payload: { id: string; approverId: string; reason: string }) {
+    return this.service.reject(payload.id, payload.approverId, payload.reason);
+  }
 }
 

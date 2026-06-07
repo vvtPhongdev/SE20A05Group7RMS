@@ -100,5 +100,14 @@ export class RecruitmentRequestsService {
     req.status = RecruitmentRequestStatus.APPROVED;
     return req;
   }
+
+  reject(id: string, approverId: string, reason: string) {
+    if (!reason) throw new BadRequestException('Rejection reason is required');
+    const req = this.store.get(id);
+    if (!req) throw new NotFoundException('Request not found');
+    req.approvals.push({ actorId: approverId, action: 'REJECT', reason, timestamp: new Date().toISOString() });
+    req.status = RecruitmentRequestStatus.REJECTED;
+    return req;
+  }
 }
 
