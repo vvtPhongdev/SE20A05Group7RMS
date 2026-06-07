@@ -1,8 +1,78 @@
 import { Controller, Get, Post, Patch, Body, Param, Query, Inject } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
 import { SERVICE_TOKENS } from '../constants';
 import { firstValueFrom } from 'rxjs';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '@wr/contracts';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { IsUUID, IsString, IsOptional, IsDateString, IsNotEmpty } from 'class-validator';
+
+export class CreateJobPostingDto {
+  @ApiProperty({ example: 'uuid-of-recruitment-request', description: 'Recruitment Request ID' })
+  @IsUUID()
+  @IsNotEmpty()
+  requestId!: string;
+
+  @ApiProperty({ example: 'Senior TypeScript Developer', required: false, description: 'Custom Job Title' })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  title?: string;
+
+  @ApiProperty({ example: 'Looking for a developer...', required: false, description: 'Custom Job Description' })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  description?: string;
+
+  @ApiProperty({ required: false, description: 'Custom Requirements (JSON)' })
+  @IsOptional()
+  requirements?: any;
+
+  @ApiProperty({ example: 'PUBLIC', enum: ['PUBLIC', 'PRIVATE'], default: 'PRIVATE', description: 'Visibility status' })
+  @IsOptional()
+  @IsString()
+  visibility?: any;
+
+  @ApiProperty({ example: '2026-07-01T00:00:00.000Z', required: false, description: 'Expire Date' })
+  @IsOptional()
+  @IsDateString()
+  expireDate?: string;
+}
+
+export class UpdateJobPostingDto {
+  @ApiProperty({ example: 'Senior TypeScript Developer', required: false, description: 'Custom Job Title' })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  title?: string;
+
+  @ApiProperty({ example: 'Looking for a developer...', required: false, description: 'Custom Job Description' })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  description?: string;
+
+  @ApiProperty({ required: false, description: 'Custom Requirements (JSON)' })
+  @IsOptional()
+  requirements?: any;
+
+  @ApiProperty({ example: 'PUBLIC', enum: ['PUBLIC', 'PRIVATE'], description: 'Visibility status' })
+  @IsOptional()
+  @IsString()
+  visibility?: any;
+
+  @ApiProperty({ example: '2026-07-01T00:00:00.000Z', required: false, description: 'Expire Date' })
+  @IsOptional()
+  @IsDateString()
+  expireDate?: string;
+
+  @ApiProperty({ example: 'PUBLISHED', description: 'Job Posting Status' })
+  @IsOptional()
+  @IsString()
+  status?: string;
+}
 
 /**
  * Thin proxy controller for Recruiting service (roles, applications, invites, evaluations).
@@ -101,5 +171,59 @@ export class RecruitingController {
   @ApiOperation({ summary: 'Expand a skill query via the knowledge graph' })
   expandQuery(@Query('q') query: string) {
     return firstValueFrom(this.recruitingClient.send('talent.expand', { query }));
+  }
+
+  // ─── Job Postings ────────────────────────────────────────────────
+
+  @Post('job-postings')
+  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Create job posting from approved recruitment request' })
+  createJobPosting(@Body() body: CreateJobPostingDto) {
+    return firstValueFrom(this.recruitingClient.send('recruiting.job_posting.create', body));
+  }
+
+  @Get('job-postings')
+  @ApiOperation({ summary: 'List all job postings' })
+  listJobPostings(@Query() query: any, @CurrentUser() user?: any) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruiting.job_posting.list', {
+        ...query,
+        userRole: user?.role,
+        userDeptId: user?.departmentId,
+      }),
+    );
+  }
+
+  @Get('job-postings/:id')
+  @ApiOperation({ summary: 'Get job posting by ID' })
+  getJobPosting(@Param('id') id: string, @CurrentUser() user?: any) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruiting.job_posting.get', {
+        id,
+        userRole: user?.role,
+        userDeptId: user?.departmentId,
+      }),
+    );
+  }
+
+  @Patch('job-postings/:id')
+  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Update job posting details' })
+  updateJobPosting(@Param('id') id: string, @Body() body: UpdateJobPostingDto) {
+    return firstValueFrom(this.recruitingClient.send('recruiting.job_posting.update', { id, ...body }));
+  }
+
+  @Post('job-postings/:id/publish')
+  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Publish job posting' })
+  publishJobPosting(@Param('id') id: string) {
+    return firstValueFrom(this.recruitingClient.send('recruiting.job_posting.publish', { id }));
+  }
+
+  @Post('job-postings/:id/close')
+  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Close job posting' })
+  closeJobPosting(@Param('id') id: string) {
+    return firstValueFrom(this.recruitingClient.send('recruiting.job_posting.close', { id }));
   }
 }

@@ -120,11 +120,30 @@ model RecruitmentRequest {
   logs            RequestLog[]
   overallPlan     OverallPlan?
   interviews      InterviewSchedule[]
+  jobPosting      JobPosting?
 
   @@index([departmentId], map: "idx_recruitment_requests_department")
   @@index([createdById], map: "idx_recruitment_requests_created_by")
   @@index([status], map: "idx_recruitment_requests_status")
   @@map("recruitment_requests")
+}
+
+model JobPosting {
+  id             String             @id @default(uuid())
+  requestId      String             @unique @map("request_id")
+  title          String
+  description    String             @db.Text
+  requirements   Json               @default("{}") @map("requirements")
+  visibility     String             @default("PRIVATE") // PUBLIC, PRIVATE
+  status         String             @default("DRAFT")   // DRAFT, PUBLISHED, CLOSED
+  expireDate     DateTime?          @map("expire_date")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  request        RecruitmentRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId], map: "idx_job_postings_request")
+  @@map("job_postings")
 }
 
 model ApprovalRecord {
