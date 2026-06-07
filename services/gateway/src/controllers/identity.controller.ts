@@ -45,6 +45,17 @@ export class RegisterDto {
   role!: UserRole;
 }
 
+export class VerifyRegisterDto {
+  @ApiProperty({ example: 'test@example.com', description: 'User email' })
+  @IsEmail()
+  email!: string;
+
+  @ApiProperty({ example: '123456', description: 'Verification OTP code' })
+  @IsString()
+  @IsNotEmpty()
+  code!: string;
+}
+
 export class RefreshTokenDto {
   @ApiProperty({ description: 'Refresh token' })
   @IsString()
@@ -267,6 +278,20 @@ export class IdentityController {
   @ApiOperation({ summary: 'Register a new user' })
   register(@Body() body: RegisterDto) {
     return firstValueFrom(this.identityClient.send('auth.register', body));
+  }
+
+  @Post('auth/verify-register')
+  @Public()
+  @ApiOperation({ summary: 'Verify registration OTP code' })
+  verifyRegister(@Body() body: VerifyRegisterDto) {
+    return firstValueFrom(this.identityClient.send('identity.auth.verify-register', body));
+  }
+
+  @Post('auth/resend-register-otp')
+  @Public()
+  @ApiOperation({ summary: 'Resend registration OTP code' })
+  resendRegisterOtp(@Body() body: ForgotPasswordDto) {
+    return firstValueFrom(this.identityClient.send('identity.auth.resend-register-otp', body));
   }
 
   @Post('auth/login')
