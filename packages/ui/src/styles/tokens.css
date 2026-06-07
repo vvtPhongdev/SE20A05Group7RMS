@@ -1,107 +1,58 @@
-/**
- * Case Review Ivory — Design Token System
- *
- * Warm, low-glare light theme for long technical review sessions.
- * All UI primitives consume these variables — never hardcode colors.
- *
- * Spacing: 8px base, 4px compact sub-unit.
- * Typography: IBM Plex Sans (UI) + IBM Plex Mono (evidence/provenance).
- */
-
 :root {
-  /* ─── Backgrounds ────────────────────────────────────────────── */
-  --wr-bg-page: #faf8f5;          /* soft ivory / warm paper */
-  --wr-bg-surface: #fefdfb;       /* near-white with slight warm tint */
-  --wr-bg-elevated: #f5f2ed;      /* pale parchment */
+  --wr-bg-page: #faf8f5;
+  --wr-bg-surface: #fefdfb;
+  --wr-bg-elevated: #f5f2ed;
   --wr-bg-overlay: rgba(30, 30, 40, 0.5);
 
-  /* ─── Text ───────────────────────────────────────────────────── */
-  --wr-text-primary: #1c1c28;     /* deep charcoal */
-  --wr-text-secondary: #5c5c6e;   /* slate gray */
-  --wr-text-muted: #8a8a9a;       /* muted text */
-  --wr-text-inverse: #faf8f5;     /* light text on dark bg */
+  --wr-text-primary: #1c1c28;
+  --wr-text-secondary: #5c5c6e;
+  --wr-text-muted: #8a8a9a;
+  --wr-text-inverse: #faf8f5;
 
-  /* ─── Borders & Dividers ─────────────────────────────────────── */
-  --wr-border-default: #ddd9d1;   /* soft neutral gray-beige */
-  --wr-border-subtle: #eae7e1;    /* lighter divider */
-  --wr-border-strong: #c5c0b8;    /* emphasized border */
+  --wr-border-default: #ddd9d1;
+  --wr-border-subtle: #eae7e1;
+  --wr-border-strong: #c5c0b8;
 
-  /* ─── Primary Action / Technical Accent ──────────────────────── */
-  --wr-accent-primary: #2b7a8e;   /* muted blue-teal */
+  --wr-accent-primary: #2b7a8e;
   --wr-accent-primary-hover: #23677a;
   --wr-accent-primary-active: #1c5566;
   --wr-accent-primary-text: #ffffff;
 
-  /* ─── Focus State ────────────────────────────────────────────── */
-  --wr-focus-ring: #4a9bb5;       /* calm blue */
+  --wr-focus-ring: #4a9bb5;
   --wr-focus-ring-offset: 2px;
   --wr-focus-ring-width: 2px;
 
-  /* ─── Semantic: Success ──────────────────────────────────────── */
-  --wr-success: #1a7a5c;          /* muted green-teal */
+  --wr-success: #1a7a5c;
   --wr-success-bg: #e8f5ef;
   --wr-success-text: #0d5840;
   --wr-success-border: #b5dfc8;
 
-  /* ─── Semantic: Warning ──────────────────────────────────────── */
-  --wr-warning: #b5830a;          /* restrained amber */
+  --wr-warning: #b5830a;
   --wr-warning-bg: #fdf6e3;
   --wr-warning-text: #7a5600;
   --wr-warning-border: #e8d49a;
 
-  /* ─── Semantic: Error ────────────────────────────────────────── */
-  --wr-error: #c23a3a;            /* subdued rose-red */
+  --wr-error: #c23a3a;
   --wr-error-bg: #fde8e8;
   --wr-error-text: #8b1a1a;
   --wr-error-border: #f0b5b5;
 
-  /* ─── Semantic: Neutral / Unknown ────────────────────────────── */
-  --wr-neutral: #6b7280;          /* cool slate */
+  --wr-neutral: #6b7280;
   --wr-neutral-bg: #f0f0f3;
   --wr-neutral-text: #4a4f5c;
   --wr-neutral-border: #d0d0d8;
 
-  /* ─── Readiness State Colors ─────────────────────────────────── */
-  /* Each readiness label uses its own hue — never color alone. */
-  --wr-readiness-ready-now: #1a7a5c;          /* green-teal */
-  --wr-readiness-ready-now-bg: #e8f5ef;
-  --wr-readiness-short-ramp: #2b7a8e;         /* blue-teal */
-  --wr-readiness-short-ramp-bg: #e4f0f4;
-  --wr-readiness-high-potential: #3b6fb5;      /* muted blue */
-  --wr-readiness-high-potential-bg: #e6edf7;
-  --wr-readiness-domain-specialist: #b5830a;   /* amber */
-  --wr-readiness-domain-specialist-bg: #fdf6e3;
-  --wr-readiness-significant-gaps: #c23a3a;    /* muted rose */
-  --wr-readiness-significant-gaps-bg: #fde8e8;
-  --wr-readiness-out-of-scope: #6b3a3a;        /* charcoal-red */
-  --wr-readiness-out-of-scope-bg: #f5e8e8;
-  --wr-readiness-insufficient: #6b7280;        /* neutral slate */
-  --wr-readiness-insufficient-bg: #f0f0f3;
-
-  /* ─── Badge Variants (override old defaults) ─────────────────── */
-  --badge-default: var(--wr-neutral);
-  --badge-default-text: var(--wr-text-inverse);
-  --badge-success: var(--wr-success);
-  --badge-success-text: var(--wr-text-inverse);
-  --badge-warning: var(--wr-warning);
-  --badge-warning-text: var(--wr-text-inverse);
-  --badge-danger: var(--wr-error);
-  --badge-danger-text: var(--wr-text-inverse);
-  --badge-info: var(--wr-accent-primary);
-  --badge-info-text: var(--wr-text-inverse);
-
-  /* ─── Typography ─────────────────────────────────────────────── */
   --wr-font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --wr-font-mono: 'IBM Plex Mono', 'Fira Code', 'Cascadia Mono', monospace;
 
-  --wr-text-xs: 0.75rem;     /* 12px */
-  --wr-text-sm: 0.8125rem;   /* 13px */
-  --wr-text-base: 0.875rem;  /* 14px — dense review UI */
-  --wr-text-md: 1rem;        /* 16px */
-  --wr-text-lg: 1.125rem;    /* 18px */
-  --wr-text-xl: 1.25rem;     /* 20px */
-  --wr-text-2xl: 1.5rem;     /* 24px */
-  --wr-text-3xl: 1.875rem;   /* 30px */
+  --wr-text-xs: 0.75rem;
+  --wr-text-sm: 0.8125rem;
+  --wr-text-base: 0.875rem;
+  --wr-text-md: 1rem;
+  --wr-text-lg: 1.125rem;
+  --wr-text-xl: 1.25rem;
+  --wr-text-2xl: 1.5rem;
+  --wr-text-3xl: 1.875rem;
 
   --wr-leading-tight: 1.25;
   --wr-leading-normal: 1.5;
@@ -112,10 +63,9 @@
   --wr-font-semibold: 600;
   --wr-font-bold: 700;
 
-  /* ─── Spacing (8px base, 4px compact) ────────────────────────── */
   --wr-space-0: 0;
-  --wr-space-1: 4px;    /* compact sub-unit */
-  --wr-space-2: 8px;    /* base unit */
+  --wr-space-1: 4px;
+  --wr-space-2: 8px;
   --wr-space-3: 12px;
   --wr-space-4: 16px;
   --wr-space-5: 20px;
@@ -125,28 +75,18 @@
   --wr-space-12: 48px;
   --wr-space-16: 64px;
 
-  /* ─── Border Radius ──────────────────────────────────────────── */
   --wr-radius-sm: 4px;
   --wr-radius-md: 6px;
   --wr-radius-lg: 8px;
   --wr-radius-xl: 12px;
   --wr-radius-full: 9999px;
 
-  /* ─── Elevation (restrained, low-intensity) ──────────────────── */
   --wr-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --wr-shadow-md: 0 2px 4px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
   --wr-shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
   --wr-shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.06);
 
-  /* ─── Transitions ────────────────────────────────────────────── */
   --wr-transition-fast: 120ms ease;
   --wr-transition-normal: 200ms ease;
   --wr-transition-slow: 300ms ease;
-
-  /* ─── Z-Index Scale ──────────────────────────────────────────── */
-  --wr-z-dropdown: 50;
-  --wr-z-sticky: 100;
-  --wr-z-overlay: 200;
-  --wr-z-modal: 300;
-  --wr-z-toast: 400;
 }

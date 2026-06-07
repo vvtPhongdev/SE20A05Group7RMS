@@ -3,8 +3,16 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
+import { LandingPage } from './pages/LandingPage';
+import { SignUp } from './pages/SignUp';
+import { EmailOtpVerification } from './pages/EmailOtpVerification';
+import { ForgotPassword } from './pages/ForgotPassword';
 import { Unauthorized } from './pages/Unauthorized';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { AdminApprovalQueue } from './pages/AdminApprovalQueue';
+import { AdminAllRequests } from './pages/AdminAllRequests';
+import { AdminSettings } from './pages/AdminSettings';
+import { AdminUsers } from './pages/AdminUsers';
 import { DeptHeadDashboard } from './pages/DeptHeadDashboard';
 import { HrManagerDashboard } from './pages/HrManagerDashboard';
 import { CandidateDashboard } from './pages/CandidateDashboard';
@@ -37,12 +45,16 @@ export function App() {
       <BrowserRouter>
         <Routes>
           {/* Public routes */}
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<SignUp />} />
+          <Route path="/verify-email" element={<EmailOtpVerification />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
 
           {/* Protected routes wrapped inside the app shell Layout */}
           <Route
-            path="/"
+            path="/dashboard"
             element={
               <ProtectedRoute>
                 <Layout>
@@ -68,7 +80,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
                 <Layout>
-                  <PlaceholderPage title="Approval Queue" description="Review and approve pending recruitment requests forwarded by HR." />
+                  <AdminApprovalQueue />
                 </Layout>
               </ProtectedRoute>
             }
@@ -78,7 +90,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
                 <Layout>
-                  <PlaceholderPage title="All Requests" description="Strategic view of all recruitment requests across all organizations." />
+                  <AdminAllRequests />
                 </Layout>
               </ProtectedRoute>
             }
@@ -98,7 +110,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
                 <Layout>
-                  <PlaceholderPage title="User Management" description="Activate/deactivate system accounts and configure user role permissions." />
+                  <AdminUsers />
                 </Layout>
               </ProtectedRoute>
             }
@@ -108,7 +120,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
                 <Layout>
-                  <PlaceholderPage title="System Settings" description="Configure organizational settings, domains, and global platform parameters." />
+                  <AdminSettings />
                 </Layout>
               </ProtectedRoute>
             }

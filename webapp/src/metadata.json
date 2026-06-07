@@ -1,0 +1,62 @@
+{
+  "coverageMatrix": {
+    "ADMIN": {
+      "expectedNavItems": 8,
+      "description": "Dashboard, Approval Queue, All Requests, Interview Results, Users, Settings, Reports > Annual, Reports > Dept Stats"
+    },
+    "DEPARTMENT_HEAD": {
+      "expectedNavItems": 4,
+      "description": "Dashboard, Create Request, My Requests, Interviews"
+    },
+    "HR_MANAGER": {
+      "expectedNavItems": 10,
+      "description": "Dashboard, Request Queue, Campaigns, Task Planner, Talent Pool, Candidate Search, Interview Schedule, Interview Results, Pipeline Reports, System Notifications"
+    },
+    "CANDIDATE": {
+      "expectedNavItems": 4,
+      "description": "Dashboard, My Profile, Upload CV, Inbox Alerts"
+    }
+  },
+  "sidebarNavigation": {
+    "ADMIN": [
+      { "label": "Dashboard", "path": "/admin", "icon": "dashboard" },
+      { "label": "Approval Queue", "path": "/admin/approval-queue", "icon": "queue" },
+      { "label": "All Requests", "path": "/admin/requests", "icon": "requests" },
+      { "label": "Interview Results", "path": "/admin/interview-results", "icon": "interviews" },
+      { "label": "Users", "path": "/admin/users", "icon": "users" },
+      { "label": "Settings", "path": "/admin/settings", "icon": "settings" },
+      {
+        "label": "Reports",
+        "icon": "reports",
+        "children": [
+          { "label": "Annual", "path": "/admin/reports/annual", "icon": "reports" },
+          { "label": "Dept Stats", "path": "/admin/reports/dept-stats", "icon": "reports" }
+        ]
+      }
+    ],
+    "DEPARTMENT_HEAD": [
+      { "label": "Dashboard", "path": "/dept-head", "icon": "dashboard" },
+      { "label": "Create Request", "path": "/dept-head/create-request", "icon": "create" },
+      { "label": "My Requests", "path": "/dept-head/requests", "icon": "requests" },
+      { "label": "Interviews", "path": "/dept-head/interviews", "icon": "interviews" }
+    ],
+    "HR_MANAGER": [
+      { "label": "Dashboard", "path": "/hr", "icon": "dashboard" },
+      { "label": "Request Queue", "path": "/hr/requests", "icon": "queue" },
+      { "label": "Campaigns", "path": "/hr/campaigns", "icon": "campaigns" },
+      { "label": "Task Planner", "path": "/hr/tasks", "icon": "tasks" },
+      { "label": "Talent Pool", "path": "/hr/candidates", "icon": "users" },
+      { "label": "Candidate Search", "path": "/hr/search", "icon": "search" },
+      { "label": "Interview Schedule", "path": "/hr/interviews", "icon": "interviews" },
+      { "label": "Interview Results", "path": "/hr/results", "icon": "queue" },
+      { "label": "Pipeline Reports", "path": "/hr/reports", "icon": "reports" },
+      { "label": "System Notifications", "path": "/hr/notifications", "icon": "notifications" }
+    ],
+    "CANDIDATE": [
+      { "label": "Dashboard", "path": "/candidate", "icon": "dashboard" },
+      { "label": "My Profile", "path": "/candidate/profile", "icon": "profile" },
+      { "label": "Upload CV", "path": "/candidate/upload-cv", "icon": "upload" },
+      { "label": "Inbox Alerts", "path": "/candidate/notifications", "icon": "notifications" }
+    ]
+  }
+}

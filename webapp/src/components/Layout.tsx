@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { UserRole } from '@wr/contracts';
+import metadata from '../metadata.json';
 
 interface SubNavItem {
   label: string;
@@ -131,49 +132,47 @@ const Icons = {
   )
 };
 
-// ─── Role-Based Navigation Configuration ─────────────────────────────
-const NAVIGATION_BY_ROLE: Record<UserRole, NavItem[]> = {
-  [UserRole.ADMIN]: [
-    { label: 'Dashboard', path: '/admin', icon: Icons.dashboard() },
-    { label: 'Approval Queue', path: '/admin/approval-queue', icon: Icons.queue() },
-    { label: 'All Requests', path: '/admin/requests', icon: Icons.requests() },
-    { label: 'Interview Results', path: '/admin/interview-results', icon: Icons.interviews() },
-    { label: 'Users', path: '/admin/users', icon: Icons.users() },
-    { label: 'Settings', path: '/admin/settings', icon: Icons.settings() },
-    {
-      label: 'Reports',
-      icon: Icons.reports(),
-      children: [
-        { label: 'Annual', path: '/admin/reports/annual', icon: Icons.reports() },
-        { label: 'Dept Stats', path: '/admin/reports/dept-stats', icon: Icons.reports() }
-      ]
-    }
-  ],
-  [UserRole.DEPARTMENT_HEAD]: [
-    { label: 'Dashboard', path: '/dept-head', icon: Icons.dashboard() },
-    { label: 'Create Request', path: '/dept-head/create-request', icon: Icons.create() },
-    { label: 'My Requests', path: '/dept-head/requests', icon: Icons.requests() },
-    { label: 'Interviews', path: '/dept-head/interviews', icon: Icons.interviews() }
-  ],
-  [UserRole.HR_MANAGER]: [
-    { label: 'Dashboard', path: '/hr', icon: Icons.dashboard() },
-    { label: 'Request Queue', path: '/hr/requests', icon: Icons.queue() },
-    { label: 'Campaigns', path: '/hr/campaigns', icon: Icons.campaigns() },
-    { label: 'Task Planner', path: '/hr/tasks', icon: Icons.tasks() },
-    { label: 'Talent Pool', path: '/hr/candidates', icon: Icons.users() },
-    { label: 'Candidate Search', path: '/hr/search', icon: Icons.search() },
-    { label: 'Interview Schedule', path: '/hr/interviews', icon: Icons.interviews() },
-    { label: 'Interview Results', path: '/hr/results', icon: Icons.queue() },
-    { label: 'Pipeline Reports', path: '/hr/reports', icon: Icons.reports() },
-    { label: 'System Notifications', path: '/hr/notifications', icon: Icons.notifications() }
-  ],
-  [UserRole.CANDIDATE]: [
-    { label: 'Dashboard', path: '/candidate', icon: Icons.dashboard() },
-    { label: 'My Profile', path: '/candidate/profile', icon: Icons.profile() },
-    { label: 'Upload CV', path: '/candidate/upload-cv', icon: Icons.upload() },
-    { label: 'Inbox Alerts', path: '/candidate/notifications', icon: Icons.notifications() }
-  ]
+type IconKey = Exclude<keyof typeof Icons, 'chevron'>;
+
+interface MetadataNavItem {
+  label: string;
+  path?: string;
+  icon: IconKey;
+  children?: MetadataNavItem[];
+}
+
+const sidebarNavigation = metadata.sidebarNavigation as Record<UserRole, MetadataNavItem[]>;
+const coverageMatrix = metadata.coverageMatrix as Record<UserRole, { expectedNavItems: number }>;
+
+const createIcon = (icon: IconKey) => Icons[icon]();
+
+const toNavItem = (item: MetadataNavItem): NavItem => ({
+  label: item.label,
+  path: item.path,
+  icon: createIcon(item.icon),
+  children: item.children?.map((child) => ({
+    label: child.label,
+    path: child.path!,
+    icon: createIcon(child.icon),
+  })),
+});
+
+const countLeafItems = (items: MetadataNavItem[]): number => {
+  return items.reduce((count, item) => count + (item.children ? countLeafItems(item.children) : 1), 0);
 };
+
+const NAVIGATION_BY_ROLE = Object.values(UserRole).reduce((navigation, role) => {
+  navigation[role] = (sidebarNavigation[role] || []).map(toNavItem);
+  return navigation;
+}, {} as Record<UserRole, NavItem[]>);
+
+Object.values(UserRole).forEach((role) => {
+  const expected = coverageMatrix[role]?.expectedNavItems;
+  const actual = countLeafItems(sidebarNavigation[role] || []);
+  if (expected !== actual) {
+    throw new Error(`Sidebar coverage mismatch for ${role}: expected ${expected}, received ${actual}`);
+  }
+});
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -207,11 +206,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       case UserRole.ADMIN:
         return 'System Admin';
       case UserRole.DEPARTMENT_HEAD:
-        return 'Trưởng Phòng Ban';
+        return 'Department Head';
       case UserRole.HR_MANAGER:
-        return 'Trưởng Phòng HR';
+        return 'HR Manager';
       case UserRole.CANDIDATE:
-        return 'Ứng Viên';
+        return 'Candidate';
       default:
         return role;
     }
@@ -225,10 +224,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <div className="flex min-h-screen bg-[var(--wr-bg-page)]">
       {/* Sidebar */}
-      <aside className="w-[260px] bg-[var(--wr-bg-surface)] border-r border-[var(--wr-border-default)] flex flex-col p-6 box-border">
+      <aside className="w-[260px] shrink-0 bg-[var(--wr-bg-surface)] border-r border-[var(--wr-border-default)] flex flex-col p-6 box-border">
         <div className="flex items-center gap-3 mb-8">
           <div className="bg-[var(--wr-accent-primary)] text-white w-8 h-8 rounded-[var(--wr-radius-md)] flex justify-center items-center font-bold text-sm">WR</div>
-          <span className="font-bold text-md text-[var(--wr-text-primary)]">Works Reruiter</span>
+          <span className="font-bold text-md text-[var(--wr-text-primary)]">Works Recruiter</span>
         </div>
 
         {/* User Card */}
@@ -252,7 +251,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               return (
                 <div key={item.label} className="flex flex-col gap-1">
                   <button
-                    className={`wr-sidebar-item flex justify-between items-center ${isAnyChildActive ? 'child-active' : ''}`}
+                    aria-expanded={isOpen}
+                    className={`wr-sidebar-item flex justify-between items-center ${isAnyChildActive ? 'active' : ''}`}
                     onClick={() => {
                       setExpandedMenus(prev => ({
                         ...prev,
@@ -278,6 +278,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                             onClick={() => navigate(child.path)}
                             className={`wr-sidebar-subitem ${isChildActive ? 'active' : ''}`}
                             id={`nav-item-${child.label.toLowerCase().replace(/\s+/g, '-')}`}
+                            aria-current={isChildActive ? 'page' : undefined}
                           >
                             {child.icon}
                             <span>{child.label}</span>
@@ -297,6 +298,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 onClick={() => navigate(item.path!)}
                 className={`wr-sidebar-item ${isActive ? 'active' : ''}`}
                 id={`nav-item-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                aria-current={isActive ? 'page' : undefined}
               >
                 {item.icon}
                 <span>{item.label}</span>
