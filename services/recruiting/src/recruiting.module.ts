@@ -7,6 +7,7 @@ import { EvaluationsModule } from './modules/evaluations/evaluations.module';
 import { TalentSearchModule } from './modules/talent-search/talent-search.module';
 import { JobPostingsModule } from './modules/job-postings/job-postings.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { PlanGuardModule } from './common/plan-guard/plan-guard.module';
 
 @Module({
   imports: [
@@ -18,6 +19,8 @@ import { ReportsModule } from './modules/reports/reports.module';
     TalentSearchModule,
     JobPostingsModule,
     ReportsModule,
+    PlanGuardModule,
   ],
 })
 export class RecruitingModule {}
+
