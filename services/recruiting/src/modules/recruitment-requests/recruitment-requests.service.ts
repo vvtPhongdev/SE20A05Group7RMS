@@ -1,9 +1,9 @@
 import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { RecruitmentRequestStatus, UserRole } from '@wr/contracts';
 
-type UUID = string;
+export type UUID = string;
 
-interface RecruitmentRequest {
+export interface RecruitmentRequest {
   id: UUID;
   positionTitle: string;
   jdText: string;
@@ -20,7 +20,7 @@ interface RecruitmentRequest {
   feedback?: string;
 }
 
-interface RequestLog {
+export interface RequestLog {
   timestamp: string;
   actorId: string;
   previousStatus: RecruitmentRequestStatus | null;
@@ -28,7 +28,7 @@ interface RequestLog {
   notes?: string;
 }
 
-interface ApprovalRecord {
+export interface ApprovalRecord {
   actorId: string;
   action: 'APPROVE' | 'REJECT' | 'REQUEST_REVISION';
   reason?: string;
@@ -36,7 +36,7 @@ interface ApprovalRecord {
 }
 
 let COUNTER = 1;
-function genId() {
+export function genId() {
   return `rr_${Date.now()}_${COUNTER++}`;
 }
 
@@ -141,7 +141,7 @@ export class RecruitmentRequestsService {
     return req;
   }
 
-  list(actorId: string, actorRole: UserRole, filters?: { status?: RecruitmentRequestStatus; departmentId?: string; from?: string; to?: string }) {
+  list(_actorId: string, actorRole: UserRole, filters?: { status?: RecruitmentRequestStatus; departmentId?: string; from?: string; to?: string }) {
     const items = Array.from(this.store.values());
     let result = items;
     // role-based filtering
@@ -159,8 +159,11 @@ export class RecruitmentRequestsService {
 
     if (filters?.status) result = result.filter(r => r.status === filters.status);
     if (filters?.departmentId) result = result.filter(r => r.departmentId === filters.departmentId);
-    if (filters?.from) result = result.filter(r => r.createdAt >= filters.from);
-    if (filters?.to) result = result.filter(r => r.createdAt <= filters.to);
+
+    const from = filters?.from;
+    const to = filters?.to;
+    if (from) result = result.filter(r => r.createdAt >= from);
+    if (to) result = result.filter(r => r.createdAt <= to);
 
     return result;
   }

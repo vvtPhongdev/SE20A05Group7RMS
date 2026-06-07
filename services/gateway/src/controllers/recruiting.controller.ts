@@ -73,7 +73,6 @@ export class UpdateJobPostingDto {
   @IsString()
   status?: string;
 }
->>>>>>> 6229a5d8661dacd6498591455ea14cd18e6be9d8
 
 /**
  * Thin proxy controller for Recruiting service (roles, applications, invites, evaluations).
@@ -174,7 +173,7 @@ export class RecruitingController {
     return firstValueFrom(this.recruitingClient.send('talent.expand', { query }));
   }
 
-<<<<<<< HEAD
+
   // ─── Job Postings ────────────────────────────────────────────────
 
   @Post('job-postings')
@@ -227,7 +226,8 @@ export class RecruitingController {
   @ApiOperation({ summary: 'Close job posting' })
   closeJobPosting(@Param('id') id: string) {
     return firstValueFrom(this.recruitingClient.send('recruiting.job_posting.close', { id }));
-=======
+  }
+
   // ─── Reports ─────────────────────────────────────────────────────
 
   @Get('reports/annual')
@@ -257,5 +257,49 @@ export class RecruitingController {
   @ApiOperation({ summary: 'Get recruitment pipeline overview' })
   getPipelineOverview() {
     return firstValueFrom(this.recruitingClient.send('recruiting.pipeline_overview', {}));
+  }
+
+  // ─── Recruitment Requests ─────────────────────────────────────────
+
+  @Post('recruiting/requests')
+  @ApiOperation({ summary: 'Create recruitment request' })
+  createRecruitmentRequest(@Body() body: any, @CurrentUser() user: any) {
+    return firstValueFrom(this.recruitingClient.send('recruiting.request.create', { ...body, createdBy: user.sub }));
+  }
+
+  @Patch('recruiting/requests/:id')
+  @ApiOperation({ summary: 'Update recruitment request' })
+  updateRecruitmentRequest(@Param('id') id: string, @Body() body: any, @CurrentUser() user: any) {
+    return firstValueFrom(this.recruitingClient.send('recruiting.request.update', { id, actorId: user.sub, updates: body }));
+  }
+
+  @Post('recruiting/requests/:id/submit')
+  @ApiOperation({ summary: 'Submit recruitment request' })
+  submitRecruitmentRequest(@Param('id') id: string, @CurrentUser() user: any) {
+    return firstValueFrom(this.recruitingClient.send('recruiting.request.submit', { id, actorId: user.sub }));
+  }
+
+  @Post('recruiting/requests/:id/approve')
+  @ApiOperation({ summary: 'Approve recruitment request' })
+  approveRecruitmentRequest(@Param('id') id: string, @CurrentUser() user: any) {
+    return firstValueFrom(this.recruitingClient.send('recruiting.request.approve', { id, approverId: user.sub, approverRole: user.role }));
+  }
+
+  @Post('recruiting/requests/:id/reject')
+  @ApiOperation({ summary: 'Reject recruitment request' })
+  rejectRecruitmentRequest(@Param('id') id: string, @Body() body: { reason: string }, @CurrentUser() user: any) {
+    return firstValueFrom(this.recruitingClient.send('recruiting.request.reject', { id, approverId: user.sub, reason: body.reason }));
+  }
+
+  @Post('recruiting/requests/:id/request-revision')
+  @ApiOperation({ summary: 'Request revision for recruitment request' })
+  requestRevisionRecruitmentRequest(@Param('id') id: string, @Body() body: { feedback: string }, @CurrentUser() user: any) {
+    return firstValueFrom(this.recruitingClient.send('recruiting.request.request_revision', { id, approverId: user.sub, feedback: body.feedback }));
+  }
+
+  @Get('recruiting/requests')
+  @ApiOperation({ summary: 'List recruitment requests' })
+  listRecruitmentRequests(@Query() query: any, @CurrentUser() user: any) {
+    return firstValueFrom(this.recruitingClient.send('recruiting.request.list', { actorId: user.sub, actorRole: user.role, filters: query }));
   }
 }
