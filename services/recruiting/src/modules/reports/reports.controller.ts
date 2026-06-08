@@ -25,4 +25,9 @@ export class ReportsController {
   async getPipelineOverview() {
     return this.reportsService.getPipelineOverview();
   }
+
+  @MessagePattern('recruiting.hiring_metrics')
+  async getHiringMetrics(@Payload() payload: { departmentId?: string; startDate?: string; endDate?: string; period?: 'monthly' | 'quarterly' | 'yearly' }) {
+    return this.reportsService.getHiringMetrics(payload);
+  }
 }

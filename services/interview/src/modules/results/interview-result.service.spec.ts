@@ -95,7 +95,7 @@ describe('InterviewResultService', () => {
       requestId: 'request-1',
       status: InterviewStatus.SCHEDULED,
       candidate: { fullName: 'John Doe', email: 'john@example.com', userId: 'user-1' },
-      request: { id: 'request-1', position: 'Software Engineer', status: 'ACTIVE' },
+      request: { id: 'request-1', position: 'Software Engineer', status: 'ACTIVE', createdById: 'dept-head-1' },
     });
 
     prisma.application.findUnique.mockResolvedValue({
@@ -136,7 +136,7 @@ describe('InterviewResultService', () => {
       requestId: 'request-1',
       status: InterviewStatus.SCHEDULED,
       candidate: { fullName: 'John Doe', email: 'john@example.com', userId: 'user-1' },
-      request: { id: 'request-1', position: 'Software Engineer', status: 'ACTIVE' },
+      request: { id: 'request-1', position: 'Software Engineer', status: 'ACTIVE', createdById: 'dept-head-1' },
     });
 
     prisma.application.findUnique.mockResolvedValue({

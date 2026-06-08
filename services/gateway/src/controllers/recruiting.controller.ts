@@ -331,5 +331,23 @@ export class RecruitingController {
     return firstValueFrom(this.recruitingClient.send('recruiting.pipeline_overview', {}));
   }
 
+  @Get('reports/hiring-metrics')
+  @Roles(UserRole.ADMIN, UserRole.HR_MANAGER)
+  @ApiOperation({ summary: 'Get hiring metrics report (time-to-hire, cost-per-hire, fill-rate)' })
+  getHiringMetrics(
+    @Query('departmentId') departmentId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('period') period?: 'monthly' | 'quarterly' | 'yearly',
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruiting.hiring_metrics', {
+        departmentId,
+        startDate,
+        endDate,
+        period: period || 'monthly',
+      }),
+    );
+  }
 }
 

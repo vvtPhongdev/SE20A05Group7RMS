@@ -21,7 +21,12 @@ describe('OfferLetterService', () => {
     $transaction: jest.fn(),
   };
   const emailQueue = { add: jest.fn() };
-  const service = new OfferLetterService(prisma as any, emailQueue as any);
+  const notificationClient = {
+    send: jest.fn().mockReturnValue({
+      subscribe: jest.fn(),
+    }),
+  };
+  const service = new OfferLetterService(prisma as any, emailQueue as any, notificationClient as any);
 
   beforeEach(() => {
     jest.clearAllMocks();
