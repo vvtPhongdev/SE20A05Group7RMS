@@ -9,7 +9,7 @@ import { RecruitingController } from './controllers/recruiting.controller';
 import { ProfilesController } from './controllers/profiles.controller';
 import { ReviewController } from './controllers/review.controller';
 import { NotificationsController } from './controllers/notifications.controller';
-import { InterviewController } from './controllers/interview.controller';
+import { CvController } from './controllers/cv.controller';
 
 @Module({
   imports: [
@@ -41,9 +41,9 @@ import { InterviewController } from './controllers/interview.controller';
         options: { host: '127.0.0.1', port: SERVICE_PORTS.NOTIFICATION },
       },
       {
-        name: SERVICE_TOKENS.INTERVIEW,
+        name: SERVICE_TOKENS.CV,
         transport: Transport.TCP,
-        options: { host: '127.0.0.1', port: SERVICE_PORTS.INTERVIEW },
+        options: { host: '127.0.0.1', port: SERVICE_PORTS.CV },
       },
     ]),
   ],
@@ -55,7 +55,7 @@ import { InterviewController } from './controllers/interview.controller';
     ProfilesController,
     ReviewController,
     NotificationsController,
-    InterviewController,
+    CvController,
   ],
 })
 export class GatewayModule {}

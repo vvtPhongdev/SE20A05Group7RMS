@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, Inject } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Inject } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty, ApiForbiddenResponse, ApiParam, ApiBody } from '@nestjs/swagger';
 import { SERVICE_TOKENS } from '../constants';
@@ -259,14 +259,41 @@ export class RecruitingController {
     return firstValueFrom(this.recruitingClient.send('recruiting.pipeline_overview', {}));
   }
 
-  // ─── Task Plans ───────────────────────────────────────────────────
+  // ─── Interviews ──────────────────────────────────────────────────
 
-  @Get('recruiting/requests/:id/plan/tasks')
-  @Roles(UserRole.HIRING_MANAGER, UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
-  @ApiOperation({ summary: 'List all tasks for a recruitment plan with assignee, deadline, and status' })
-  @ApiForbiddenResponse({ description: 'Requires HIRING_MANAGER, ADMIN, or DEPARTMENT_HEAD role' })
-  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
-  listTaskPlans(@Param('id') hiringRequestId: string) {
-    return firstValueFrom(this.recruitingClient.send('task-plan.listByRequest', { hiringRequestId }));
+  @Post('interviews')
+  @ApiOperation({ summary: 'Schedule an interview' })
+  scheduleInterview(@Body() body: any) {
+    return firstValueFrom(this.recruitingClient.send('interviews.schedule', body));
+  }
+
+  @Get('interviews')
+  @ApiOperation({ summary: 'List interviews' })
+  listInterviews(@Query() query: any) {
+    return firstValueFrom(this.recruitingClient.send('interviews.list', query));
+  }
+
+  @Get('interviews/:id')
+  @ApiOperation({ summary: 'Get interview by ID' })
+  getInterview(@Param('id') id: string) {
+    return firstValueFrom(this.recruitingClient.send('interviews.get', { id }));
+  }
+
+  @Patch('interviews/:id/reschedule')
+  @ApiOperation({ summary: 'Reschedule an interview' })
+  rescheduleInterview(@Param('id') id: string, @Body() body: any) {
+    return firstValueFrom(this.recruitingClient.send('interviews.reschedule', { id, ...body }));
+  }
+
+  @Delete('interviews/:id')
+  @ApiOperation({ summary: 'Cancel an interview' })
+  cancelInterview(@Param('id') id: string) {
+    return firstValueFrom(this.recruitingClient.send('interviews.cancel', { id }));
+  }
+
+  @Post('interview-results')
+  @ApiOperation({ summary: 'Record interview result' })
+  recordInterviewResult(@Body() body: any) {
+    return firstValueFrom(this.recruitingClient.send('interviews.recordResult', body));
   }
 }
