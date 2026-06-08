@@ -7,8 +7,7 @@ import { EvaluationsModule } from './modules/evaluations/evaluations.module';
 import { TalentSearchModule } from './modules/talent-search/talent-search.module';
 import { JobPostingsModule } from './modules/job-postings/job-postings.module';
 import { ReportsModule } from './modules/reports/reports.module';
-import { RecruitmentRequestsController } from './modules/recruitment-requests/recruitment-requests.controller';
-import { RecruitmentRequestsService } from './modules/recruitment-requests/recruitment-requests.service';
+import { PlanGuardModule } from './common/plan-guard/plan-guard.module';
 
 @Module({
   imports: [
@@ -18,7 +17,9 @@ import { RecruitmentRequestsService } from './modules/recruitment-requests/recru
     InvitesModule,
     EvaluationsModule,
     TalentSearchModule,
-    CvScreeningModule,
+    JobPostingsModule,
+    ReportsModule,
+    PlanGuardModule,
   ],
   controllers: [RecruitmentRequestsController],
   providers: [RecruitmentRequestsService],
