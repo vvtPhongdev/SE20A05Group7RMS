@@ -18,8 +18,8 @@ export class InterviewController {
 
   @Post('schedules')
   @Roles(UserRole.HR_MANAGER)
-  @ApiOperation({ summary: 'FR-12: Schedule an interview' })
-  scheduleInterview(
+  @ApiOperation({ summary: 'FR-12 + FR-07: Create interview schedule (plan-locked, conflict-checked)' })
+  createSchedule(
     @Body()
     body: {
       requestId: string;
@@ -30,7 +30,7 @@ export class InterviewController {
       interviewers: string[];
     },
   ) {
-    return firstValueFrom(this.interviewClient.send('interview.schedule_interview', body));
+    return firstValueFrom(this.interviewClient.send('interview.create_schedule', body));
   }
 
   @Get('schedules/:id')
@@ -47,10 +47,32 @@ export class InterviewController {
     return firstValueFrom(this.interviewClient.send('interview.list_schedules', { requestId }));
   }
 
+  @Patch('schedules/:id/reschedule')
+  @Roles(UserRole.HR_MANAGER)
+  @ApiOperation({ summary: 'T-051: Reschedule interview — conflict-checked, notifies all parties' })
+  rescheduleSchedule(
+    @Param('id') id: string,
+    @Body()
+    body: {
+      scheduledAt: string;
+      duration: number;
+      location: string;
+      interviewers: string[];
+      reason: string;
+    },
+  ) {
+    return firstValueFrom(
+      this.interviewClient.send('interview.reschedule_schedule', { id, ...body }),
+    );
+  }
+
   @Patch('schedules/:id/cancel')
   @Roles(UserRole.HR_MANAGER, UserRole.ADMIN)
-  @ApiOperation({ summary: 'Cancel an interview schedule' })
-  cancelSchedule(@Param('id') id: string, @Body() body: { cancelledBy: string }) {
+  @ApiOperation({ summary: 'T-052: Cancel interview with reason — notifies parties, logs to request timeline' })
+  cancelSchedule(
+    @Param('id') id: string,
+    @Body() body: { cancelledBy: string; reason: string },
+  ) {
     return firstValueFrom(
       this.interviewClient.send('interview.cancel_schedule', { id, ...body }),
     );
@@ -79,6 +101,20 @@ export class InterviewController {
   getEmailLogs(@Param('id') interviewId: string) {
     return firstValueFrom(
       this.interviewClient.send('interview.get_email_logs', { interviewId }),
+    );
+  }
+
+  // ─── Results (FR-14) ──────────────────────────────────────────────
+
+  @Post('schedules/:id/results')
+  @Roles(UserRole.HR_MANAGER)
+  @ApiOperation({ summary: 'FR-14: Record interview result (PASS/FAIL) with panel notes' })
+  recordResult(
+    @Param('id') interviewId: string,
+    @Body() body: { result: string; notes: string },
+  ) {
+    return firstValueFrom(
+      this.interviewClient.send('interview.record_result', { interviewId, ...body }),
     );
   }
 }

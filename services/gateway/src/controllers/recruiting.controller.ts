@@ -330,4 +330,6 @@ export class RecruitingController {
   getPipelineOverview() {
     return firstValueFrom(this.recruitingClient.send('recruiting.pipeline_overview', {}));
   }
+
 }
+

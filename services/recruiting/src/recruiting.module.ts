@@ -44,5 +44,8 @@ function getRedisConnection() {
     ReportsModule,
     OffersModule,
   ],
+  controllers: [RecruitmentRequestsController],
+  providers: [RecruitmentRequestsService],
 })
 export class RecruitingModule {}
+
