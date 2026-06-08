@@ -79,6 +79,10 @@ export class UpdateJobPostingDto {
 }
 
 export class CreateOfferDto {
+  @ApiProperty({ example: 'recruitment-request-uuid' })
+  @IsUUID()
+  requestId!: string;
+
   @ApiProperty({ example: 'candidate-profile-uuid' })
   @IsUUID()
   candidateId!: string;
