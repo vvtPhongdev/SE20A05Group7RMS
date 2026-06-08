@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { RecruitmentRequestStatus } from '@wr/contracts';
 
 export type UUID = string;
@@ -14,39 +14,21 @@ export interface RecruitmentRequest {
   createdBy: string;
   status: RecruitmentRequestStatus;
   createdAt: string;
-}
-
-let COUNTER = 1;
-export function genId() {
-  return `rr_${Date.now()}_${COUNTER++}`;
+  updatedAt?: string;
 }
 
 @Injectable()
 export class RecruitmentRequestsService {
   private store = new Map<string, RecruitmentRequest>();
 
-  create(payload: { positionTitle: string; jdText: string; headcount: number; urgency: string; justification: string; departmentId: string; createdBy: string }) {
-    const { positionTitle, jdText, headcount, urgency, justification, departmentId, createdBy } = payload;
-    if (!positionTitle || !jdText || !headcount || !urgency || !justification) {
-      throw new BadRequestException('Missing required fields for recruitment request');
+  update(id: string, actorId: string, updates: Partial<Pick<RecruitmentRequest, 'positionTitle' | 'jdText' | 'headcount' | 'urgency' | 'justification'>>) {
+    const req = this.store.get(id);
+    if (!req) throw new NotFoundException('Request not found');
+    if (req.status !== RecruitmentRequestStatus.DRAFT) {
+      throw new ForbiddenException('Only DRAFT requests can be edited');
     }
-
-    const id = genId();
-    const now = new Date().toISOString();
-    const req: RecruitmentRequest = {
-      id,
-      positionTitle,
-      jdText,
-      headcount,
-      urgency,
-      justification,
-      departmentId,
-      createdBy,
-      status: RecruitmentRequestStatus.DRAFT,
-      createdAt: now,
-    };
-
-    this.store.set(id, req);
+    Object.assign(req, updates);
+    req.updatedAt = new Date().toISOString();
     return req;
   }
 }
