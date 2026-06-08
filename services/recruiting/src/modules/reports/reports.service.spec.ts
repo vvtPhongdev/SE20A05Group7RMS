@@ -1,148 +1,148 @@
 import { ReportsService } from './reports.service';
 
-describe('ReportsService - getHiringMetrics', () => {
+describe('ReportsService - T-087 Annual Reports & Tracking', () => {
   const prisma = {
     recruitmentRequest: {
       findMany: jest.fn(),
+    },
+    interviewSchedule: {
+      count: jest.fn(),
     },
   };
   const service = new ReportsService(prisma as any);
 
   beforeEach(() => {
     jest.clearAllMocks();
+    prisma.interviewSchedule.count.mockResolvedValue(0);
   });
 
-  it('aggregates hiring metrics correctly by monthly period', async () => {
-    prisma.recruitmentRequest.findMany.mockResolvedValue([
-      {
-        id: 'req-1',
-        departmentId: 'dept-1',
-        headcount: 3,
-        status: 'OFFER_ACCEPTED',
-        createdAt: new Date('2026-06-01T10:00:00.000Z'),
-        updatedAt: new Date('2026-06-11T10:00:00.000Z'), // 10 days
-        applications: [
-          { status: 'OFFER_ACCEPTED', candidateId: 'candidate-1' },
-          { status: 'OFFER_ACCEPTED', candidateId: 'candidate-2' },
-          { status: 'SCREENING', candidateId: 'candidate-3' },
-        ],
-        offers: [
-          { candidateId: 'candidate-1', compensation: '45,000,000 VND gross per month' },
-          { candidateId: 'candidate-2', compensation: '35,000,000 VND gross per month' },
-        ],
-      },
-      {
-        id: 'req-2',
-        departmentId: 'dept-1',
-        headcount: 2,
-        status: 'CLOSED',
-        createdAt: new Date('2026-06-15T12:00:00.000Z'),
-        updatedAt: new Date('2026-07-05T12:00:00.000Z'), // 20 days
-        applications: [
-          { status: 'OFFER_ACCEPTED', candidateId: 'candidate-4' },
-        ],
-        offers: [
-          { candidateId: 'candidate-4', compensation: null }, // default 30M
-        ],
-      },
-    ]);
+  describe('getAnnualReport', () => {
+    it('generates annual report with YoY and department breakdown', async () => {
+      // Mock findMany responses:
+      // First call: current year requests (2026)
+      // Second call: previous year requests (2025)
+      prisma.recruitmentRequest.findMany
+        .mockResolvedValueOnce([
+          {
+            id: 'req-1',
+            department: { id: 'dept-1', name: 'Engineering', code: 'ENG' },
+            headcount: 5,
+            status: 'OFFER_ACCEPTED',
+            createdAt: new Date('2026-03-01T00:00:00.000Z'),
+            applications: [
+              { status: 'OFFER_ACCEPTED', candidateId: 'c-1' },
+            ],
+          },
+        ])
+        .mockResolvedValueOnce([
+          {
+            id: 'req-2',
+            department: { id: 'dept-1', name: 'Engineering', code: 'ENG' },
+            headcount: 2,
+            status: 'CLOSED',
+            createdAt: new Date('2025-05-01T00:00:00.000Z'),
+            applications: [
+              { status: 'OFFER_ACCEPTED', candidateId: 'c-2' },
+            ],
+          },
+        ]);
+      prisma.interviewSchedule.count
+        .mockResolvedValueOnce(5)
+        .mockResolvedValueOnce(2);
 
-    const result = await service.getHiringMetrics({
-      departmentId: 'dept-1',
-      startDate: '2026-06-01T00:00:00.000Z',
-      endDate: '2026-06-30T23:59:59.000Z',
-      period: 'monthly',
+      const result = await service.getAnnualReport({ year: 2026 });
+
+      expect(result.year).toBe(2026);
+      expect(result.summary.totalRequests).toBe(1);
+      expect(result.summary.completedHires).toBe(1);
+      expect(result.yoyComparison.requests.current).toBe(1);
+      expect(result.yoyComparison.requests.previous).toBe(1);
+      expect(result.yoyComparison.requests.growthPercentage).toBe(0);
+      expect(result.yoyComparison.interviews.current).toBe(5);
+      expect(result.yoyComparison.interviews.previous).toBe(2);
+      expect(result.yoyComparison.interviews.growthPercentage).toBe(150);
+      expect(result.departmentBreakdown).toHaveLength(1);
+      expect(result.departmentBreakdown[0]).toEqual({
+        departmentId: 'dept-1',
+        departmentName: 'Engineering',
+        departmentCode: 'ENG',
+        totalRequests: 1,
+        targetHeadcount: 5,
+        totalFilled: 1,
+        fillRate: 20,
+      });
+    });
+  });
+
+  describe('getAnnualReportExport', () => {
+    it('returns CSV format correctly', async () => {
+      prisma.recruitmentRequest.findMany.mockResolvedValue([]);
+      const result = await service.getAnnualReportExport({ year: 2026, format: 'csv' });
+      expect(result.format).toBe('csv');
+      expect(result.data).toContain('Annual Recruitment Report - 2026');
+      expect(result.data).toContain('DEPARTMENT BREAKDOWN');
     });
 
-    expect(prisma.recruitmentRequest.findMany).toHaveBeenCalledWith({
-      where: {
-        departmentId: 'dept-1',
-        createdAt: {
-          gte: new Date('2026-06-01T00:00:00.000Z'),
-          lte: new Date('2026-06-30T23:59:59.000Z'),
+    it('returns PDF format as base64', async () => {
+      prisma.recruitmentRequest.findMany.mockResolvedValue([]);
+      const result = await service.getAnnualReportExport({ year: 2026, format: 'pdf' });
+      expect(result.format).toBe('pdf');
+      expect(typeof result.data).toBe('string');
+    });
+  });
+
+  describe('getRealtimeTracking', () => {
+    it('filters requests by createdById for Department Head role', async () => {
+      prisma.recruitmentRequest.findMany.mockResolvedValue([
+        {
+          id: 'req-1',
+          position: 'Dev',
+          headcount: 2,
+          status: 'INTERVIEWING',
+          createdBy: { displayName: 'Head' },
+          reviewedBy: { displayName: 'HR Manager' },
+          applications: [
+            { status: 'OFFER_ACCEPTED' },
+          ],
+          createdAt: new Date(),
+          updatedAt: new Date(),
         },
-      },
-      include: {
-        applications: true,
-        offers: true,
-      },
+      ]);
+
+      const result = await service.getRealtimeTracking({
+        userId: 'user-1',
+        role: 'DEPARTMENT_HEAD',
+      });
+
+      expect(prisma.recruitmentRequest.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { createdById: 'user-1' },
+        }),
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual(
+        expect.objectContaining({
+          position: 'Dev',
+          targetHeadcount: 2,
+          filledHeadcount: 1,
+          status: 'INTERVIEWING',
+          handler: 'HR Manager',
+        }),
+      );
     });
 
-    // Check calculations:
-    // Period: 2026-06
-    // totalRequested = 3 + 2 = 5
-    // totalFilled = 2 (req-1) + 1 (req-2) = 3
-    // fillRate = (3 / 5) * 100 = 60
-    //
-    // Costs:
-    // candidate-1: 15,000,000 + 4,500,000 (10% of 45M) = 19,500,000
-    // candidate-2: 15,000,000 + 3,500,000 (10% of 35M) = 18,500,000
-    // candidate-4: 15,000,000 + 3,000,000 (10% of 30M default) = 18,000,000
-    // totalCost = 19,500,000 + 18,500,000 + 18,000,000 = 56,000,000
-    // costPerHire = 56,000,000 / 3 = 18,666,666.67
-    //
-    // Time to hire:
-    // req-1: 10 days
-    // req-2: 20 days
-    // averageTimeToHireDays = (10 + 20) / 2 = 15
-    expect(result).toHaveLength(1);
-    expect(result[0]).toEqual({
-      period: '2026-06',
-      totalRequested: 5,
-      totalFilled: 3,
-      fillRate: 60,
-      averageTimeToHireDays: 15,
-      totalCost: 56000000,
-      costPerHire: 18666666.67,
+    it('returns all requests for Admin role', async () => {
+      prisma.recruitmentRequest.findMany.mockResolvedValue([]);
+      await service.getRealtimeTracking({
+        userId: 'admin-1',
+        role: 'ADMIN',
+      });
+
+      expect(prisma.recruitmentRequest.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {},
+        }),
+      );
     });
-  });
-
-  it('groups metrics by quarterly period', async () => {
-    prisma.recruitmentRequest.findMany.mockResolvedValue([
-      {
-        id: 'req-1',
-        departmentId: 'dept-1',
-        headcount: 1,
-        status: 'OPEN',
-        createdAt: new Date('2026-02-15T00:00:00.000Z'),
-        updatedAt: new Date('2026-02-15T00:00:00.000Z'),
-        applications: [],
-        offers: [],
-      },
-      {
-        id: 'req-2',
-        departmentId: 'dept-1',
-        headcount: 2,
-        status: 'CLOSED',
-        createdAt: new Date('2026-05-10T00:00:00.000Z'),
-        updatedAt: new Date('2026-05-20T00:00:00.000Z'), // 10 days
-        applications: [
-          { status: 'OFFER_ACCEPTED', candidateId: 'candidate-1' },
-        ],
-        offers: [
-          { candidateId: 'candidate-1', compensation: '10,000,000 VND' },
-        ],
-      },
-    ]);
-
-    const result = await service.getHiringMetrics({
-      period: 'quarterly',
-    });
-
-    // req-1 is Feb -> 2026-Q1
-    // req-2 is May -> 2026-Q2
-    expect(result).toHaveLength(2);
-    const [q1, q2] = result;
-    expect(q1).toBeDefined();
-    expect(q2).toBeDefined();
-    expect(q1!.period).toBe('2026-Q1');
-    expect(q1!.totalRequested).toBe(1);
-    expect(q2!.period).toBe('2026-Q2');
-    expect(q2!.totalRequested).toBe(2);
-    expect(q2!.totalFilled).toBe(1);
-    expect(q2!.averageTimeToHireDays).toBe(10);
-    // Cost: 15M + 1M (10% of 10M) = 16M
-    expect(q2!.totalCost).toBe(16000000);
-    expect(q2!.costPerHire).toBe(16000000);
   });
 });

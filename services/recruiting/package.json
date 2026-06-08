@@ -12,26 +12,28 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
+    "@nestjs/bullmq": "^11.0.0",
     "@nestjs/common": "^11.1.0",
     "@nestjs/core": "^11.1.0",
     "@nestjs/microservices": "^11.1.0",
-    "@nestjs/bullmq": "^11.0.0",
+    "@types/pdfkit": "^0.17.6",
+    "@wr/config": "*",
+    "@wr/contracts": "*",
+    "@wr/database": "*",
+    "@wr/queue": "*",
     "bullmq": "^5.52.0",
     "ioredis": "^5.6.1",
+    "pdfkit": "^0.19.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1",
-    "@wr/contracts": "*",
-    "@wr/config": "*",
-    "@wr/database": "*",
-    "@wr/queue": "*"
+    "rxjs": "^7.8.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.1.0",
     "@types/jest": "^29.5.12",
-    "@wr/typescript-config": "*",
     "@types/node": "^22.15.0",
+    "@wr/typescript-config": "*",
     "jest": "^29.7.0",
     "ts-jest": "^29.3.0",
     "typescript": "^5.8.3"

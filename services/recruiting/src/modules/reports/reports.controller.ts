@@ -25,9 +25,13 @@ export class ReportsController {
   async getPipelineOverview() {
     return this.reportsService.getPipelineOverview();
   }
+  @MessagePattern('recruiting.annual_report_export')
+  async getAnnualReportExport(@Payload() payload: { year: number; format: 'csv' | 'pdf' }) {
+    return this.reportsService.getAnnualReportExport(payload);
+  }
 
-  @MessagePattern('recruiting.hiring_metrics')
-  async getHiringMetrics(@Payload() payload: { departmentId?: string; startDate?: string; endDate?: string; period?: 'monthly' | 'quarterly' | 'yearly' }) {
-    return this.reportsService.getHiringMetrics(payload);
+  @MessagePattern('recruiting.realtime_tracking')
+  async getRealtimeTracking(@Payload() payload: { userId: string; role: string }) {
+    return this.reportsService.getRealtimeTracking(payload);
   }
 }
