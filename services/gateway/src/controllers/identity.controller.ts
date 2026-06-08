@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Inject } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Inject, HttpCode, HttpStatus } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
 import { SERVICE_TOKENS } from '../constants';
@@ -276,6 +276,7 @@ export class IdentityController {
   @Post('auth/register')
   @Public()
   @ApiOperation({ summary: 'Register a new user' })
+  @HttpCode(HttpStatus.CREATED)
   register(@Body() body: RegisterDto) {
     return firstValueFrom(this.identityClient.send('auth.register', body));
   }
@@ -297,6 +298,7 @@ export class IdentityController {
   @Post('auth/login')
   @Public()
   @ApiOperation({ summary: 'Login' })
+  @HttpCode(HttpStatus.OK)
   login(@Body() body: LoginDto) {
     return firstValueFrom(this.identityClient.send('auth.login', body));
   }
@@ -304,6 +306,7 @@ export class IdentityController {
   @Post('auth/refresh')
   @Public()
   @ApiOperation({ summary: 'Refresh JWT token' })
+  @HttpCode(HttpStatus.OK)
   refresh(@Body() body: RefreshTokenDto) {
     return firstValueFrom(this.identityClient.send('identity.auth.refresh', body));
   }
@@ -311,8 +314,10 @@ export class IdentityController {
   @Post('auth/logout')
   @Public()
   @ApiOperation({ summary: 'Logout and revoke refresh token' })
-  logout(@Body() body: LogoutDto) {
-    return firstValueFrom(this.identityClient.send('identity.auth.logout', body));
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async logout(@Body() body: LogoutDto) {
+    await firstValueFrom(this.identityClient.send('identity.auth.logout', body));
+    return;
   }
 
   @Post('auth/forgot-password')
