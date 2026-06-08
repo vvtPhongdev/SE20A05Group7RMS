@@ -21,6 +21,8 @@ import { PlanGuardModule } from './common/plan-guard/plan-guard.module';
     ReportsModule,
     PlanGuardModule,
   ],
+  controllers: [RecruitmentRequestsController],
+  providers: [RecruitmentRequestsService],
 })
 export class RecruitingModule {}
 
