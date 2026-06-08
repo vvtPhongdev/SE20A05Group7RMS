@@ -26,6 +26,7 @@ export enum RecruitmentRequestStatus {
   PLAN_APPROVED = 'PLAN_APPROVED',
   SCREENING = 'SCREENING',
   INTERVIEWING = 'INTERVIEWING',
+  INTERVIEW_COMPLETED = 'INTERVIEW_COMPLETED',
   OFFER_EXTENDED = 'OFFER_EXTENDED',
   OFFER_ACCEPTED = 'OFFER_ACCEPTED',
   CLOSED = 'CLOSED',
@@ -72,6 +73,11 @@ export enum InterviewStatus {
 export enum InterviewResult {
   PASS = 'PASS',
   FAIL = 'FAIL',
+}
+
+export enum HiringDecision {
+  HIRE = 'HIRE',
+  REJECT = 'REJECT',
 }
 
 // ─── Job Posting ───────────────────────────────────────────────────

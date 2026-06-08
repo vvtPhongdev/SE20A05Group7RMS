@@ -1,0 +1,27 @@
+import { Controller } from '@nestjs/common';
+import { MessagePattern, Payload } from '@nestjs/microservices';
+import { HiringDecision } from '@wr/contracts';
+import { HiringDecisionService } from './hiring-decision.service';
+
+@Controller()
+export class HiringDecisionsController {
+  constructor(private readonly service: HiringDecisionService) {}
+
+  @MessagePattern('recruiting.hiring_decision.decide')
+  decide(
+    @Payload()
+    payload: {
+      requestId: string;
+      decision: HiringDecision;
+      notes: string;
+      adminId: string;
+    },
+  ) {
+    return this.service.decide(
+      payload.requestId,
+      payload.decision,
+      payload.notes,
+      payload.adminId,
+    );
+  }
+}

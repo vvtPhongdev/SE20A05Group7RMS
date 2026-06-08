@@ -4,9 +4,16 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty, ApiForbiddenResponse
 import { SERVICE_TOKENS } from '../constants';
 import { firstValueFrom } from 'rxjs';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { UserRole } from '@wr/contracts';
+import { HiringDecision, UserRole } from '@wr/contracts';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { IsUUID, IsString, IsOptional, IsDateString, IsNotEmpty } from 'class-validator';
+import {
+  IsUUID,
+  IsString,
+  IsOptional,
+  IsDateString,
+  IsNotEmpty,
+  IsEnum,
+} from 'class-validator';
 
 export class CreateJobPostingDto {
   @ApiProperty({ example: 'uuid-of-recruitment-request', description: 'Recruitment Request ID' })
@@ -74,6 +81,17 @@ export class UpdateJobPostingDto {
   status?: string;
 }
 
+export class HiringDecisionDto {
+  @ApiProperty({ enum: HiringDecision, example: HiringDecision.HIRE })
+  @IsEnum(HiringDecision)
+  decision!: HiringDecision;
+
+  @ApiProperty({ example: 'Strong interview performance and panel consensus' })
+  @IsString()
+  @IsNotEmpty()
+  notes!: string;
+}
+
 /**
  * Thin proxy controller for Recruiting service (roles, applications, invites, evaluations).
  */
@@ -131,6 +149,24 @@ export class RecruitingController {
     return firstValueFrom(this.recruitingClient.send('applications.updateStatus', { id, ...body }));
   }
 
+  @Patch('recruitment-requests/:id/hiring-decision')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'FR-15: Make the final hiring decision' })
+  decideHiring(
+    @Param('id') requestId: string,
+    @Body() body: HiringDecisionDto,
+    @CurrentUser() user: any,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruiting.hiring_decision.decide', {
+        requestId,
+        decision: body.decision,
+        notes: body.notes,
+        adminId: user.sub,
+      }),
+    );
+  }
+
   // ─── Invites ─────────────────────────────────────────────────────
 
   @Post('invites')
@@ -172,7 +208,6 @@ export class RecruitingController {
   expandQuery(@Query('q') query: string) {
     return firstValueFrom(this.recruitingClient.send('talent.expand', { query }));
   }
-
 
   // ─── Job Postings ────────────────────────────────────────────────
 
