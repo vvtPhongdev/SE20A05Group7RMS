@@ -18,10 +18,10 @@ export class TaskPlanService {
 
   async listByRequest(hiringRequestId: string) {
     const plan = await this.prisma.overallPlan.findUnique({
-      where: { hiringRequestId },
+      where: { requestId: hiringRequestId },
     });
     if (!plan) {
-      throw new NotFoundException(`No OverallPlan found for HiringRequest ${hiringRequestId}`);
+      throw new NotFoundException(`No OverallPlan found for RecruitmentRequest ${hiringRequestId}`);
     }
     return this.list(plan.id);
   }

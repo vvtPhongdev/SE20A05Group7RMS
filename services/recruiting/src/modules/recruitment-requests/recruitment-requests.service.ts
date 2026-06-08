@@ -27,9 +27,9 @@ export interface RequestLog {
 
 @Injectable()
 export class RecruitmentRequestsService {
-  private store = new Map<string, RecruitmentRequest>();
+  store = new Map<string, RecruitmentRequest>();
 
-  private logTransition(req: RecruitmentRequest, actorId: string, previous: RecruitmentRequestStatus | null, next: RecruitmentRequestStatus, notes?: string) {
+  logTransition(req: RecruitmentRequest, actorId: string, previous: RecruitmentRequestStatus | null, next: RecruitmentRequestStatus, notes?: string) {
     const entry: RequestLog = {
       timestamp: new Date().toISOString(),
       actorId,

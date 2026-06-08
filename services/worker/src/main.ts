@@ -31,8 +31,8 @@ async function bootstrap() {
     QUEUE_NAMES.CV_PARSE,
     async (job) => {
       console.log(`📄 Processing CV parse job: ${job.name} [${job.id}]`);
-      // TODO: implement CV parsing logic
-      console.log(`✅ CV parse job ${job.id} completed (stub)`);
+      await cvParseProcessor(job.data);
+      console.log(`✅ CV parse job ${job.id} completed`);
     },
     workerOptions,
   );
@@ -42,8 +42,8 @@ async function bootstrap() {
     QUEUE_NAMES.EMBEDDING_GENERATE,
     async (job) => {
       console.log(`🧬 Processing embedding job: ${job.name} [${job.id}]`);
-      // TODO: implement embedding generation logic
-      console.log(`✅ Embedding job ${job.id} completed (stub)`);
+      await embeddingProcessor(job.data);
+      console.log(`✅ Embedding job ${job.id} completed`);
     },
     workerOptions,
   );

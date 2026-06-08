@@ -22,11 +22,11 @@ export class OverallPlanService {
       throw new BadRequestException('endDate must be after startDate');
     }
 
-    const request = await this.prisma.hiringRequest.findUnique({
+    const request = await this.prisma.recruitmentRequest.findUnique({
       where: { id: hiringRequestId },
     });
     if (!request) {
-      throw new NotFoundException(`HiringRequest ${hiringRequestId} not found`);
+      throw new NotFoundException(`RecruitmentRequest ${hiringRequestId} not found`);
     }
 
     if (request.status !== 'APPROVED') {
@@ -36,16 +36,16 @@ export class OverallPlanService {
     }
 
     const existing = await this.prisma.overallPlan.findUnique({
-      where: { hiringRequestId },
+      where: { requestId: hiringRequestId },
     });
     if (existing) {
-      throw new ConflictException(`An OverallPlan already exists for HiringRequest ${hiringRequestId}`);
+      throw new ConflictException(`An OverallPlan already exists for RecruitmentRequest ${hiringRequestId}`);
     }
 
     const [plan] = await this.prisma.$transaction([
       this.prisma.overallPlan.create({
         data: {
-          hiringRequestId,
+          requestId: hiringRequestId,
           createdById,
           startDate: start,
           endDate: end,
@@ -53,10 +53,10 @@ export class OverallPlanService {
         },
         include: {
           createdBy: { select: { id: true, displayName: true } },
-          hiringRequest: { select: { id: true, title: true, status: true } },
+          request: { select: { id: true, position: true, status: true } },
         },
       }),
-      this.prisma.hiringRequest.update({
+      this.prisma.recruitmentRequest.update({
         where: { id: hiringRequestId },
         data: { status: 'PLANNING' },
       }),
@@ -71,8 +71,8 @@ export class OverallPlanService {
       include: {
         createdBy: { select: { id: true, displayName: true } },
         approvedBy: { select: { id: true, displayName: true } },
-        hiringRequest: { select: { id: true, title: true, status: true } },
-        taskPlans: {
+        request: { select: { id: true, position: true, status: true } },
+        tasks: {
           include: { assignedTo: { select: { id: true, displayName: true } } },
           orderBy: { startDate: 'asc' },
         },
@@ -84,17 +84,17 @@ export class OverallPlanService {
 
   async getByRequest(hiringRequestId: string) {
     const plan = await this.prisma.overallPlan.findUnique({
-      where: { hiringRequestId },
+      where: { requestId: hiringRequestId },
       include: {
         createdBy: { select: { id: true, displayName: true } },
         approvedBy: { select: { id: true, displayName: true } },
-        taskPlans: {
+        tasks: {
           include: { assignedTo: { select: { id: true, displayName: true } } },
           orderBy: { startDate: 'asc' },
         },
       },
     });
-    if (!plan) throw new NotFoundException(`No OverallPlan found for HiringRequest ${hiringRequestId}`);
+    if (!plan) throw new NotFoundException(`No OverallPlan found for RecruitmentRequest ${hiringRequestId}`);
     return plan;
   }
 }
