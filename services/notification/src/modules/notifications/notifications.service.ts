@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/database/prisma.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { QUEUE_NAMES, JOB_NAMES } from '@wr/queue';
+import Redis from 'ioredis';
 import {
   CreateNotificationSchema,
   CreateEmailLogSchema,
@@ -14,10 +15,15 @@ import {
 
 @Injectable()
 export class NotificationsService {
+  private readonly pubClient: Redis;
+
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue(QUEUE_NAMES.EMAIL_SEND) private readonly emailQueue: Queue,
-  ) {}
+  ) {
+    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+    this.pubClient = new Redis(redisUrl);
+  }
 
   async listNotifications(payload: { userId: string }) {
     if (!payload.userId) {
@@ -92,7 +98,7 @@ export class NotificationsService {
     }
 
     const data = validated.data;
-    return this.prisma.notification.create({
+    const notification = await this.prisma.notification.create({
       data: {
         userId: data.userId,
         type: data.type,
@@ -102,6 +108,53 @@ export class NotificationsService {
         relatedEntityType: data.relatedEntityType,
       },
     });
+
+    // Publish to Redis for real-time SSE
+    await this.pubClient.publish('notifications:created', JSON.stringify(notification));
+
+    return notification;
+  }
+
+  async sendToRole(payload: {
+    role: string;
+    departmentId?: string;
+    title: string;
+    body: string;
+    type: string;
+    relatedEntityId?: string;
+    relatedEntityType?: string;
+  }) {
+    // Find all active users with the specified role
+    const users = await this.prisma.user.findMany({
+      where: {
+        role: payload.role,
+        isActive: true,
+        ...(payload.departmentId ? { departmentId: payload.departmentId } : {}),
+      },
+      select: { id: true },
+    });
+
+    const notifications = await Promise.all(
+      users.map(async (user) => {
+        const notification = await this.prisma.notification.create({
+          data: {
+            userId: user.id,
+            type: payload.type,
+            title: payload.title,
+            body: payload.body,
+            relatedEntityId: payload.relatedEntityId,
+            relatedEntityType: payload.relatedEntityType,
+          },
+        });
+
+        // Publish to Redis for real-time SSE
+        await this.pubClient.publish('notifications:created', JSON.stringify(notification));
+
+        return notification;
+      })
+    );
+
+    return { count: notifications.length };
   }
 
   async sendEmail(payload: CreateEmailLogInput) {

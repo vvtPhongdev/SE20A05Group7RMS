@@ -27,6 +27,19 @@ export class NotificationsController {
     return this.notificationsService.createNotification(payload);
   }
 
+  @MessagePattern('notification.send_to_role')
+  async sendToRole(@Payload() payload: {
+    role: string;
+    departmentId?: string;
+    title: string;
+    body: string;
+    type: string;
+    relatedEntityId?: string;
+    relatedEntityType?: string;
+  }) {
+    return this.notificationsService.sendToRole(payload);
+  }
+
   @MessagePattern('notification.send_email')
   async sendEmail(@Payload() payload: CreateEmailLogInput) {
     return this.notificationsService.sendEmail(payload);

@@ -9,6 +9,7 @@ import { RecruitingController } from './controllers/recruiting.controller';
 import { ProfilesController } from './controllers/profiles.controller';
 import { NotificationsController } from './controllers/notifications.controller';
 import { InterviewController } from './controllers/interview.controller';
+import { SseNotificationService } from './services/sse-notification.service';
 
 @Module({
   imports: [
@@ -42,7 +43,7 @@ import { InterviewController } from './controllers/interview.controller';
       },
     ]),
   ],
-  providers: [JwtStrategy],
+  providers: [JwtStrategy, SseNotificationService],
   controllers: [
     HealthController,
     IdentityController,
