@@ -237,6 +237,7 @@ export const CreateInterviewResultSchema = z.object({
   interviewId: z.string().uuid(),
   result: z.nativeEnum(InterviewResult),
   notes: z.string().optional().nullable(),
+  evaluatorId: z.string().uuid().optional().nullable(),
 });
 
 export const UpdateInterviewResultSchema = CreateInterviewResultSchema.partial().omit({ interviewId: true });

@@ -55,12 +55,4 @@ export class SchedulesController {
   ) {
     return this.schedulesService.reschedule(payload);
   }
-
-  /** FR-14: Record PASS/FAIL result with mandatory panel notes. */
-  @MessagePattern('interview.record_result')
-  async recordResult(
-    @Payload() payload: { interviewId: string; result: string; notes: string },
-  ) {
-    return this.schedulesService.recordResult(payload);
-  }
 }

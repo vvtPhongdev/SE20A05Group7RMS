@@ -5,6 +5,7 @@ import { SERVICE_TOKENS } from '../constants';
 import { firstValueFrom } from 'rxjs';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '@wr/contracts';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('Interviews')
 @ApiBearerAuth()
@@ -112,9 +113,14 @@ export class InterviewController {
   recordResult(
     @Param('id') interviewId: string,
     @Body() body: { result: string; notes: string },
+    @CurrentUser() user: any,
   ) {
     return firstValueFrom(
-      this.interviewClient.send('interview.record_result', { interviewId, ...body }),
+      this.interviewClient.send('interview.record_result', {
+        interviewId,
+        ...body,
+        evaluatorId: user.sub,
+      }),
     );
   }
 }

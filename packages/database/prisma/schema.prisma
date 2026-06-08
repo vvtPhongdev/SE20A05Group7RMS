@@ -47,6 +47,7 @@ model User {
   notifications    Notification[]
   emails           EmailLog[]
   offersGenerated  OfferLetter[]        @relation("GeneratedOffers")
+  interviewResults InterviewResult[]
 
   @@index([organizationId], map: "idx_users_organization")
   @@index([departmentId], map: "idx_users_department")
@@ -316,12 +317,15 @@ model InterviewResult {
   interviewId String   @map("interview_id")
   result      String // InterviewResult enum: PASS, FAIL
   notes       String?  @db.Text
+  evaluatorId String?  @map("evaluator_id")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   interview InterviewSchedule @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  evaluator User?             @relation(fields: [evaluatorId], references: [id], onDelete: SetNull)
 
   @@index([interviewId], map: "idx_interview_results_interview")
+  @@index([evaluatorId], map: "idx_interview_results_evaluator")
   @@map("interview_results")
 }
 
