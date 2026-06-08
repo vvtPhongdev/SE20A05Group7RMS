@@ -21,5 +21,8 @@ import { HiringDecisionsModule } from './modules/hiring-decisions/hiring-decisio
     ReportsModule,
     HiringDecisionsModule,
   ],
+  controllers: [RecruitmentRequestsController],
+  providers: [RecruitmentRequestsService],
 })
 export class RecruitingModule {}
+
