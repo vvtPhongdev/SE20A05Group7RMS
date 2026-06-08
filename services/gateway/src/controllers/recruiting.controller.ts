@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Patch, Body, Param, Query, Inject } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty, ApiForbiddenResponse, ApiParam, ApiBody } from '@nestjs/swagger';
 import { SERVICE_TOKENS } from '../constants';
 import { firstValueFrom } from 'rxjs';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -72,6 +72,58 @@ export class UpdateJobPostingDto {
   @IsOptional()
   @IsString()
   status?: string;
+}
+
+export class CreateOverallPlanDto {
+  @ApiProperty({ example: '2026-07-01', description: 'Campaign start date (ISO date)' })
+  startDate!: string;
+
+  @ApiProperty({ example: '2026-09-30', description: 'Campaign end date (ISO date). Must be after startDate.' })
+  endDate!: string;
+}
+
+export class RejectPlanDto {
+  @ApiProperty({ description: 'Mandatory reason for rejection / revision request' })
+  reason!: string;
+}
+
+export class CreateTaskPlanDto {
+  @ApiProperty({ enum: ['JOB_POSTING', 'CV_COLLECTION', 'CV_SCREENING', 'INTERVIEW_COORDINATION'], example: 'CV_SCREENING' })
+  taskType!: string;
+
+  @ApiProperty({ example: 'uuid-of-hr-staff' })
+  assignedToId!: string;
+
+  @ApiProperty({ example: '2026-07-01', description: 'Task start date (ISO date). Must be within plan window.' })
+  startDate!: string;
+
+  @ApiProperty({ example: '2026-08-15', description: 'Task deadline (ISO date). Must be within plan window.' })
+  endDate!: string;
+
+  @ApiProperty({ required: false })
+  notes?: string;
+}
+
+export class UpdateTaskPlanDto {
+  @ApiProperty({ required: false, enum: ['JOB_POSTING', 'CV_COLLECTION', 'CV_SCREENING', 'INTERVIEW_COORDINATION'] })
+  taskType?: string;
+
+  @ApiProperty({ required: false })
+  assignedToId?: string;
+
+  @ApiProperty({ required: false })
+  startDate?: string;
+
+  @ApiProperty({ required: false })
+  endDate?: string;
+
+  @ApiProperty({ required: false })
+  notes?: string;
+}
+
+export class UpdateTaskStatusDto {
+  @ApiProperty({ enum: ['PENDING', 'IN_PROGRESS', 'COMPLETED'] })
+  status!: string;
 }
 
 /**
@@ -259,47 +311,123 @@ export class RecruitingController {
     return firstValueFrom(this.recruitingClient.send('recruiting.pipeline_overview', {}));
   }
 
-  // ─── Recruitment Requests ─────────────────────────────────────────
+  // ─── Overall Plan ─────────────────────────────────────────────────
 
-  @Post('recruiting/requests')
-  @ApiOperation({ summary: 'Create recruitment request' })
-  createRecruitmentRequest(@Body() body: any, @CurrentUser() user: any) {
-    return firstValueFrom(this.recruitingClient.send('recruiting.request.create', { ...body, createdBy: user.sub }));
+  @Post('recruiting/requests/:id/plan')
+  @Roles(UserRole.HR_MANAGER)
+  @ApiOperation({
+    summary: 'Create an overall recruitment plan for an APPROVED request',
+    description: 'Validates: request must be APPROVED, endDate > startDate, no existing plan. Transitions request to PLANNING.',
+  })
+  @ApiForbiddenResponse({ description: 'Requires HR_MANAGER role' })
+  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
+  @ApiBody({ type: CreateOverallPlanDto })
+  createOverallPlan(
+    @Param('id') hiringRequestId: string,
+    @Body() body: CreateOverallPlanDto,
+    @CurrentUser('sub') createdById: string,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('overall-plan.create', {
+        hiringRequestId,
+        createdById,
+        startDate: body.startDate,
+        endDate: body.endDate,
+      }),
+    );
   }
 
-  @Patch('recruiting/requests/:id')
-  @ApiOperation({ summary: 'Update recruitment request' })
-  updateRecruitmentRequest(@Param('id') id: string, @Body() body: any, @CurrentUser() user: any) {
-    return firstValueFrom(this.recruitingClient.send('recruiting.request.update', { id, actorId: user.sub, updates: body }));
+  @Get('recruiting/requests/:id/plan')
+  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'Get the overall plan (with all tasks) for a recruitment request' })
+  @ApiForbiddenResponse({ description: 'Requires HR_MANAGER, ADMIN, or DEPARTMENT_HEAD role' })
+  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
+  getOverallPlanByRequest(@Param('id') hiringRequestId: string) {
+    return firstValueFrom(this.recruitingClient.send('overall-plan.getByRequest', { hiringRequestId }));
   }
 
-  @Post('recruiting/requests/:id/submit')
-  @ApiOperation({ summary: 'Submit recruitment request' })
-  submitRecruitmentRequest(@Param('id') id: string, @CurrentUser() user: any) {
-    return firstValueFrom(this.recruitingClient.send('recruiting.request.submit', { id, actorId: user.sub }));
+  @Post('recruiting/requests/:id/plan/approve')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Approve the overall recruitment plan',
+    description: 'Plan → APPROVED, HiringRequest → ACTIVE (downstream unlocked). Must be PENDING_APPROVAL.',
+  })
+  @ApiForbiddenResponse({ description: 'Requires ADMIN role' })
+  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
+  approveOverallPlan(
+    @Param('id') hiringRequestId: string,
+    @CurrentUser('sub') approverId: string,
+  ) {
+    return firstValueFrom(this.recruitingClient.send('overall-plan.approve', { hiringRequestId, approverId }));
   }
 
-  @Post('recruiting/requests/:id/approve')
-  @ApiOperation({ summary: 'Approve recruitment request' })
-  approveRecruitmentRequest(@Param('id') id: string, @CurrentUser() user: any) {
-    return firstValueFrom(this.recruitingClient.send('recruiting.request.approve', { id, approverId: user.sub, approverRole: user.role }));
+  @Post('recruiting/requests/:id/plan/reject')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Reject the overall recruitment plan — requires reason, notifies HR',
+    description: 'Plan → REVISION_REQUIRED, revisionNotes set. HiringRequest stays PLANNING. Must be PENDING_APPROVAL.',
+  })
+  @ApiForbiddenResponse({ description: 'Requires ADMIN role' })
+  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
+  @ApiBody({ type: RejectPlanDto })
+  rejectOverallPlan(
+    @Param('id') hiringRequestId: string,
+    @Body() body: RejectPlanDto,
+    @CurrentUser('sub') approverId: string,
+  ) {
+    return firstValueFrom(this.recruitingClient.send('overall-plan.reject', { hiringRequestId, approverId, reason: body.reason }));
   }
 
-  @Post('recruiting/requests/:id/reject')
-  @ApiOperation({ summary: 'Reject recruitment request' })
-  rejectRecruitmentRequest(@Param('id') id: string, @Body() body: { reason: string }, @CurrentUser() user: any) {
-    return firstValueFrom(this.recruitingClient.send('recruiting.request.reject', { id, approverId: user.sub, reason: body.reason }));
+  // ─── Task Plans ───────────────────────────────────────────────────
+
+  @Post('recruiting/requests/:id/plan/tasks')
+  @Roles(UserRole.HR_MANAGER)
+  @ApiOperation({
+    summary: 'Add a task to the recruitment plan',
+    description: 'Validates task dates are within the OverallPlan window. Notifies the assignee.',
+  })
+  @ApiForbiddenResponse({ description: 'Requires HR_MANAGER role' })
+  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
+  @ApiBody({ type: CreateTaskPlanDto })
+  createTaskPlan(@Param('id') hiringRequestId: string, @Body() body: CreateTaskPlanDto) {
+    return firstValueFrom(this.recruitingClient.send('task-plan.createByRequest', { hiringRequestId, ...body }));
   }
 
-  @Post('recruiting/requests/:id/request-revision')
-  @ApiOperation({ summary: 'Request revision for recruitment request' })
-  requestRevisionRecruitmentRequest(@Param('id') id: string, @Body() body: { feedback: string }, @CurrentUser() user: any) {
-    return firstValueFrom(this.recruitingClient.send('recruiting.request.request_revision', { id, approverId: user.sub, feedback: body.feedback }));
+  @Get('recruiting/requests/:id/plan/tasks')
+  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'List all tasks for a recruitment plan with assignee, deadline, and status' })
+  @ApiForbiddenResponse({ description: 'Requires HR_MANAGER, ADMIN, or DEPARTMENT_HEAD role' })
+  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
+  listTaskPlans(@Param('id') hiringRequestId: string) {
+    return firstValueFrom(this.recruitingClient.send('task-plan.listByRequest', { hiringRequestId }));
   }
 
-  @Get('recruiting/requests')
-  @ApiOperation({ summary: 'List recruitment requests' })
-  listRecruitmentRequests(@Query() query: any, @CurrentUser() user: any) {
-    return firstValueFrom(this.recruitingClient.send('recruiting.request.list', { actorId: user.sub, actorRole: user.role, filters: query }));
+  @Get('plan-tasks/:taskId')
+  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'Get a single task plan by ID' })
+  @ApiForbiddenResponse({ description: 'Requires HR_MANAGER, ADMIN, or DEPARTMENT_HEAD role' })
+  @ApiParam({ name: 'taskId', description: 'TaskPlan UUID' })
+  getTaskPlan(@Param('taskId') id: string) {
+    return firstValueFrom(this.recruitingClient.send('task-plan.get', { id }));
+  }
+
+  @Patch('plan-tasks/:taskId')
+  @Roles(UserRole.HR_MANAGER)
+  @ApiOperation({ summary: 'Update a task plan (dates, assignee, notes)' })
+  @ApiForbiddenResponse({ description: 'Requires HR_MANAGER role' })
+  @ApiParam({ name: 'taskId', description: 'TaskPlan UUID' })
+  @ApiBody({ type: UpdateTaskPlanDto })
+  updateTaskPlan(@Param('taskId') id: string, @Body() body: UpdateTaskPlanDto) {
+    return firstValueFrom(this.recruitingClient.send('task-plan.update', { id, ...body }));
+  }
+
+  @Patch('plan-tasks/:taskId/status')
+  @Roles(UserRole.HR_MANAGER)
+  @ApiOperation({ summary: 'Update task completion status (PENDING → IN_PROGRESS → COMPLETED)' })
+  @ApiForbiddenResponse({ description: 'Requires HR_MANAGER role' })
+  @ApiParam({ name: 'taskId', description: 'TaskPlan UUID' })
+  @ApiBody({ type: UpdateTaskStatusDto })
+  updateTaskStatus(@Param('taskId') id: string, @Body() body: UpdateTaskStatusDto) {
+    return firstValueFrom(this.recruitingClient.send('task-plan.updateStatus', { id, status: body.status }));
   }
 }
