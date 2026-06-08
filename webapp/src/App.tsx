@@ -13,6 +13,7 @@ import { AdminApprovalQueue } from './pages/AdminApprovalQueue';
 import { AdminAllRequests } from './pages/AdminAllRequests';
 import { AdminSettings } from './pages/AdminSettings';
 import { AdminUsers } from './pages/AdminUsers';
+import { DeptHeadCreateRequest } from './pages/DeptHeadCreateRequest';
 import { DeptHeadDashboard } from './pages/DeptHeadDashboard';
 import { HrManagerDashboard } from './pages/HrManagerDashboard';
 import { CandidateDashboard } from './pages/CandidateDashboard';
@@ -162,7 +163,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.DEPARTMENT_HEAD]}>
                 <Layout>
-                  <PlaceholderPage title="Create Recruitment Request" description="Initiate a draft staffing request specifying headcount, position details, and skills." />
+                  <DeptHeadCreateRequest />
                 </Layout>
               </ProtectedRoute>
             }
