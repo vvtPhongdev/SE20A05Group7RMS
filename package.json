@@ -27,7 +27,7 @@
     "dev:recruiting": "npm --workspace=@wr/recruiting run dev",
     "dev:profiles": "npm --workspace=@wr/profiles run dev",
     "dev:cv": "npm --workspace=@wr/cv run dev",
-    "dev:review": "npm --workspace=@wr/review run dev",
+    "dev:notification": "npm --workspace=@wr/notification run dev",
     "dev:worker": "npm --workspace=@wr/worker run dev",
     "dev:interview": "npm --workspace=@wr/interview run dev",
     "dev:webapp": "npm --workspace=@wr/webapp run dev"
