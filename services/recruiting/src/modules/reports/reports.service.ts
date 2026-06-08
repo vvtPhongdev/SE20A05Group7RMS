@@ -493,4 +493,114 @@ export class ReportsService {
       breakdown,
     };
   }
+
+  async getHiringMetrics(payload: {
+    departmentId?: string;
+    startDate?: string;
+    endDate?: string;
+    period?: 'monthly' | 'quarterly' | 'yearly';
+  }) {
+    const { departmentId, startDate, endDate, period = 'monthly' } = payload;
+
+    const where: any = {};
+    if (departmentId) {
+      where.departmentId = departmentId;
+    }
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) {
+        where.createdAt.gte = new Date(startDate);
+      }
+      if (endDate) {
+        where.createdAt.lte = new Date(endDate);
+      }
+    }
+
+    const requests = await this.prisma.recruitmentRequest.findMany({
+      where,
+      include: {
+        applications: true,
+        offers: true,
+      },
+    });
+
+    const groups = new Map<string, typeof requests>();
+
+    for (const req of requests) {
+      const date = new Date(req.createdAt);
+      let periodKey = '';
+      if (period === 'yearly') {
+        periodKey = String(date.getFullYear());
+      } else if (period === 'quarterly') {
+        const quarter = Math.ceil((date.getMonth() + 1) / 3);
+        periodKey = `${date.getFullYear()}-Q${quarter}`;
+      } else {
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        periodKey = `${date.getFullYear()}-${month}`;
+      }
+
+      if (!groups.has(periodKey)) {
+        groups.set(periodKey, []);
+      }
+      groups.get(periodKey)!.push(req);
+    }
+
+    const parseCompensation = (compString: string | undefined | null): number => {
+      if (!compString) return 30000000;
+      const digitsOnly = compString.replace(/\D/g, '');
+      if (!digitsOnly) return 30000000;
+      const parsed = parseInt(digitsOnly, 10);
+      if (isNaN(parsed) || parsed <= 0) return 30000000;
+      return parsed < 100000 ? parsed * 1000000 : parsed;
+    };
+
+    const result = [];
+
+    for (const [periodKey, reqs] of groups.entries()) {
+      let totalRequested = 0;
+      let totalFilled = 0;
+      let totalCost = 0;
+      let timeToHireCount = 0;
+      let totalTimeToHireDays = 0;
+
+      for (const req of reqs) {
+        totalRequested += req.headcount;
+
+        const filledApps = req.applications.filter((a) => a.status === 'OFFER_ACCEPTED');
+        totalFilled += filledApps.length;
+
+        for (const app of filledApps) {
+          const offer = req.offers.find((o) => o.candidateId === app.candidateId);
+          const comp = offer ? offer.compensation : null;
+          const compVal = parseCompensation(comp);
+          totalCost += 15000000 + compVal * 0.1;
+        }
+
+        if (req.status === 'CLOSED' || req.status === 'OFFER_ACCEPTED') {
+          const timeToHireMs = req.updatedAt.getTime() - req.createdAt.getTime();
+          const timeToHireDays = Math.max(0, timeToHireMs / (1000 * 60 * 60 * 24));
+          totalTimeToHireDays += timeToHireDays;
+          timeToHireCount++;
+        }
+      }
+
+      const fillRate = totalRequested > 0 ? Number(((totalFilled / totalRequested) * 100).toFixed(2)) : 0;
+      const averageTimeToHireDays = timeToHireCount > 0 ? Number((totalTimeToHireDays / timeToHireCount).toFixed(2)) : 0;
+      const costPerHire = totalFilled > 0 ? Number((totalCost / totalFilled).toFixed(2)) : 0;
+
+      result.push({
+        period: periodKey,
+        totalRequested,
+        totalFilled,
+        fillRate,
+        averageTimeToHireDays,
+        totalCost,
+        costPerHire,
+      });
+    }
+
+    result.sort((a, b) => a.period.localeCompare(b.period));
+
+    return result;
+  }
 }

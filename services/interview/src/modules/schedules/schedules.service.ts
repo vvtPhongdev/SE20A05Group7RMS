@@ -276,6 +276,25 @@ export class SchedulesService {
       }),
     ]);
 
+    // Send in-app status update notification to Department Head
+    this.prisma.recruitmentRequest.findUnique({
+      where: { id: payload.requestId },
+      select: { createdById: true, position: true },
+    }).then((reqObj) => {
+      if (reqObj) {
+        this.notificationClient.send('notification.create_notification', {
+          userId: reqObj.createdById,
+          type: NotificationType.REQUEST_UPDATE,
+          title: 'Request status update: Interviewing',
+          body: `Recruitment request for ${reqObj.position} has transitioned to Interviewing.`,
+          relatedEntityId: payload.requestId,
+          relatedEntityType: 'RecruitmentRequest',
+        }).subscribe({
+          error: (err) => console.error('Failed to send status change notification on interview schedule:', err),
+        });
+      }
+    }).catch((err) => console.error('Failed to query request for interview scheduled notification:', err));
+
     return schedule;
   }
 

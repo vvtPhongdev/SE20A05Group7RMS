@@ -1,9 +1,14 @@
-import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, Inject, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
+import { NotificationType } from '@wr/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
 
 @Injectable()
 export class OverallPlanService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject('NOTIFICATION_SERVICE') private readonly notificationClient: ClientProxy,
+  ) {}
 
   async create(payload: {
     hiringRequestId: string;
@@ -53,7 +58,7 @@ export class OverallPlanService {
         },
         include: {
           createdBy: { select: { id: true, displayName: true } },
-          request: { select: { id: true, position: true, status: true } },
+          request: { select: { id: true, position: true, status: true, createdById: true } },
         },
       }),
       this.prisma.recruitmentRequest.update({
@@ -61,6 +66,28 @@ export class OverallPlanService {
         data: { status: 'PLANNING' },
       }),
     ]);
+
+    this.notificationClient.send('notification.create_notification', {
+      userId: plan.request.createdById,
+      type: NotificationType.REQUEST_UPDATE,
+      title: 'Request status update: Planning',
+      body: `Recruitment request for ${plan.request.position} has transitioned to Planning.`,
+      relatedEntityId: hiringRequestId,
+      relatedEntityType: 'RecruitmentRequest',
+    }).subscribe({
+      error: (err) => console.error('Failed to send dept head planning notification:', err),
+    });
+
+    this.notificationClient.send('notification.send_to_role', {
+      role: 'HR_MANAGER',
+      type: NotificationType.REQUEST_UPDATE,
+      title: 'Request status update: Planning',
+      body: `Recruitment request for ${plan.request.position} has transitioned to Planning.`,
+      relatedEntityId: hiringRequestId,
+      relatedEntityType: 'RecruitmentRequest',
+    }).subscribe({
+      error: (err) => console.error('Failed to send HR planning notification:', err),
+    });
 
     return plan;
   }

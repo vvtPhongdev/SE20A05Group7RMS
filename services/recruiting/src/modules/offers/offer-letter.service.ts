@@ -1,11 +1,12 @@
 import { InjectQueue } from '@nestjs/bullmq';
-import { HttpStatus, Injectable } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
+import { HttpStatus, Injectable, Inject } from '@nestjs/common';
+import { RpcException, ClientProxy } from '@nestjs/microservices';
 import {
   EmailStatus,
   OfferResponse,
   OfferStatus,
   RecruitmentRequestStatus,
+  NotificationType,
 } from '@wr/contracts';
 import { JOB_NAMES, QUEUE_NAMES } from '@wr/queue';
 import { Queue } from 'bullmq';
@@ -22,6 +23,7 @@ export class OfferLetterService {
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue(QUEUE_NAMES.EMAIL_SEND) private readonly emailQueue: Queue,
+    @Inject('NOTIFICATION_SERVICE') private readonly notificationClient: ClientProxy,
   ) {}
 
   async generate(
@@ -224,6 +226,30 @@ export class OfferLetterService {
       },
     );
 
+    // Send in-app notification to candidate
+    this.notificationClient.send('notification.create_notification', {
+      userId: offer.candidate.userId,
+      type: NotificationType.OFFER,
+      title: 'Offer Letter Received',
+      body: `An offer letter for the position of ${offer.positionTitle} has been sent to you. Please review and respond.`,
+      relatedEntityId: offer.id,
+      relatedEntityType: 'OfferLetter',
+    }).subscribe({
+      error: (err) => console.error('Failed to send candidate offer letter notification:', err),
+    });
+
+    // Send in-app status update notification to Department Head
+    this.notificationClient.send('notification.create_notification', {
+      userId: offer.request.createdById,
+      type: NotificationType.REQUEST_UPDATE,
+      title: `Offer letter sent for ${offer.positionTitle}`,
+      body: `An offer letter has been sent to the candidate for ${offer.positionTitle}.`,
+      relatedEntityId: offer.requestId,
+      relatedEntityType: 'RecruitmentRequest',
+    }).subscribe({
+      error: (err) => console.error('Failed to send dept head offer letter notification:', err),
+    });
+
     return { ...updatedOffer, emailLogId: emailLog.id };
   }
 
@@ -241,7 +267,7 @@ export class OfferLetterService {
 
     const offer = await this.prisma.offerLetter.findUnique({
       where: { id },
-      include: { candidate: true },
+      include: { candidate: true, request: true },
     });
     if (!offer) {
       throw new RpcException({
@@ -292,6 +318,42 @@ export class OfferLetterService {
         data: { status: requestStatus },
       }),
     ]);
+
+    // Send in-app status change notification to Department Head
+    this.notificationClient.send('notification.create_notification', {
+      userId: offer.request.createdById,
+      type: NotificationType.REQUEST_UPDATE,
+      title: `Offer ${accepted ? 'Accepted' : 'Declined'}`,
+      body: `The offer for ${offer.positionTitle} was ${accepted ? 'accepted' : 'declined'} by the candidate.`,
+      relatedEntityId: offer.requestId,
+      relatedEntityType: 'RecruitmentRequest',
+    }).subscribe({
+      error: (err) => console.error('Failed to send dept head offer response notification:', err),
+    });
+
+    // Send in-app status change notification to HR Manager role
+    this.notificationClient.send('notification.send_to_role', {
+      role: 'HR_MANAGER',
+      type: NotificationType.REQUEST_UPDATE,
+      title: `Offer ${accepted ? 'Accepted' : 'Declined'}`,
+      body: `The offer for ${offer.positionTitle} was ${accepted ? 'accepted' : 'declined'} by the candidate.`,
+      relatedEntityId: offer.requestId,
+      relatedEntityType: 'RecruitmentRequest',
+    }).subscribe({
+      error: (err) => console.error('Failed to send HR offer response notification:', err),
+    });
+
+    // Send in-app status change notification to ADMIN role
+    this.notificationClient.send('notification.send_to_role', {
+      role: 'ADMIN',
+      type: NotificationType.REQUEST_UPDATE,
+      title: `Offer ${accepted ? 'Accepted' : 'Declined'}`,
+      body: `The offer for ${offer.positionTitle} was ${accepted ? 'accepted' : 'declined'} by the candidate.`,
+      relatedEntityId: offer.requestId,
+      relatedEntityType: 'RecruitmentRequest',
+    }).subscribe({
+      error: (err) => console.error('Failed to send Admin offer response notification:', err),
+    });
 
     return updatedOffer;
   }

@@ -234,6 +234,17 @@ export class InterviewResultService {
       }).subscribe({
         error: (err) => console.error('Failed to send Admin review notifications:', err),
       });
+
+      this.notificationClient.send('notification.create_notification', {
+        userId: schedule.request.createdById,
+        type: NotificationType.REQUEST_UPDATE,
+        title: 'Request status update: Interview Completed',
+        body: `All interviews for recruitment request "${schedule.request.position}" have been completed.`,
+        relatedEntityId: schedule.requestId,
+        relatedEntityType: 'RecruitmentRequest',
+      }).subscribe({
+        error: (err) => console.error('Failed to send Dept Head review notifications:', err),
+      });
     }
 
     return recordedResult;
