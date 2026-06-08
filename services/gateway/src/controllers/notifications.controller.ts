@@ -1,9 +1,10 @@
-import { Controller, Get, Patch, Post, Param, Inject } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Param, Inject, Sse, MessageEvent } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SERVICE_TOKENS } from '../constants';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Observable } from 'rxjs';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { SseNotificationService } from '../services/sse-notification.service';
 
 @ApiTags('Notifications')
 @ApiBearerAuth()
@@ -11,7 +12,14 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 export class NotificationsController {
   constructor(
     @Inject(SERVICE_TOKENS.NOTIFICATION) private readonly notificationClient: ClientProxy,
+    private readonly sseNotificationService: SseNotificationService,
   ) {}
+
+  @Sse('sse')
+  @ApiOperation({ summary: 'Real-time notifications stream (SSE)' })
+  streamNotifications(@CurrentUser('sub') userId: string): Observable<MessageEvent> {
+    return this.sseNotificationService.getNotificationsForUser(userId);
+  }
 
   @Get()
   @ApiOperation({ summary: 'List user notifications' })
