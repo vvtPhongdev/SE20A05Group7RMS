@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Patch, Body, Param, Query, Inject } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty, ApiForbiddenResponse, ApiParam, ApiBody } from '@nestjs/swagger';
 import { SERVICE_TOKENS } from '../constants';
 import { firstValueFrom } from 'rxjs';
 import { Roles } from '../auth/decorators/roles.decorator';
