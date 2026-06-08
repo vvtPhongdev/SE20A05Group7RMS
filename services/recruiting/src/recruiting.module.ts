@@ -21,6 +21,8 @@ import { TaskPlanModule } from './modules/task-plan/task-plan.module';
     ReportsModule,
     TaskPlanModule,
   ],
+  controllers: [RecruitmentRequestsController],
+  providers: [RecruitmentRequestsService],
 })
 export class RecruitingModule {}
 
