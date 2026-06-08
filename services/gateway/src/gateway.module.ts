@@ -9,7 +9,6 @@ import { RecruitingController } from './controllers/recruiting.controller';
 import { ProfilesController } from './controllers/profiles.controller';
 import { ReviewController } from './controllers/review.controller';
 import { NotificationsController } from './controllers/notifications.controller';
-import { CvController } from './controllers/cv.controller';
 import { InterviewController } from './controllers/interview.controller';
 
 @Module({
@@ -42,11 +41,6 @@ import { InterviewController } from './controllers/interview.controller';
         options: { host: '127.0.0.1', port: SERVICE_PORTS.NOTIFICATION },
       },
       {
-        name: SERVICE_TOKENS.CV,
-        transport: Transport.TCP,
-        options: { host: '127.0.0.1', port: SERVICE_PORTS.CV },
-      },
-      {
         name: SERVICE_TOKENS.INTERVIEW,
         transport: Transport.TCP,
         options: { host: '127.0.0.1', port: SERVICE_PORTS.INTERVIEW },
@@ -61,7 +55,6 @@ import { InterviewController } from './controllers/interview.controller';
     ProfilesController,
     ReviewController,
     NotificationsController,
-    CvController,
     InterviewController,
   ],
 })

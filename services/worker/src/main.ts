@@ -5,6 +5,8 @@ config({ path: resolve(__dirname, '../../../.env') });
 import { Worker } from 'bullmq';
 import { QUEUE_NAMES } from '@wr/queue';
 import Redis from 'ioredis';
+import { processCvParseJob as cvParseProcessor } from './processors/cv-parse.processor';
+import { processCvEmbeddingJob as embeddingProcessor } from './processors/cv-embedding.processor';
 
 /**
  * Worker bootstrap — starts BullMQ workers for each queue.
