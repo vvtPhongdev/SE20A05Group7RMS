@@ -235,6 +235,7 @@ export const UpdateInterviewScheduleSchema = CreateInterviewScheduleSchema.parti
 
 export const CreateInterviewResultSchema = z.object({
   interviewId: z.string().uuid(),
+  evaluatorId: z.string().uuid(),
   result: z.nativeEnum(InterviewResult),
   notes: z.string().optional().nullable(),
 });

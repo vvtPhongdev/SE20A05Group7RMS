@@ -7,6 +7,9 @@ import {
   PlanStatus,
   RecruitmentRequestStatus,
   TaskType,
+  NotificationType,
+  EmailStatus,
+  UserRole,
 } from '@wr/contracts';
 
 // Statuses that confirm the request has cleared initial approval and is active.
@@ -287,13 +290,22 @@ export class SchedulesService {
     });
   }
 
-  // ─── FR-14: Record interview result ──────────────────────────────────
+  // ─── FR-14/FR-15: Record interview result & advance pipeline ─────────
 
   /**
-   * FR-14: Record PASS/FAIL result with mandatory panel notes after the interview.
-   * Marks the InterviewSchedule as COMPLETED atomically in the same transaction.
+   * FR-14/FR-15: Records PASS/FAIL with mandatory notes and the evaluator
+   * who made the call. Marks the interview COMPLETED, advances the
+   * candidate's Application pipeline on FAIL (→ REJECTED, with the
+   * rejection workflow triggered immediately), and escalates to every
+   * Admin to make the final hiring decision on PASS — all atomically in
+   * one transaction so the pipeline status never drifts from the result.
    */
-  async recordResult(payload: { interviewId: string; result: string; notes: string }) {
+  async recordResult(payload: {
+    interviewId: string;
+    evaluatorId: string;
+    result: string;
+    notes: string;
+  }) {
     const schedule = await this.prisma.interviewSchedule.findUnique({
       where: { id: payload.interviewId },
     });
@@ -327,20 +339,168 @@ export class SchedulesService {
       });
     }
 
+    const evaluator = await this.prisma.user.findUnique({
+      where: { id: payload.evaluatorId },
+      select: { id: true, displayName: true },
+    });
+
+    if (!evaluator) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Evaluator ${payload.evaluatorId} not found`,
+      });
+    }
+
+    // Resolve everyone the result needs to flow to before the transaction.
+    const [candidateProfile, application, admins] = await Promise.all([
+      this.prisma.candidateProfile.findUnique({
+        where: { id: schedule.candidateId },
+        select: { userId: true, fullName: true, email: true },
+      }),
+      this.prisma.application.findUnique({
+        where: {
+          requestId_candidateId: {
+            requestId: schedule.requestId,
+            candidateId: schedule.candidateId,
+          },
+        },
+      }),
+      this.prisma.user.findMany({
+        where: { role: UserRole.ADMIN },
+        select: { id: true },
+      }),
+    ]);
+
+    const passed = payload.result === InterviewResult.PASS;
+    const trimmedNotes = payload.notes.trim();
+    const scheduledDateStr = schedule.scheduledAt.toLocaleString('en-GB', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      dateStyle: 'full',
+      timeStyle: 'short',
+    });
+
+    // ─── Workflow copy ──────────────────────────────────────────────
+    const rejectionEmailSubject = `Update on your application — interview held ${scheduledDateStr} (ICT)`;
+    const buildRejectionEmailBody = (name: string) =>
+      [
+        `Dear ${name},`,
+        '',
+        `Thank you for taking the time to interview with us on ${scheduledDateStr} (ICT).`,
+        '',
+        'After careful review of your interview, we have decided not to move forward with your application for this position.',
+        '',
+        'We appreciate your interest and wish you success in your future endeavours.',
+        '',
+        'Best regards,',
+        'HR Team — Recruitment Management System',
+      ].join('\n');
+
+    const candidateNotificationBody = `Your interview on ${scheduledDateStr} (ICT) has concluded. The hiring team has decided not to move forward with your application at this time.`;
+
+    const adminNotificationTitle = passed
+      ? 'Candidate Passed Interview — Final Decision Needed'
+      : 'Interview Result Recorded — Candidate Not Selected';
+    const adminNotificationBody = passed
+      ? `${candidateProfile?.fullName ?? 'The candidate'} PASSED the interview on ${scheduledDateStr} (ICT) (evaluator: ${evaluator.displayName}). Awaiting your final hiring decision (FR-15).`
+      : `${candidateProfile?.fullName ?? 'The candidate'} did NOT pass the interview on ${scheduledDateStr} (ICT) (evaluator: ${evaluator.displayName}). Notes: ${trimmedNotes}`;
+
+    const nextPipelineStatus = !passed ? RecruitmentRequestStatus.REJECTED : (application?.status ?? null);
+
+    // Atomic transaction: persist result + complete schedule + advance
+    // pipeline + notify + log timeline — a partial failure must never
+    // leave the candidate's pipeline status out of sync with the result.
     const [result] = await this.prisma.$transaction([
+      // 1. Persist the result with evaluator attribution
       this.prisma.interviewResult.create({
         data: {
           interviewId: payload.interviewId,
+          evaluatorId: payload.evaluatorId,
           result: payload.result,
-          notes: payload.notes.trim(),
+          notes: trimmedNotes,
         },
       }),
+
+      // 2. Mark the interview COMPLETED
       this.prisma.interviewSchedule.update({
         where: { id: payload.interviewId },
         data: { status: InterviewStatus.COMPLETED },
       }),
+
+      // 3. Candidate pipeline status — FAIL moves the Application to
+      //    REJECTED immediately; PASS is left for Admin's FR-15 decision
+      //    rather than prematurely advancing toward an offer.
+      ...(!passed && application
+        ? [
+            this.prisma.application.update({
+              where: { id: application.id },
+              data: { status: RecruitmentRequestStatus.REJECTED },
+            }),
+          ]
+        : []),
+
+      // 4. Candidate-facing rejection workflow — only on FAIL. A PASS
+      //    awaits Admin's decision before any candidate communication
+      //    is sent (avoids promising an outcome HR hasn't approved yet).
+      ...(!passed && candidateProfile
+        ? [
+            this.prisma.notification.create({
+              data: {
+                userId: candidateProfile.userId,
+                type: NotificationType.REJECTION,
+                title: 'Interview Result Recorded',
+                body: candidateNotificationBody,
+                relatedEntityId: payload.interviewId,
+                relatedEntityType: 'InterviewSchedule',
+              },
+            }),
+            this.prisma.emailLog.create({
+              data: {
+                toEmail: candidateProfile.email,
+                subject: rejectionEmailSubject,
+                body: buildRejectionEmailBody(candidateProfile.fullName),
+                status: EmailStatus.PENDING,
+              },
+            }),
+          ]
+        : []),
+
+      // 5. Escalate to every Admin — triggers the FR-15 final hiring
+      //    decision workflow regardless of outcome.
+      ...admins.map((admin: { id: string }) =>
+        this.prisma.notification.create({
+          data: {
+            userId: admin.id,
+            type: NotificationType.SYSTEM,
+            title: adminNotificationTitle,
+            body: adminNotificationBody,
+            relatedEntityId: payload.interviewId,
+            relatedEntityType: 'InterviewSchedule',
+          },
+        }),
+      ),
+
+      // 6. Timeline entry on the parent recruitment request.
+      this.prisma.requestLog.create({
+        data: {
+          requestId: schedule.requestId,
+          action: 'INTERVIEW_RESULT_RECORDED',
+          fromStatus: application?.status ?? null,
+          toStatus: nextPipelineStatus,
+          performedById: payload.evaluatorId,
+          metadata: {
+            interviewId: payload.interviewId,
+            result: payload.result,
+            notes: trimmedNotes,
+            evaluatorId: payload.evaluatorId,
+          },
+        },
+      }),
     ]);
 
-    return result;
+    return {
+      result,
+      pipelineStatus: nextPipelineStatus,
+      escalatedToAdmins: admins.length,
+    };
   }
 }

@@ -37,10 +37,11 @@ export class SchedulesController {
     return this.schedulesService.cancelSchedule(payload);
   }
 
-  /** FR-14: Record PASS/FAIL result with mandatory panel notes. */
+  /** T-053 (FR-14/FR-15): Record PASS/FAIL with evaluator; advances pipeline + triggers next-step workflow. */
   @MessagePattern('interview.record_result')
   async recordResult(
-    @Payload() payload: { interviewId: string; result: string; notes: string },
+    @Payload()
+    payload: { interviewId: string; evaluatorId: string; result: string; notes: string },
   ) {
     return this.schedulesService.recordResult(payload);
   }

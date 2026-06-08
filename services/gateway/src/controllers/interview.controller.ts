@@ -4,6 +4,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SERVICE_TOKENS } from '../constants';
 import { firstValueFrom } from 'rxjs';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole } from '@wr/contracts';
 
 @ApiTags('Interviews')
@@ -82,17 +83,21 @@ export class InterviewController {
     );
   }
 
-  // ─── Results (FR-14) ──────────────────────────────────────────────
+  // ─── Results (T-053 / FR-14 + FR-15) ──────────────────────────────
 
   @Post('schedules/:id/results')
   @Roles(UserRole.HR_MANAGER)
-  @ApiOperation({ summary: 'FR-14: Record interview result (PASS/FAIL) with panel notes' })
+  @ApiOperation({
+    summary:
+      'T-053: Record interview result (PASS/FAIL) with notes — advances candidate pipeline and triggers next-step workflow (FR-14/FR-15)',
+  })
   recordResult(
     @Param('id') interviewId: string,
     @Body() body: { result: string; notes: string },
+    @CurrentUser('sub') evaluatorId: string,
   ) {
     return firstValueFrom(
-      this.interviewClient.send('interview.record_result', { interviewId, ...body }),
+      this.interviewClient.send('interview.record_result', { interviewId, evaluatorId, ...body }),
     );
   }
 }

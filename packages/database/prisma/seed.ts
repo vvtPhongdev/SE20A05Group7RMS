@@ -276,6 +276,7 @@ async function main() {
   await prisma.interviewResult.create({
     data: {
       interviewId: interview.id,
+      evaluatorId: hrManager.id,
       result: 'PASS',
       notes: 'Excellent coding skills. Deep knowledge of microservices and SQL.',
     },

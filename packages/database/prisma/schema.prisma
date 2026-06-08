@@ -46,6 +46,7 @@ model User {
   tasksAssigned    TaskPlan[]
   notifications    Notification[]
   emails           EmailLog[]
+  interviewResultsEvaluated InterviewResult[]
 
   @@index([organizationId], map: "idx_users_organization")
   @@index([departmentId], map: "idx_users_department")
@@ -311,14 +312,17 @@ model InterviewSchedule {
 model InterviewResult {
   id          String   @id @default(uuid())
   interviewId String   @map("interview_id")
+  evaluatorId String   @map("evaluator_id")
   result      String   // InterviewResult enum: PASS, FAIL
   notes       String?  @db.Text
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   interview InterviewSchedule @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  evaluator User              @relation(fields: [evaluatorId], references: [id], onDelete: Cascade)
 
   @@index([interviewId], map: "idx_interview_results_interview")
+  @@index([evaluatorId], map: "idx_interview_results_evaluator")
   @@map("interview_results")
 }
 
