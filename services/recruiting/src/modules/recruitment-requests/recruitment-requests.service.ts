@@ -15,6 +15,7 @@ export interface RecruitmentRequest {
   status: RecruitmentRequestStatus;
   createdAt: string;
   approvals: ApprovalRecord[];
+  feedback?: string;
 }
 
 export interface ApprovalRecord {
@@ -28,13 +29,14 @@ export interface ApprovalRecord {
 export class RecruitmentRequestsService {
   private store = new Map<string, RecruitmentRequest>();
 
-  reject(id: string, approverId: string, reason: string) {
-    if (!reason) throw new BadRequestException('Rejection reason is required');
+  requestRevision(id: string, approverId: string, feedback: string) {
+    if (!feedback) throw new BadRequestException('Feedback is required for revision request');
     const req = this.store.get(id);
     if (!req) throw new NotFoundException('Request not found');
     if (!req.approvals) req.approvals = [];
-    req.approvals.push({ actorId: approverId, action: 'REJECT', reason, timestamp: new Date().toISOString() });
-    req.status = RecruitmentRequestStatus.REJECTED;
+    req.approvals.push({ actorId: approverId, action: 'REQUEST_REVISION', reason: feedback, timestamp: new Date().toISOString() });
+    req.status = RecruitmentRequestStatus.REVISION_NEEDED;
+    req.feedback = feedback;
     return req;
   }
 }

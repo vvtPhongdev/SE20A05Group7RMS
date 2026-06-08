@@ -6,8 +6,8 @@ import { RecruitmentRequestsService } from './recruitment-requests.service';
 export class RecruitmentRequestsController {
   constructor(private readonly service: RecruitmentRequestsService) {}
 
-  @MessagePattern('recruiting.request.reject')
-  reject(@Payload() payload: { id: string; approverId: string; reason: string }) {
-    return this.service.reject(payload.id, payload.approverId, payload.reason);
+  @MessagePattern('recruiting.request.request_revision')
+  requestRevision(@Payload() payload: { id: string; approverId: string; feedback: string }) {
+    return this.service.requestRevision(payload.id, payload.approverId, payload.feedback);
   }
 }
