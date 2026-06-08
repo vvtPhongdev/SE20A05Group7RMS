@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { RecruitmentRequestStatus } from '@wr/contracts';
+import { Injectable } from '@nestjs/common';
+import { RecruitmentRequestStatus, UserRole } from '@wr/contracts';
 
 export type UUID = string;
 
@@ -14,29 +14,36 @@ export interface RecruitmentRequest {
   createdBy: string;
   status: RecruitmentRequestStatus;
   createdAt: string;
-  approvals: ApprovalRecord[];
-  feedback?: string;
-}
-
-export interface ApprovalRecord {
-  actorId: string;
-  action: 'APPROVE' | 'REJECT' | 'REQUEST_REVISION';
-  reason?: string;
-  timestamp: string;
 }
 
 @Injectable()
 export class RecruitmentRequestsService {
   private store = new Map<string, RecruitmentRequest>();
 
-  requestRevision(id: string, approverId: string, feedback: string) {
-    if (!feedback) throw new BadRequestException('Feedback is required for revision request');
-    const req = this.store.get(id);
-    if (!req) throw new NotFoundException('Request not found');
-    if (!req.approvals) req.approvals = [];
-    req.approvals.push({ actorId: approverId, action: 'REQUEST_REVISION', reason: feedback, timestamp: new Date().toISOString() });
-    req.status = RecruitmentRequestStatus.REVISION_NEEDED;
-    req.feedback = feedback;
-    return req;
+  list(_actorId: string, actorRole: UserRole, filters?: { status?: RecruitmentRequestStatus; departmentId?: string; from?: string; to?: string }) {
+    const items = Array.from(this.store.values());
+    let result = items;
+    // role-based filtering
+    if (actorRole === UserRole.DEPARTMENT_HEAD) {
+      result = result.filter(r => r.departmentId === (filters?.departmentId ?? r.departmentId));
+    } else if (actorRole === UserRole.HR_MANAGER) {
+      // HR Manager sees all active campaigns (exclude CLOSED/CANCELLED)
+      result = result.filter(r => r.status !== RecruitmentRequestStatus.CLOSED && r.status !== RecruitmentRequestStatus.CANCELLED);
+    } else if (actorRole === UserRole.ADMIN) {
+      // admin sees everything
+    } else {
+      // other roles see nothing
+      result = [];
+    }
+
+    if (filters?.status) result = result.filter(r => r.status === filters.status);
+    if (filters?.departmentId) result = result.filter(r => r.departmentId === filters.departmentId);
+
+    const from = filters?.from;
+    const to = filters?.to;
+    if (from) result = result.filter(r => r.createdAt >= from);
+    if (to) result = result.filter(r => r.createdAt <= to);
+
+    return result;
   }
 }
