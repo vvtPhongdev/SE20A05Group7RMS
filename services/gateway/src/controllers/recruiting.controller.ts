@@ -74,11 +74,6 @@ export class UpdateJobPostingDto {
   status?: string;
 }
 
-export class RejectPlanDto {
-  @ApiProperty({ description: 'Mandatory reason for rejection / revision request' })
-  reason!: string;
-}
-
 /**
  * Thin proxy controller for Recruiting service (roles, applications, invites, evaluations).
  */
@@ -264,37 +259,54 @@ export class RecruitingController {
     return firstValueFrom(this.recruitingClient.send('recruiting.pipeline_overview', {}));
   }
 
-  // ─── Overall Plan Approval/Rejection ──────────────────────────────
+  // ─── Recruitment Requests ─────────────────────────────────────────
 
-  @Post('recruiting/requests/:id/plan/approve')
-  @Roles(UserRole.ADMIN)
-  @ApiOperation({
-    summary: 'Approve the overall recruitment plan',
-    description: 'Plan → APPROVED, HiringRequest → ACTIVE (downstream unlocked). Must be PENDING_APPROVAL.',
-  })
-  @ApiForbiddenResponse({ description: 'Requires ADMIN role' })
-  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
-  approveOverallPlan(
-    @Param('id') hiringRequestId: string,
-    @CurrentUser('sub') approverId: string,
-  ) {
-    return firstValueFrom(this.recruitingClient.send('overall-plan.approve', { hiringRequestId, approverId }));
+  @Post('recruiting/requests')
+  @Roles(UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'Create recruitment request' })
+  createRecruitmentRequest(@Body() body: any, @CurrentUser() user: any) {
+    return firstValueFrom(this.recruitingClient.send('recruiting.request.create', { ...body, createdBy: user.sub }));
   }
 
-  @Post('recruiting/requests/:id/plan/reject')
+  @Patch('recruiting/requests/:id')
+  @Roles(UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'Update recruitment request' })
+  updateRecruitmentRequest(@Param('id') id: string, @Body() body: any, @CurrentUser() user: any) {
+    return firstValueFrom(this.recruitingClient.send('recruiting.request.update', { id, actorId: user.sub, updates: body }));
+  }
+
+  @Post('recruiting/requests/:id/submit')
+  @Roles(UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'Submit recruitment request' })
+  submitRecruitmentRequest(@Param('id') id: string, @CurrentUser() user: any) {
+    return firstValueFrom(this.recruitingClient.send('recruiting.request.submit', { id, actorId: user.sub }));
+  }
+
+  @Post('recruiting/requests/:id/approve')
   @Roles(UserRole.ADMIN)
-  @ApiOperation({
-    summary: 'Reject the overall recruitment plan — requires reason, notifies HR',
-    description: 'Plan → REVISION_REQUIRED, revisionNotes set. HiringRequest stays PLANNING. Must be PENDING_APPROVAL.',
-  })
-  @ApiForbiddenResponse({ description: 'Requires ADMIN role' })
-  @ApiParam({ name: 'id', description: 'Hiring request UUID' })
-  @ApiBody({ type: RejectPlanDto })
-  rejectOverallPlan(
-    @Param('id') hiringRequestId: string,
-    @Body() body: RejectPlanDto,
-    @CurrentUser('sub') approverId: string,
-  ) {
-    return firstValueFrom(this.recruitingClient.send('overall-plan.reject', { hiringRequestId, approverId, reason: body.reason }));
+  @ApiOperation({ summary: 'Approve recruitment request' })
+  approveRecruitmentRequest(@Param('id') id: string, @CurrentUser() user: any) {
+    return firstValueFrom(this.recruitingClient.send('recruiting.request.approve', { id, approverId: user.sub, approverRole: user.role }));
+  }
+
+  @Post('recruiting/requests/:id/reject')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Reject recruitment request' })
+  rejectRecruitmentRequest(@Param('id') id: string, @Body() body: { reason: string }, @CurrentUser() user: any) {
+    return firstValueFrom(this.recruitingClient.send('recruiting.request.reject', { id, approverId: user.sub, reason: body.reason }));
+  }
+
+  @Post('recruiting/requests/:id/request-revision')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Request revision for recruitment request' })
+  requestRevisionRecruitmentRequest(@Param('id') id: string, @Body() body: { feedback: string }, @CurrentUser() user: any) {
+    return firstValueFrom(this.recruitingClient.send('recruiting.request.request_revision', { id, approverId: user.sub, feedback: body.feedback }));
+  }
+
+  @Get('recruiting/requests')
+  @Roles(UserRole.DEPARTMENT_HEAD, UserRole.HR_MANAGER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'List recruitment requests' })
+  listRecruitmentRequests(@Query() query: any, @CurrentUser() user: any) {
+    return firstValueFrom(this.recruitingClient.send('recruiting.request.list', { actorId: user.sub, actorRole: user.role, filters: query }));
   }
 }
