@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import { SchedulesController } from './schedules.controller';
-import { SchedulesService } from './schedules.service';
+import { DatabaseModule } from '../../common/database/database.module';
+import { ResultsController } from './results.controller';
+import { InterviewResultService } from './interview-result.service';
 
 @Module({
   imports: [
+    DatabaseModule,
     ClientsModule.register([
       {
         name: 'NOTIFICATION_SERVICE',
@@ -16,8 +18,8 @@ import { SchedulesService } from './schedules.service';
       },
     ]),
   ],
-  controllers: [SchedulesController],
-  providers: [SchedulesService],
-  exports: [SchedulesService],
+  controllers: [ResultsController],
+  providers: [InterviewResultService],
+  exports: [InterviewResultService],
 })
-export class SchedulesModule {}
+export class ResultsModule {}

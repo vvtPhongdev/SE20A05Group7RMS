@@ -1,14 +1,12 @@
-import { Injectable, HttpStatus } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
+import { Injectable, HttpStatus, Inject } from '@nestjs/common';
+import { RpcException, ClientProxy } from '@nestjs/microservices';
 import { PrismaService } from '../../common/database/prisma.service';
 import {
   InterviewStatus,
-  InterviewResult,
   PlanStatus,
   RecruitmentRequestStatus,
   TaskType,
   NotificationType,
-  EmailStatus,
 } from '@wr/contracts';
 
 // Statuses that confirm the request has cleared initial approval and is active.
@@ -34,7 +32,10 @@ interface ConflictEntry {
 
 @Injectable()
 export class SchedulesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject('NOTIFICATION_SERVICE') private readonly notificationClient: ClientProxy,
+  ) {}
 
   // ─── Plan-lock guard (FR-07) ─────────────────────────────────────────
 
@@ -219,18 +220,63 @@ export class SchedulesService {
       });
     }
 
-    return this.prisma.interviewSchedule.create({
-      data: {
-        requestId: payload.requestId,
-        candidateId: payload.candidateId,
-        scheduledAt,
-        duration: payload.duration,
-        location: payload.location,
-        interviewers: payload.interviewers,
-        status: InterviewStatus.SCHEDULED,
+    // Check if application exists
+    const application = await this.prisma.application.findUnique({
+      where: {
+        requestId_candidateId: {
+          requestId: payload.requestId,
+          candidateId: payload.candidateId,
+        },
       },
-      include: { results: true },
     });
+
+    if (!application) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Application for candidate ${payload.candidateId} not found for this recruitment request`,
+      });
+    }
+
+    const [schedule] = await this.prisma.$transaction([
+      this.prisma.interviewSchedule.create({
+        data: {
+          requestId: payload.requestId,
+          candidateId: payload.candidateId,
+          scheduledAt,
+          duration: payload.duration,
+          location: payload.location,
+          interviewers: payload.interviewers,
+          status: InterviewStatus.SCHEDULED,
+        },
+        include: { results: true },
+      }),
+      this.prisma.application.update({
+        where: {
+          requestId_candidateId: {
+            requestId: payload.requestId,
+            candidateId: payload.candidateId,
+          },
+        },
+        data: { status: RecruitmentRequestStatus.INTERVIEWING },
+      }),
+      this.prisma.recruitmentRequest.update({
+        where: { id: payload.requestId },
+        data: { status: RecruitmentRequestStatus.INTERVIEWING },
+      }),
+      this.prisma.requestLog.create({
+        data: {
+          requestId: payload.requestId,
+          action: 'INTERVIEW_SCHEDULED',
+          performedById: payload.interviewers[0] || 'SYSTEM',
+          metadata: {
+            candidateId: payload.candidateId,
+            scheduledAt: scheduledAt.toISOString(),
+          },
+        },
+      }),
+    ]);
+
+    return schedule;
   }
 
   async getSchedule(id: string) {
@@ -349,63 +395,7 @@ export class SchedulesService {
         data: { status: InterviewStatus.CANCELLED },
       }),
 
-      // 2. EmailLog — candidate
-      ...(candidateProfile
-        ? [
-            this.prisma.emailLog.create({
-              data: {
-                toEmail: candidateProfile.email,
-                subject: emailSubject,
-                body: buildEmailBody(candidateProfile.fullName, 'Candidate'),
-                status: EmailStatus.PENDING,
-              },
-            }),
-          ]
-        : []),
-
-      // 2. EmailLog — interviewers
-      ...interviewerUsers.map((u) =>
-        this.prisma.emailLog.create({
-          data: {
-            toEmail: u.email,
-            subject: emailSubject,
-            body: buildEmailBody(u.displayName, 'Interviewer'),
-            status: EmailStatus.PENDING,
-          },
-        }),
-      ),
-
-      // 3. In-app Notification — candidate
-      ...(candidateProfile
-        ? [
-            this.prisma.notification.create({
-              data: {
-                userId: candidateProfile.userId,
-                type: NotificationType.SYSTEM,
-                title: notificationTitle,
-                body: buildNotificationBody('Candidate'),
-                relatedEntityId: payload.id,
-                relatedEntityType: 'InterviewSchedule',
-              },
-            }),
-          ]
-        : []),
-
-      // 3. In-app Notification — interviewers
-      ...interviewerUsers.map((u) =>
-        this.prisma.notification.create({
-          data: {
-            userId: u.id,
-            type: NotificationType.SYSTEM,
-            title: notificationTitle,
-            body: buildNotificationBody('Interviewer'),
-            relatedEntityId: payload.id,
-            relatedEntityType: 'InterviewSchedule',
-          },
-        }),
-      ),
-
-      // 4. RequestLog — update parent request timeline
+      // 2. RequestLog — update parent request timeline
       this.prisma.requestLog.create({
         data: {
           requestId: schedule.requestId,
@@ -419,6 +409,51 @@ export class SchedulesService {
         },
       }),
     ]);
+
+    // Send emails and notifications asynchronously via microservice
+    if (candidateProfile) {
+      this.notificationClient.send('notification.send_email', {
+        userId: candidateProfile.userId,
+        toEmail: candidateProfile.email,
+        subject: emailSubject,
+        body: buildEmailBody(candidateProfile.fullName, 'Candidate'),
+      }).subscribe({
+        error: (err) => console.error('Failed to send candidate cancellation email:', err),
+      });
+
+      this.notificationClient.send('notification.create_notification', {
+        userId: candidateProfile.userId,
+        type: NotificationType.SYSTEM,
+        title: notificationTitle,
+        body: buildNotificationBody('Candidate'),
+        relatedEntityId: payload.id,
+        relatedEntityType: 'InterviewSchedule',
+      }).subscribe({
+        error: (err) => console.error('Failed to send candidate cancellation notification:', err),
+      });
+    }
+
+    for (const u of interviewerUsers) {
+      this.notificationClient.send('notification.send_email', {
+        userId: u.id,
+        toEmail: u.email,
+        subject: emailSubject,
+        body: buildEmailBody(u.displayName, 'Interviewer'),
+      }).subscribe({
+        error: (err) => console.error(`Failed to send interviewer ${u.email} cancellation email:`, err),
+      });
+
+      this.notificationClient.send('notification.create_notification', {
+        userId: u.id,
+        type: NotificationType.SYSTEM,
+        title: notificationTitle,
+        body: buildNotificationBody('Interviewer'),
+        relatedEntityId: payload.id,
+        relatedEntityType: 'InterviewSchedule',
+      }).subscribe({
+        error: (err) => console.error(`Failed to send interviewer ${u.email} cancellation notification:`, err),
+      });
+    }
 
     return {
       schedule: updatedSchedule,
@@ -587,63 +622,65 @@ export class SchedulesService {
           status: InterviewStatus.RESCHEDULED,
         },
       }),
-
-      // EmailLog — candidate
-      ...(candidateProfile
-        ? [
-            this.prisma.emailLog.create({
-              data: {
-                toEmail: candidateProfile.email,
-                subject: emailSubject,
-                body: buildEmailBody(candidateProfile.fullName, 'Candidate'),
-                status: EmailStatus.PENDING,
-              },
-            }),
-          ]
-        : []),
-
-      // EmailLog — interviewers
-      ...interviewerUsers.map((u) =>
-        this.prisma.emailLog.create({
-          data: {
-            toEmail: u.email,
-            subject: emailSubject,
-            body: buildEmailBody(u.displayName, 'Interviewer'),
-            status: EmailStatus.PENDING,
+      this.prisma.requestLog.create({
+        data: {
+          requestId: existing.requestId,
+          action: 'INTERVIEW_RESCHEDULED',
+          performedById: payload.interviewers[0] || 'SYSTEM',
+          metadata: {
+            interviewId: payload.id,
+            reason: payload.reason.trim(),
+            oldScheduledAt: existing.scheduledAt.toISOString(),
+            newScheduledAt: newStart.toISOString(),
           },
-        }),
-      ),
-
-      // In-app Notification — candidate
-      ...(candidateProfile
-        ? [
-            this.prisma.notification.create({
-              data: {
-                userId: candidateProfile.userId,
-                type: NotificationType.INTERVIEW_INVITE,
-                title: notificationTitle,
-                body: buildNotificationBody('Candidate'),
-                relatedEntityId: payload.id,
-                relatedEntityType: 'InterviewSchedule',
-              },
-            }),
-          ]
-        : []),
-
-      // In-app Notification — interviewers
-      ...interviewerUsers.map((u) =>
-        this.prisma.notification.create({
-          data: {
-            userId: u.id,
-            type: NotificationType.INTERVIEW_INVITE,
-            title: notificationTitle,
-            body: buildNotificationBody('Interviewer'),
-            relatedEntityId: payload.id,
-            relatedEntityType: 'InterviewSchedule',
-          },
-        }),
-      ),
+        },
+      }),
     ]);
+
+    // Send emails and notifications asynchronously via microservice
+    if (candidateProfile) {
+      this.notificationClient.send('notification.send_email', {
+        userId: candidateProfile.userId,
+        toEmail: candidateProfile.email,
+        subject: emailSubject,
+        body: buildEmailBody(candidateProfile.fullName, 'Candidate'),
+      }).subscribe({
+        error: (err) => console.error('Failed to send candidate reschedule email:', err),
+      });
+
+      this.notificationClient.send('notification.create_notification', {
+        userId: candidateProfile.userId,
+        type: NotificationType.INTERVIEW_INVITE,
+        title: notificationTitle,
+        body: buildNotificationBody('Candidate'),
+        relatedEntityId: payload.id,
+        relatedEntityType: 'InterviewSchedule',
+      }).subscribe({
+        error: (err) => console.error('Failed to send candidate reschedule notification:', err),
+      });
+    }
+
+    for (const u of interviewerUsers) {
+      this.notificationClient.send('notification.send_email', {
+        userId: u.id,
+        toEmail: u.email,
+        subject: emailSubject,
+        body: buildEmailBody(u.displayName, 'Interviewer'),
+      }).subscribe({
+        error: (err) => console.error(`Failed to send interviewer ${u.email} reschedule email:`, err),
+      });
+
+      this.notificationClient.send('notification.create_notification', {
+        userId: u.id,
+        type: NotificationType.INTERVIEW_INVITE,
+        title: notificationTitle,
+        body: buildNotificationBody('Interviewer'),
+        relatedEntityId: payload.id,
+        relatedEntityType: 'InterviewSchedule',
+      }).subscribe({
+        error: (err) => console.error(`Failed to send interviewer ${u.email} reschedule notification:`, err),
+      });
+    }
 
     return {
       schedule: updatedSchedule,
@@ -652,62 +689,5 @@ export class SchedulesService {
         interviewers: interviewerUsers.map((u) => u.email),
       },
     };
-  }
-
-  // ─── FR-14: Record interview result ──────────────────────────────────
-
-  /**
-   * FR-14: Record PASS/FAIL result with mandatory panel notes after the interview.
-   * Marks the InterviewSchedule as COMPLETED atomically in the same transaction.
-   */
-  async recordResult(payload: { interviewId: string; result: string; notes: string }) {
-    const schedule = await this.prisma.interviewSchedule.findUnique({
-      where: { id: payload.interviewId },
-    });
-
-    if (!schedule) {
-      throw new RpcException({
-        status: HttpStatus.NOT_FOUND,
-        message: `Interview schedule ${payload.interviewId} not found`,
-      });
-    }
-
-    if (schedule.status === InterviewStatus.CANCELLED) {
-      throw new RpcException({
-        status: HttpStatus.CONFLICT,
-        message: 'Cannot record a result for a cancelled interview',
-      });
-    }
-
-    const validResults = Object.values(InterviewResult) as string[];
-    if (!validResults.includes(payload.result)) {
-      throw new RpcException({
-        status: HttpStatus.BAD_REQUEST,
-        message: `result must be one of: ${validResults.join(', ')}`,
-      });
-    }
-
-    if (!payload.notes?.trim()) {
-      throw new RpcException({
-        status: HttpStatus.BAD_REQUEST,
-        message: 'notes are mandatory when recording an interview result',
-      });
-    }
-
-    const [result] = await this.prisma.$transaction([
-      this.prisma.interviewResult.create({
-        data: {
-          interviewId: payload.interviewId,
-          result: payload.result,
-          notes: payload.notes.trim(),
-        },
-      }),
-      this.prisma.interviewSchedule.update({
-        where: { id: payload.interviewId },
-        data: { status: InterviewStatus.COMPLETED },
-      }),
-    ]);
-
-    return result;
   }
 }
