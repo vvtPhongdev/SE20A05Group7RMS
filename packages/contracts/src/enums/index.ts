@@ -75,6 +75,12 @@ export enum InterviewResult {
   PASS = 'PASS',
   FAIL = 'FAIL',
 }
+
+export enum HiringDecision {
+  HIRE = 'HIRE',
+  REJECT = 'REJECT',
+}
+
 export enum OfferStatus {
   DRAFT = 'DRAFT',
   SENT = 'SENT',

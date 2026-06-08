@@ -28,26 +28,20 @@ export async function processCvEmbeddingJob(payload: EmbeddingGenerateJobPayload
   const output = await extractor(rawText, { pooling: 'mean', normalize: true });
   const embedding = Array.from(output.data as Float32Array) as number[];
 
-  // Upsert embedding metadata (excluding pgvector column)
-  await prisma.cvEmbedding.upsert({
+  // Delete any existing embeddings for this document to avoid duplication
+  await prisma.cvEmbedding.deleteMany({
     where: { cvDocumentId },
-    update: { textHash: 'TODO_HASH' }, // placeholder for future hash implementation
-    create: {
+  });
+
+  // Create new embedding metadata record
+  const record = await prisma.cvEmbedding.create({
+    data: {
       cvDocumentId,
       chunkIndex: 0,
       chunkText: rawText,
-      model: 'all-MiniLM-L6-v2',
     },
-  });
-
-  // Retrieve generated row ID
-  const record = await prisma.cvEmbedding.findUnique({
-    where: { cvDocumentId },
     select: { id: true },
   });
-  if (!record) {
-    throw new Error('Failed to create CvEmbedding record');
-  }
 
   // Store vector in pgvector column via raw SQL
   const vectorStr = `[${embedding.join(',')}]`;

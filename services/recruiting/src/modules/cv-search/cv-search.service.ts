@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../common/database/prisma.service';
-import { pipeline } from '@xenova/transformers';
 
 /**
  * Service for searching candidate CVs by semantic similarity to a job description (JD).

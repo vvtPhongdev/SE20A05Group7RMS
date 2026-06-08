@@ -38,7 +38,7 @@ export class CvScreeningService {
 
     return this.prisma.candidateCV.update({
       where: { id: cvId },
-      data: { screeningStatus: status },
+      data: { screeningStatus: status } as any,
     });
   }
 
@@ -69,7 +69,7 @@ export class CvScreeningService {
     }
     return this.prisma.candidateCV.updateMany({
       where: { id: { in: ids } },
-      data: { screeningStatus: status },
+      data: { screeningStatus: status } as any,
     });
   }
 }
