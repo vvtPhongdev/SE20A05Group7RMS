@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
-import { RecruitmentRequestStatus, UserRole } from '@wr/contracts';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { RecruitmentRequestStatus } from '@wr/contracts';
 
 export type UUID = string;
 
@@ -28,18 +28,13 @@ export interface ApprovalRecord {
 export class RecruitmentRequestsService {
   private store = new Map<string, RecruitmentRequest>();
 
-  approve(id: string, approverId: string, approverRole: UserRole) {
+  reject(id: string, approverId: string, reason: string) {
+    if (!reason) throw new BadRequestException('Rejection reason is required');
     const req = this.store.get(id);
     if (!req) throw new NotFoundException('Request not found');
-    if (req.status !== RecruitmentRequestStatus.PENDING_REVIEW) {
-      throw new BadRequestException('Request must be in PENDING_REVIEW to approve');
-    }
-    if (approverRole === UserRole.DEPARTMENT_HEAD && approverId === req.createdBy) {
-      throw new ForbiddenException('Department Head cannot self-approve their own request');
-    }
     if (!req.approvals) req.approvals = [];
-    req.approvals.push({ actorId: approverId, action: 'APPROVE', timestamp: new Date().toISOString() });
-    req.status = RecruitmentRequestStatus.APPROVED;
+    req.approvals.push({ actorId: approverId, action: 'REJECT', reason, timestamp: new Date().toISOString() });
+    req.status = RecruitmentRequestStatus.REJECTED;
     return req;
   }
 }
