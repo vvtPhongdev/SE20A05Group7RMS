@@ -7,6 +7,8 @@ import { EvaluationsModule } from './modules/evaluations/evaluations.module';
 import { TalentSearchModule } from './modules/talent-search/talent-search.module';
 import { JobPostingsModule } from './modules/job-postings/job-postings.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { RecruitmentRequestsController } from './modules/recruitment-requests/recruitment-requests.controller';
+import { RecruitmentRequestsService } from './modules/recruitment-requests/recruitment-requests.service';
 
 @Module({
   imports: [
@@ -16,8 +18,10 @@ import { ReportsModule } from './modules/reports/reports.module';
     InvitesModule,
     EvaluationsModule,
     TalentSearchModule,
-    JobPostingsModule,
-    ReportsModule,
+    CvScreeningModule,
   ],
+  controllers: [RecruitmentRequestsController],
+  providers: [RecruitmentRequestsService],
 })
 export class RecruitingModule {}
+
