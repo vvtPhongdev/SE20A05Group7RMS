@@ -46,6 +46,7 @@ describe('AuthService', () => {
     user: {
       findUnique: jest.fn(),
       create: jest.fn(),
+      update: jest.fn(),
     },
     organization: {
       findFirst: jest.fn(),
@@ -122,6 +123,7 @@ describe('AuthService', () => {
       const existingUser = {
         id: 'uuid-existing',
         email: dto.email,
+        isActive: true,
       };
       mockPrismaService.user.findUnique.mockResolvedValue(existingUser);
 
