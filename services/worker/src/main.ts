@@ -19,18 +19,33 @@ async function bootstrap() {
 
   console.log(`🔌 Worker connecting to Redis at ${redisUrl}`);
   
+  // Optimized options for Redis connection to prevent rate limiting (especially on Upstash)
+  const workerOptions = {
+    connection: client,
+    stalledInterval: 300000, // Check for stalled jobs every 5 minutes (default 30s)
+    drainDelay: 30,          // Poll every 30 seconds when queue is empty (default 5s)
+  };
+
   // CV Parse Queue Worker
   const cvParseWorker = new Worker(
     QUEUE_NAMES.CV_PARSE,
-    async (job) => { await cvParseProcessor(job.data); },
-    { connection: client },
+    async (job) => {
+      console.log(`📄 Processing CV parse job: ${job.name} [${job.id}]`);
+      // TODO: implement CV parsing logic
+      console.log(`✅ CV parse job ${job.id} completed (stub)`);
+    },
+    workerOptions,
   );
 
   // Embedding Generation Queue Worker
   const embeddingWorker = new Worker(
     QUEUE_NAMES.EMBEDDING_GENERATE,
-    async (job) => { await embeddingProcessor(job.data); },
-    { connection: client },
+    async (job) => {
+      console.log(`🧬 Processing embedding job: ${job.name} [${job.id}]`);
+      // TODO: implement embedding generation logic
+      console.log(`✅ Embedding job ${job.id} completed (stub)`);
+    },
+    workerOptions,
   );
 
   // Email Send Queue Worker
@@ -41,7 +56,7 @@ async function bootstrap() {
       // TODO: implement email sending logic
       console.log(`✅ Email send job ${job.id} completed (stub)`);
     },
-    { connection: client },
+    workerOptions,
   );
 
   // Graceful shutdown

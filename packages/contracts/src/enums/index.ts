@@ -29,6 +29,7 @@ export enum RecruitmentRequestStatus {
   INTERVIEW_COMPLETED = 'INTERVIEW_COMPLETED',
   OFFER_EXTENDED = 'OFFER_EXTENDED',
   OFFER_ACCEPTED = 'OFFER_ACCEPTED',
+  OFFER_DECLINED = 'OFFER_DECLINED',
   CLOSED = 'CLOSED',
   CANCELLED = 'CANCELLED',
 }
@@ -74,12 +75,17 @@ export enum InterviewResult {
   PASS = 'PASS',
   FAIL = 'FAIL',
 }
-
-export enum HiringDecision {
-  HIRE = 'HIRE',
-  REJECT = 'REJECT',
+export enum OfferStatus {
+  DRAFT = 'DRAFT',
+  SENT = 'SENT',
+  ACCEPTED = 'ACCEPTED',
+  DECLINED = 'DECLINED',
 }
 
+export enum OfferResponse {
+  ACCEPT = 'ACCEPT',
+  DECLINE = 'DECLINE',
+}
 // ─── Job Posting ───────────────────────────────────────────────────
 
 export enum JobVisibility {

@@ -4,16 +4,12 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagg
 import { SERVICE_TOKENS } from '../constants';
 import { firstValueFrom } from 'rxjs';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { HiringDecision, UserRole } from '@wr/contracts';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import {
-  IsUUID,
-  IsString,
-  IsOptional,
-  IsDateString,
-  IsNotEmpty,
-  IsEnum,
-} from 'class-validator';
+  OfferResponse,
+  UserRole,
+} from '@wr/contracts';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { IsUUID, IsString, IsOptional, IsDateString, IsNotEmpty, IsEnum } from 'class-validator';
 
 export class CreateJobPostingDto {
   @ApiProperty({ example: 'uuid-of-recruitment-request', description: 'Recruitment Request ID' })
@@ -81,15 +77,25 @@ export class UpdateJobPostingDto {
   status?: string;
 }
 
-export class HiringDecisionDto {
-  @ApiProperty({ enum: HiringDecision, example: HiringDecision.HIRE })
-  @IsEnum(HiringDecision)
-  decision!: HiringDecision;
+export class CreateOfferDto {
+  @ApiProperty({ example: 'candidate-profile-uuid' })
+  @IsUUID()
+  candidateId!: string;
 
-  @ApiProperty({ example: 'Strong interview performance and panel consensus' })
+  @ApiProperty({ example: '45,000,000 VND gross per month' })
   @IsString()
   @IsNotEmpty()
-  notes!: string;
+  compensation!: string;
+
+  @ApiProperty({ example: '2026-07-15T00:00:00.000Z' })
+  @IsDateString()
+  startDate!: string;
+}
+
+export class OfferResponseDto {
+  @ApiProperty({ enum: OfferResponse, example: OfferResponse.ACCEPT })
+  @IsEnum(OfferResponse)
+  response!: OfferResponse;
 }
 
 /**
@@ -149,24 +155,55 @@ export class RecruitingController {
     return firstValueFrom(this.recruitingClient.send('applications.updateStatus', { id, ...body }));
   }
 
-  @Patch('recruitment-requests/:id/hiring-decision')
-  @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'FR-15: Make the final hiring decision' })
-  decideHiring(
-    @Param('id') requestId: string,
-    @Body() body: HiringDecisionDto,
-    @CurrentUser() user: any,
-  ) {
+  @Post('offers')
+  @Roles(UserRole.HR_MANAGER)
+  @ApiOperation({ summary: 'FR-17: Generate an offer letter for review' })
+  generateOffer(@Body() body: CreateOfferDto, @CurrentUser() user: any) {
     return firstValueFrom(
-      this.recruitingClient.send('recruiting.hiring_decision.decide', {
-        requestId,
-        decision: body.decision,
-        notes: body.notes,
-        adminId: user.sub,
+      this.recruitingClient.send('recruiting.offers.generate', {
+        ...body,
+        generatedById: user.sub,
       }),
     );
   }
 
+  @Get('offers/:id')
+  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN, UserRole.CANDIDATE)
+  @ApiOperation({ summary: 'Review an offer letter' })
+  getOffer(@Param('id') id: string) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruiting.offers.get', { id }),
+    );
+  }
+
+  @Post('offers/:id/send')
+  @Roles(UserRole.HR_MANAGER)
+  @ApiOperation({ summary: 'Send a reviewed offer letter' })
+  sendOffer(@Param('id') id: string, @CurrentUser() user: any) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruiting.offers.send', {
+        id,
+        sentById: user.sub,
+      }),
+    );
+  }
+
+  @Post('offers/:id/respond')
+  @Roles(UserRole.CANDIDATE)
+  @ApiOperation({ summary: 'Accept or decline an offer letter' })
+  respondToOffer(
+    @Param('id') id: string,
+    @Body() body: OfferResponseDto,
+    @CurrentUser() user: any,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruiting.offers.respond', {
+        id,
+        response: body.response,
+        candidateUserId: user.sub,
+      }),
+    );
+  }
   // ─── Invites ─────────────────────────────────────────────────────
 
   @Post('invites')
