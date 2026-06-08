@@ -21,6 +21,8 @@ import { OverallPlanModule } from './modules/overall-plan/overall-plan.module';
     ReportsModule,
     OverallPlanModule,
   ],
+  controllers: [RecruitmentRequestsController],
+  providers: [RecruitmentRequestsService],
 })
 export class RecruitingModule {}
 
