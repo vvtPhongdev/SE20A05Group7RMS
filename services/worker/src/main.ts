@@ -7,6 +7,7 @@ import { QUEUE_NAMES } from '@wr/queue';
 import Redis from 'ioredis';
 import { processCvParseJob as cvParseProcessor } from './processors/cv-parse.processor';
 import { processCvEmbeddingJob as embeddingProcessor } from './processors/cv-embedding.processor';
+import { processEmailSendJob as emailProcessor } from './processors/email-send.processor';
 
 /**
  * Worker bootstrap — starts BullMQ workers for each queue.
@@ -53,8 +54,8 @@ async function bootstrap() {
     QUEUE_NAMES.EMAIL_SEND,
     async (job) => {
       console.log(`📧 Processing email send job: ${job.name} [${job.id}]`);
-      // TODO: implement email sending logic
-      console.log(`✅ Email send job ${job.id} completed (stub)`);
+      await emailProcessor(job.data);
+      console.log(`✅ Email send job ${job.id} completed`);
     },
     workerOptions,
   );
