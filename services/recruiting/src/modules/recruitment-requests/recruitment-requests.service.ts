@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { RecruitmentRequestStatus } from '@wr/contracts';
 
 export type UUID = string;
@@ -14,21 +14,22 @@ export interface RecruitmentRequest {
   createdBy: string;
   status: RecruitmentRequestStatus;
   createdAt: string;
-  updatedAt?: string;
 }
 
 @Injectable()
 export class RecruitmentRequestsService {
   private store = new Map<string, RecruitmentRequest>();
 
-  update(id: string, actorId: string, updates: Partial<Pick<RecruitmentRequest, 'positionTitle' | 'jdText' | 'headcount' | 'urgency' | 'justification'>>) {
+  submit(id: string, actorId: string) {
     const req = this.store.get(id);
     if (!req) throw new NotFoundException('Request not found');
-    if (req.status !== RecruitmentRequestStatus.DRAFT) {
-      throw new ForbiddenException('Only DRAFT requests can be edited');
+    const required = ['positionTitle', 'jdText', 'headcount', 'urgency', 'justification'];
+    for (const k of required) {
+      // @ts-ignore
+      if (!req[k]) throw new BadRequestException('Missing required fields before submit');
     }
-    Object.assign(req, updates);
-    req.updatedAt = new Date().toISOString();
+    if (req.status !== RecruitmentRequestStatus.DRAFT) throw new BadRequestException('Only DRAFT requests can be submitted');
+    req.status = RecruitmentRequestStatus.PENDING_REVIEW;
     return req;
   }
 }

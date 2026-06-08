@@ -6,8 +6,8 @@ import { RecruitmentRequestsService } from './recruitment-requests.service';
 export class RecruitmentRequestsController {
   constructor(private readonly service: RecruitmentRequestsService) {}
 
-  @MessagePattern('recruiting.request.update')
-  update(@Payload() payload: { id: string; actorId: string; updates: any }) {
-    return this.service.update(payload.id, payload.actorId, payload.updates);
+  @MessagePattern('recruiting.request.submit')
+  submit(@Payload() payload: { id: string; actorId: string }) {
+    return this.service.submit(payload.id, payload.actorId);
   }
 }
