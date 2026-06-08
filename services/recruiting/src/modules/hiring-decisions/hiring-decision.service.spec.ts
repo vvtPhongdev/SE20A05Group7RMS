@@ -19,7 +19,12 @@ describe('HiringDecisionService', () => {
     notification: { create: jest.fn() },
     $transaction: jest.fn(),
   };
-  const service = new HiringDecisionService(prisma as any);
+  const notificationClient = {
+    send: jest.fn().mockReturnValue({
+      subscribe: jest.fn(),
+    }),
+  };
+  const service = new HiringDecisionService(prisma as any, notificationClient as any);
 
   beforeEach(() => {
     jest.clearAllMocks();

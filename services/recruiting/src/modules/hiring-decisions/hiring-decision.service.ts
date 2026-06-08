@@ -1,5 +1,5 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
+import { HttpStatus, Injectable, Inject } from '@nestjs/common';
+import { RpcException, ClientProxy } from '@nestjs/microservices';
 import {
   EmailStatus,
   HiringDecision,
@@ -12,7 +12,10 @@ import { PrismaService } from '../../common/database/prisma.service';
 
 @Injectable()
 export class HiringDecisionService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject('NOTIFICATION_SERVICE') private readonly notificationClient: ClientProxy,
+  ) {}
 
   async decide(
     requestId: string,
@@ -146,9 +149,6 @@ export class HiringDecisionService {
       const applicationStatus = hired
         ? RecruitmentRequestStatus.OFFER_EXTENDED
         : RecruitmentRequestStatus.REJECTED;
-      const communicationType = hired
-        ? NotificationType.OFFER
-        : NotificationType.REJECTION;
       const subject = hired
         ? `Hiring decision for ${request.position}`
         : `Application update for ${request.position}`;
@@ -170,20 +170,59 @@ export class HiringDecisionService {
             status: EmailStatus.PENDING,
           },
         }),
-        this.prisma.notification.create({
-          data: {
-            userId: application.candidate.userId,
-            type: communicationType,
-            title: subject,
-            body,
-            relatedEntityId: requestId,
-            relatedEntityType: 'RecruitmentRequest',
-          },
-        }),
       );
     }
 
     const [updatedRequest] = await this.prisma.$transaction(transactions);
+
+    // Trigger candidate notifications and request status change notifications
+    for (const application of request.applications) {
+      const hired =
+        decision === HiringDecision.HIRE &&
+        selectedCandidateIds.includes(application.candidateId);
+      const communicationType = hired
+        ? NotificationType.OFFER
+        : NotificationType.REJECTION;
+      const subject = hired
+        ? `Hiring decision for ${request.position}`
+        : `Application update for ${request.position}`;
+      const body = hired
+        ? `You have been selected for ${request.position}. The formal offer workflow has started.`
+        : `Your application for ${request.position} was not selected.`;
+
+      this.notificationClient.send('notification.create_notification', {
+        userId: application.candidate.userId,
+        type: communicationType,
+        title: subject,
+        body,
+        relatedEntityId: requestId,
+        relatedEntityType: 'RecruitmentRequest',
+      }).subscribe({
+        error: (err) => console.error('Failed to send candidate decision notification:', err),
+      });
+    }
+
+    this.notificationClient.send('notification.create_notification', {
+      userId: request.createdById,
+      type: NotificationType.REQUEST_UPDATE,
+      title: `Request status update: ${targetStatus === RecruitmentRequestStatus.OFFER_EXTENDED ? 'Offer Extended' : 'Rejected'}`,
+      body: `Recruitment request for ${request.position} has transitioned to ${targetStatus === RecruitmentRequestStatus.OFFER_EXTENDED ? 'Offer Extended' : 'Rejected'}.`,
+      relatedEntityId: requestId,
+      relatedEntityType: 'RecruitmentRequest',
+    }).subscribe({
+      error: (err) => console.error('Failed to send dept head decision notification:', err),
+    });
+
+    this.notificationClient.send('notification.send_to_role', {
+      role: 'HR_MANAGER',
+      type: NotificationType.REQUEST_UPDATE,
+      title: `Request status update: ${targetStatus === RecruitmentRequestStatus.OFFER_EXTENDED ? 'Offer Extended' : 'Rejected'}`,
+      body: `Recruitment request for ${request.position} has transitioned to ${targetStatus === RecruitmentRequestStatus.OFFER_EXTENDED ? 'Offer Extended' : 'Rejected'}.`,
+      relatedEntityId: requestId,
+      relatedEntityType: 'RecruitmentRequest',
+    }).subscribe({
+      error: (err) => console.error('Failed to send HR decision notification:', err),
+    });
 
     return {
       request: updatedRequest,
