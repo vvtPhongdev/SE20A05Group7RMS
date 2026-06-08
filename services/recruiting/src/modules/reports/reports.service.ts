@@ -3,12 +3,7 @@ import { RpcException } from '@nestjs/microservices';
 import { PrismaService } from '../../common/database/prisma.service';
 import { UserRole } from '@wr/contracts';
 
-type RecruitmentRequestSummary = {
-  id: string;
-  status: string;
-  headcount: number;
-  createdAt: Date;
-};
+
 
 type DepartmentRequestSummary = {
   status: string;
@@ -36,25 +31,28 @@ export class ReportsService {
     const startOfYear = new Date(year, 0, 1);
     const endOfYear = new Date(year, 11, 31, 23, 59, 59, 999);
 
-    const requests: RecruitmentRequestSummary[] = await this.prisma.recruitmentRequest.findMany({
+    const prevYear = year - 1;
+    const startOfPrevYear = new Date(prevYear, 0, 1);
+    const endOfPrevYear = new Date(prevYear, 11, 31, 23, 59, 59, 999);
+
+    // Current Year Data
+    const requests = await this.prisma.recruitmentRequest.findMany({
       where: {
         createdAt: {
           gte: startOfYear,
           lte: endOfYear,
         },
       },
-      select: {
-        id: true,
-        status: true,
-        headcount: true,
-        createdAt: true,
+      include: {
+        department: true,
+        applications: true,
       },
     });
 
     const totalRequests = requests.length;
     const completedHires = requests
-      .filter((r: RecruitmentRequestSummary) => r.status === 'CLOSED' || r.status === 'OFFER_ACCEPTED')
-      .reduce((sum: number, r: RecruitmentRequestSummary) => sum + r.headcount, 0);
+      .filter((r) => r.status === 'CLOSED' || r.status === 'OFFER_ACCEPTED')
+      .reduce((sum, r) => sum + r.applications.filter((a) => a.status === 'OFFER_ACCEPTED').length, 0);
 
     const monthlyRequests = Array(12).fill(0);
     for (const req of requests) {
@@ -71,13 +69,234 @@ export class ReportsService {
       },
     });
 
+    // Previous Year Data
+    const prevRequests = await this.prisma.recruitmentRequest.findMany({
+      where: {
+        createdAt: {
+          gte: startOfPrevYear,
+          lte: endOfPrevYear,
+        },
+      },
+      include: {
+        applications: true,
+      },
+    });
+
+    const prevRequestsCount = prevRequests.length;
+    const prevCompletedHires = prevRequests
+      .filter((r) => r.status === 'CLOSED' || r.status === 'OFFER_ACCEPTED')
+      .reduce((sum, r) => sum + r.applications.filter((a) => a.status === 'OFFER_ACCEPTED').length, 0);
+
+    const prevInterviews = await this.prisma.interviewSchedule.count({
+      where: {
+        scheduledAt: {
+          gte: startOfPrevYear,
+          lte: endOfPrevYear,
+        },
+      },
+    });
+
+    const calculateGrowth = (curr: number, prev: number) => {
+      if (prev === 0) return curr > 0 ? 100 : 0;
+      return Number((((curr - prev) / prev) * 100).toFixed(2));
+    };
+
+    const yoyComparison = {
+      previousYear: prevYear,
+      requests: {
+        current: totalRequests,
+        previous: prevRequestsCount,
+        growthPercentage: calculateGrowth(totalRequests, prevRequestsCount),
+      },
+      interviews: {
+        current: totalInterviews,
+        previous: prevInterviews,
+        growthPercentage: calculateGrowth(totalInterviews, prevInterviews),
+      },
+      completedHires: {
+        current: completedHires,
+        previous: prevCompletedHires,
+        growthPercentage: calculateGrowth(completedHires, prevCompletedHires),
+      },
+    };
+
+    // Department Breakdown
+    const deptMap = new Map<string, {
+      departmentId: string;
+      departmentName: string;
+      departmentCode: string;
+      totalRequests: number;
+      targetHeadcount: number;
+      totalFilled: number;
+    }>();
+
+    for (const req of requests) {
+      const deptId = req.department.id;
+      if (!deptMap.has(deptId)) {
+        deptMap.set(deptId, {
+          departmentId: deptId,
+          departmentName: req.department.name,
+          departmentCode: req.department.code,
+          totalRequests: 0,
+          targetHeadcount: 0,
+          totalFilled: 0,
+        });
+      }
+
+      const deptData = deptMap.get(deptId)!;
+      deptData.totalRequests++;
+      deptData.targetHeadcount += req.headcount;
+      deptData.totalFilled += req.applications.filter((a) => a.status === 'OFFER_ACCEPTED').length;
+    }
+
+    const departmentBreakdown = Array.from(deptMap.values()).map((dept) => {
+      const fillRate = dept.targetHeadcount > 0 ? Number(((dept.totalFilled / dept.targetHeadcount) * 100).toFixed(2)) : 0;
+      return {
+        ...dept,
+        fillRate,
+      };
+    });
+
     return {
       year,
-      totalRequests,
-      totalInterviews,
-      completedHires,
-      monthlyRequests,
+      summary: {
+        totalRequests,
+        totalInterviews,
+        completedHires,
+        monthlyRequests,
+      },
+      yoyComparison,
+      departmentBreakdown,
     };
+  }
+
+  async getAnnualReportExport(payload: { year: number; format: 'csv' | 'pdf' }) {
+    const { year, format } = payload;
+    const report = await this.getAnnualReport({ year });
+
+    if (format === 'csv') {
+      return {
+        format: 'csv',
+        data: this.generateCSV(report),
+      };
+    } else {
+      const pdfBuffer = await this.generatePDF(report);
+      return {
+        format: 'pdf',
+        data: pdfBuffer.toString('base64'),
+      };
+    }
+  }
+
+  private generateCSV(report: any): string {
+    const csvLines: string[] = [];
+
+    csvLines.push(`Annual Recruitment Report - ${report.year}`);
+    csvLines.push('');
+
+    csvLines.push('SUMMARY');
+    csvLines.push('Total Requests,Total Interviews,Completed Hires');
+    csvLines.push(`${report.summary.totalRequests},${report.summary.totalInterviews},${report.summary.completedHires}`);
+    csvLines.push('');
+
+    csvLines.push(`YEAR-OVER-YEAR COMPARISON (vs ${report.yoyComparison.previousYear})`);
+    csvLines.push('Metric,Current Year,Previous Year,Growth %');
+    csvLines.push(`Requests,${report.yoyComparison.requests.current},${report.yoyComparison.requests.previous},${report.yoyComparison.requests.growthPercentage}%`);
+    csvLines.push(`Interviews,${report.yoyComparison.interviews.current},${report.yoyComparison.interviews.previous},${report.yoyComparison.interviews.growthPercentage}%`);
+    csvLines.push(`Completed Hires,${report.yoyComparison.completedHires.current},${report.yoyComparison.completedHires.previous},${report.yoyComparison.completedHires.growthPercentage}%`);
+    csvLines.push('');
+
+    csvLines.push('DEPARTMENT BREAKDOWN');
+    csvLines.push('Department,Code,Total Requests,Target Headcount,Total Filled,Fill Rate %');
+    for (const dept of report.departmentBreakdown) {
+      csvLines.push(`"${dept.departmentName.replace(/"/g, '""')}",${dept.departmentCode},${dept.totalRequests},${dept.targetHeadcount},${dept.totalFilled},${dept.fillRate}%`);
+    }
+
+    return csvLines.join('\n');
+  }
+
+  private async generatePDF(report: any): Promise<Buffer> {
+    const PDFDocument = require('pdfkit');
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 50 });
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', (err: any) => reject(err));
+
+      // Header / Title
+      doc.fontSize(20).text(`Annual Recruitment Report - ${report.year}`, { align: 'center' });
+      doc.moveDown(1.5);
+
+      // Section 1: Summary
+      doc.fontSize(14).text('1. Summary', { underline: true });
+      doc.moveDown(0.5);
+      doc.fontSize(12).text(`Total Requests: ${report.summary.totalRequests}`);
+      doc.text(`Total Interviews: ${report.summary.totalInterviews}`);
+      doc.text(`Completed Hires: ${report.summary.completedHires}`);
+      doc.moveDown(1.5);
+
+      // Section 2: YoY Comparison
+      doc.fontSize(14).text(`2. Year-over-Year Comparison (vs ${report.yoyComparison.previousYear})`, { underline: true });
+      doc.moveDown(0.5);
+      doc.fontSize(12).text(`Requests: ${report.yoyComparison.requests.current} (Current) vs ${report.yoyComparison.requests.previous} (Previous) | Growth: ${report.yoyComparison.requests.growthPercentage}%`);
+      doc.text(`Interviews: ${report.yoyComparison.interviews.current} (Current) vs ${report.yoyComparison.interviews.previous} (Previous) | Growth: ${report.yoyComparison.interviews.growthPercentage}%`);
+      doc.text(`Completed Hires: ${report.yoyComparison.completedHires.current} (Current) vs ${report.yoyComparison.completedHires.previous} (Previous) | Growth: ${report.yoyComparison.completedHires.growthPercentage}%`);
+      doc.moveDown(1.5);
+
+      // Section 3: Department Breakdown
+      doc.fontSize(14).text('3. Department Breakdown', { underline: true });
+      doc.moveDown(0.5);
+      for (const dept of report.departmentBreakdown) {
+        doc.fontSize(12).text(`${dept.departmentName} (${dept.departmentCode}):`);
+        doc.fontSize(10).text(`  - Total Requests: ${dept.totalRequests}`);
+        doc.text(`  - Target Headcount: ${dept.targetHeadcount}`);
+        doc.text(`  - Total Filled: ${dept.totalFilled}`);
+        doc.text(`  - Fill Rate: ${dept.fillRate}%`);
+        doc.moveDown(0.5);
+      }
+
+      doc.end();
+    });
+  }
+
+  async getRealtimeTracking(payload: { userId: string; role: string }) {
+    const { userId, role } = payload;
+
+    const where: any = {};
+    if (role === UserRole.DEPARTMENT_HEAD) {
+      where.createdById = userId;
+    }
+
+    const requests = await this.prisma.recruitmentRequest.findMany({
+      where,
+      include: {
+        createdBy: {
+          select: { displayName: true },
+        },
+        reviewedBy: {
+          select: { displayName: true },
+        },
+        applications: {
+          where: { status: 'OFFER_ACCEPTED' },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return requests.map((req) => {
+      return {
+        id: req.id,
+        position: req.position,
+        targetHeadcount: req.headcount,
+        filledHeadcount: req.applications.length,
+        status: req.status,
+        createdBy: req.createdBy.displayName,
+        handler: req.reviewedBy ? req.reviewedBy.displayName : 'Not Assigned',
+        createdAt: req.createdAt,
+        updatedAt: req.updatedAt,
+      };
+    });
   }
 
   async getDepartmentReport(payload: { id: string; userId: string; role: string }) {

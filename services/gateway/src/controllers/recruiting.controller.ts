@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, Inject } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, Inject, Res } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
 import { SERVICE_TOKENS } from '../constants';
@@ -330,6 +330,45 @@ export class RecruitingController {
   getPipelineOverview() {
     return firstValueFrom(this.recruitingClient.send('recruiting.pipeline_overview', {}));
   }
+  @Get('reports/annual/export')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Export annual recruitment report to CSV or PDF' })
+  async exportAnnualReport(
+    @Res() res: any,
+    @Query('year') year?: string,
+    @Query('format') format?: 'csv' | 'pdf',
+  ) {
+    const parsedYear = year ? parseInt(year, 10) : new Date().getFullYear();
+    const selectedFormat = format || 'csv';
+    const result = await firstValueFrom(
+      this.recruitingClient.send('recruiting.annual_report_export', {
+        year: parsedYear,
+        format: selectedFormat,
+      }),
+    );
 
+    if (selectedFormat === 'csv') {
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=annual-report-${parsedYear}.csv`);
+      res.send(result.data);
+    } else {
+      const buffer = Buffer.from(result.data, 'base64');
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=annual-report-${parsedYear}.pdf`);
+      res.send(buffer);
+    }
+  }
+
+  @Get('reports/realtime-tracking')
+  @Roles(UserRole.ADMIN, UserRole.HR_MANAGER, UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'FR-20: Real-time recruitment requests status tracking dashboard' })
+  getRealtimeTracking(@CurrentUser() user: any) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruiting.realtime_tracking', {
+        userId: user.sub,
+        role: user.role,
+      }),
+    );
+  }
 }
 
