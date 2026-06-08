@@ -5,6 +5,8 @@ config({ path: resolve(__dirname, '../../../.env') });
 import { Worker } from 'bullmq';
 import { QUEUE_NAMES } from '@wr/queue';
 import Redis from 'ioredis';
+import { processCvParseJob as cvParseProcessor } from './processors/cv-parse.processor';
+import { processCvEmbeddingJob as embeddingProcessor } from './processors/cv-embedding.processor';
 
 /**
  * Worker bootstrap — starts BullMQ workers for each queue.
@@ -20,22 +22,14 @@ async function bootstrap() {
   // CV Parse Queue Worker
   const cvParseWorker = new Worker(
     QUEUE_NAMES.CV_PARSE,
-    async (job) => {
-      console.log(`📄 Processing CV parse job: ${job.name} [${job.id}]`);
-      // TODO: implement CV parsing logic
-      console.log(`✅ CV parse job ${job.id} completed (stub)`);
-    },
+    async (job) => { await cvParseProcessor(job.data); },
     { connection: client },
   );
 
   // Embedding Generation Queue Worker
   const embeddingWorker = new Worker(
     QUEUE_NAMES.EMBEDDING_GENERATE,
-    async (job) => {
-      console.log(`🧬 Processing embedding job: ${job.name} [${job.id}]`);
-      // TODO: implement embedding generation logic
-      console.log(`✅ Embedding job ${job.id} completed (stub)`);
-    },
+    async (job) => { await embeddingProcessor(job.data); },
     { connection: client },
   );
 
