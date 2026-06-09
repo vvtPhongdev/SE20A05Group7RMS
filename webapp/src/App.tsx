@@ -18,7 +18,7 @@ import { DeptHeadDashboard } from './pages/DeptHeadDashboard';
 import { DeptHeadRequests } from './pages/DeptHeadRequests';
 import { DeptHeadRequestDetail } from './pages/DeptHeadRequestDetail';
 import { DeptHeadSettings } from './pages/DeptHeadSettings';
-import { HrManagerDashboard } from './pages/HrManagerDashboard';
+import { HRDashBoard } from './pages/HRDashBoard';
 import { CandidateDashboard } from './pages/CandidateDashboard';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { UserRole } from '@wr/contracts';
@@ -230,7 +230,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
                 <Layout>
-                  <HrManagerDashboard />
+                  <HRDashBoard />
                 </Layout>
               </ProtectedRoute>
             }
