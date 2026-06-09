@@ -215,9 +215,13 @@ export const DeptHeadDashboard: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-border-warm text-sm">
                 {activeRequests.map((request) => (
-                  <tr className="transition hover:bg-workflow-ivory/70" key={request.id}>
+                  <tr
+                    className="transition hover:bg-workflow-ivory/70 cursor-pointer"
+                    key={request.id}
+                    onClick={() => navigate(`/dept-head/requests/${request.id}`)}
+                  >
                     <td className="py-4 pr-4">
-                      <p className="font-semibold text-deep-charcoal">{request.role}</p>
+                      <p className="font-semibold text-deep-charcoal hover:underline hover:text-teal-command">{request.role}</p>
                       <p className="mt-1 font-mono text-xs text-teal-command">{request.id} · {request.owner}</p>
                     </td>
                     <td className="px-4 py-4 font-mono text-deep-charcoal">{request.headcount}</td>
@@ -254,10 +258,14 @@ export const DeptHeadDashboard: React.FC = () => {
 
           <div className="space-y-4">
             {pendingPlans.map((plan) => (
-              <div className="rounded-lg border border-border-warm bg-workflow-ivory/60 p-4" key={plan.requestId}>
+              <div
+                className="rounded-lg border border-border-warm bg-workflow-ivory/60 p-4 cursor-pointer hover:border-teal-command hover:shadow-sm transition"
+                key={plan.requestId}
+                onClick={() => navigate(`/dept-head/requests/${plan.requestId}`)}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-sm font-semibold text-deep-charcoal">{plan.title}</h3>
+                    <h3 className="text-sm font-semibold text-deep-charcoal hover:underline hover:text-teal-command">{plan.title}</h3>
                     <p className="mt-1 font-mono text-xs text-teal-command">{plan.requestId}</p>
                   </div>
                   <span className="shrink-0 rounded-full bg-clean-surface px-2.5 py-1 text-xs font-semibold text-slate-ink">{plan.age}</span>
