@@ -1,347 +1,297 @@
-'use client';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
-import { useState } from 'react';
+type PlanPhase = 'CV Screening' | 'Interview' | 'Final Review' | 'Offer Prep';
+type Tone = 'teal' | 'revision' | 'approved' | 'pending' | 'slate';
 
-export default function HRDashBoard() {
-  const [activeTab, setActiveTab] = useState(0);
+const stats = [
+  { label: 'Approved Requests', value: '5', helper: '+2 this week', tone: 'approved' as Tone },
+  { label: 'Active Plans', value: '8', helper: 'Across 4 departments', tone: 'teal' as Tone },
+  { label: 'Interviews This Week', value: '12', helper: '3 final rounds', tone: 'revision' as Tone },
+  { label: 'Candidates in Pipeline', value: '34', helper: '8 in final review', tone: 'pending' as Tone },
+];
 
-  const tabs = [
-    'Pending Review (8)',
-    'Under Review (3)',
-    'Forwarded to Admin (5)',
-    'Returned (2)',
-  ];
+const activePlans = [
+  {
+    id: 'REQ-2026-001',
+    position: 'Senior Developer',
+    department: 'Engineering',
+    phase: 'Interview' as PlanPhase,
+    progress: 65,
+    deadline: '24 Mar 2026',
+  },
+  {
+    id: 'REQ-2026-003',
+    position: 'Marketing Lead',
+    department: 'Marketing',
+    phase: 'CV Screening' as PlanPhase,
+    progress: 30,
+    deadline: '15 Apr 2026',
+  },
+  {
+    id: 'REQ-2026-005',
+    position: 'Accountant',
+    department: 'Finance',
+    phase: 'Final Review' as PlanPhase,
+    progress: 90,
+    deadline: '08 Mar 2026',
+  },
+  {
+    id: 'REQ-2026-007',
+    position: 'Junior Developer',
+    department: 'Engineering',
+    phase: 'CV Screening' as PlanPhase,
+    progress: 15,
+    deadline: '30 Apr 2026',
+  },
+];
 
-  const requests = [
-    {
-      id: '#REQ-2024-041',
-      title: 'Senior Backend Engineer',
-      priority: 'Critical Priority',
-      priorityColor: 'rejected',
-      department: 'IT Dept',
-      requestedBy: 'Dr. Nguyen Van B.',
-      submitted: 'May 27',
-      headcount: 2,
-      type: 'Full-time',
-      budget: '₫25M/person',
-      budgetLabel: 'Monthly Budget',
-    },
-    {
-      id: '#REQ-2024-045',
-      title: 'Product Designer',
-      priority: 'High Priority',
-      priorityColor: 'revision',
-      department: 'Design & UX Dept',
-      requestedBy: 'Ms. Tran Thi C.',
-      submitted: 'May 27',
-      headcount: 1,
-      type: 'Full-time',
-      budget: '₫22M/person',
-      budgetLabel: 'Monthly Budget',
-    },
-    {
-      id: '#REQ-2024-049',
-      title: 'Marketing Specialist',
-      priority: 'Normal Priority',
-      priorityColor: 'teal-command',
-      department: 'Marketing Dept',
-      requestedBy: 'Mr. Vu Huy D.',
-      submitted: 'May 26',
-      headcount: 1,
-      type: 'Full-time',
-      budget: '₫18M/person',
-      budgetLabel: 'Monthly Budget',
-    },
-    {
-      id: '#REQ-2024-052',
-      title: 'HR Coordinator',
-      priority: 'Normal Priority',
-      priorityColor: 'teal-command',
-      department: 'Human Resources',
-      requestedBy: 'Ms. Ly Minh E.',
-      submitted: 'May 25',
-      headcount: 1,
-      type: 'Full-time',
-      budget: '₫15M/person',
-      budgetLabel: 'Monthly Budget',
-    },
-    {
-      id: '#REQ-2024-055',
-      title: 'Data Analyst Intern',
-      priority: 'Low Priority',
-      priorityColor: 'slate-ink',
-      department: 'Data Intelligence',
-      requestedBy: 'Mr. Pham Minh F.',
-      submitted: 'May 24',
-      headcount: 3,
-      type: 'Internship',
-      budget: '₫6M/person',
-      budgetLabel: 'Monthly Stipend',
-    },
-  ];
+const interviews = [
+  { time: '10:30 AM', type: 'Technical', candidate: 'Tran Minh Tam', role: 'Senior Developer', location: 'Room 402', tone: 'revision' as Tone },
+  { time: '01:45 PM', type: 'HR Fit', candidate: 'Nguyen Thuy Linh', role: 'Marketing Lead', location: 'Virtual Link', tone: 'teal' as Tone },
+  { time: '03:30 PM', type: 'Final', candidate: 'Pham Quoc Hung', role: 'Accountant', location: 'Office 101', tone: 'approved' as Tone },
+];
+
+const pipelineBars = [
+  { label: 'Applied', value: 48, height: '30%' },
+  { label: 'Screened', value: 27, height: '60%' },
+  { label: 'Interview', value: 18, height: '90%' },
+  { label: 'Final', value: 9, height: '45%' },
+  { label: 'Offer', value: 6, height: '75%' },
+];
+
+const phaseStyles: Record<PlanPhase, string> = {
+  'CV Screening': 'bg-teal-command/10 text-teal-command',
+  Interview: 'bg-amber-50 text-revision',
+  'Final Review': 'bg-green-50 text-approved',
+  'Offer Prep': 'bg-cyan-50 text-pending',
+};
+
+const toneClasses: Record<Tone, string> = {
+  teal: 'bg-teal-command text-teal-command border-teal-command',
+  revision: 'bg-revision text-revision border-revision',
+  approved: 'bg-approved text-approved border-approved',
+  pending: 'bg-pending text-pending border-pending',
+  slate: 'bg-slate-ink text-slate-ink border-slate-ink',
+};
+
+const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: string }) => {
+  const paths: Record<string, React.ReactNode> = {
+    plus: <path d="M12 5v14M5 12h14" />,
+    review: <path d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
+    warning: <path d="M12 9v4m0 4h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />,
+    calendar: <path d="M7 3v4m10-4v4M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />,
+    chart: <path d="M4 19V5m0 14h16M8 16v-5m4 5V8m4 8v-3" />,
+    arrow: <path d="M5 12h14m-6-6 6 6-6 6" />,
+  };
 
   return (
-    <div className="flex min-h-screen overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-[260px] h-screen fixed left-0 top-0 z-40 bg-parchment-lift border-r border-border-warm flex flex-col p-6">
-        {/* Logo */}
-        <div className="mb-8 px-2 flex items-center gap-2">
-          <div className="w-10 h-10 bg-teal-command flex items-center justify-center rounded-lg shadow-sm">
-            <span className="text-white font-bold text-5xl leading-none">R</span>
-          </div>
-          <div>
-            <h1 className="font-bold text-2xl text-teal-command leading-none">RMS</h1>
-            <p className="text-slate-ink text-xs uppercase tracking-widest mt-1 opacity-70">Enterprise RMS</p>
-          </div>
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      viewBox="0 0 24 24"
+    >
+      {paths[name]}
+    </svg>
+  );
+};
+
+const DashboardCard = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
+  <section className={`rounded-xl border border-border-warm bg-clean-surface p-6 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)] ${className}`}>
+    {children}
+  </section>
+);
+
+export const HRDashBoard: React.FC = () => {
+  const navigate = useNavigate();
+
+  return (
+    <div className="mx-auto flex max-w-[1440px] flex-col gap-6">
+      <header className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">HR Management</p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">Recruitment Dashboard</h1>
+          <p className="mt-1 max-w-[68ch] text-sm leading-6 text-slate-ink">
+            Monitor active recruitment plans, candidate flow, interview load, and HR actions from one work surface.
+          </p>
         </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto custom-scrollbar space-y-1">
-          <a href="#" className="flex items-center gap-3 px-4 py-3 bg-white text-teal-command font-bold rounded-lg transition-transform active:scale-[0.98] border-l-4 border-teal-command">
-            <span className="material-symbols-outlined text-teal-command">queue</span>
-            <span className="text-sm">Request Queue</span>
-          </a>
-          {['Plan Management', 'Task Plans', 'Candidates', 'CV Search', 'Interviews', 'Results', 'Communications', 'Tracking'].map((item) => (
-            <a
-              key={item}
-              href="#"
-              className="flex items-center gap-3 px-4 py-3 text-slate-ink hover:bg-surface-container transition-colors duration-200 rounded-lg active:scale-[0.98]"
-            >
-              <span className="material-symbols-outlined">{item.toLowerCase().replace(/\s+/g, '_')}</span>
-              <span className="text-sm">{item}</span>
-            </a>
-          ))}
-
-          {/* Settings Section */}
-          <div className="pt-6 mt-6 border-t border-border-warm space-y-1">
-            <a href="#" className="flex items-center gap-3 px-4 py-3 text-slate-ink hover:bg-surface-container transition-colors duration-200 rounded-lg active:scale-[0.98]">
-              <span className="material-symbols-outlined">settings</span>
-              <span className="text-sm">Settings</span>
-            </a>
-            <a href="#" className="flex items-center gap-3 px-4 py-3 text-slate-ink hover:bg-surface-container transition-colors duration-200 rounded-lg active:scale-[0.98]">
-              <span className="material-symbols-outlined">help_outline</span>
-              <span className="text-sm">Support</span>
-            </a>
-          </div>
-        </nav>
-
-        {/* User Profile */}
-        <div className="mt-auto pt-6 border-t border-border-warm">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <img
-                alt="Le Thi Hang"
-                className="w-10 h-10 rounded-full border border-teal-command/20 object-cover"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuBO-QKaXjBD0d8VLkJxdfz-QtiMi82FUV4Fj2bgC8FLSuCzKgtKJeSphbgz8oQS7XYzbyccoqjJoXABG78aJn3hZ01dnTUlQ5DzFJ-FvAKNYXGT806WhZYk9HvDSYS-KUlxklmljms41HyDEjqTPr3WyT9NmCBJK4EeLDv7tw0o9lR3j9fqfrdUsVXZDuB7MEiFIC43Vmg9OB3WRn4iUrGsWgkGFzn9vtHIrH4jPLej7-UwLOFSq6zeeza0VgCnnuEf91q5dkytVSk"
-              />
-              <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-parchment-lift rounded-full"></div>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-bold">Le Thi Hang</span>
-              <span className="text-[10px] uppercase font-bold text-teal-command bg-teal-command/10 px-1.5 py-0.5 rounded border border-teal-command/20 w-fit">HR Manager</span>
-            </div>
-          </div>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <button
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border-warm bg-clean-surface px-4 text-sm font-semibold text-slate-ink transition hover:border-teal-command hover:text-teal-command active:scale-[0.98]"
+            onClick={() => navigate('/hr/requests')}
+            type="button"
+          >
+            Approved Requests
+            <Icon className="h-4 w-4" name="arrow" />
+          </button>
+          <button
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
+            onClick={() => navigate('/hr/campaigns')}
+            type="button"
+          >
+            <Icon className="h-4 w-4" name="plus" />
+            Create Plan
+          </button>
         </div>
-      </aside>
+      </header>
 
-      {/* Main Content */}
-      <main className="ml-[260px] flex-1 min-h-screen bg-workflow-ivory flex flex-col overflow-y-auto">
-        {/* Header */}
-        <header className="flex items-center justify-between h-20 px-6 sticky top-0 bg-workflow-ivory/80 backdrop-blur-md z-30 border-b border-border-warm">
-          <div className="flex flex-col">
-            <h2 className="text-2xl font-bold text-deep-charcoal">Request Review Queue</h2>
-            <p className="text-secondary text-sm">Incoming recruitment requests from Department Heads</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="relative group">
-              <span className="absolute inset-y-0 left-3 flex items-center text-outline">
-                <span className="material-symbols-outlined text-[20px]">search</span>
-              </span>
-              <input className="pl-10 pr-4 py-2 bg-white border border-border-warm rounded-lg focus:ring-2 focus:ring-teal-command focus:border-teal-command outline-none transition-all w-64 text-sm" placeholder="Search requests..." type="text" />
+      <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4" aria-label="HR dashboard metrics">
+        {stats.map((stat) => (
+          <DashboardCard className="transition duration-200 hover:-translate-y-[2px]" key={stat.label}>
+            <div className="flex items-start justify-between gap-4">
+              <p className="text-sm font-medium text-on-surface-variant">{stat.label}</p>
+              <span className={`mt-1 h-3 w-3 rounded-full ${toneClasses[stat.tone].split(' ')[0]}`} />
             </div>
-            <button className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors relative">
-              <span className="material-symbols-outlined">notifications</span>
-              <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
-            </button>
-            <button className="px-4 py-2 bg-teal-command text-white rounded-lg text-sm font-medium hover:brightness-110 active:scale-95 transition-all flex items-center gap-2">
-              <span className="material-symbols-outlined text-[18px]">add</span>
-              New Requisition
-            </button>
-          </div>
-        </header>
+            <div className="mt-5 flex items-baseline gap-2">
+              <span className="font-mono text-[32px] font-semibold leading-none text-deep-charcoal">{stat.value}</span>
+              <span className={`text-xs font-semibold ${toneClasses[stat.tone].split(' ')[1]}`}>{stat.helper}</span>
+            </div>
+          </DashboardCard>
+        ))}
+      </section>
 
-        {/* Main Content */}
-        <div className="p-6 flex gap-6 max-w-[1440px] mx-auto w-full">
-          {/* Center Column */}
-          <div className="flex-1 space-y-6">
-            {/* Tabs */}
-            <div className="flex items-center justify-between">
-              <nav className="flex gap-8 border-b border-border-warm w-full">
-                {tabs.map((tab, index) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(index)}
-                    className={`pb-3 px-1 border-b-2 text-sm font-medium transition-colors ${
-                      activeTab === index
-                        ? 'border-teal-command text-teal-command font-bold'
-                        : 'border-transparent text-secondary hover:text-teal-command'
-                    }`}
-                  >
-                    {tab}
-                  </button>
-                ))}
-              </nav>
-              <div className="flex items-center gap-2 bg-revision/10 border border-revision/20 text-revision px-3 py-1 rounded-full whitespace-nowrap ml-4">
-                <span className="w-2 h-2 bg-revision rounded-full animate-pulse"></span>
-                <span className="text-xs font-bold">8 pending review</span>
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.45fr_0.75fr]">
+        <div className="space-y-6">
+          <DashboardCard className="overflow-hidden p-0">
+            <div className="flex flex-col gap-4 border-b border-border-warm bg-workflow-ivory/60 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-deep-charcoal">Active Recruitment Plans</h2>
+                <p className="mt-1 text-sm text-slate-ink">Approved requests currently moving through HR execution.</p>
               </div>
+              <button
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
+                onClick={() => navigate('/hr/campaigns')}
+                type="button"
+              >
+                <Icon className="h-4 w-4" name="plus" />
+                New Plan
+              </button>
             </div>
 
-            {/* Request Cards */}
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[820px] text-left">
+                <thead className="bg-workflow-ivory text-xs uppercase tracking-[0.14em] text-on-surface-variant">
+                  <tr>
+                    <th className="px-5 py-4 font-semibold">Plan ID</th>
+                    <th className="px-5 py-4 font-semibold">Position</th>
+                    <th className="px-5 py-4 font-semibold">Department</th>
+                    <th className="px-5 py-4 font-semibold">Phase</th>
+                    <th className="px-5 py-4 font-semibold">Progress</th>
+                    <th className="px-5 py-4 font-semibold">Deadline</th>
+                    <th className="px-5 py-4 text-right font-semibold">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border-warm text-sm">
+                  {activePlans.map((plan) => (
+                    <tr className="transition hover:bg-workflow-ivory/70" key={plan.id}>
+                      <td className="px-5 py-4 font-mono text-teal-command">{plan.id}</td>
+                      <td className="px-5 py-4 font-semibold text-deep-charcoal">{plan.position}</td>
+                      <td className="px-5 py-4 text-slate-ink">{plan.department}</td>
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${phaseStyles[plan.phase]}`}>
+                          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                          {plan.phase}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="w-32">
+                          <div className="h-1.5 overflow-hidden rounded-full bg-surface-container">
+                            <div className="h-full rounded-full bg-teal-command" style={{ width: `${plan.progress}%` }} />
+                          </div>
+                          <span className="mt-1 block text-[11px] text-slate-ink">{plan.progress}% complete</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-slate-ink">{plan.deadline}</td>
+                      <td className="px-5 py-4 text-right">
+                        <button className="font-semibold text-teal-command transition hover:underline active:scale-[0.98]" type="button">
+                          Review
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </DashboardCard>
+
+          <section className="rounded-xl bg-deep-charcoal p-4 text-on-tertiary-container shadow-[0_20px_50px_-30px_rgba(28,25,23,0.85)]">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                <span className="inline-flex items-center gap-2 text-sm font-semibold">
+                  <Icon className="h-5 w-5 text-revision" name="warning" />
+                  2 actions require attention
+                </span>
+                <span className="hidden h-4 w-px bg-tertiary lg:block" />
+                <span className="text-sm text-surface-container">Offer letter for Accountant is pending approval.</span>
+                <span className="text-sm text-surface-container">Interview feedback missing for Junior Developer.</span>
+              </div>
+              <button className="w-fit rounded-md bg-clean-surface px-4 py-2 text-sm font-semibold text-deep-charcoal transition hover:bg-surface-variant active:scale-[0.98]" type="button">
+                View Tasks
+              </button>
+            </div>
+          </section>
+        </div>
+
+        <div className="space-y-6">
+          <DashboardCard>
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Icon className="h-5 w-5 text-teal-command" name="calendar" />
+                <h2 className="text-xl font-semibold text-deep-charcoal">Upcoming Interviews</h2>
+              </div>
+              <button className="text-xs font-semibold text-teal-command transition hover:underline" onClick={() => navigate('/hr/interviews')} type="button">
+                View calendar
+              </button>
+            </div>
             <div className="space-y-4">
-              {requests.map((request) => (
-                <div key={request.id} className="bg-white border border-border-warm rounded-xl p-6 shadow-sm flex flex-col gap-4 relative overflow-hidden group hover:border-teal-command/40 hover:-translate-y-0.5 transition-all duration-200">
-                  <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${request.priorityColor === 'rejected' ? 'bg-rejected' : request.priorityColor === 'revision' ? 'bg-revision' : request.priorityColor === 'slate-ink' ? 'bg-slate-ink' : 'bg-teal-command'}`}></div>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${request.priorityColor === 'rejected' ? 'bg-rejected/10 text-rejected border-rejected/20' : request.priorityColor === 'revision' ? 'bg-revision/10 text-revision border-revision/20' : request.priorityColor === 'slate-ink' ? 'bg-slate-ink/10 text-slate-ink border-slate-ink/20' : 'bg-teal-command/10 text-teal-command border-teal-command/20'}`}>{request.priority}</span>
-                        <span className="text-secondary text-sm">• ID: {request.id}</span>
-                      </div>
-                      <h3 className="text-xl font-bold text-deep-charcoal group-hover:text-teal-command transition-colors">{request.title}</h3>
-                      <p className="text-secondary text-sm mt-1">{request.department} • Requested by: <span className="font-medium text-on-surface">{request.requestedBy}</span></p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-mono text-sm text-secondary mb-1">Submitted: {request.submitted}</p>
-                      <div className="flex gap-2">
-                        <span className="bg-workflow-ivory border border-border-warm px-3 py-1 rounded text-xs font-medium">Headcount: {request.headcount}</span>
-                        <span className="bg-workflow-ivory border border-border-warm px-3 py-1 rounded text-xs font-medium">{request.type}</span>
-                      </div>
-                    </div>
+              {interviews.map((interview) => (
+                <div className={`rounded-r-lg border-l-4 bg-workflow-ivory p-3 transition hover:bg-surface-container-low ${toneClasses[interview.tone].split(' ')[2]}`} key={`${interview.time}-${interview.candidate}`}>
+                  <div className="mb-1 flex items-start justify-between gap-3">
+                    <span className={`font-mono text-xs ${toneClasses[interview.tone].split(' ')[1]}`}>{interview.time}</span>
+                    <span className="text-xs font-semibold text-slate-ink">{interview.type}</span>
                   </div>
-                  <div className="flex items-center justify-between pt-4 border-t border-border-warm/40">
-                    <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-outline text-[18px]">payments</span>
-                      <span className="text-sm font-bold text-on-surface">{request.budget}</span>
-                      <span className="text-secondary text-xs">{request.budgetLabel}</span>
-                    </div>
-                    <div className="flex gap-3">
-                      <button className="px-6 py-2 border border-teal-command text-teal-command hover:bg-teal-command hover:text-white rounded-lg text-sm font-medium transition-all active:scale-95">Return for Revision</button>
-                      <button className="px-8 py-2 bg-teal-command text-white hover:brightness-110 rounded-lg text-sm font-medium transition-all active:scale-95 shadow-sm shadow-teal-command/20">Review</button>
-                    </div>
-                  </div>
+                  <h3 className="text-sm font-semibold text-deep-charcoal">{interview.candidate}</h3>
+                  <p className="mt-1 text-sm text-slate-ink">
+                    {interview.role} - {interview.location}
+                  </p>
                 </div>
               ))}
             </div>
+          </DashboardCard>
 
-            {/* Pagination */}
-            <div className="flex flex-col items-center py-8 gap-4">
-              <p className="text-secondary text-sm">
-                Showing <span className="font-bold text-on-surface">5</span> of <span className="font-bold text-on-surface">8</span> pending requests
-              </p>
-              <button className="px-8 py-3 bg-white border border-border-warm text-on-surface hover:bg-surface-container transition-all rounded-lg text-sm font-medium shadow-sm active:scale-95 flex items-center gap-2">
-                Load More Requests
-                <span className="material-symbols-outlined text-[18px]">expand_more</span>
-              </button>
+          <DashboardCard>
+            <div className="mb-5 flex items-center gap-2">
+              <Icon className="h-5 w-5 text-teal-command" name="chart" />
+              <h2 className="text-lg font-semibold text-deep-charcoal">Pipeline Health</h2>
             </div>
-          </div>
-
-          {/* Right Sidebar */}
-          <aside className="w-[300px] flex flex-col gap-6">
-            {/* Queue Summary */}
-            <div className="bg-white border border-border-warm rounded-xl p-6 shadow-sm">
-              <div className="flex items-center gap-2 mb-6">
-                <span className="material-symbols-outlined text-teal-command">dashboard_customize</span>
-                <h4 className="text-xl font-bold">Queue Summary</h4>
+            <div className="flex h-48 items-end justify-center gap-4 rounded-lg bg-workflow-ivory p-4">
+              {pipelineBars.map((bar) => (
+                <div className="flex h-full flex-1 max-w-10 flex-col items-center justify-end gap-2" key={bar.label}>
+                  <div className="relative w-full rounded-t-sm bg-teal-command/20" style={{ height: bar.height }}>
+                    <div className="absolute inset-x-0 bottom-0 rounded-t-sm bg-teal-command transition-all duration-300 hover:h-full" style={{ height: '72%' }} />
+                  </div>
+                  <span className="text-[10px] font-semibold text-slate-ink">{bar.label}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">Hiring Velocity</p>
+                <p className="mt-1 font-mono text-xl font-semibold text-deep-charcoal">18 days</p>
               </div>
-              <div className="space-y-6">
-                <div className="flex flex-col gap-1">
-                  <span className="text-secondary text-xs">Average Review Time</span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-bold text-on-surface">2.3</span>
-                    <span className="text-secondary text-sm">days</span>
-                  </div>
-                  <div className="w-full bg-workflow-ivory h-1.5 rounded-full mt-2 overflow-hidden">
-                    <div className="bg-teal-command h-full w-[65%]" title="Efficiency Rate"></div>
-                  </div>
-                </div>
-                <div className="flex flex-col gap-1 p-4 bg-revision/5 rounded-lg border border-revision/10">
-                  <span className="text-secondary text-xs">Oldest Pending Request</span>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xl font-bold text-revision">5 days</span>
-                    <span className="material-symbols-outlined text-revision animate-bounce">priority_high</span>
-                  </div>
-                  <p className="text-[11px] text-revision/80 mt-1 italic">Action recommended for SLAs</p>
-                </div>
-                <div className="space-y-3 pt-4 border-t border-border-warm/40">
-                  <h5 className="text-on-surface text-xs font-bold uppercase tracking-wider">This Week Performance</h5>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-approved"></div>
-                      <span className="text-secondary text-sm">Reviewed</span>
-                    </div>
-                    <span className="font-bold text-on-surface">3</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-pending"></div>
-                      <span className="text-secondary text-sm">Forwarded</span>
-                    </div>
-                    <span className="font-bold text-on-surface">2</span>
-                  </div>
-                </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">Pass Rate</p>
+                <p className="mt-1 font-mono text-xl font-semibold text-deep-charcoal">24%</p>
               </div>
             </div>
-
-            {/* Request Distribution */}
-            <div className="bg-white border border-border-warm rounded-xl p-6 shadow-sm">
-              <h4 className="text-sm font-bold mb-4">Request Distribution</h4>
-              <div className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-workflow-ivory flex items-center justify-center text-teal-command">
-                    <span className="material-symbols-outlined">computer</span>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex justify-between mb-1">
-                      <span className="text-xs font-medium">IT & Eng</span>
-                      <span className="text-xs text-secondary">42%</span>
-                    </div>
-                    <div className="h-1 bg-surface-container rounded-full overflow-hidden">
-                      <div className="bg-teal-command h-full w-[42%]"></div>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-workflow-ivory flex items-center justify-center text-teal-command">
-                    <span className="material-symbols-outlined">palette</span>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex justify-between mb-1">
-                      <span className="text-xs font-medium">Design</span>
-                      <span className="text-xs text-secondary">28%</span>
-                    </div>
-                    <div className="h-1 bg-surface-container rounded-full overflow-hidden">
-                      <div className="bg-teal-command h-full w-[28%]"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Support Banner */}
-            <div className="relative overflow-hidden rounded-xl bg-teal-command h-32 group cursor-pointer">
-              <img
-                className="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-overlay group-hover:scale-110 transition-transform duration-700"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuD6emTQiHCoi08N1Z4rqLfXD7Weu5-durGi3ttQH49sL13n0vQX7QFae0B1o1iNzvdxzLpsc6ezFd6l_pJCMjYbcM9xTT4qVQwDVTQqAx_qemDJh33ZeELe-Mv7uDqfQrs9sXi6F1n1Gj44U0uY6m_rLlrfEjXvYvHzskEEJAczIe0cX02S_gfgj0HlJxrO4vI1rbiEAi6o_89mGbhIOvAvU1vVoeNqqWR83-v8WAoSk-CJkxjlL34XMyVQnzMRf8vZ6yxsQO9C8zQ"
-              />
-              <div className="absolute inset-0 p-5 flex flex-col justify-end bg-gradient-to-t from-teal-command to-transparent">
-                <span className="text-white font-bold text-sm">Need assistance?</span>
-                <p className="text-teal-100 text-[12px]">Schedule a sync with the recruitment admin team.</p>
-              </div>
-            </div>
-          </aside>
+          </DashboardCard>
         </div>
-      </main>
+      </section>
     </div>
   );
-}
+};
