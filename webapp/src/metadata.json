@@ -5,8 +5,8 @@
       "description": "Dashboard, Approval Queue, All Requests, Interview Results, Users, Settings, Reports > Annual, Reports > Dept Stats"
     },
     "DEPARTMENT_HEAD": {
-      "expectedNavItems": 4,
-      "description": "Dashboard, Create Request, My Requests, Interviews"
+      "expectedNavItems": 5,
+      "description": "Dashboard, Create Request, My Requests, Interviews, Dept Settings"
     },
     "HR_MANAGER": {
       "expectedNavItems": 10,
@@ -38,7 +38,8 @@
       { "label": "Dashboard", "path": "/dept-head", "icon": "dashboard" },
       { "label": "Create Request", "path": "/dept-head/create-request", "icon": "create" },
       { "label": "My Requests", "path": "/dept-head/requests", "icon": "requests" },
-      { "label": "Interviews", "path": "/dept-head/interviews", "icon": "interviews" }
+      { "label": "Interviews", "path": "/dept-head/interviews", "icon": "interviews" },
+      { "label": "Dept Settings", "path": "/dept-head/settings", "icon": "settings" }
     ],
     "HR_MANAGER": [
       { "label": "Dashboard", "path": "/hr", "icon": "dashboard" },
