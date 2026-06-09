@@ -116,6 +116,12 @@ export enum NotificationType {
   SYSTEM = 'SYSTEM',
 }
 
+export enum EmailTemplateType {
+  INTERVIEW_INVITATION = 'INTERVIEW_INVITATION',
+  OFFER_LETTER = 'OFFER_LETTER',
+  REJECTION = 'REJECTION',
+}
+
 // ─── Document Processing (BullMQ) ──────────────────────────────────
 
 export enum DocumentState {

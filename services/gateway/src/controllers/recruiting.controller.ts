@@ -7,7 +7,6 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import {
   OfferResponse,
   UserRole,
-  HiringDecision,
 } from '@wr/contracts';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { IsUUID, IsString, IsOptional, IsDateString, IsNotEmpty, IsEnum } from 'class-validator';
@@ -103,17 +102,6 @@ export class OfferResponseDto {
   response!: OfferResponse;
 }
 
-export class HiringDecisionDto {
-  @ApiProperty({ enum: HiringDecision, example: HiringDecision.HIRE })
-  @IsEnum(HiringDecision)
-  decision!: HiringDecision;
-
-  @ApiProperty({ example: 'Great fit for the team.' })
-  @IsString()
-  @IsNotEmpty()
-  notes!: string;
-}
-
 /**
  * Thin proxy controller for Recruiting service (roles, applications, invites, evaluations).
  */
@@ -123,7 +111,7 @@ export class HiringDecisionDto {
 export class RecruitingController {
   constructor(
     @Inject(SERVICE_TOKENS.RECRUITING) private readonly recruitingClient: ClientProxy,
-  ) {}
+  ) { }
 
   // ─── Roles ───────────────────────────────────────────────────────
 
@@ -383,24 +371,6 @@ export class RecruitingController {
       this.recruitingClient.send('recruiting.realtime_tracking', {
         userId: user.sub,
         role: user.role,
-      }),
-    );
-  }
-
-  @Patch('recruitment-requests/:id/hiring-decision')
-  @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'T-098: Admin final hiring decision (HIRE/REJECT)' })
-  makeHiringDecision(
-    @Param('id') requestId: string,
-    @Body() body: HiringDecisionDto,
-    @CurrentUser() user: any,
-  ) {
-    return firstValueFrom(
-      this.recruitingClient.send('recruiting.hiring_decision.decide', {
-        requestId,
-        decision: body.decision,
-        notes: body.notes,
-        adminId: user.sub,
       }),
     );
   }

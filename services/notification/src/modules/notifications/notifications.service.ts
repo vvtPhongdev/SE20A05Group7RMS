@@ -12,6 +12,7 @@ import {
   CreateEmailLogInput,
   EmailStatus,
 } from '@wr/contracts';
+import { EmailTemplateService } from './email-template.service';
 
 @Injectable()
 export class NotificationsService {
@@ -20,6 +21,7 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue(QUEUE_NAMES.EMAIL_SEND) private readonly emailQueue: Queue,
+    private readonly emailTemplateService: EmailTemplateService,
   ) {
     const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
     this.pubClient = new Redis(redisUrl);
@@ -195,5 +197,29 @@ export class NotificationsService {
     );
 
     return emailLog;
+  }
+
+  async renderTemplate(payload: { templateType: string; templateData: Record<string, any> }) {
+    return this.emailTemplateService.render(payload.templateType, payload.templateData);
+  }
+
+  async sendTemplatedEmail(payload: {
+    userId?: string;
+    toEmail: string;
+    templateType: string;
+    templateData: Record<string, any>;
+  }) {
+    const { subject, body } = this.emailTemplateService.render(
+      payload.templateType,
+      payload.templateData,
+    );
+
+    return this.sendEmail({
+      userId: payload.userId,
+      toEmail: payload.toEmail,
+      subject,
+      body,
+      status: EmailStatus.PENDING,
+    });
   }
 }

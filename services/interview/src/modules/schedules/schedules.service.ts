@@ -295,6 +295,62 @@ export class SchedulesService {
       }
     }).catch((err) => console.error('Failed to query request for interview scheduled notification:', err));
 
+    // Resolve candidate and interviewers details for email notifications (FR-13/16)
+    Promise.all([
+      this.prisma.candidateProfile.findUnique({
+        where: { id: payload.candidateId },
+        select: { userId: true, fullName: true, email: true },
+      }),
+      this.prisma.user.findMany({
+        where: { id: { in: payload.interviewers } },
+        select: { id: true, email: true, displayName: true },
+      }),
+      this.prisma.recruitmentRequest.findUnique({
+        where: { id: payload.requestId },
+        select: { position: true },
+      }),
+    ]).then(([candidateProfile, interviewerUsers, reqObj]) => {
+      const scheduledDateStr = scheduledAt.toLocaleString('en-GB', {
+        timeZone: 'Asia/Ho_Chi_Minh',
+        dateStyle: 'full',
+        timeStyle: 'short',
+      });
+
+      if (candidateProfile) {
+        this.notificationClient.send('notification.send_templated_email', {
+          userId: candidateProfile.userId,
+          toEmail: candidateProfile.email,
+          templateType: 'INTERVIEW_INVITATION',
+          templateData: {
+            recipientName: candidateProfile.fullName,
+            position: reqObj?.position || 'Position',
+            scheduledAt: scheduledDateStr,
+            location: payload.location,
+            preparationInstructions: 'Please prepare by reviewing the job description, having a copy of your resume ready, and ensuring a stable internet connection if the interview is online.',
+          },
+        }).subscribe({
+          error: (err) => console.error('Failed to send candidate interview invitation email:', err),
+        });
+      }
+
+      for (const u of interviewerUsers) {
+        this.notificationClient.send('notification.send_templated_email', {
+          userId: u.id,
+          toEmail: u.email,
+          templateType: 'INTERVIEW_INVITATION',
+          templateData: {
+            recipientName: u.displayName,
+            position: reqObj?.position || 'Position',
+            scheduledAt: scheduledDateStr,
+            location: payload.location,
+            preparationInstructions: 'Please review the candidate profile and CV prior to the interview.',
+          },
+        }).subscribe({
+          error: (err) => console.error(`Failed to send interviewer ${u.email} interview invitation email:`, err),
+        });
+      }
+    }).catch((err) => console.error('Failed to query details for interview invitation emails:', err));
+
     return schedule;
   }
 

@@ -9,7 +9,6 @@ import { TalentSearchModule } from './modules/talent-search/talent-search.module
 import { JobPostingsModule } from './modules/job-postings/job-postings.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { OffersModule } from './modules/offers/offers.module';
-import { HiringDecisionsModule } from './modules/hiring-decisions/hiring-decisions.module';
 import { RecruitmentRequestsController } from './modules/recruitment-requests/recruitment-requests.controller';
 import { RecruitmentRequestsService } from './modules/recruitment-requests/recruitment-requests.service';
 
@@ -46,10 +45,9 @@ function getRedisConnection() {
     JobPostingsModule,
     ReportsModule,
     OffersModule,
-    HiringDecisionsModule,
   ],
   controllers: [RecruitmentRequestsController],
   providers: [RecruitmentRequestsService],
 })
-export class RecruitingModule {}
+export class RecruitingModule { }
 
