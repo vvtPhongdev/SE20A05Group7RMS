@@ -15,6 +15,7 @@ import { AdminSettings } from './pages/AdminSettings';
 import { AdminUsers } from './pages/AdminUsers';
 import { DeptHeadCreateRequest } from './pages/DeptHeadCreateRequest';
 import { DeptHeadDashboard } from './pages/DeptHeadDashboard';
+import { DeptHeadRequests } from './pages/DeptHeadRequests';
 import { HrManagerDashboard } from './pages/HrManagerDashboard';
 import { CandidateDashboard } from './pages/CandidateDashboard';
 import { PlaceholderPage } from './pages/PlaceholderPage';
@@ -173,7 +174,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.DEPARTMENT_HEAD]}>
                 <Layout>
-                  <PlaceholderPage title="My Requests" description="Track the live lifecycle states of your department's staffing requests." />
+                  <DeptHeadRequests />
                 </Layout>
               </ProtectedRoute>
             }
