@@ -1,3 +1,4 @@
+import { of } from 'rxjs';
 import {
   OfferStatus,
   RecruitmentRequestStatus,
@@ -22,8 +23,16 @@ describe('OfferLetterService', () => {
   };
   const emailQueue = { add: jest.fn() };
   const notificationClient = {
-    send: jest.fn().mockReturnValue({
-      subscribe: jest.fn(),
+    send: jest.fn().mockImplementation((pattern) => {
+      if (pattern === 'notification.render_template') {
+        return of({
+          subject: 'Rendered Offer Letter Subject',
+          body: 'Rendered Offer Letter Body',
+        });
+      }
+      return of({
+        subscribe: jest.fn(),
+      });
     }),
   };
   const service = new OfferLetterService(prisma as any, emailQueue as any, notificationClient as any);

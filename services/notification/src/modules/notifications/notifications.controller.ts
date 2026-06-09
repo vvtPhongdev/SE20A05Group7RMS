@@ -44,4 +44,19 @@ export class NotificationsController {
   async sendEmail(@Payload() payload: CreateEmailLogInput) {
     return this.notificationsService.sendEmail(payload);
   }
+
+  @MessagePattern('notification.render_template')
+  async renderTemplate(@Payload() payload: { templateType: string; templateData: Record<string, any> }) {
+    return this.notificationsService.renderTemplate(payload);
+  }
+
+  @MessagePattern('notification.send_templated_email')
+  async sendTemplatedEmail(@Payload() payload: {
+    userId?: string;
+    toEmail: string;
+    templateType: string;
+    templateData: Record<string, any>;
+  }) {
+    return this.notificationsService.sendTemplatedEmail(payload);
+  }
 }

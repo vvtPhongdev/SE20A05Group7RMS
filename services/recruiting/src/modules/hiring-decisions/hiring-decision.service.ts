@@ -1,5 +1,9 @@
 import { HttpStatus, Injectable, Inject } from '@nestjs/common';
 import { RpcException, ClientProxy } from '@nestjs/microservices';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { JOB_NAMES, QUEUE_NAMES } from '@wr/queue';
+import { firstValueFrom } from 'rxjs';
 import {
   EmailStatus,
   HiringDecision,
@@ -15,6 +19,7 @@ export class HiringDecisionService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject('NOTIFICATION_SERVICE') private readonly notificationClient: ClientProxy,
+    @InjectQueue(QUEUE_NAMES.EMAIL_SEND) private readonly emailQueue: Queue,
   ) {}
 
   async decide(
@@ -117,6 +122,52 @@ export class HiringDecisionService {
         ? RecruitmentRequestStatus.OFFER_EXTENDED
         : RecruitmentRequestStatus.REJECTED;
     const note = notes.trim();
+
+    // Render templates for all applications in parallel before transaction
+    const applicationEmails = await Promise.all(
+      request.applications.map(async (application) => {
+        const hired =
+          decision === HiringDecision.HIRE &&
+          selectedCandidateIds.includes(application.candidateId);
+        const applicationStatus = hired
+          ? RecruitmentRequestStatus.OFFER_EXTENDED
+          : RecruitmentRequestStatus.REJECTED;
+
+        let subject = hired
+          ? `Hiring decision for ${request.position}`
+          : `Application update for ${request.position}`;
+        let body = hired
+          ? `You have been selected for ${request.position}. The formal offer workflow has started.`
+          : `Your application for ${request.position} was not selected.`;
+
+        if (applicationStatus === RecruitmentRequestStatus.REJECTED) {
+          try {
+            const rendered = await firstValueFrom(
+              this.notificationClient.send('notification.render_template', {
+                templateType: 'REJECTION',
+                templateData: {
+                  candidateName: application.candidate.fullName,
+                  position: request.position,
+                  rejectionReason: note,
+                },
+              }),
+            );
+            subject = rendered.subject;
+            body = rendered.body;
+          } catch (err) {
+            console.error('Failed to render rejection email template:', err);
+          }
+        }
+
+        return {
+          application,
+          applicationStatus,
+          subject,
+          body,
+        };
+      }),
+    );
+
     const transactions: any[] = [
       this.prisma.recruitmentRequest.update({
         where: { id: requestId },
@@ -142,38 +193,52 @@ export class HiringDecisionService {
       }),
     ];
 
-    for (const application of request.applications) {
-      const hired =
-        decision === HiringDecision.HIRE &&
-        selectedCandidateIds.includes(application.candidateId);
-      const applicationStatus = hired
-        ? RecruitmentRequestStatus.OFFER_EXTENDED
-        : RecruitmentRequestStatus.REJECTED;
-      const subject = hired
-        ? `Hiring decision for ${request.position}`
-        : `Application update for ${request.position}`;
-      const body = hired
-        ? `You have been selected for ${request.position}. The formal offer workflow has started.`
-        : `Your application for ${request.position} was not selected.`;
-
+    for (const appEmail of applicationEmails) {
       transactions.push(
         this.prisma.application.update({
-          where: { id: application.id },
-          data: { status: applicationStatus },
+          where: { id: appEmail.application.id },
+          data: { status: appEmail.applicationStatus },
         }),
         this.prisma.emailLog.create({
           data: {
-            userId: application.candidate.userId,
-            toEmail: application.candidate.email,
-            subject,
-            body,
+            userId: appEmail.application.candidate.userId,
+            toEmail: appEmail.application.candidate.email,
+            subject: appEmail.subject,
+            body: appEmail.body,
             status: EmailStatus.PENDING,
           },
         }),
       );
     }
 
-    const [updatedRequest] = await this.prisma.$transaction(transactions);
+    const results = await this.prisma.$transaction(transactions);
+    const updatedRequest = results[0];
+
+    // Find and queue all the created EmailLog records
+    const emailLogs = results.filter(
+      (res: any) =>
+        res &&
+        typeof res === 'object' &&
+        'toEmail' in res &&
+        'subject' in res &&
+        'id' in res,
+    );
+
+    for (const log of emailLogs) {
+      await this.emailQueue.add(
+        JOB_NAMES.SEND_EMAIL,
+        {
+          emailLogId: log.id,
+          to: log.toEmail,
+          subject: log.subject,
+          body: log.body,
+        },
+        {
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 1000 },
+        },
+      );
+    }
 
     // Trigger candidate notifications and request status change notifications
     for (const application of request.applications) {

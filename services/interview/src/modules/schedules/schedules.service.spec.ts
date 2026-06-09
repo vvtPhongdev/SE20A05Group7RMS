@@ -53,6 +53,7 @@ describe('SchedulesService', () => {
       prisma.recruitmentRequest.findUnique.mockResolvedValue({
         id: 'request-1',
         status: RecruitmentRequestStatus.APPROVED,
+        position: 'Software Engineer',
       });
       prisma.overallPlan.findUnique.mockResolvedValue({
         id: 'plan-1',
@@ -64,6 +65,15 @@ describe('SchedulesService', () => {
         id: 'application-1',
         status: 'SCREENING',
       });
+      // Mock candidate profile and interviewers queries
+      prisma.candidateProfile.findUnique.mockResolvedValue({
+        userId: 'user-candidate',
+        fullName: 'Jane Doe',
+        email: 'jane@example.com',
+      });
+      prisma.user.findMany.mockResolvedValue([
+        { id: 'user-interviewer', displayName: 'Dr. John', email: 'john@example.com' },
+      ]);
       // Mock conflict check returns no conflict
       prisma.interviewSchedule.findMany.mockResolvedValue([]);
 
@@ -89,6 +99,25 @@ describe('SchedulesService', () => {
       expect(prisma.recruitmentRequest.update).toHaveBeenCalledWith(
         expect.objectContaining({
           data: { status: RecruitmentRequestStatus.INTERVIEWING },
+        }),
+      );
+
+      // Flush microtasks to allow Promise.all().then() callbacks to execute
+      await new Promise((resolve) => setImmediate(resolve));
+
+      // Verify that notification client was invoked with send_templated_email
+      expect(notificationClient.send).toHaveBeenCalledWith(
+        'notification.send_templated_email',
+        expect.objectContaining({
+          templateType: 'INTERVIEW_INVITATION',
+          toEmail: 'jane@example.com',
+        }),
+      );
+      expect(notificationClient.send).toHaveBeenCalledWith(
+        'notification.send_templated_email',
+        expect.objectContaining({
+          templateType: 'INTERVIEW_INVITATION',
+          toEmail: 'john@example.com',
         }),
       );
     });

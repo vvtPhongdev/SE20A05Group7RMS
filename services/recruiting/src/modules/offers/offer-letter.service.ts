@@ -10,6 +10,7 @@ import {
 } from '@wr/contracts';
 import { JOB_NAMES, QUEUE_NAMES } from '@wr/queue';
 import { Queue } from 'bullmq';
+import { firstValueFrom } from 'rxjs';
 import { PrismaService } from '../../common/database/prisma.service';
 
 interface OfferDetails {
@@ -162,14 +163,35 @@ export class OfferLetterService {
       });
     }
 
-    const subject = `Offer Letter - ${offer.positionTitle}`;
+    let subject = `Offer Letter - ${offer.positionTitle}`;
+    let body = offer.content;
+
+    try {
+      const rendered = await firstValueFrom(
+        this.notificationClient.send('notification.render_template', {
+          templateType: 'OFFER_LETTER',
+          templateData: {
+            candidateName: offer.candidate.fullName,
+            position: offer.positionTitle,
+            offerContent: offer.content,
+            nextSteps: 'Please review the offer details and accept or decline the offer on our portal by the response deadline.',
+            responseDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB'),
+          },
+        }),
+      );
+      subject = rendered.subject;
+      body = rendered.body;
+    } catch (err) {
+      console.error('Failed to render offer letter template:', err);
+    }
+
     const [emailLog, updatedOffer] = await this.prisma.$transaction([
       this.prisma.emailLog.create({
         data: {
           userId: offer.candidate.userId,
           toEmail: offer.candidate.email,
           subject,
-          body: offer.content,
+          body,
           status: EmailStatus.PENDING,
         },
       }),
@@ -218,7 +240,7 @@ export class OfferLetterService {
         emailLogId: emailLog.id,
         to: offer.candidate.email,
         subject,
-        body: offer.content,
+        body,
       },
       {
         attempts: 3,
