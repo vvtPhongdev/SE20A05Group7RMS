@@ -32,6 +32,7 @@ import { HRInterviewResults } from './pages/HRInterviewResults';
 import { HRSystemNotifications } from './pages/HRSystemNotifications';
 import { CandidateDashboard } from './pages/CandidateDashboard';
 import { CandidateProfile } from './pages/CandidateProfile';
+import { CandidateNotifications } from './pages/CandidateNotifications';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { UserRole } from '@wr/contracts';
 
@@ -404,10 +405,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.CANDIDATE]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Inbox Alerts"
-                    description="Check incoming notifications, interview invitations, and status updates."
-                  />
+                  <CandidateNotifications />
                 </Layout>
               </ProtectedRoute>
             }
