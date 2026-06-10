@@ -29,6 +29,7 @@ import { CandidateSearch } from './pages/CandidateSearch';
 import { HRInterviewSchedule } from './pages/HRInterviewSchedule';
 import { HRPipelineReports } from './pages/HRPipelineReports';
 import { HRInterviewResults } from './pages/HRInterviewResults';
+import { HRSystemNotifications } from './pages/HRSystemNotifications';
 import { CandidateDashboard } from './pages/CandidateDashboard';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { UserRole } from '@wr/contracts';
@@ -347,10 +348,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="System Notifications"
-                    description="Manage email templates, dispatch queue logs, and active alerts."
-                  />
+                  <HRSystemNotifications />
                 </Layout>
               </ProtectedRoute>
             }
