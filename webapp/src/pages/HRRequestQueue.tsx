@@ -1,69 +1,67 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 type RequestUrgency = 'Critical' | 'High' | 'Normal' | 'Low';
 type QueueStatus = 'PENDING' | 'UNDER_REVIEW' | 'FORWARDED' | 'RETURNED';
 
-interface RecruitmentRequest {
+type RecruitmentRequest = {
   id: string;
   position: string;
   department: string;
   requestedBy: string;
   submittedDate: string;
   headcount: number;
-  type: string;          // e.g. "Full-time", "Internship"
-  budget: string;        // e.g. "₫25M/person"
-  budgetLabel: string;   // e.g. "Monthly Budget", "Monthly Stipend"
+  type: 'Full-time' | 'Internship';
+  budget: string;
+  budgetLabel: string;
   urgency: RequestUrgency;
   status: QueueStatus;
   justification: string;
   skillsRequired: string[];
-}
-
-// ─── Mock Data ────────────────────────────────────────────────────────────────
+};
 
 const initialRequests: RecruitmentRequest[] = [
   {
-    id: '#REQ-2024-041',
+    id: 'REQ-2024-041',
     position: 'Senior Backend Engineer',
     department: 'IT Dept',
     requestedBy: 'Dr. Nguyen Van B.',
     submittedDate: 'May 27',
     headcount: 2,
     type: 'Full-time',
-    budget: '₫25M/person',
+    budget: 'VND 25M/person',
     budgetLabel: 'Monthly Budget',
     urgency: 'Critical',
     status: 'PENDING',
-    justification: 'Critical backfill needed to support the upcoming microservice migration phase. The candidate will own database optimization and API gateway security compliance.',
+    justification:
+      'Critical backfill needed to support the upcoming microservice migration phase. The candidate will own database optimization and API gateway security compliance.',
     skillsRequired: ['Go', 'Rust', 'Kubernetes', 'gRPC'],
   },
   {
-    id: '#REQ-2024-045',
+    id: 'REQ-2024-045',
     position: 'Product Designer',
     department: 'Design & UX Dept',
     requestedBy: 'Ms. Tran Thi C.',
     submittedDate: 'May 27',
     headcount: 1,
     type: 'Full-time',
-    budget: '₫22M/person',
+    budget: 'VND 22M/person',
     budgetLabel: 'Monthly Budget',
     urgency: 'High',
     status: 'PENDING',
-    justification: 'Required for applicant portal redesign. The designer will collaborate closely with engineering teams to conduct usability testings and design components.',
+    justification:
+      'Required for applicant portal redesign. The designer will collaborate with engineering teams to conduct usability testing and build reusable design components.',
     skillsRequired: ['Figma', 'Design Systems', 'Usability Testing', 'Prototyping'],
   },
   {
-    id: '#REQ-2024-049',
+    id: 'REQ-2024-049',
     position: 'Marketing Specialist',
     department: 'Marketing Dept',
     requestedBy: 'Mr. Vu Huy D.',
     submittedDate: 'May 26',
     headcount: 1,
     type: 'Full-time',
-    budget: '₫18M/person',
+    budget: 'VND 18M/person',
     budgetLabel: 'Monthly Budget',
     urgency: 'Normal',
     status: 'PENDING',
@@ -71,14 +69,14 @@ const initialRequests: RecruitmentRequest[] = [
     skillsRequired: ['SEO', 'Content Writing', 'Google Ads', 'Analytics'],
   },
   {
-    id: '#REQ-2024-052',
+    id: 'REQ-2024-052',
     position: 'HR Coordinator',
     department: 'Human Resources',
     requestedBy: 'Ms. Ly Minh E.',
     submittedDate: 'May 25',
     headcount: 1,
     type: 'Full-time',
-    budget: '₫15M/person',
+    budget: 'VND 15M/person',
     budgetLabel: 'Monthly Budget',
     urgency: 'Normal',
     status: 'PENDING',
@@ -86,14 +84,14 @@ const initialRequests: RecruitmentRequest[] = [
     skillsRequired: ['HR Administration', 'Onboarding', 'Communication', 'Scheduling'],
   },
   {
-    id: '#REQ-2024-055',
+    id: 'REQ-2024-055',
     position: 'Data Analyst Intern',
     department: 'Data Intelligence',
     requestedBy: 'Mr. Pham Minh F.',
     submittedDate: 'May 24',
     headcount: 3,
     type: 'Internship',
-    budget: '₫6M/person',
+    budget: 'VND 6M/person',
     budgetLabel: 'Monthly Stipend',
     urgency: 'Low',
     status: 'PENDING',
@@ -101,106 +99,44 @@ const initialRequests: RecruitmentRequest[] = [
     skillsRequired: ['SQL', 'Excel', 'Tableau', 'Data Cleaning'],
   },
   {
-    id: '#REQ-2024-056',
-    position: 'DevOps Engineer',
-    department: 'Infrastructure',
-    requestedBy: 'Mr. Hoang Van G.',
-    submittedDate: 'May 28',
-    headcount: 1,
-    type: 'Full-time',
-    budget: '₫28M/person',
-    budgetLabel: 'Monthly Budget',
-    urgency: 'High',
-    status: 'PENDING',
-    justification: 'Own CI/CD pipeline automation and maintain cloud orchestration infrastructure consistency.',
-    skillsRequired: ['Terraform', 'AWS', 'Docker', 'Jenkins'],
-  },
-  {
-    id: '#REQ-2024-057',
-    position: 'Sales Development Representative',
-    department: 'Sales & Growth',
-    requestedBy: 'Mr. Le Huy H.',
-    submittedDate: 'May 27',
-    headcount: 2,
-    type: 'Full-time',
-    budget: '₫16M/person',
-    budgetLabel: 'Monthly Budget',
-    urgency: 'Normal',
-    status: 'PENDING',
-    justification: 'Outbound prospecting and lead generation to fuel enterprise sales pipelines.',
-    skillsRequired: ['Lead Generation', 'Cold Calling', 'Salesforce', 'Negotiation'],
-  },
-  {
-    id: '#REQ-2024-058',
-    position: 'Office Administrator',
-    department: 'Operations',
-    requestedBy: 'Mrs. Doan Thu K.',
-    submittedDate: 'May 26',
-    headcount: 1,
-    type: 'Full-time',
-    budget: '₫12M/person',
-    budgetLabel: 'Monthly Budget',
-    urgency: 'Low',
-    status: 'PENDING',
-    justification: 'Manage front desk, vendor coordination, and general facilities maintenance.',
-    skillsRequired: ['Vendor Management', 'Office Software', 'Coordination'],
-  },
-  // Under Review Mock Requests
-  {
-    id: '#REQ-2024-039',
+    id: 'REQ-2024-039',
     position: 'Fullstack Developer',
     department: 'IT Dept',
     requestedBy: 'Dr. Nguyen Van B.',
     submittedDate: 'May 20',
     headcount: 1,
     type: 'Full-time',
-    budget: '₫24M/person',
+    budget: 'VND 24M/person',
     budgetLabel: 'Monthly Budget',
     urgency: 'High',
     status: 'UNDER_REVIEW',
-    justification: 'Required to build frontend dashboards and connect backend services for the RMS project.',
+    justification: 'Build frontend dashboards and connect backend services for the RMS project.',
     skillsRequired: ['React', 'TypeScript', 'Node.js', 'PostgreSQL'],
   },
   {
-    id: '#REQ-2024-040',
-    position: 'Content Creator',
-    department: 'Marketing Dept',
-    requestedBy: 'Mr. Vu Huy D.',
-    submittedDate: 'May 19',
-    headcount: 1,
-    type: 'Full-time',
-    budget: '₫15M/person',
-    budgetLabel: 'Monthly Budget',
-    urgency: 'Normal',
-    status: 'UNDER_REVIEW',
-    justification: 'Create high-engagement visual assets and videos to support product marketing campaigns.',
-    skillsRequired: ['Photoshop', 'Premiere Pro', 'Videography', 'Copywriting'],
-  },
-  {
-    id: '#REQ-2024-042',
+    id: 'REQ-2024-042',
     position: 'Solutions Architect',
     department: 'Infrastructure',
     requestedBy: 'Mr. Hoang Van G.',
     submittedDate: 'May 21',
     headcount: 1,
     type: 'Full-time',
-    budget: '₫35M/person',
+    budget: 'VND 35M/person',
     budgetLabel: 'Monthly Budget',
     urgency: 'Critical',
     status: 'UNDER_REVIEW',
-    justification: 'Design highly available, distributed cloud architecture matching security frameworks.',
+    justification: 'Design highly available cloud architecture matching security frameworks.',
     skillsRequired: ['AWS Certified', 'Enterprise Architecture', 'Terraform', 'Kubernetes'],
   },
-  // Forwarded to Admin Mock Requests
   {
-    id: '#REQ-2024-030',
+    id: 'REQ-2024-030',
     position: 'Security Auditor',
     department: 'Compliance',
     requestedBy: 'Mr. Tran Van X.',
     submittedDate: 'May 15',
     headcount: 1,
     type: 'Full-time',
-    budget: '₫30M/person',
+    budget: 'VND 30M/person',
     budgetLabel: 'Monthly Budget',
     urgency: 'High',
     status: 'FORWARDED',
@@ -208,508 +144,463 @@ const initialRequests: RecruitmentRequest[] = [
     skillsRequired: ['CISSP', 'Network Security', 'ISO 27001', 'Penetration Testing'],
   },
   {
-    id: '#REQ-2024-031',
+    id: 'REQ-2024-031',
     position: 'Product Owner',
     department: 'Product Strategy',
     requestedBy: 'Ms. Le Thi Y.',
     submittedDate: 'May 16',
     headcount: 1,
     type: 'Full-time',
-    budget: '₫26M/person',
+    budget: 'VND 26M/person',
     budgetLabel: 'Monthly Budget',
     urgency: 'Normal',
     status: 'FORWARDED',
-    justification: 'Define features backlog and coordinate sprint planning and releases across engineering pods.',
+    justification: 'Define feature backlog and coordinate sprint planning across engineering pods.',
     skillsRequired: ['Agile', 'Scrum', 'Jira', 'Product Roadmap'],
   },
   {
-    id: '#REQ-2024-033',
-    position: 'Infrastructure Lead',
-    department: 'Infrastructure',
-    requestedBy: 'Mr. Hoang Van G.',
-    submittedDate: 'May 17',
-    headcount: 1,
-    type: 'Full-time',
-    budget: '₫40M/person',
-    budgetLabel: 'Monthly Budget',
-    urgency: 'Critical',
-    status: 'FORWARDED',
-    justification: 'Team lead to direct infrastructural automation, scaling guidelines and disaster recovery.',
-    skillsRequired: ['AWS', 'Orchestration', 'Leadership', 'CI/CD Automation'],
-  },
-  {
-    id: '#REQ-2024-035',
-    position: 'BI Engineer',
-    department: 'Data Intelligence',
-    requestedBy: 'Mr. Pham Minh F.',
-    submittedDate: 'May 18',
-    headcount: 1,
-    type: 'Full-time',
-    budget: '₫20M/person',
-    budgetLabel: 'Monthly Budget',
-    urgency: 'Normal',
-    status: 'FORWARDED',
-    justification: 'Build ETL pipelines and automate data sync warehouses for executive metrics tracking dashboards.',
-    skillsRequired: ['ETL', 'SQL', 'Data Warehousing', 'PowerBI'],
-  },
-  {
-    id: '#REQ-2024-037',
-    position: 'Legal Specialist',
-    department: 'Legal Operations',
-    requestedBy: 'Mrs. Nguyen Thi L.',
-    submittedDate: 'May 18',
-    headcount: 1,
-    type: 'Full-time',
-    budget: '₫22M/person',
-    budgetLabel: 'Monthly Budget',
-    urgency: 'Low',
-    status: 'FORWARDED',
-    justification: 'Review commercial contracts, vendor agreements and handle data protection compliance checks.',
-    skillsRequired: ['Contract Law', 'GDPR', 'Corporate Governance', 'Legal Writing'],
-  },
-  // Returned Mock Requests
-  {
-    id: '#REQ-2024-025',
+    id: 'REQ-2024-025',
     position: 'Graphic Designer',
     department: 'Design & UX Dept',
     requestedBy: 'Ms. Tran Thi C.',
     submittedDate: 'May 10',
     headcount: 2,
     type: 'Full-time',
-    budget: '₫15M/person',
+    budget: 'VND 15M/person',
     budgetLabel: 'Monthly Budget',
     urgency: 'Normal',
     status: 'RETURNED',
-    justification: 'Create graphic designs for marketing web collateral. Returned because the salary budget range was outside design benchmarks.',
+    justification: 'Returned because the salary budget range was outside design benchmarks.',
     skillsRequired: ['Illustrator', 'Photoshop', 'Typography'],
   },
   {
-    id: '#REQ-2024-026',
+    id: 'REQ-2024-026',
     position: 'Technical Writer',
     department: 'IT Dept',
     requestedBy: 'Dr. Nguyen Van B.',
     submittedDate: 'May 11',
     headcount: 1,
     type: 'Full-time',
-    budget: '₫14M/person',
+    budget: 'VND 14M/person',
     budgetLabel: 'Monthly Budget',
     urgency: 'Low',
     status: 'RETURNED',
-    justification: 'Write API documentation and setup guides. Returned because justification needs detail on workload alignment.',
+    justification: 'Returned because justification needs more detail on workload alignment.',
     skillsRequired: ['Markdown', 'Git', 'API Documentation'],
   },
 ];
 
-// ─── Urgency Styles ───────────────────────────────────────────────────────────
+const statusTabs: Array<{ key: QueueStatus; label: string }> = [
+  { key: 'PENDING', label: 'Pending Review' },
+  { key: 'UNDER_REVIEW', label: 'Under Review' },
+  { key: 'FORWARDED', label: 'Forwarded to Admin' },
+  { key: 'RETURNED', label: 'Returned' },
+];
 
-const urgencyConfig: Record<RequestUrgency, { label: string; badge: string; sidebarBorder: string }> = {
+const urgencyConfig: Record<RequestUrgency, { label: string; badge: string; rail: string }> = {
   Critical: {
     label: 'Critical Priority',
-    badge: 'bg-rejected/10 text-rejected border-rejected/20',
-    sidebarBorder: 'bg-rejected',
+    badge: 'border-rejected/20 bg-rejected/10 text-rejected',
+    rail: 'bg-rejected',
   },
   High: {
     label: 'High Priority',
-    badge: 'bg-revision/10 text-revision border-revision/20',
-    sidebarBorder: 'bg-revision',
+    badge: 'border-revision/20 bg-revision/10 text-revision',
+    rail: 'bg-revision',
   },
   Normal: {
     label: 'Normal Priority',
-    badge: 'bg-teal-command/10 text-teal-command border-teal-command/20',
-    sidebarBorder: 'bg-teal-command',
+    badge: 'border-teal-command/20 bg-teal-command/10 text-teal-command',
+    rail: 'bg-teal-command',
   },
   Low: {
     label: 'Low Priority',
-    badge: 'bg-slate-ink/10 text-slate-ink border-slate-ink/20',
-    sidebarBorder: 'bg-slate-ink',
+    badge: 'border-slate-ink/20 bg-slate-ink/10 text-slate-ink',
+    rail: 'bg-slate-ink',
   },
 };
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+const iconPaths: Record<string, React.ReactNode> = {
+  add: <path d="M12 5v14M5 12h14" />,
+  search: <path d="m21 21-4.3-4.3M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" />,
+  bell: <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />,
+  wallet: <path d="M4 7h16v11H4zM16 11h4M7 7V5h10v2" />,
+  dashboard: <path d="M4 13h6V4H4zm10 7h6V4h-6zM4 20h6v-3H4z" />,
+  alert: <path d="M12 9v4m0 4h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />,
+  monitor: <path d="M4 5h16v11H4zM9 21h6m-3-5v5" />,
+  palette: <path d="M12 3a9 9 0 0 0 0 18h1.5a2 2 0 0 0 .5-3.94 1 1 0 0 1-.24-1.9H16a5 5 0 0 0 0-10h-4Zm-4 8h.01M9 7h.01M13 7h.01" />,
+  close: <path d="m6 6 12 12M18 6 6 18" />,
+  send: <path d="m22 2-7 20-4-9-9-4 20-7Z" />,
+  campaign: <path d="M4 12h3l9-5v10l-9-5H4Zm3 0v6a2 2 0 0 0 2 2h1" />,
+  inbox: <path d="M4 4h16l-2 10h-4a2 2 0 0 1-4 0H6L4 4Zm0 10v6h16v-6" />,
+};
+
+const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: string }) => (
+  <svg
+    aria-hidden="true"
+    className={className}
+    fill="none"
+    stroke="currentColor"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    strokeWidth="1.8"
+    viewBox="0 0 24 24"
+  >
+    {iconPaths[name]}
+  </svg>
+);
 
 export const HRRequestQueue: React.FC = () => {
   const navigate = useNavigate();
-  const [requestsList, setRequestsList] = useState<RecruitmentRequest[]>(initialRequests);
+  const [requests, setRequests] = useState<RecruitmentRequest[]>(initialRequests);
   const [activeTab, setActiveTab] = useState<QueueStatus>('PENDING');
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  // Interactive Modals/Drawers
+  const [query, setQuery] = useState('');
   const [selectedRequest, setSelectedRequest] = useState<RecruitmentRequest | null>(null);
-  const [showRevisionModal, setShowRevisionModal] = useState<boolean>(false);
-  const [revisionFeedback, setRevisionFeedback] = useState<string>('');
+  const [revisionTarget, setRevisionTarget] = useState<RecruitmentRequest | null>(null);
+  const [revisionFeedback, setRevisionFeedback] = useState('');
 
-  // Live Count Calculations
-  const counts = useMemo(() => ({
-    PENDING: requestsList.filter((r) => r.status === 'PENDING').length,
-    UNDER_REVIEW: requestsList.filter((r) => r.status === 'UNDER_REVIEW').length,
-    FORWARDED: requestsList.filter((r) => r.status === 'FORWARDED').length,
-    RETURNED: requestsList.filter((r) => r.status === 'RETURNED').length,
-  }), [requestsList]);
+  const counts = useMemo(
+    () =>
+      statusTabs.reduce(
+        (acc, tab) => {
+          acc[tab.key] = requests.filter((request) => request.status === tab.key).length;
+          return acc;
+        },
+        {} as Record<QueueStatus, number>,
+      ),
+    [requests],
+  );
 
-  // Filtering Logic
   const filteredRequests = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    return requestsList.filter((r) => {
-      const matchStatus = r.status === activeTab;
-      const matchSearch =
-        !q ||
-        r.id.toLowerCase().includes(q) ||
-        r.position.toLowerCase().includes(q) ||
-        r.department.toLowerCase().includes(q) ||
-        r.requestedBy.toLowerCase().includes(q);
-      return matchStatus && matchSearch;
-    });
-  }, [requestsList, activeTab, searchQuery]);
+    const normalizedQuery = query.trim().toLowerCase();
 
-  // Handle Review action
-  const handleOpenReview = (request: RecruitmentRequest) => {
+    return requests.filter((request) => {
+      const matchesStatus = request.status === activeTab;
+      const matchesQuery =
+        !normalizedQuery ||
+        [request.id, request.position, request.department, request.requestedBy, request.urgency].some((value) =>
+          value.toLowerCase().includes(normalizedQuery),
+        );
+
+      return matchesStatus && matchesQuery;
+    });
+  }, [activeTab, query, requests]);
+
+  const openReview = (request: RecruitmentRequest) => {
     setSelectedRequest(request);
-    // Automatically transition to UNDER_REVIEW when opened for review (if it was pending)
     if (request.status === 'PENDING') {
-      setRequestsList((prev) =>
-        prev.map((r) => (r.id === request.id ? { ...r, status: 'UNDER_REVIEW' } : r))
-      );
+      setRequests((current) => current.map((item) => (item.id === request.id ? { ...item, status: 'UNDER_REVIEW' } : item)));
     }
   };
 
-  // Actions inside Review Detail modal
-  const handleForwardToAdmin = (id: string) => {
-    setRequestsList((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: 'FORWARDED' } : r))
-    );
+  const forwardToAdmin = (id: string) => {
+    setRequests((current) => current.map((item) => (item.id === id ? { ...item, status: 'FORWARDED' } : item)));
     setSelectedRequest(null);
+    setActiveTab('FORWARDED');
   };
 
-  const handleCreateCampaign = (request: RecruitmentRequest) => {
-    console.log('Approve and create campaign for request:', request.id);
-    // Navigate straight to Create Plan / Campaigns flow
-    navigate('/hr/campaigns');
-  };
+  const returnForRevision = () => {
+    if (!revisionTarget || !revisionFeedback.trim()) return;
 
-  const handleReturnRevision = (id: string) => {
-    if (!revisionFeedback.trim()) return;
-    setRequestsList((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: 'RETURNED', justification: `${r.justification} [HR Feedback: ${revisionFeedback}]` } : r))
+    setRequests((current) =>
+      current.map((item) =>
+        item.id === revisionTarget.id
+          ? {
+              ...item,
+              status: 'RETURNED',
+              justification: `${item.justification} HR feedback: ${revisionFeedback.trim()}`,
+            }
+          : item,
+      ),
     );
-    setShowRevisionModal(false);
+    setRevisionTarget(null);
     setSelectedRequest(null);
     setRevisionFeedback('');
+    setActiveTab('RETURNED');
   };
 
   return (
-    <div className="-m-8 flex min-h-full bg-workflow-ivory flex-col">
-      {/* Top Header Section */}
-      <header className="flex items-center justify-between h-20 px-8 bg-workflow-ivory border-b border-border-warm sticky top-0 z-20">
-        <div className="flex flex-col">
-          <h2 className="font-headline-lg text-headline-lg text-deep-charcoal">Request Queue</h2>
-          <p className="text-secondary font-body-sm text-body-sm">HR Manager Portal • Incoming recruitment requests</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <span className="absolute inset-y-0 left-3 flex items-center text-outline">
-              <span className="material-symbols-outlined text-[20px]">search</span>
-            </span>
-            <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 bg-clean-surface border border-border-warm rounded-lg focus:ring-2 focus:ring-teal-command focus:border-teal-command outline-none transition-all w-64 text-label-md"
-              placeholder="Search requests..."
-              type="text"
-            />
+    <div className="mx-auto grid max-w-[1440px] gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+      <main className="min-w-0 space-y-6">
+        <header className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">HR Manager Portal</p>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">Request Review Queue</h1>
+            <p className="mt-1 max-w-[70ch] text-sm leading-6 text-slate-ink">
+              Review incoming recruitment requests, return incomplete requisitions, or forward validated requests to Admin.
+            </p>
           </div>
-          <button className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container transition-colors relative">
-            <span className="material-symbols-outlined">notifications</span>
-            {counts.PENDING > 0 && (
-              <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-error rounded-full" />
-            )}
-          </button>
-          <button
-            onClick={() => navigate('/hr/campaigns')}
-            className="px-4 py-2 bg-teal-command text-white rounded-lg font-label-md text-label-md hover:brightness-110 active:scale-95 transition-all flex items-center gap-2"
-          >
-            <span className="material-symbols-outlined text-[18px]">add</span>
-            New Requisition
-          </button>
-        </div>
-      </header>
 
-      {/* Main Content Layout */}
-      <div className="p-8 flex gap-6 max-w-[1440px] mx-auto w-full flex-1">
-        {/* Center List Column */}
-        <div className="flex-1 space-y-6">
-          {/* Tabs Navigation */}
-          <div className="flex items-center justify-between">
-            <nav className="flex gap-8 border-b border-border-warm w-full">
-              {[
-                { key: 'PENDING' as QueueStatus, label: `Pending Review (${counts.PENDING})` },
-                { key: 'UNDER_REVIEW' as QueueStatus, label: `Under Review (${counts.UNDER_REVIEW})` },
-                { key: 'FORWARDED' as QueueStatus, label: `Forwarded to Admin (${counts.FORWARDED})` },
-                { key: 'RETURNED' as QueueStatus, label: `Returned (${counts.RETURNED})` },
-              ].map((tab) => (
+          <div className="grid gap-3 sm:grid-cols-[minmax(240px,1fr)_auto_auto]">
+            <label className="relative block">
+              <span className="sr-only">Search requests</span>
+              <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-outline" name="search" />
+              <input
+                className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface pl-10 pr-3 text-sm text-deep-charcoal outline-none transition placeholder:text-on-surface-variant focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search requests..."
+                type="search"
+                value={query}
+              />
+            </label>
+            <button className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-border-warm bg-clean-surface text-on-surface-variant transition hover:border-teal-command hover:text-teal-command" type="button">
+              <span className="sr-only">Notifications</span>
+              <Icon className="h-4 w-4" name="bell" />
+              {counts.PENDING > 0 ? <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-error" /> : null}
+            </button>
+            <button
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
+              onClick={() => navigate('/hr/campaigns')}
+              type="button"
+            >
+              <Icon className="h-4 w-4" name="add" />
+              New Requisition
+            </button>
+          </div>
+        </header>
+
+        <section className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="overflow-x-auto">
+            <nav className="flex min-w-max gap-8 border-b border-border-warm">
+              {statusTabs.map((tab) => (
                 <button
+                  className={`border-b-2 px-1 pb-3 text-sm font-semibold transition active:scale-[0.98] ${
+                    activeTab === tab.key
+                      ? 'border-teal-command text-teal-command'
+                      : 'border-transparent text-secondary hover:text-teal-command'
+                  }`}
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`pb-3 px-1 border-b-2 text-label-md transition-colors ${
-                    activeTab === tab.key
-                      ? 'border-teal-command text-teal-command font-bold'
-                      : 'border-transparent text-secondary hover:text-teal-command font-medium'
-                  }`}
+                  type="button"
                 >
-                  {tab.label}
+                  {tab.label} ({counts[tab.key]})
                 </button>
               ))}
             </nav>
-            {counts.PENDING > 0 && activeTab === 'PENDING' && (
-              <div className="flex items-center gap-2 bg-revision/10 border border-revision/20 text-revision px-3 py-1 rounded-full whitespace-nowrap ml-4">
-                <span className="w-2 h-2 bg-revision rounded-full animate-pulse"></span>
-                <span className="font-label-sm text-label-sm font-bold">{counts.PENDING} pending review</span>
-              </div>
-            )}
           </div>
 
-          {/* Request Cards Stack */}
+          {activeTab === 'PENDING' && counts.PENDING > 0 ? (
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-revision/20 bg-revision/10 px-3 py-1 text-revision">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-revision" />
+              <span className="text-xs font-bold">{counts.PENDING} pending review</span>
+            </div>
+          ) : null}
+        </section>
+
+        <section className="space-y-4">
+          {filteredRequests.map((request) => {
+            const urgency = urgencyConfig[request.urgency];
+
+            return (
+              <article
+                className="group relative cursor-pointer overflow-hidden rounded-lg border border-border-warm bg-clean-surface p-6 shadow-sm transition duration-200 hover:-translate-y-[2px] hover:border-teal-command/40"
+                key={request.id}
+                onClick={() => openReview(request)}
+              >
+                <div className={`absolute bottom-0 left-0 top-0 w-1.5 ${urgency.rail}`} />
+                <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
+                  <div>
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                      <span className={`rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${urgency.badge}`}>
+                        {urgency.label}
+                      </span>
+                      <span className="text-xs text-secondary">ID: #{request.id}</span>
+                    </div>
+                    <h2 className="text-xl font-semibold text-deep-charcoal transition group-hover:text-teal-command">{request.position}</h2>
+                    <p className="mt-1 text-sm text-secondary">
+                      {request.department} / Requested by: <span className="font-semibold text-on-surface">{request.requestedBy}</span>
+                    </p>
+                  </div>
+                  <div className="text-left lg:text-right">
+                    <p className="mb-2 font-mono text-sm text-secondary">Submitted: {request.submittedDate}</p>
+                    <div className="flex flex-wrap gap-2 lg:justify-end">
+                      <span className="rounded border border-border-warm bg-workflow-ivory px-3 py-1 text-xs font-semibold">Headcount: {request.headcount}</span>
+                      <span className="rounded border border-border-warm bg-workflow-ivory px-3 py-1 text-xs font-semibold">{request.type}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-col gap-4 border-t border-border-warm/60 pt-4 lg:flex-row lg:items-center lg:justify-between" onClick={(event) => event.stopPropagation()}>
+                  <div className="flex items-center gap-2">
+                    <Icon className="h-4 w-4 text-outline" name="wallet" />
+                    <span className="text-sm font-bold text-on-surface">{request.budget}</span>
+                    <span className="text-xs text-secondary">{request.budgetLabel}</span>
+                  </div>
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <button
+                      className="h-10 rounded-lg border border-teal-command px-4 text-sm font-semibold text-teal-command transition hover:bg-teal-command hover:text-white active:scale-[0.98]"
+                      onClick={() => setRevisionTarget(request)}
+                      type="button"
+                    >
+                      Return for Revision
+                    </button>
+                    <button
+                      className="h-10 rounded-lg bg-teal-command px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-primary active:scale-[0.98]"
+                      onClick={() => openReview(request)}
+                      type="button"
+                    >
+                      Review
+                    </button>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+
+          {filteredRequests.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-border-warm bg-clean-surface px-6 py-12 text-center">
+              <div className="rounded-xl bg-surface-container p-3 text-teal-command">
+                <Icon className="h-6 w-6" name="inbox" />
+              </div>
+              <h2 className="mt-3 text-sm font-semibold text-deep-charcoal">No requests found</h2>
+              <p className="mt-1 max-w-[42ch] text-sm text-on-surface-variant">Try clearing search or switch to another review queue tab.</p>
+            </div>
+          ) : null}
+        </section>
+
+        <footer className="flex flex-col items-center gap-4 py-4">
+          <p className="text-sm text-secondary">
+            Showing <span className="font-bold text-on-surface">{filteredRequests.length}</span> of{' '}
+            <span className="font-bold text-on-surface">{counts[activeTab]}</span> requests
+          </p>
+          <button className="inline-flex h-11 items-center justify-center rounded-lg border border-border-warm bg-clean-surface px-6 text-sm font-semibold text-on-surface shadow-sm transition hover:bg-surface-container active:scale-[0.98]" type="button">
+            Load More Requests
+          </button>
+        </footer>
+      </main>
+
+      <aside className="space-y-6">
+        <section className="rounded-lg border border-border-warm bg-clean-surface p-6 shadow-sm">
+          <div className="mb-6 flex items-center gap-2">
+            <Icon className="h-5 w-5 text-teal-command" name="dashboard" />
+            <h2 className="text-lg font-semibold text-deep-charcoal">Queue Summary</h2>
+          </div>
+          <div className="space-y-6">
+            <div>
+              <p className="text-xs font-semibold text-secondary">Average Review Time</p>
+              <div className="mt-1 flex items-baseline gap-1">
+                <span className="font-mono text-3xl font-bold text-on-surface">2.3</span>
+                <span className="text-sm text-secondary">days</span>
+              </div>
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-workflow-ivory">
+                <div className="h-full w-[65%] bg-teal-command" />
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-revision/10 bg-revision/5 p-4">
+              <p className="text-xs font-semibold text-secondary">Oldest Pending Request</p>
+              <div className="mt-1 flex items-center justify-between">
+                <span className="text-xl font-bold text-revision">5 days</span>
+                <Icon className="h-5 w-5 text-revision" name="alert" />
+              </div>
+              <p className="mt-1 text-[11px] font-medium text-revision/80">Action recommended for SLAs</p>
+            </div>
+
+            <div className="space-y-3 border-t border-border-warm/60 pt-4">
+              <h3 className="text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface">This Week Performance</h3>
+              {[
+                ['Reviewed', 3, 'bg-approved'],
+                ['Forwarded', 2, 'bg-pending'],
+              ].map(([label, value, dot]) => (
+                <div className="flex items-center justify-between text-sm" key={label as string}>
+                  <div className="flex items-center gap-2">
+                    <span className={`h-2 w-2 rounded-full ${dot}`} />
+                    <span className="text-secondary">{label}</span>
+                  </div>
+                  <span className="font-bold text-on-surface">{value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-border-warm bg-clean-surface p-6 shadow-sm">
+          <h2 className="mb-4 text-sm font-bold text-deep-charcoal">Request Distribution</h2>
           <div className="space-y-4">
-            {filteredRequests.map((request) => {
-              const cfg = urgencyConfig[request.urgency];
-              return (
-                <div
-                  key={request.id}
-                  className="bg-clean-surface border border-border-warm p-6 shadow-sm flex flex-col gap-4 relative overflow-hidden group hover:border-teal-command/40 hover:-translate-y-0.5 transition-all duration-200 rounded-lg cursor-pointer"
-                  onClick={() => handleOpenReview(request)}
-                >
-                  <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${cfg.sidebarBorder}`}></div>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${cfg.badge}`}>
-                          {cfg.label}
-                        </span>
-                        <span className="text-secondary text-label-sm">• ID: {request.id}</span>
-                      </div>
-                      <h3 className="font-headline-md text-headline-md text-deep-charcoal group-hover:text-teal-command transition-colors mt-1">
-                        {request.position}
-                      </h3>
-                      <p className="text-secondary font-body-sm text-body-sm mt-1">
-                        {request.department} • Requested by: <span className="font-medium text-on-surface">{request.requestedBy}</span>
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-data-mono text-data-mono text-secondary mb-1">Submitted: {request.submittedDate}</p>
-                      <div className="flex gap-2 justify-end">
-                        <span className="bg-workflow-ivory border border-border-warm px-3 py-1 rounded text-label-sm font-medium">
-                          Headcount: {request.headcount}
-                        </span>
-                        <span className="bg-workflow-ivory border border-border-warm px-3 py-1 rounded text-label-sm font-medium">
-                          {request.type}
-                        </span>
-                      </div>
-                    </div>
+            {[
+              { label: 'IT & Eng', value: 42, icon: 'monitor' },
+              { label: 'Design', value: 28, icon: 'palette' },
+            ].map((item) => (
+              <div className="flex items-center gap-3" key={item.label}>
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-workflow-ivory text-teal-command">
+                  <Icon className="h-5 w-5" name={item.icon} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1 flex justify-between">
+                    <span className="text-xs font-semibold text-deep-charcoal">{item.label}</span>
+                    <span className="text-xs font-semibold text-secondary">{item.value}%</span>
                   </div>
-
-                  <div className="flex items-center justify-between pt-4 border-t border-border-warm/40" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-outline text-[18px]">payments</span>
-                      <span className="text-label-md font-bold text-on-surface">{request.budget}</span>
-                      <span className="text-secondary font-label-sm">{request.budgetLabel}</span>
-                    </div>
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => {
-                          setSelectedRequest(request);
-                          setShowRevisionModal(true);
-                        }}
-                        className="px-6 py-2 border border-teal-command text-teal-command hover:bg-teal-command hover:text-white rounded-lg font-label-md text-label-md transition-all active:scale-95"
-                      >
-                        Return for Revision
-                      </button>
-                      <button
-                        onClick={() => handleOpenReview(request)}
-                        className="px-8 py-2 bg-teal-command text-white hover:brightness-110 rounded-lg font-label-md text-label-md transition-all active:scale-95 shadow-sm shadow-teal-command/20"
-                      >
-                        Review
-                      </button>
-                    </div>
+                  <div className="h-1 overflow-hidden rounded-full bg-surface-container">
+                    <div className="h-full bg-teal-command" style={{ width: `${item.value}%` }} />
                   </div>
                 </div>
-              );
-            })}
-
-            {filteredRequests.length === 0 && (
-              <div className="bg-clean-surface border border-border-warm rounded-xl p-12 text-center flex flex-col items-center">
-                <span className="material-symbols-outlined text-[48px] text-on-surface-variant opacity-30 mb-4">inbox</span>
-                <h4 className="text-sm font-semibold text-deep-charcoal">No requests found</h4>
-                <p className="text-xs text-on-surface-variant mt-1 max-w-[40ch]">
-                  Try clearing your search query or switching to a different review queue tab.
-                </p>
               </div>
-            )}
+            ))}
           </div>
-        </div>
+        </section>
 
-        {/* Right Sidebar Column */}
-        <aside className="w-[300px] flex flex-col gap-6 flex-shrink-0">
-          {/* Queue Summary Card */}
-          <div className="bg-clean-surface border border-border-warm p-6 shadow-sm rounded-lg">
-            <div className="flex items-center gap-2 mb-6">
-              <span className="material-symbols-outlined text-teal-command">dashboard_customize</span>
-              <h4 className="font-headline-md text-headline-md text-deep-charcoal">Queue Summary</h4>
-            </div>
-            <div className="space-y-6">
-              <div className="flex flex-col gap-1">
-                <span className="text-secondary font-label-sm text-label-sm">Average Review Time</span>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-headline-xl font-headline-xl font-bold text-on-surface">2.3</span>
-                  <span className="text-secondary font-label-md">days</span>
-                </div>
-                <div className="w-full bg-workflow-ivory h-1.5 rounded-full mt-2 overflow-hidden">
-                  <div className="bg-teal-command h-full w-[65%]" title="Efficiency Rate"></div>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1 p-4 bg-revision/5 rounded-lg border border-revision/10">
-                <span className="text-secondary font-label-sm text-label-sm">Oldest Pending Request</span>
-                <div className="flex items-center justify-between">
-                  <span className="text-headline-md font-headline-md font-bold text-revision">5 days</span>
-                  <span className="material-symbols-outlined text-revision animate-bounce">priority_high</span>
-                </div>
-                <p className="text-[11px] text-revision/80 mt-1 italic font-medium">Action recommended for SLAs</p>
-              </div>
-
-              <div className="space-y-3 pt-4 border-t border-border-warm/40">
-                <h5 className="text-on-surface font-label-md text-label-md font-bold uppercase tracking-wider text-[11px]">This Week Performance</h5>
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-approved"></div>
-                    <span className="text-secondary text-body-sm">Reviewed</span>
-                  </div>
-                  <span className="font-bold text-on-surface">3</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-pending"></div>
-                    <span className="text-secondary text-body-sm">Forwarded</span>
-                  </div>
-                  <span className="font-bold text-on-surface">2</span>
-                </div>
-              </div>
-            </div>
+        <section className="relative h-32 overflow-hidden rounded-lg bg-teal-command p-5 text-white shadow-sm">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.24),transparent_28%),linear-gradient(135deg,rgba(0,104,95,0.1),rgba(28,25,23,0.38))]" />
+          <div className="relative flex h-full flex-col justify-end">
+            <p className="text-sm font-bold">Need assistance?</p>
+            <p className="mt-1 text-xs text-teal-50">Schedule a sync with the recruitment admin team.</p>
           </div>
+        </section>
+      </aside>
 
-          {/* Quick Insights Card */}
-          <div className="bg-clean-surface border border-border-warm p-6 shadow-sm rounded-lg">
-            <h4 className="font-label-md text-label-md font-bold text-deep-charcoal mb-4">Request Distribution</h4>
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-workflow-ivory flex items-center justify-center text-teal-command flex-shrink-0">
-                  <span className="material-symbols-outlined">computer</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between mb-1">
-                    <span className="text-label-sm font-medium text-deep-charcoal">IT & Eng</span>
-                    <span className="text-label-sm text-secondary font-semibold">42%</span>
-                  </div>
-                  <div className="h-1 bg-surface-container rounded-full overflow-hidden">
-                    <div className="bg-teal-command h-full w-[42%]"></div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-workflow-ivory flex items-center justify-center text-teal-command flex-shrink-0">
-                  <span className="material-symbols-outlined">palette</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between mb-1">
-                    <span className="text-label-sm font-medium text-deep-charcoal">Design</span>
-                    <span className="text-label-sm text-secondary font-semibold">28%</span>
-                  </div>
-                  <div className="h-1 bg-surface-container rounded-full overflow-hidden">
-                    <div className="bg-teal-command h-full w-[28%]"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Banner */}
-          <div className="relative overflow-hidden bg-teal-command h-32 group cursor-pointer rounded-lg shadow-sm">
-            <img
-              alt="Atrium"
-              className="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-overlay group-hover:scale-105 transition-transform duration-700"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuD6emTQiHCoi08N1Z4rqLfXD7Weu5-durGi3ttQH49sL13n0vQX7QFae0B1o1iNzvdxzLpsc6ezFd6l_pJCMjYbcM9xTT4qVQwDVTQqAx_qemDJh33ZeELe-Mv7uDqfQrs9sXi6F1n1Gj44U0uY6m_rLlrfEjXvYvHzskEEJAczIe0cX02S_gfgj0HlJxrO4vI1rbiEAi6o_89mGbhIOvAvU1vVoeNqqWR83-v8WAoSk-CJkxjlL34XMyVQnzMRf8vZ6yxsQO9C8zQ"
-            />
-            <div className="absolute inset-0 p-5 flex flex-col justify-end bg-gradient-to-t from-teal-command/80 to-transparent">
-              <span className="text-white font-bold text-label-md">Need assistance?</span>
-              <p className="text-teal-100 text-[12px] mt-0.5 leading-snug">Schedule a sync with the recruitment admin team.</p>
-            </div>
-          </div>
-        </aside>
-      </div>
-
-      {/* ── Detailed Review Modal/Drawer ─────────────────────────────────── */}
-      {selectedRequest && !showRevisionModal && (
-        <div className="fixed inset-0 bg-deep-charcoal/40 backdrop-blur-sm z-50 flex justify-end">
-          <div className="bg-clean-surface w-full max-w-[500px] h-full shadow-2xl flex flex-col animate-slide-in">
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-border-warm flex justify-between items-center bg-workflow-ivory/50">
+      {selectedRequest ? (
+        <div className="fixed inset-0 z-50 flex justify-end bg-deep-charcoal/40 backdrop-blur-sm">
+          <section className="flex h-full w-full max-w-[520px] flex-col bg-clean-surface shadow-2xl">
+            <header className="flex items-center justify-between border-b border-border-warm bg-workflow-ivory/60 px-6 py-4">
               <div>
-                <span className="font-mono text-xs text-teal-command font-semibold">{selectedRequest.id}</span>
-                <h3 className="text-base font-semibold text-deep-charcoal mt-0.5">Recruitment Requisition</h3>
+                <p className="font-mono text-xs font-semibold text-teal-command">#{selectedRequest.id}</p>
+                <h2 className="mt-0.5 text-base font-semibold text-deep-charcoal">Recruitment Requisition</h2>
               </div>
               <button
+                className="rounded-full p-1.5 text-on-surface-variant transition hover:bg-surface-variant hover:text-deep-charcoal"
                 onClick={() => setSelectedRequest(null)}
-                className="p-1.5 text-on-surface-variant hover:text-deep-charcoal rounded-full hover:bg-surface-variant transition-colors"
+                type="button"
               >
-                <span className="material-symbols-outlined">close</span>
+                <span className="sr-only">Close review drawer</span>
+                <Icon className="h-4 w-4" name="close" />
               </button>
-            </div>
+            </header>
 
-            {/* Content Body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="flex-1 space-y-6 overflow-y-auto p-6">
               <div>
-                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${urgencyConfig[selectedRequest.urgency].badge}`}>
+                <span className={`rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${urgencyConfig[selectedRequest.urgency].badge}`}>
                   {selectedRequest.urgency} Priority
                 </span>
-                <h2 className="text-xl font-bold text-deep-charcoal mt-2">{selectedRequest.position}</h2>
-                <p className="text-xs text-secondary mt-1">
+                <h3 className="mt-2 text-xl font-bold text-deep-charcoal">{selectedRequest.position}</h3>
+                <p className="mt-1 text-xs text-secondary">
                   Department: <span className="font-semibold text-on-surface">{selectedRequest.department}</span>
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 p-4 bg-workflow-ivory rounded-lg border border-border-warm">
-                <div>
-                  <span className="block text-[11px] text-secondary font-medium">Requested By</span>
-                  <span className="text-sm font-semibold text-deep-charcoal">{selectedRequest.requestedBy}</span>
-                </div>
-                <div>
-                  <span className="block text-[11px] text-secondary font-medium">Headcount Plan</span>
-                  <span className="text-sm font-semibold text-deep-charcoal">{selectedRequest.headcount} candidates</span>
-                </div>
-                <div>
-                  <span className="block text-[11px] text-secondary font-medium">Job Category</span>
-                  <span className="text-sm font-semibold text-deep-charcoal">{selectedRequest.type}</span>
-                </div>
-                <div>
-                  <span className="block text-[11px] text-secondary font-medium">Monthly Allocation</span>
-                  <span className="text-sm font-semibold text-deep-charcoal">{selectedRequest.budget}</span>
-                </div>
+              <div className="grid grid-cols-2 gap-4 rounded-lg border border-border-warm bg-workflow-ivory p-4">
+                {[
+                  ['Requested By', selectedRequest.requestedBy],
+                  ['Headcount Plan', `${selectedRequest.headcount} candidates`],
+                  ['Job Category', selectedRequest.type],
+                  ['Monthly Allocation', selectedRequest.budget],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <p className="text-[11px] font-semibold text-secondary">{label}</p>
+                    <p className="mt-1 text-sm font-semibold text-deep-charcoal">{value}</p>
+                  </div>
+                ))}
               </div>
 
               <div>
-                <h4 className="text-xs font-bold text-deep-charcoal uppercase tracking-wider mb-2">Justification & Sourcing Brief</h4>
-                <p className="text-sm text-slate-ink leading-relaxed bg-workflow-ivory/40 p-4 rounded-lg border border-border-warm/60">
-                  {selectedRequest.justification}
-                </p>
+                <h4 className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">Justification & Sourcing Brief</h4>
+                <p className="rounded-lg border border-border-warm/60 bg-workflow-ivory/50 p-4 text-sm leading-6 text-slate-ink">{selectedRequest.justification}</p>
               </div>
 
               <div>
-                <h4 className="text-xs font-bold text-deep-charcoal uppercase tracking-wider mb-3">Key Technical Competencies</h4>
+                <h4 className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">Key Technical Competencies</h4>
                 <div className="flex flex-wrap gap-2">
                   {selectedRequest.skillsRequired.map((skill) => (
-                    <span
-                      key={skill}
-                      className="px-3 py-1 rounded-full border border-teal-command/20 bg-teal-command/5 text-teal-command font-medium text-xs"
-                    >
+                    <span className="rounded-full border border-teal-command/20 bg-teal-command/5 px-3 py-1 text-xs font-semibold text-teal-command" key={skill}>
                       {skill}
                     </span>
                   ))}
@@ -717,89 +608,92 @@ export const HRRequestQueue: React.FC = () => {
               </div>
             </div>
 
-            {/* Footer */}
-            <div className="p-6 border-t border-border-warm bg-workflow-ivory/50 flex flex-col gap-2.5">
+            <footer className="space-y-3 border-t border-border-warm bg-workflow-ivory/60 p-6">
               <button
-                onClick={() => handleCreateCampaign(selectedRequest)}
-                className="w-full bg-teal-command text-white font-semibold py-2.5 rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center gap-2 shadow-sm"
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-teal-command text-sm font-semibold text-white shadow-sm transition hover:bg-primary active:scale-[0.98]"
+                onClick={() => navigate('/hr/campaigns')}
+                type="button"
               >
-                <span className="material-symbols-outlined text-[18px]">campaign</span>
+                <Icon className="h-4 w-4" name="campaign" />
                 Approve & Create Campaign Plan
               </button>
-              <div className="flex gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 <button
-                  onClick={() => setShowRevisionModal(true)}
-                  className="flex-1 border border-border-warm text-slate-ink hover:text-teal-command hover:border-teal-command/40 font-semibold py-2 bg-clean-surface rounded-lg transition-all"
+                  className="h-10 rounded-lg border border-border-warm bg-clean-surface text-sm font-semibold text-slate-ink transition hover:border-teal-command hover:text-teal-command active:scale-[0.98]"
+                  onClick={() => setRevisionTarget(selectedRequest)}
+                  type="button"
                 >
                   Return for Revision
                 </button>
-                {selectedRequest.status !== 'FORWARDED' && (
-                  <button
-                    onClick={() => handleForwardToAdmin(selectedRequest.id)}
-                    className="flex-1 bg-deep-charcoal text-white font-semibold py-2 rounded-lg hover:bg-slate-ink transition-colors flex items-center justify-center gap-1.5"
-                  >
-                    <span className="material-symbols-outlined text-[16px]">send</span>
-                    Forward to Admin
-                  </button>
-                )}
+                <button
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-deep-charcoal text-sm font-semibold text-white transition hover:bg-slate-ink active:scale-[0.98]"
+                  onClick={() => forwardToAdmin(selectedRequest.id)}
+                  type="button"
+                >
+                  <Icon className="h-4 w-4" name="send" />
+                  Forward to Admin
+                </button>
               </div>
-            </div>
-          </div>
+            </footer>
+          </section>
         </div>
-      )}
+      ) : null}
 
-      {/* ── Revision Feedback Modal ─────────────────────────────────────── */}
-      {showRevisionModal && selectedRequest && (
-        <div className="fixed inset-0 bg-deep-charcoal/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-clean-surface w-full max-w-[480px] rounded-xl shadow-2xl border border-border-warm overflow-hidden animate-zoom-in">
-            <div className="px-6 py-4 border-b border-border-warm bg-workflow-ivory/50 flex justify-between items-center">
-              <h3 className="font-bold text-deep-charcoal">Return Requisition for Revision</h3>
+      {revisionTarget ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-deep-charcoal/40 p-4 backdrop-blur-sm">
+          <section className="w-full max-w-[480px] overflow-hidden rounded-xl border border-border-warm bg-clean-surface shadow-2xl">
+            <header className="flex items-center justify-between border-b border-border-warm bg-workflow-ivory/60 px-6 py-4">
+              <h2 className="font-semibold text-deep-charcoal">Return Requisition for Revision</h2>
               <button
+                className="rounded-full p-1.5 text-on-surface-variant transition hover:bg-surface-variant hover:text-deep-charcoal"
                 onClick={() => {
-                  setShowRevisionModal(false);
+                  setRevisionTarget(null);
                   setRevisionFeedback('');
                 }}
-                className="p-1 text-on-surface-variant hover:text-deep-charcoal rounded-full hover:bg-surface-variant transition-colors"
+                type="button"
               >
-                <span className="material-symbols-outlined text-[18px]">close</span>
+                <span className="sr-only">Close revision modal</span>
+                <Icon className="h-4 w-4" name="close" />
               </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <p className="text-xs text-secondary leading-normal">
-                Please provide clear instructions for the Department Head outlining what details require correction or refinement before HR planning.
+            </header>
+            <div className="space-y-4 p-6">
+              <p className="text-sm leading-6 text-secondary">
+                Provide clear instructions for the Department Head before HR planning continues for #{revisionTarget.id}.
               </p>
-              <div>
-                <label className="block text-[11px] font-bold text-deep-charcoal uppercase tracking-wider mb-2">Revision Feedback Notes</label>
+              <label className="block">
+                <span className="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">Revision Feedback Notes</span>
                 <textarea
-                  value={revisionFeedback}
-                  onChange={(e) => setRevisionFeedback(e.target.value)}
-                  placeholder="e.g. Budget range is higher than standard department benchmark. Please realign..."
+                  className="w-full resize-none rounded-lg border border-border-warm bg-clean-surface p-3 text-sm outline-none transition placeholder:text-on-surface-variant focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                  onChange={(event) => setRevisionFeedback(event.target.value)}
+                  placeholder="Budget range is higher than the department benchmark. Please realign..."
                   rows={4}
-                  className="w-full border border-border-warm rounded-lg bg-clean-surface p-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-command/30 focus:border-teal-command outline-none resize-none placeholder:text-on-surface-variant"
+                  value={revisionFeedback}
                 />
-              </div>
+              </label>
             </div>
-            <div className="px-6 py-4 bg-workflow-ivory/50 border-t border-border-warm flex justify-end gap-3">
+            <footer className="flex justify-end gap-3 border-t border-border-warm bg-workflow-ivory/60 px-6 py-4">
               <button
+                className="h-10 rounded-lg border border-border-warm px-4 text-sm font-semibold text-secondary transition hover:bg-surface-variant/40 active:scale-[0.98]"
                 onClick={() => {
-                  setShowRevisionModal(false);
+                  setRevisionTarget(null);
                   setRevisionFeedback('');
                 }}
-                className="px-4 py-2 border border-border-warm text-secondary rounded-lg text-xs font-semibold hover:bg-surface-variant/40"
+                type="button"
               >
                 Cancel
               </button>
               <button
+                className="h-10 rounded-lg bg-rejected px-5 text-sm font-bold text-white transition hover:bg-red-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={!revisionFeedback.trim()}
-                onClick={() => handleReturnRevision(selectedRequest.id)}
-                className="px-5 py-2 bg-rejected text-white rounded-lg text-xs font-bold hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={returnForRevision}
+                type="button"
               >
                 Return to Dept Head
               </button>
-            </div>
-          </div>
+            </footer>
+          </section>
         </div>
-      )}
+      ) : null}
     </div>
   );
 };
