@@ -1,10 +1,13 @@
 import { PrismaClient } from '@prisma/client';
-import { EmbeddingGenerateJobPayload } from '@wr/contracts';
+import { AuditLogService } from '@wr/database';
+import { AuditAction, AuditEntityType, EmbeddingGenerateJobPayload } from '@wr/contracts';
 
 // Singleton Prisma client (same pattern as other services)
 const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['query', 'warn', 'error'] : ['warn', 'error'],
 });
+
+const auditLog = new AuditLogService(prisma);
 
 /**
  * Process a CV embedding generation job.
@@ -50,4 +53,13 @@ export async function processCvEmbeddingJob(payload: EmbeddingGenerateJobPayload
     vectorStr,
     record.id,
   );
+
+  await auditLog.log({
+    entityType: AuditEntityType.CV_EMBEDDING,
+    entityId: record.id,
+    action: AuditAction.CV_EMBEDDING_GENERATED,
+    toStatus: 'GENERATED',
+    performedById: 'SYSTEM',
+    metadata: { cvDocumentId },
+  }).catch((err) => console.error('Failed to write audit log for CV_EMBEDDING_GENERATED:', err));
 }

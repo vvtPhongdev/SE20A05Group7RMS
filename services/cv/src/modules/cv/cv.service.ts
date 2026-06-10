@@ -2,6 +2,8 @@ import { Injectable, HttpStatus } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { AuditLogService } from '@wr/database';
+import { AuditAction, AuditEntityType } from '@wr/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
 import { QUEUE_NAMES, JOB_NAMES } from '@wr/queue';
 
@@ -9,6 +11,7 @@ import { QUEUE_NAMES, JOB_NAMES } from '@wr/queue';
 export class CvService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly auditLog: AuditLogService,
     @InjectQueue(QUEUE_NAMES.CV_PARSE) private readonly cvParseQueue: Queue,
   ) {}
 
@@ -49,6 +52,15 @@ export class CvService {
         rawText,
       },
     });
+
+    this.auditLog.log({
+      entityType: AuditEntityType.CV,
+      entityId: cvRecord.id,
+      action: AuditAction.CV_UPLOADED,
+      toStatus: 'UPLOADED',
+      performedById: candidateId,
+      metadata: { fileName, fileType },
+    }).catch((err) => console.error('Failed to write audit log for CV_UPLOADED:', err));
 
     // Enqueue BullMQ job for parsing
     await this.cvParseQueue.add(

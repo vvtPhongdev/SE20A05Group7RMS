@@ -374,5 +374,15 @@ export class RecruitingController {
       }),
     );
   }
+
+  // ─── Audit Logs (T-107, NFR-3) ───────────────────────────────────
+
+  @Get('audit-logs')
+  @ApiOperation({ summary: 'NFR-3: Query audit trail entries for a given entity' })
+  getAuditLogs(@Query('entityType') entityType: string, @Query('entityId') entityId: string) {
+    return firstValueFrom(
+      this.recruitingClient.send('audit-log.findByEntity', { entityType, entityId }),
+    );
+  }
 }
 

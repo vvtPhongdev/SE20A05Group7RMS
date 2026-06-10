@@ -1,12 +1,14 @@
 import { Injectable, Inject, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { NotificationType } from '@wr/contracts';
+import { AuditLogService } from '@wr/database';
+import { AuditAction, AuditEntityType, NotificationType, PlanStatus } from '@wr/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
 
 @Injectable()
 export class OverallPlanService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly auditLog: AuditLogService,
     @Inject('NOTIFICATION_SERVICE') private readonly notificationClient: ClientProxy,
   ) {}
 
@@ -89,7 +91,82 @@ export class OverallPlanService {
       error: (err) => console.error('Failed to send HR planning notification:', err),
     });
 
+    this.auditLog.log({
+      entityType: AuditEntityType.PLAN,
+      entityId: plan.id,
+      action: AuditAction.PLAN_CREATED,
+      toStatus: PlanStatus.PENDING_APPROVAL,
+      performedById: createdById,
+      metadata: { requestId: hiringRequestId },
+    }).catch((err) => console.error('Failed to write audit log for PLAN_CREATED:', err));
+
     return plan;
+  }
+
+  /**
+   * T-107: Approve a plan pending approval (PENDING_APPROVAL -> APPROVED).
+   */
+  async approve(payload: { id: string; approvedById: string }) {
+    const { id, approvedById } = payload;
+
+    const plan = await this.prisma.overallPlan.findUnique({ where: { id } });
+    if (!plan) throw new NotFoundException(`OverallPlan ${id} not found`);
+    if (plan.status !== PlanStatus.PENDING_APPROVAL) {
+      throw new BadRequestException(
+        `Cannot approve a plan in status "${plan.status}". Plan must be PENDING_APPROVAL.`,
+      );
+    }
+
+    const updated = await this.prisma.overallPlan.update({
+      where: { id },
+      data: { status: PlanStatus.APPROVED, approvedById },
+    });
+
+    this.auditLog.log({
+      entityType: AuditEntityType.PLAN,
+      entityId: id,
+      action: AuditAction.PLAN_APPROVED,
+      fromStatus: PlanStatus.PENDING_APPROVAL,
+      toStatus: PlanStatus.APPROVED,
+      performedById: approvedById,
+    }).catch((err) => console.error('Failed to write audit log for PLAN_APPROVED:', err));
+
+    return updated;
+  }
+
+  /**
+   * T-107: Reject a plan pending approval (PENDING_APPROVAL -> REJECTED).
+   */
+  async reject(payload: { id: string; approvedById: string; revisionNotes: string }) {
+    const { id, approvedById, revisionNotes } = payload;
+
+    const plan = await this.prisma.overallPlan.findUnique({ where: { id } });
+    if (!plan) throw new NotFoundException(`OverallPlan ${id} not found`);
+    if (plan.status !== PlanStatus.PENDING_APPROVAL) {
+      throw new BadRequestException(
+        `Cannot reject a plan in status "${plan.status}". Plan must be PENDING_APPROVAL.`,
+      );
+    }
+    if (!revisionNotes?.trim()) {
+      throw new BadRequestException('revisionNotes are required when rejecting a plan');
+    }
+
+    const updated = await this.prisma.overallPlan.update({
+      where: { id },
+      data: { status: PlanStatus.REJECTED, approvedById, revisionNotes: revisionNotes.trim() },
+    });
+
+    this.auditLog.log({
+      entityType: AuditEntityType.PLAN,
+      entityId: id,
+      action: AuditAction.PLAN_REJECTED,
+      fromStatus: PlanStatus.PENDING_APPROVAL,
+      toStatus: PlanStatus.REJECTED,
+      performedById: approvedById,
+      reason: revisionNotes.trim(),
+    }).catch((err) => console.error('Failed to write audit log for PLAN_REJECTED:', err));
+
+    return updated;
   }
 
   async get(id: string) {

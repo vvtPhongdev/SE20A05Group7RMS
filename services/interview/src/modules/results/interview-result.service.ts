@@ -1,7 +1,10 @@
 import { Injectable, HttpStatus, Inject } from '@nestjs/common';
 import { RpcException, ClientProxy } from '@nestjs/microservices';
+import { AuditLogService } from '@wr/database';
 import { PrismaService } from '../../common/database/prisma.service';
 import {
+  AuditAction,
+  AuditEntityType,
   InterviewStatus,
   InterviewResult,
   RecruitmentRequestStatus,
@@ -13,6 +16,7 @@ import {
 export class InterviewResultService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly auditLog: AuditLogService,
     @Inject('NOTIFICATION_SERVICE') private readonly notificationClient: ClientProxy,
   ) {}
 
@@ -177,6 +181,16 @@ export class InterviewResultService {
     }
 
     const [recordedResult] = await this.prisma.$transaction(transactions);
+
+    this.auditLog.log({
+      entityType: AuditEntityType.INTERVIEW_RESULT,
+      entityId: recordedResult.id,
+      action: AuditAction.INTERVIEW_RESULT_RECORDED,
+      toStatus: result,
+      performedById: evaluatorId || 'SYSTEM',
+      reason: notes.trim(),
+      metadata: { interviewId, candidateId: schedule.candidateId },
+    }).catch((err) => console.error('Failed to write audit log for INTERVIEW_RESULT_RECORDED:', err));
 
     // --- Next-step communications & workflows ---
     
