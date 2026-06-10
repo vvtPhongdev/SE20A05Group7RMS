@@ -27,6 +27,7 @@ import { TaskPlanner } from './pages/TaskPlanner';
 import { TalentPool } from './pages/TalentPool';
 import { CandidateSearch } from './pages/CandidateSearch';
 import { HRInterviewSchedule } from './pages/HRInterviewSchedule';
+import { HRPipelineReports } from './pages/HRPipelineReports';
 import { CandidateDashboard } from './pages/CandidateDashboard';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { UserRole } from '@wr/contracts';
@@ -338,10 +339,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Pipeline Reports"
-                    description="Overview of pipeline flow and time-to-hire statistics."
-                  />
+                  <HRPipelineReports />
                 </Layout>
               </ProtectedRoute>
             }
