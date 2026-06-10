@@ -1,141 +1,199 @@
-import React, { useState } from 'react';
+import React from 'react';
+
+type ApplicationStatus = 'Interview Phase' | 'Under Review' | 'Offer Extended' | 'Not Selected';
+type Step = 'Applied' | 'CV Review' | 'Interview' | 'Final Decision';
+
+type Application = {
+  id: string;
+  title: string;
+  department: string;
+  appliedDate: string;
+  status: ApplicationStatus;
+  currentStep: Step;
+  completedSteps: Step[];
+  event?: string;
+  action: string;
+  disabled?: boolean;
+};
+
+const steps: Step[] = ['Applied', 'CV Review', 'Interview', 'Final Decision'];
+
+const applications: Application[] = [
+  {
+    id: 'APP-2401',
+    title: 'Senior Frontend Developer',
+    department: 'Phong Ky Thuat',
+    appliedDate: '15/05/2026',
+    status: 'Interview Phase',
+    currentStep: 'Interview',
+    completedSteps: ['Applied', 'CV Review'],
+    event: 'Interview Scheduled - 30/05/2026, 14:00',
+    action: 'View Details',
+  },
+  {
+    id: 'APP-2402',
+    title: 'Marketing Specialist',
+    department: 'Marketing Department',
+    appliedDate: '20/05/2026',
+    status: 'Under Review',
+    currentStep: 'CV Review',
+    completedSteps: ['Applied'],
+    action: 'View Details',
+  },
+  {
+    id: 'APP-2398',
+    title: 'Junior Developer',
+    department: 'Phong Ky Thuat',
+    appliedDate: '10/04/2026',
+    status: 'Offer Extended',
+    currentStep: 'Final Decision',
+    completedSteps: ['Applied', 'CV Review', 'Interview', 'Final Decision'],
+    action: 'Accept Offer',
+  },
+  {
+    id: 'APP-2388',
+    title: 'Data Analyst',
+    department: 'Data Intelligence',
+    appliedDate: '01/04/2026',
+    status: 'Not Selected',
+    currentStep: 'Applied',
+    completedSteps: [],
+    action: 'View Feedback',
+    disabled: true,
+  },
+];
+
+const statusClass: Record<ApplicationStatus, string> = {
+  'Interview Phase': 'bg-pending/10 text-pending',
+  'Under Review': 'bg-secondary/10 text-secondary',
+  'Offer Extended': 'bg-approved/10 text-approved',
+  'Not Selected': 'bg-rejected/10 text-rejected',
+};
+
+const iconPaths: Record<string, React.ReactNode> = {
+  check: <path d="M20 6 9 17l-5-5" />,
+  arrow: <path d="M5 12h14m-6-6 6 6-6 6" />,
+  calendar: <path d="M8 2v4m8-4v4M4 10h16M6 5h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />,
+};
+
+const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: string }) => (
+  <svg
+    aria-hidden="true"
+    className={className}
+    fill="none"
+    stroke="currentColor"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    strokeWidth="1.8"
+    viewBox="0 0 24 24"
+  >
+    {iconPaths[name]}
+  </svg>
+);
+
+const StepMarker = ({ step, application }: { step: Step; application: Application }) => {
+  const completed = application.completedSteps.includes(step);
+  const active = application.currentStep === step && !completed && !application.disabled;
+
+  if (completed) {
+    return (
+      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-approved text-white">
+        <Icon className="h-3.5 w-3.5" name="check" />
+      </div>
+    );
+  }
+
+  if (active) {
+    return <div className="h-6 w-6 animate-pulse rounded-full bg-teal-command shadow-[0_0_0_6px_rgba(13,148,136,0.12)]" />;
+  }
+
+  return <div className="h-6 w-6 rounded-full border-2 border-surface-variant bg-workflow-ivory" />;
+};
 
 export const CandidateDashboard: React.FC = () => {
-  const [cvFile, setCvFile] = useState<string | null>(null);
-
-  const handleUploadFake = (e: React.FormEvent) => {
-    e.preventDefault();
-    setCvFile('resume_john_doe_senior_backend.pdf');
-  };
-
   return (
-    <div className="flex flex-col">
-      <h1 className="text-[var(--wr-text-2xl)] font-[var(--wr-font-bold)] text-[var(--wr-text-primary)] mt-0 mb-2">
-        Candidate Portal
-      </h1>
-      <p className="text-[var(--wr-text-base)] text-[var(--wr-text-secondary)] mt-0 mb-8">
-        Manage your application documents, view profiles, and respond to interview invites.
-      </p>
+    <div className="mx-auto max-w-[1440px]">
+      <header className="mb-10">
+        <h1 className="mb-2 text-3xl font-semibold tracking-tight text-deep-charcoal">Candidate Application Tracking Dashboard</h1>
+        <p className="text-base text-secondary">Track your application progress and view upcoming interviews.</p>
+      </header>
 
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-8">
-        {/* Profile Card & Upload */}
-        <div className="flex flex-col gap-4">
-          <h2 className="text-[var(--wr-text-lg)] font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)] mt-0 mb-1 border-b border-[var(--wr-border-subtle)] pb-2">
-            Document Center
-          </h2>
-          <div className="bg-[var(--wr-bg-surface)] border border-[var(--wr-border-default)] rounded-[var(--wr-radius-lg)] p-6 shadow-[var(--wr-shadow-sm)] flex flex-col gap-5">
-            <div className="flex justify-between items-center">
-              <span className="font-[var(--wr-font-semibold)] text-[var(--wr-text-sm)] text-[var(--wr-text-primary)]">
-                Current Resume Doc
-              </span>
-              {cvFile ? (
-                <span className="text-[10px] font-[var(--wr-font-bold)] py-0.5 px-2 rounded-full text-[var(--wr-success-text)] bg-[var(--wr-success-bg)] border border-[var(--wr-success-border)]">
-                  UPLOADED
-                </span>
-              ) : (
-                <span className="text-[10px] font-[var(--wr-font-bold)] py-0.5 px-2 rounded-full text-[var(--wr-error-text)] bg-[var(--wr-error-bg)] border border-[var(--wr-error-border)]">
-                  MISSING
-                </span>
-              )}
-            </div>
+      <section className="mb-12 flex flex-col gap-6" id="applications-container">
+        {applications.map((application) => (
+          <article
+            className={`rounded-lg border border-border-warm bg-clean-surface p-6 transition-all hover:shadow-sm ${
+              application.status === 'Offer Extended' ? 'border-l-4 border-l-approved' : ''
+            } ${application.disabled ? 'opacity-60 grayscale-[0.5]' : ''}`}
+            key={application.id}
+          >
+            <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
+              <div className="min-w-0 flex-1">
+                <div className="mb-2 flex flex-wrap items-center gap-4">
+                  <h2 className="text-xl font-semibold text-deep-charcoal">{application.title}</h2>
+                  <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${statusClass[application.status]}`}>
+                    <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                    {application.status}
+                  </span>
+                </div>
+                <div className="mb-6 flex flex-wrap gap-4 text-sm font-medium text-secondary">
+                  <span>{application.department}</span>
+                  <span className="text-outline-variant">|</span>
+                  <span className="font-mono">Applied: {application.appliedDate}</span>
+                </div>
 
-            {cvFile ? (
-              <div className="flex items-center gap-3 bg-[var(--wr-bg-elevated)] py-3 px-4 rounded-[var(--wr-radius-md)]">
-                <span className="text-2xl">📄</span>
-                <div className="flex flex-col">
-                  <div className="text-[var(--wr-text-sm)] font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)]">
-                    {cvFile}
-                  </div>
-                  <div className="text-[var(--wr-text-xs)] text-[var(--wr-text-muted)]">PDF Format (142 KB)</div>
+                <div className="flex max-w-3xl items-start overflow-x-auto pb-1">
+                  {steps.map((step, index) => {
+                    const lineActive = index < steps.length - 1 && application.completedSteps.includes(step);
+                    const labelActive = application.currentStep === step || application.completedSteps.includes(step);
+                    return (
+                      <React.Fragment key={step}>
+                        <div className="flex min-w-[76px] flex-col items-center text-center">
+                          <StepMarker application={application} step={step} />
+                          <span className={`mt-2 text-xs font-semibold ${labelActive ? 'text-teal-command' : 'text-secondary'}`}>{step}</span>
+                        </div>
+                        {index < steps.length - 1 ? (
+                          <div className={`mx-2 mt-3 h-0.5 min-w-10 flex-1 rounded-full ${lineActive ? 'bg-approved' : 'bg-surface-variant'}`} />
+                        ) : null}
+                      </React.Fragment>
+                    );
+                  })}
                 </div>
               </div>
-            ) : (
-              <p className="text-[var(--wr-text-sm)] text-[var(--wr-text-secondary)] leading-[var(--wr-leading-normal)] m-0">
-                You have not uploaded any CV files yet. Please upload one to be considered for active campaigns.
-              </p>
-            )}
 
-            <form onSubmit={handleUploadFake} className="w-full">
-              <button
-                type="submit"
-                className="w-full p-2.5 bg-white border border-[var(--wr-border-strong)] rounded-[var(--wr-radius-md)] text-[var(--wr-text-primary)] font-[var(--wr-font-semibold)] text-[var(--wr-text-sm)] cursor-pointer transition-all hover:bg-[var(--wr-bg-elevated)]"
-              >
-                {cvFile ? 'Re-upload CV Document' : 'Upload CV Document (PDF/DOCX)'}
-              </button>
-            </form>
-          </div>
-
-          <h2 className="text-[var(--wr-text-lg)] font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)] mt-0 mb-1 border-b border-[var(--wr-border-subtle)] pb-2">
-            Application Status
-          </h2>
-          <div className="bg-[var(--wr-bg-surface)] border border-[var(--wr-border-default)] rounded-[var(--wr-radius-lg)] p-6 shadow-[var(--wr-shadow-sm)] flex flex-col gap-5">
-            <div className="flex justify-between text-[var(--wr-text-sm)]">
-              <div className="text-[var(--wr-text-secondary)]">Profile Data:</div>
-              <div className="font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)]">Completed (90%)</div>
-            </div>
-            <div className="flex justify-between text-[var(--wr-text-sm)]">
-              <div className="text-[var(--wr-text-secondary)]">Active Screenings:</div>
-              <div className="font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)]">1 Review Campaign</div>
-            </div>
-            <div className="flex justify-between text-[var(--wr-text-sm)]">
-              <div className="text-[var(--wr-text-secondary)]">Evaluation Outcome:</div>
-              <div className="font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)]">
-                Pending overall plan approval
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Interviews & Invites */}
-        <div className="flex flex-col gap-4">
-          <h2 className="text-[var(--wr-text-lg)] font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)] mt-0 mb-1 border-b border-[var(--wr-border-subtle)] pb-2">
-            My Scheduled Interviews
-          </h2>
-          <div className="bg-[var(--wr-bg-surface)] border border-[var(--wr-border-default)] rounded-[var(--wr-radius-lg)] p-6 shadow-[var(--wr-shadow-sm)] flex flex-col gap-5">
-            <div className="border-b border-[var(--wr-border-subtle)] pb-5 flex flex-col gap-2">
-              <div className="flex justify-between items-start gap-3">
-                <span className="text-[var(--wr-text-sm)] font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)] leading-[var(--wr-leading-tight)]">
-                  Technical Interview — Golang API Development
-                </span>
-                <span className="text-[10px] font-[var(--wr-font-bold)] py-0.5 px-2 rounded-full text-[var(--wr-accent-primary-text)] bg-[var(--wr-accent-primary)] border-none whitespace-nowrap">
-                  SCHEDULED
-                </span>
-              </div>
-              <div className="flex gap-4 text-[var(--wr-text-xs)] text-[var(--wr-text-secondary)]">
-                <span>📅 05 June 2026 at 10:00 AM</span>
-                <span>⏱ 45 minutes</span>
-              </div>
-              <div className="text-[var(--wr-text-xs)] text-[var(--wr-text-secondary)]">
-                <span>📍 Online Meet: </span>
-                <a
-                  href="https://meet.google.com/abc-defg-hij"
-                  className="text-[var(--wr-accent-primary)] no-underline font-[var(--wr-font-medium)] hover:underline"
+              <div className="flex w-full flex-col items-end gap-4 lg:w-72">
+                {application.event ? (
+                  <section className="w-full rounded-lg border border-teal-command/20 bg-surface-container-low p-4">
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-[0.12em] text-teal-command">UPCOMING EVENT</p>
+                    <p className="flex items-start gap-2 text-sm leading-6 text-deep-charcoal">
+                      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-teal-command" name="calendar" />
+                      {application.event}
+                    </p>
+                  </section>
+                ) : null}
+                <button
+                  className={`w-full rounded-lg px-6 py-2 text-sm font-semibold transition active:scale-[0.98] lg:w-auto ${
+                    application.status === 'Offer Extended'
+                      ? 'bg-teal-command text-white hover:bg-primary'
+                      : application.disabled
+                        ? 'cursor-not-allowed border border-outline-variant text-secondary'
+                        : 'border border-teal-command text-teal-command hover:bg-teal-command hover:text-white'
+                  }`}
+                  disabled={application.disabled}
+                  type="button"
                 >
-                  meet.google.com/abc-defg-hij
-                </a>
+                  {application.action}
+                </button>
               </div>
             </div>
+          </article>
+        ))}
+      </section>
 
-            <div className="flex flex-col gap-2">
-              <div className="flex justify-between items-start gap-3">
-                <span className="text-[var(--wr-text-sm)] font-[var(--wr-font-semibold)] text-[var(--wr-text-primary)] leading-[var(--wr-leading-tight)]">
-                  Recruiter Screen & Culture Fit
-                </span>
-                <span className="text-[10px] font-[var(--wr-font-bold)] py-0.5 px-2 rounded-full text-[var(--wr-neutral-text)] bg-[var(--wr-neutral-bg)] border border-[var(--wr-neutral-border)] whitespace-nowrap">
-                  COMPLETED
-                </span>
-              </div>
-              <div className="flex gap-4 text-[var(--wr-text-xs)] text-[var(--wr-text-secondary)]">
-                <span>📅 28 May 2026 at 02:00 PM</span>
-                <span>⏱ 30 minutes</span>
-              </div>
-              <div className="text-[var(--wr-text-xs)] text-[var(--wr-text-secondary)]">
-                <span>📍 Online Call: </span>
-                <span className="text-[var(--wr-text-muted)]">Google Meet session ended</span>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div className="flex justify-center border-t border-border-warm pt-8">
+        <button className="inline-flex items-center gap-2 text-sm font-semibold text-teal-command transition hover:underline active:scale-[0.98]" type="button">
+          Browse Open Positions
+          <Icon className="h-4 w-4" name="arrow" />
+        </button>
       </div>
     </div>
   );

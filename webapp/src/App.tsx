@@ -379,6 +379,16 @@ export function App() {
             }
           />
           <Route
+            path="/candidate/applications"
+            element={
+              <ProtectedRoute allowedRoles={[UserRole.CANDIDATE]}>
+                <Layout>
+                  <CandidateDashboard />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/candidate/upload-cv"
             element={
               <ProtectedRoute allowedRoles={[UserRole.CANDIDATE]}>
