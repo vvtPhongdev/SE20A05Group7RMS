@@ -13,8 +13,8 @@
       "description": "Dashboard, Request Queue, Campaigns, Task Planner, Talent Pool, Candidate Search, Interview Schedule, Interview Results, Pipeline Reports, System Notifications"
     },
     "CANDIDATE": {
-      "expectedNavItems": 4,
-      "description": "Dashboard, My Profile, Upload CV, Inbox Alerts"
+      "expectedNavItems": 5,
+      "description": "Dashboard, My Profile, Upload CV, Inbox Alerts, Interview Details"
     }
   },
   "sidebarNavigation": {
@@ -57,7 +57,8 @@
       { "label": "Dashboard", "path": "/candidate", "icon": "dashboard" },
       { "label": "My Profile", "path": "/candidate/profile", "icon": "profile" },
       { "label": "Upload CV", "path": "/candidate/upload-cv", "icon": "upload" },
-      { "label": "Inbox Alerts", "path": "/candidate/notifications", "icon": "notifications" }
+      { "label": "Inbox Alerts", "path": "/candidate/notifications", "icon": "notifications" },
+      { "label": "Interview Details", "path": "/candidate/interviews", "icon": "interviews" }
     ]
   }
 }

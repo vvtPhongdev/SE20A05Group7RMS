@@ -34,6 +34,7 @@ import { CandidateDashboard } from './pages/CandidateDashboard';
 import { CandidateProfile } from './pages/CandidateProfile';
 import { CandidateNotifications } from './pages/CandidateNotifications';
 import { CandidateUploadCv } from './pages/CandidateUploadCv';
+import { CandidateInterviewDetails } from './pages/CandidateInterviewDetails';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { UserRole } from '@wr/contracts';
 
@@ -404,6 +405,16 @@ export function App() {
               <ProtectedRoute allowedRoles={[UserRole.CANDIDATE]}>
                 <Layout>
                   <CandidateNotifications />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/candidate/interviews"
+            element={
+              <ProtectedRoute allowedRoles={[UserRole.CANDIDATE]}>
+                <Layout>
+                  <CandidateInterviewDetails />
                 </Layout>
               </ProtectedRoute>
             }
