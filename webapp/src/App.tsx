@@ -26,6 +26,7 @@ import { HRRequestQueue } from './pages/HRRequestQueue';
 import { TaskPlanner } from './pages/TaskPlanner';
 import { TalentPool } from './pages/TalentPool';
 import { CandidateSearch } from './pages/CandidateSearch';
+import { HRInterviewSchedule } from './pages/HRInterviewSchedule';
 import { CandidateDashboard } from './pages/CandidateDashboard';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { UserRole } from '@wr/contracts';
@@ -314,10 +315,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Interview Schedule"
-                    description="Coordinate and schedule candidate interviews with department panel members."
-                  />
+                  <HRInterviewSchedule />
                 </Layout>
               </ProtectedRoute>
             }
