@@ -24,6 +24,7 @@ import { HRCampaigns } from './pages/HRCampaigns';
 import { HRCampaignDetail } from './pages/HRCampaignDetail';
 import { HRRequestQueue } from './pages/HRRequestQueue';
 import { TaskPlanner } from './pages/TaskPlanner';
+import { TalentPool } from './pages/TalentPool';
 import { CandidateDashboard } from './pages/CandidateDashboard';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { UserRole } from '@wr/contracts';
@@ -292,10 +293,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Talent Pool"
-                    description="Browse and manage the full catalog of candidate profiles."
-                  />
+                  <TalentPool />
                 </Layout>
               </ProtectedRoute>
             }
