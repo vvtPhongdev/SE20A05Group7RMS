@@ -28,4 +28,14 @@ export class OverallPlanController {
   getByRequest(@Payload() payload: { hiringRequestId: string }) {
     return this.service.getByRequest(payload.hiringRequestId);
   }
+
+  @MessagePattern('overall-plan.approve')
+  approve(@Payload() payload: { id: string; approvedById: string }) {
+    return this.service.approve(payload);
+  }
+
+  @MessagePattern('overall-plan.reject')
+  reject(@Payload() payload: { id: string; approvedById: string; revisionNotes: string }) {
+    return this.service.reject(payload);
+  }
 }

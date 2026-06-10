@@ -15,4 +15,24 @@ export class TaskPlanController {
   listByRequest(@Payload() payload: { hiringRequestId: string }) {
     return this.service.listByRequest(payload.hiringRequestId);
   }
+
+  @MessagePattern('task-plan.create')
+  create(
+    @Payload()
+    payload: {
+      overallPlanId: string;
+      taskType: string;
+      assignedToId: string;
+      startDate: string;
+      endDate: string;
+      performedById?: string;
+    },
+  ) {
+    return this.service.create(payload);
+  }
+
+  @MessagePattern('task-plan.updateStatus')
+  updateStatus(@Payload() payload: { id: string; status: string; performedById: string }) {
+    return this.service.updateStatus(payload);
+  }
 }

@@ -184,6 +184,25 @@ model RequestLog {
   @@map("request_logs")
 }
 
+// T-107: Generic audit trail for status transitions across plans, interviews,
+// and CV screening (NFR-3 — full traceability). No FK constraints, since
+// `performedById` may be a non-user actor such as `SYSTEM` or a worker job.
+model AuditLog {
+  id            String   @id @default(uuid())
+  entityType    String   @map("entity_type") // PLAN, TASK_PLAN, INTERVIEW_SCHEDULE, INTERVIEW_RESULT, CV, CV_EMBEDDING
+  entityId      String   @map("entity_id")
+  action        String // e.g. PLAN_APPROVED, CV_UPLOADED, CV_PARSE_COMPLETED
+  fromStatus    String?  @map("from_status")
+  toStatus      String?  @map("to_status")
+  performedById String?  @map("performed_by_id")
+  reason        String?  @db.Text
+  metadata      Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId], map: "idx_audit_logs_entity")
+  @@map("audit_logs")
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Campaign Plans
 // ═══════════════════════════════════════════════════════════════════
@@ -254,15 +273,16 @@ model CandidateProfile {
 }
 
 model CandidateCV {
-  id          String    @id @default(uuid())
-  candidateId String    @map("candidate_id")
-  fileName    String    @map("file_name")
-  fileType    String    @map("file_type") // PDF / DOCX
-  filePath    String    @map("file_path")
-  rawText     String    @map("raw_text") @db.Text
-  parsedAt    DateTime? @map("parsed_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  id              String    @id @default(uuid())
+  candidateId     String    @map("candidate_id")
+  fileName        String    @map("file_name")
+  fileType        String    @map("file_type") // PDF / DOCX
+  filePath        String    @map("file_path")
+  rawText         String    @map("raw_text") @db.Text
+  parsedAt        DateTime? @map("parsed_at")
+  screeningStatus String    @default("PENDING") @map("screening_status") // PENDING | SHORTLISTED | REJECTED
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   candidate    CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   cvEmbeddings CvEmbedding[]

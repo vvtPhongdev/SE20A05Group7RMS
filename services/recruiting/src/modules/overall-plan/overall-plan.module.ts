@@ -3,10 +3,12 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { OverallPlanController } from './overall-plan.controller';
 import { OverallPlanService } from './overall-plan.service';
 import { DatabaseModule } from '../../common/database/database.module';
+import { AuditLogModule } from '../../common/audit-log/audit-log.module';
 
 @Module({
   imports: [
     DatabaseModule,
+    AuditLogModule,
     ClientsModule.register([
       {
         name: 'NOTIFICATION_SERVICE',
