@@ -22,6 +22,7 @@ import { DeptHeadSettings } from './pages/DeptHeadSettings';
 import { HRDashBoard } from './pages/HRDashBoard';
 import { HRCampaigns } from './pages/HRCampaigns';
 import { HRCampaignDetail } from './pages/HRCampaignDetail';
+import { HRRequestQueue } from './pages/HRRequestQueue';
 import { CandidateDashboard } from './pages/CandidateDashboard';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { UserRole } from '@wr/contracts';
@@ -46,13 +47,23 @@ function HomeRedirect() {
   }
 }
 
+// Redirects logged-in users visiting the root path to their dashboard, otherwise renders LandingPage
+function RootRedirect() {
+  const { user } = useAuth();
+
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <LandingPage />;
+}
+
 export function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
           {/* Public routes */}
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={<RootRedirect />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
           <Route path="/verify-email" element={<EmailOtpVerification />} />
@@ -240,10 +251,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Request Queue"
-                    description="Monitor and review incoming staffing requests submitted by Department Heads."
-                  />
+                  <HRRequestQueue />
                 </Layout>
               </ProtectedRoute>
             }
