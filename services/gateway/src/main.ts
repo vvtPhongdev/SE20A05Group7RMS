@@ -9,7 +9,7 @@ import { GatewayModule } from './gateway.module';
 import { SERVICE_PORTS } from './constants';
 import { JwtAuthGuard } from './auth/decorators/guard/jwt-auth.guard';
 import { RolesGuard } from './auth/decorators/guard/roles.guard';
-import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(GatewayModule);
@@ -24,7 +24,7 @@ async function bootstrap() {
   });
 
   // Global filters
-  app.useGlobalFilters(new AllExceptionsFilter());
+  app.useGlobalFilters(new GlobalExceptionFilter());
 
   // Validation pipes
   app.useGlobalPipes(
