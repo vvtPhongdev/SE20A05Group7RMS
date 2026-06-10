@@ -31,6 +31,7 @@ import { HRPipelineReports } from './pages/HRPipelineReports';
 import { HRInterviewResults } from './pages/HRInterviewResults';
 import { HRSystemNotifications } from './pages/HRSystemNotifications';
 import { CandidateDashboard } from './pages/CandidateDashboard';
+import { CandidateProfile } from './pages/CandidateProfile';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { UserRole } from '@wr/contracts';
 
@@ -370,10 +371,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.CANDIDATE]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="My Profile"
-                    description="Update personal contact information, experience details, and skill tags."
-                  />
+                  <CandidateProfile />
                 </Layout>
               </ProtectedRoute>
             }
