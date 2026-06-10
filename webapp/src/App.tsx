@@ -20,6 +20,7 @@ import { DeptHeadRequests } from './pages/DeptHeadRequests';
 import { DeptHeadRequestDetail } from './pages/DeptHeadRequestDetail';
 import { DeptHeadSettings } from './pages/DeptHeadSettings';
 import { HRDashBoard } from './pages/HRDashBoard';
+import { HRCampaigns } from './pages/HRCampaigns';
 import { CandidateDashboard } from './pages/CandidateDashboard';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { UserRole } from '@wr/contracts';
@@ -251,10 +252,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Recruitment Campaigns"
-                    description="Build, update, and submit recruitment plans linked to approved staffing requests."
-                  />
+                  <HRCampaigns />
                 </Layout>
               </ProtectedRoute>
             }
