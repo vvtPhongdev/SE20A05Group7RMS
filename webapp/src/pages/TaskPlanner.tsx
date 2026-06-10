@@ -1,932 +1,389 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+type TaskStatus = 'Completed' | 'In Progress' | 'Pending' | 'Blocked';
+type TaskType = 'JOB_POSTING' | 'CV_COLLECTION' | 'CV_SCREENING' | 'INTERVIEW_COORDINATION' | 'REFERENCE_CHECK';
 
-type TaskPhase = 'job_posting' | 'cv_collection' | 'cv_screening' | 'interview' | 'offer';
-type TaskPriority = 'Critical' | 'High' | 'Normal' | 'Low';
-type TaskStatus = 'todo' | 'in_progress' | 'done' | 'blocked';
-
-type Assignee = {
-  name: string;
+type PlannerTask = {
+  id: string;
+  type: TaskType;
+  campaign: string;
+  assignee: string;
   initials: string;
-  color: string;
-};
-
-type Task = {
-  id: string;
-  title: string;
-  description: string;
-  phase: TaskPhase;
-  priority: TaskPriority;
-  status: TaskStatus;
-  campaignId: string;
-  assignee: Assignee;
+  startDate: string;
   dueDate: string;
-  tags: string[];
-  checklist: { label: string; done: boolean }[];
+  status: TaskStatus;
+  blocker: string;
+  planWindow: string;
+  role: string;
+  comments: Array<{ author: string; time: string; body: string }>;
 };
 
-type Campaign = {
-  id: string;
-  position: string;
-  department: string;
-  color: string;
-  totalTasks: number;
-  doneTasks: number;
-};
-
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-
-const CAMPAIGNS: Campaign[] = [
-  { id: 'all', position: 'All Campaigns', department: '', color: '#6B7280', totalTasks: 0, doneTasks: 0 },
-  { id: 'camp-001', position: 'Senior Backend Engineer', department: 'IT Dept', color: '#0D9488', totalTasks: 8, doneTasks: 5 },
-  { id: 'camp-002', position: 'Product Designer', department: 'Design & UX', color: '#7C3AED', totalTasks: 6, doneTasks: 2 },
-  { id: 'camp-003', position: 'Marketing Specialist', department: 'Marketing', color: '#DC2626', totalTasks: 5, doneTasks: 4 },
-  { id: 'camp-004', position: 'Data Analyst', department: 'Data & BI', color: '#D97706', totalTasks: 7, doneTasks: 1 },
-];
-
-const INITIAL_TASKS: Task[] = [
-  // camp-001 – Senior Backend Engineer
+const tasks: PlannerTask[] = [
   {
-    id: 'T-001', title: 'Draft job description', description: 'Write a detailed JD covering responsibilities, skill requirements, and compensation range.',
-    phase: 'job_posting', priority: 'High', status: 'done', campaignId: 'camp-001',
-    assignee: { name: 'Linh Tran', initials: 'LT', color: '#0D9488' },
-    dueDate: 'Jun 5', tags: ['Writing', 'JD'],
-    checklist: [{ label: 'Technical requirements', done: true }, { label: 'Compensation range', done: true }, { label: 'Review with dept head', done: true }],
+    id: 'TSK-2041',
+    type: 'JOB_POSTING',
+    campaign: 'Q2 Marketing Specialist',
+    assignee: 'Sarah Miller',
+    initials: 'SM',
+    startDate: 'May 01',
+    dueDate: 'May 05',
+    status: 'Completed',
+    blocker: '',
+    planWindow: 'May 01 - May 05',
+    role: 'Recruitment Coordinator',
+    comments: [{ author: 'Sarah Miller', time: 'Yesterday', body: 'Posting package is live across the approved channels.' }],
   },
   {
-    id: 'T-002', title: 'Post on LinkedIn & TopCV', description: 'Publish the approved JD across LinkedIn Jobs, TopCV, and internal portal.',
-    phase: 'job_posting', priority: 'High', status: 'done', campaignId: 'camp-001',
-    assignee: { name: 'Minh Pham', initials: 'MP', color: '#7C3AED' },
-    dueDate: 'Jun 7', tags: ['LinkedIn', 'TopCV'],
-    checklist: [{ label: 'LinkedIn post', done: true }, { label: 'TopCV listing', done: true }, { label: 'Internal portal', done: false }],
+    id: 'TSK-2042',
+    type: 'CV_COLLECTION',
+    campaign: 'Senior Developer',
+    assignee: 'Elena Rodriguez',
+    initials: 'ER',
+    startDate: 'May 10',
+    dueDate: 'May 25',
+    status: 'In Progress',
+    blocker: '',
+    planWindow: 'May 10 - May 25',
+    role: 'Talent Sourcer',
+    comments: [{ author: 'Elena Rodriguez', time: '3h ago', body: 'Referral batch added. External job board is generating stronger senior profiles.' }],
   },
   {
-    id: 'T-003', title: 'Collect CVs from all channels', description: 'Aggregate submitted CVs from email, job boards, and referrals into the shared drive.',
-    phase: 'cv_collection', priority: 'Normal', status: 'done', campaignId: 'camp-001',
-    assignee: { name: 'Linh Tran', initials: 'LT', color: '#0D9488' },
-    dueDate: 'Jun 12', tags: ['Collection', 'CV'],
-    checklist: [{ label: 'Email inbox sweep', done: true }, { label: 'Job board downloads', done: true }, { label: 'Referral CVs', done: true }],
+    id: 'TSK-2043',
+    type: 'CV_SCREENING',
+    campaign: 'Product Designer',
+    assignee: 'David Park',
+    initials: 'DP',
+    startDate: 'May 26',
+    dueDate: 'May 30',
+    status: 'Pending',
+    blocker: 'Missing screening rubric',
+    planWindow: 'May 26 - May 30',
+    role: 'Technical Recruiter',
+    comments: [{ author: 'Marcus Chen', time: '2h ago', body: 'The rubric is with the Hiring Manager for final sign-off. Expected by EOD.' }],
   },
   {
-    id: 'T-004', title: 'Initial CV screening (pass/fail)', description: 'Review each CV against minimum requirements; tag as Pass, Fail, or Potential.',
-    phase: 'cv_screening', priority: 'Critical', status: 'in_progress', campaignId: 'camp-001',
-    assignee: { name: 'Linh Tran', initials: 'LT', color: '#0D9488' },
-    dueDate: 'Jun 16', tags: ['Screening', 'Review'],
-    checklist: [{ label: 'Screen 28 CVs', done: false }, { label: 'Tag outcomes', done: false }, { label: 'Share shortlist', done: false }],
+    id: 'TSK-2044',
+    type: 'INTERVIEW_COORDINATION',
+    campaign: 'UX Researcher',
+    assignee: 'Marcus Chen',
+    initials: 'MC',
+    startDate: 'Jun 01',
+    dueDate: 'Jun 10',
+    status: 'Pending',
+    blocker: '',
+    planWindow: 'Jun 01 - Jun 10',
+    role: 'Interview Coordinator',
+    comments: [{ author: 'Marcus Chen', time: 'Today', body: 'Waiting for panel availability from Design and Product.' }],
   },
   {
-    id: 'T-005', title: 'Shortlist & rank candidates', description: 'Score shortlisted candidates on a rubric and rank for interview invitation.',
-    phase: 'cv_screening', priority: 'High', status: 'todo', campaignId: 'camp-001',
-    assignee: { name: 'Minh Pham', initials: 'MP', color: '#7C3AED' },
-    dueDate: 'Jun 18', tags: ['Ranking', 'Shortlist'],
-    checklist: [{ label: 'Apply scoring rubric', done: false }, { label: 'Rank top 10', done: false }],
-  },
-  {
-    id: 'T-006', title: 'Schedule technical interviews', description: 'Coordinate calendars for 6 candidates across two technical interviewers.',
-    phase: 'interview', priority: 'High', status: 'todo', campaignId: 'camp-001',
-    assignee: { name: 'Minh Pham', initials: 'MP', color: '#7C3AED' },
-    dueDate: 'Jun 22', tags: ['Calendar', 'Coordination'],
-    checklist: [{ label: 'Book slots in calendar', done: false }, { label: 'Send candidate invites', done: false }, { label: 'Confirm interviewers', done: false }],
-  },
-  {
-    id: 'T-007', title: 'Collect interview feedback', description: 'Gather structured feedback sheets from all technical interviewers post-session.',
-    phase: 'interview', priority: 'Normal', status: 'todo', campaignId: 'camp-001',
-    assignee: { name: 'Linh Tran', initials: 'LT', color: '#0D9488' },
-    dueDate: 'Jun 26', tags: ['Feedback', 'Report'],
-    checklist: [{ label: 'Distribute feedback form', done: false }, { label: 'Compile results', done: false }],
-  },
-  {
-    id: 'T-008', title: 'Prepare & send offer letter', description: 'Draft offer package for top candidate and send for final approval before dispatch.',
-    phase: 'offer', priority: 'Critical', status: 'todo', campaignId: 'camp-001',
-    assignee: { name: 'Linh Tran', initials: 'LT', color: '#0D9488' },
-    dueDate: 'Jul 2', tags: ['Offer', 'Legal'],
-    checklist: [{ label: 'Draft offer letter', done: false }, { label: 'Get manager approval', done: false }, { label: 'Send to candidate', done: false }],
-  },
-
-  // camp-002 – Product Designer
-  {
-    id: 'T-009', title: 'Draft designer JD with portfolio requirements', description: 'Include Figma proficiency, design systems experience, and portfolio submission guidelines.',
-    phase: 'job_posting', priority: 'High', status: 'done', campaignId: 'camp-002',
-    assignee: { name: 'Hoa Nguyen', initials: 'HN', color: '#DC2626' },
-    dueDate: 'Jun 4', tags: ['JD', 'Design'],
-    checklist: [{ label: 'List required skills', done: true }, { label: 'Portfolio guidelines', done: true }],
-  },
-  {
-    id: 'T-010', title: 'Post on Behance & Dribbble', description: 'Reach design community through Behance Jobs and Dribbble Hiring.',
-    phase: 'job_posting', priority: 'Normal', status: 'in_progress', campaignId: 'camp-002',
-    assignee: { name: 'Hoa Nguyen', initials: 'HN', color: '#DC2626' },
-    dueDate: 'Jun 9', tags: ['Behance', 'Dribbble'],
-    checklist: [{ label: 'Behance listing', done: true }, { label: 'Dribbble listing', done: false }],
-  },
-  {
-    id: 'T-011', title: 'Collect and organize portfolio submissions', description: 'Review portfolio links and store in shared folder, checking for broken links.',
-    phase: 'cv_collection', priority: 'Normal', status: 'todo', campaignId: 'camp-002',
-    assignee: { name: 'Minh Pham', initials: 'MP', color: '#7C3AED' },
-    dueDate: 'Jun 15', tags: ['Portfolio', 'Collection'],
-    checklist: [{ label: 'Check all portfolio links', done: false }, { label: 'Organize by quality tier', done: false }],
-  },
-  {
-    id: 'T-012', title: 'Evaluate portfolios with design lead', description: 'Joint review session with the Head of Design to score portfolio submissions.',
-    phase: 'cv_screening', priority: 'High', status: 'todo', campaignId: 'camp-002',
-    assignee: { name: 'Hoa Nguyen', initials: 'HN', color: '#DC2626' },
-    dueDate: 'Jun 20', tags: ['Review', 'Design Lead'],
-    checklist: [{ label: 'Schedule joint review', done: false }, { label: 'Score portfolios', done: false }, { label: 'Select top 5', done: false }],
-  },
-  {
-    id: 'T-013', title: 'Send design take-home test', description: 'Dispatch a 3-hour design challenge to shortlisted candidates.',
-    phase: 'interview', priority: 'High', status: 'blocked', campaignId: 'camp-002',
-    assignee: { name: 'Hoa Nguyen', initials: 'HN', color: '#DC2626' },
-    dueDate: 'Jun 25', tags: ['Test', 'Challenge'],
-    checklist: [{ label: 'Finalize test brief', done: false }, { label: 'Send to candidates', done: false }],
-  },
-  {
-    id: 'T-014', title: 'Negotiate compensation & benefits', description: 'Discuss package details and sign-on bonus with top candidate.',
-    phase: 'offer', priority: 'Critical', status: 'todo', campaignId: 'camp-002',
-    assignee: { name: 'Linh Tran', initials: 'LT', color: '#0D9488' },
-    dueDate: 'Jul 5', tags: ['Negotiation', 'Offer'],
-    checklist: [{ label: 'Prepare comp matrix', done: false }, { label: 'Conduct negotiation call', done: false }],
-  },
-
-  // camp-003 – Marketing Specialist
-  {
-    id: 'T-015', title: 'Draft marketing JD', description: 'Focus on digital marketing, SEO/SEM, and content strategy skills.',
-    phase: 'job_posting', priority: 'Normal', status: 'done', campaignId: 'camp-003',
-    assignee: { name: 'Minh Pham', initials: 'MP', color: '#7C3AED' },
-    dueDate: 'May 30', tags: ['JD', 'Marketing'],
-    checklist: [{ label: 'Skill list', done: true }, { label: 'Dept head review', done: true }],
-  },
-  {
-    id: 'T-016', title: 'Post on job boards', description: 'Publish across VietnamWorks, Jobstreet, and LinkedIn.',
-    phase: 'job_posting', priority: 'Normal', status: 'done', campaignId: 'camp-003',
-    assignee: { name: 'Minh Pham', initials: 'MP', color: '#7C3AED' },
-    dueDate: 'Jun 2', tags: ['VietnamWorks', 'Jobstreet'],
-    checklist: [{ label: 'VietnamWorks', done: true }, { label: 'Jobstreet', done: true }, { label: 'LinkedIn', done: true }],
-  },
-  {
-    id: 'T-017', title: 'CV collection & dedup', description: 'Gather all applications and remove duplicate submissions.',
-    phase: 'cv_collection', priority: 'Low', status: 'done', campaignId: 'camp-003',
-    assignee: { name: 'Hoa Nguyen', initials: 'HN', color: '#DC2626' },
-    dueDate: 'Jun 8', tags: ['CV', 'Dedup'],
-    checklist: [{ label: 'Collect from all channels', done: true }, { label: 'Remove duplicates', done: true }],
-  },
-  {
-    id: 'T-018', title: 'Screen and shortlist', description: 'Review 14 applications, shortlist top 4.',
-    phase: 'cv_screening', priority: 'Normal', status: 'done', campaignId: 'camp-003',
-    assignee: { name: 'Linh Tran', initials: 'LT', color: '#0D9488' },
-    dueDate: 'Jun 12', tags: ['Screening'],
-    checklist: [{ label: 'Screen 14 CVs', done: true }, { label: 'Shortlist 4', done: true }],
-  },
-  {
-    id: 'T-019', title: 'Conduct HR fit interviews', description: 'Run 30-minute HR cultural fit interviews for 4 shortlisted candidates.',
-    phase: 'interview', priority: 'High', status: 'in_progress', campaignId: 'camp-003',
-    assignee: { name: 'Linh Tran', initials: 'LT', color: '#0D9488' },
-    dueDate: 'Jun 17', tags: ['HR Fit', 'Interview'],
-    checklist: [{ label: '4 interviews scheduled', done: true }, { label: '2/4 completed', done: false }],
-  },
-
-  // camp-004 – Data Analyst
-  {
-    id: 'T-020', title: 'Draft Data Analyst JD', description: 'Cover SQL, Python, Power BI requirements and data governance context.',
-    phase: 'job_posting', priority: 'High', status: 'in_progress', campaignId: 'camp-004',
-    assignee: { name: 'Hoa Nguyen', initials: 'HN', color: '#DC2626' },
-    dueDate: 'Jun 14', tags: ['JD', 'Data'],
-    checklist: [{ label: 'Technical skills', done: true }, { label: 'Tool requirements', done: false }],
-  },
-  {
-    id: 'T-021', title: 'Post on data-focused boards', description: 'Publish on Kaggle Jobs, Analytics Vidhya, and LinkedIn.',
-    phase: 'job_posting', priority: 'Normal', status: 'todo', campaignId: 'camp-004',
-    assignee: { name: 'Minh Pham', initials: 'MP', color: '#7C3AED' },
-    dueDate: 'Jun 18', tags: ['Kaggle', 'LinkedIn'],
-    checklist: [{ label: 'Kaggle Jobs', done: false }, { label: 'LinkedIn', done: false }],
+    id: 'TSK-2045',
+    type: 'REFERENCE_CHECK',
+    campaign: 'Cloud Security Specialist',
+    assignee: 'Nina Patel',
+    initials: 'NP',
+    startDate: 'Jun 04',
+    dueDate: 'Jun 08',
+    status: 'Blocked',
+    blocker: 'Candidate contact unavailable',
+    planWindow: 'Jun 04 - Jun 08',
+    role: 'HR Specialist',
+    comments: [{ author: 'Nina Patel', time: '1h ago', body: 'Second reference has not confirmed contact details yet.' }],
   },
 ];
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const PHASES: { key: TaskPhase; label: string; shortLabel: string; icon: string }[] = [
-  { key: 'job_posting', label: 'Job Posting', shortLabel: 'Posting', icon: '📋' },
-  { key: 'cv_collection', label: 'CV Collection', shortLabel: 'Collection', icon: '📥' },
-  { key: 'cv_screening', label: 'CV Screening', shortLabel: 'Screening', icon: '🔍' },
-  { key: 'interview', label: 'Interview', shortLabel: 'Interview', icon: '🎙️' },
-  { key: 'offer', label: 'Offer', shortLabel: 'Offer', icon: '✉️' },
+const kpis = [
+  { label: 'Overdue Tasks', value: 12, helper: 'Critical', tone: 'text-rejected' },
+  { label: 'In Progress', value: 34, helper: 'Tasks', tone: 'text-primary' },
+  { label: 'Pending Assignment', value: 8, helper: 'Drafts', tone: 'text-revision' },
+  { label: 'Completed This Week', value: 42, helper: 'Plans', tone: 'text-approved' },
 ];
 
-const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string; bg: string; dot: string }> = {
-  todo: { label: 'To Do', color: '#6B7280', bg: '#F3F4F6', dot: '#6B7280' },
-  in_progress: { label: 'In Progress', color: '#D97706', bg: '#FEF3C7', dot: '#D97706' },
-  done: { label: 'Done', color: '#059669', bg: '#D1FAE5', dot: '#059669' },
-  blocked: { label: 'Blocked', color: '#DC2626', bg: '#FEE2E2', dot: '#DC2626' },
+const statusStyles: Record<TaskStatus, string> = {
+  Completed: 'border-approved/20 bg-approved/10 text-approved',
+  'In Progress': 'border-pending/20 bg-pending/10 text-pending',
+  Pending: 'border-revision/20 bg-revision/10 text-revision',
+  Blocked: 'border-rejected/20 bg-rejected/10 text-rejected',
 };
 
-const PRIORITY_CONFIG: Record<TaskPriority, { color: string; bg: string }> = {
-  Critical: { color: '#DC2626', bg: '#FEF2F2' },
-  High: { color: '#D97706', bg: '#FFFBEB' },
-  Normal: { color: '#2563EB', bg: '#EFF6FF' },
-  Low: { color: '#6B7280', bg: '#F9FAFB' },
+const avatarStyles = ['bg-primary/20 text-primary', 'bg-pending/20 text-pending', 'bg-revision/20 text-revision', 'bg-slate-ink/20 text-slate-ink'];
+
+const iconPaths: Record<string, React.ReactNode> = {
+  filter: <path d="M4 6h16M7 12h10M10 18h4" />,
+  calendar: <path d="M7 3v4m10-4v4M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />,
+  edit: <path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Zm12-14 3 3" />,
+  trash: <path d="M4 7h16m-2 0-.8 13H6.8L6 7m3 0V4h6v3m-4 4v5m4-5v5" />,
+  close: <path d="m6 6 12 12M18 6 6 18" />,
+  warning: <path d="M12 9v4m0 4h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />,
+  info: <path d="M12 16v-4m0-4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
+  bolt: <path d="m13 2-8 12h7l-1 8 8-12h-7z" />,
+  chevronLeft: <path d="m15 18-6-6 6-6" />,
+  chevronRight: <path d="m9 18 6-6-6-6" />,
 };
 
-// ─── Helper Components ────────────────────────────────────────────────────────
-
-const AssigneeAvatar: React.FC<{ assignee: Assignee; size?: 'sm' | 'md' }> = ({ assignee, size = 'md' }) => {
-  const dim = size === 'sm' ? 24 : 30;
-  const font = size === 'sm' ? 10 : 11;
-  return (
-    <div
-      title={assignee.name}
-      style={{
-        width: dim, height: dim, borderRadius: '50%',
-        background: assignee.color + '22', color: assignee.color,
-        fontSize: font, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        border: `1.5px solid ${assignee.color}44`, flexShrink: 0,
-      }}
-    >
-      {assignee.initials}
-    </div>
-  );
-};
-
-// ─── Task Card ────────────────────────────────────────────────────────────────
-
-const TaskCard: React.FC<{
-  task: Task;
-  onStatusChange: (id: string, status: TaskStatus) => void;
-  onToggleChecklist: (taskId: string, idx: number) => void;
-  expanded: boolean;
-  onToggleExpand: () => void;
-}> = ({ task, onStatusChange, onToggleChecklist, expanded, onToggleExpand }) => {
-  const statusCfg = STATUS_CONFIG[task.status];
-  const priorityCfg = PRIORITY_CONFIG[task.priority];
-  const done = task.checklist.filter(c => c.done).length;
-  const total = task.checklist.length;
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-
-  return (
-    <div style={{
-      background: 'var(--wr-bg-surface)',
-      border: '1px solid var(--wr-border-default)',
-      borderRadius: 10,
-      padding: '14px 16px',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 10,
-      transition: 'box-shadow 0.15s',
-      cursor: 'default',
-    }}
-      onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.08)')}
-      onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
-    >
-      {/* Header row */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-        {/* Checkbox */}
-        <button
-          onClick={() => onStatusChange(task.id, task.status === 'done' ? 'todo' : 'done')}
-          style={{
-            width: 20, height: 20, borderRadius: 5, border: task.status === 'done' ? 'none' : '2px solid #CBD5E1',
-            background: task.status === 'done' ? '#059669' : 'transparent',
-            cursor: 'pointer', flexShrink: 0, marginTop: 1,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-          aria-label={task.status === 'done' ? 'Mark incomplete' : 'Mark complete'}
-        >
-          {task.status === 'done' && (
-            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-              <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          )}
-        </button>
-
-        {/* Title + tags */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontSize: 13.5, fontWeight: 600, color: 'var(--wr-text-primary)',
-            textDecoration: task.status === 'done' ? 'line-through' : 'none',
-            opacity: task.status === 'done' ? 0.6 : 1,
-            lineHeight: 1.4,
-          }}>
-            {task.title}
-          </div>
-          {task.description && (
-            <div style={{ fontSize: 12, color: 'var(--wr-text-secondary)', marginTop: 3, lineHeight: 1.5 }}>
-              {task.description}
-            </div>
-          )}
-        </div>
-
-        {/* Expand button */}
-        <button
-          onClick={onToggleExpand}
-          style={{
-            background: 'none', border: 'none', cursor: 'pointer', padding: 2,
-            color: 'var(--wr-text-secondary)', flexShrink: 0,
-            borderRadius: 4,
-          }}
-          aria-label="Toggle checklist"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-            style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </button>
-      </div>
-
-      {/* Meta row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        {/* Status badge */}
-        <span style={{
-          fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 99,
-          color: statusCfg.color, background: statusCfg.bg,
-          display: 'flex', alignItems: 'center', gap: 4,
-        }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusCfg.dot, display: 'inline-block' }} />
-          {statusCfg.label}
-        </span>
-
-        {/* Priority badge */}
-        <span style={{
-          fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 99,
-          color: priorityCfg.color, background: priorityCfg.bg,
-        }}>
-          {task.priority}
-        </span>
-
-        {/* Tags */}
-        {task.tags.slice(0, 2).map(tag => (
-          <span key={tag} style={{
-            fontSize: 11, padding: '2px 7px', borderRadius: 99,
-            background: 'var(--wr-bg-elevated)', color: 'var(--wr-text-secondary)',
-            fontWeight: 500,
-          }}>{tag}</span>
-        ))}
-
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* Due date */}
-          <span style={{ fontSize: 11.5, color: 'var(--wr-text-secondary)', display: 'flex', alignItems: 'center', gap: 3 }}>
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
-            </svg>
-            {task.dueDate}
-          </span>
-
-          {/* Assignee */}
-          <AssigneeAvatar assignee={task.assignee} size="sm" />
-        </div>
-      </div>
-
-      {/* Progress bar */}
-      {total > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ flex: 1, height: 4, background: 'var(--wr-border-subtle)', borderRadius: 99, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${pct}%`, background: pct === 100 ? '#059669' : '#0D9488', borderRadius: 99, transition: 'width 0.3s' }} />
-          </div>
-          <span style={{ fontSize: 11, color: 'var(--wr-text-secondary)', fontWeight: 500, whiteSpace: 'nowrap' }}>
-            {done}/{total}
-          </span>
-        </div>
-      )}
-
-      {/* Checklist (expanded) */}
-      {expanded && total > 0 && (
-        <div style={{ borderTop: '1px solid var(--wr-border-subtle)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {task.checklist.map((item, idx) => (
-            <label key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={item.done}
-                onChange={() => onToggleChecklist(task.id, idx)}
-                style={{ accentColor: '#0D9488', width: 14, height: 14, cursor: 'pointer' }}
-              />
-              <span style={{
-                fontSize: 12.5, color: item.done ? 'var(--wr-text-secondary)' : 'var(--wr-text-primary)',
-                textDecoration: item.done ? 'line-through' : 'none',
-                transition: 'color 0.15s',
-              }}>
-                {item.label}
-              </span>
-            </label>
-          ))}
-        </div>
-      )}
-
-      {/* Status quick-change */}
-      {expanded && (
-        <div style={{ display: 'flex', gap: 6, borderTop: '1px solid var(--wr-border-subtle)', paddingTop: 10 }}>
-          {(['todo', 'in_progress', 'done', 'blocked'] as TaskStatus[]).map(s => (
-            <button
-              key={s}
-              onClick={() => onStatusChange(task.id, s)}
-              style={{
-                fontSize: 11, padding: '3px 10px', borderRadius: 99, cursor: 'pointer',
-                border: task.status === s ? `1.5px solid ${STATUS_CONFIG[s].color}` : '1.5px solid transparent',
-                background: task.status === s ? STATUS_CONFIG[s].bg : 'var(--wr-bg-elevated)',
-                color: task.status === s ? STATUS_CONFIG[s].color : 'var(--wr-text-secondary)',
-                fontWeight: task.status === s ? 700 : 500,
-                transition: 'all 0.15s',
-              }}
-            >
-              {STATUS_CONFIG[s].label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ─── Phase Column ─────────────────────────────────────────────────────────────
-
-const PhaseColumn: React.FC<{
-  phase: typeof PHASES[number];
-  tasks: Task[];
-  onStatusChange: (id: string, status: TaskStatus) => void;
-  onToggleChecklist: (taskId: string, idx: number) => void;
-  expandedTasks: Set<string>;
-  onToggleExpand: (id: string) => void;
-}> = ({ phase, tasks, onStatusChange, onToggleChecklist, expandedTasks, onToggleExpand }) => {
-  const done = tasks.filter(t => t.status === 'done').length;
-  const total = tasks.length;
-
-  return (
-    <div style={{ minWidth: 300, flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {/* Column header */}
-      <div style={{
-        background: 'var(--wr-bg-elevated)',
-        border: '1px solid var(--wr-border-default)',
-        borderRadius: 10,
-        padding: '10px 14px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-      }}>
-        <span style={{ fontSize: 16 }}>{phase.icon}</span>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--wr-text-primary)' }}>{phase.label}</div>
-          <div style={{ fontSize: 11, color: 'var(--wr-text-secondary)', marginTop: 1 }}>{done}/{total} complete</div>
-        </div>
-        <div style={{
-          width: 26, height: 26, borderRadius: 99, background: total === 0 ? 'var(--wr-border-subtle)' : '#0D944820',
-          color: total === 0 ? 'var(--wr-text-secondary)' : '#0D9488',
-          fontSize: 12, fontWeight: 700,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          {total}
-        </div>
-      </div>
-
-      {/* Tasks */}
-      {tasks.length === 0 ? (
-        <div style={{
-          border: '2px dashed var(--wr-border-subtle)', borderRadius: 10,
-          padding: '24px 16px', textAlign: 'center',
-          color: 'var(--wr-text-secondary)', fontSize: 12,
-        }}>
-          No tasks in this phase
-        </div>
-      ) : (
-        tasks.map(task => (
-          <TaskCard
-            key={task.id}
-            task={task}
-            onStatusChange={onStatusChange}
-            onToggleChecklist={onToggleChecklist}
-            expanded={expandedTasks.has(task.id)}
-            onToggleExpand={() => onToggleExpand(task.id)}
-          />
-        ))
-      )}
-    </div>
-  );
-};
-
-// ─── Main Component ───────────────────────────────────────────────────────────
+const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: string }) => (
+  <svg
+    aria-hidden="true"
+    className={className}
+    fill="none"
+    stroke="currentColor"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    strokeWidth="1.8"
+    viewBox="0 0 24 24"
+  >
+    {iconPaths[name]}
+  </svg>
+);
 
 export const TaskPlanner: React.FC = () => {
-  const [tasks, setTasks] = useState<Task[]>(INITIAL_TASKS);
-  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('all');
-  const [activePhase, setActivePhase] = useState<TaskPhase | 'all'>('all');
-  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [newTaskPhase, setNewTaskPhase] = useState<TaskPhase>('job_posting');
-  const [newTaskCampaign, setNewTaskCampaign] = useState('camp-001');
-  const [newTaskPriority, setNewTaskPriority] = useState<TaskPriority>('Normal');
+  const [campaign, setCampaign] = useState('All Campaigns');
+  const [type, setType] = useState<TaskType | 'All Types'>('All Types');
+  const [assignee, setAssignee] = useState('All Personnel');
+  const [status, setStatus] = useState<TaskStatus | 'Any Status'>('Any Status');
+  const [selectedTask, setSelectedTask] = useState<PlannerTask | null>(tasks[2]);
 
-  // Compute campaign stats dynamically
-  const campaignsWithStats = useMemo(() => {
-    return CAMPAIGNS.map(c => {
-      if (c.id === 'all') {
-        return { ...c, totalTasks: tasks.length, doneTasks: tasks.filter(t => t.status === 'done').length };
-      }
-      const ct = tasks.filter(t => t.campaignId === c.id);
-      return { ...c, totalTasks: ct.length, doneTasks: ct.filter(t => t.status === 'done').length };
-    });
-  }, [tasks]);
+  const visibleTasks = useMemo(
+    () =>
+      tasks.filter((task) => {
+        const matchesCampaign = campaign === 'All Campaigns' || task.campaign === campaign;
+        const matchesType = type === 'All Types' || task.type === type;
+        const matchesAssignee = assignee === 'All Personnel' || task.assignee === assignee;
+        const matchesStatus = status === 'Any Status' || task.status === status;
+        return matchesCampaign && matchesType && matchesAssignee && matchesStatus;
+      }),
+    [assignee, campaign, status, type],
+  );
 
-  // Filter tasks
-  const filteredTasks = useMemo(() => {
-    return tasks.filter(t => {
-      const matchCampaign = selectedCampaignId === 'all' || t.campaignId === selectedCampaignId;
-      const matchPhase = activePhase === 'all' || t.phase === activePhase;
-      const matchSearch = !searchQuery || t.title.toLowerCase().includes(searchQuery.toLowerCase()) || t.assignee.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchStatus = statusFilter === 'all' || t.status === statusFilter;
-      return matchCampaign && matchPhase && matchSearch && matchStatus;
-    });
-  }, [tasks, selectedCampaignId, activePhase, searchQuery, statusFilter]);
-
-  // Stats for header
-  const totalDone = filteredTasks.filter(t => t.status === 'done').length;
-  const totalInProgress = filteredTasks.filter(t => t.status === 'in_progress').length;
-  const totalBlocked = filteredTasks.filter(t => t.status === 'blocked').length;
-
-  const handleStatusChange = (id: string, status: TaskStatus) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, status } : t));
-  };
-
-  const handleToggleChecklist = (taskId: string, idx: number) => {
-    setTasks(prev => prev.map(t => {
-      if (t.id !== taskId) return t;
-      const checklist = t.checklist.map((c, i) => i === idx ? { ...c, done: !c.done } : c);
-      return { ...t, checklist };
-    }));
-  };
-
-  const handleToggleExpand = (id: string) => {
-    setExpandedTasks(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
-  const handleAddTask = () => {
-    if (!newTaskTitle.trim()) return;
-    const newTask: Task = {
-      id: `T-${Date.now()}`,
-      title: newTaskTitle.trim(),
-      description: '',
-      phase: newTaskPhase,
-      priority: newTaskPriority,
-      status: 'todo',
-      campaignId: newTaskCampaign,
-      assignee: { name: 'Linh Tran', initials: 'LT', color: '#0D9488' },
-      dueDate: 'TBD',
-      tags: [],
-      checklist: [],
-    };
-    setTasks(prev => [...prev, newTask]);
-    setNewTaskTitle('');
-    setShowAddModal(false);
+  const resetFilters = () => {
+    setCampaign('All Campaigns');
+    setType('All Types');
+    setAssignee('All Personnel');
+    setStatus('Any Status');
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 0, height: '100%' }}>
-      {/* Page Header */}
-      <div style={{
-        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-        marginBottom: 24, flexWrap: 'wrap', gap: 12,
-      }}>
-        <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--wr-text-primary)', margin: 0 }}>
-            Task Planner
-          </h1>
-          <p style={{ fontSize: 13, color: 'var(--wr-text-secondary)', margin: '4px 0 0' }}>
-            Assign and track recruitment tasks across campaigns and hiring phases.
-          </p>
-        </div>
-        <button
-          id="btn-add-task"
-          onClick={() => setShowAddModal(true)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            background: '#0D9488', color: 'white',
-            border: 'none', borderRadius: 8, padding: '9px 16px',
-            fontSize: 13, fontWeight: 600, cursor: 'pointer',
-            transition: 'background 0.15s',
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = '#0F766E')}
-          onMouseLeave={e => (e.currentTarget.style.background = '#0D9488')}
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          Add Task
-        </button>
-      </div>
-
-      {/* Stats Banner */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20,
-      }}>
-        {[
-          { label: 'Total Tasks', value: filteredTasks.length, color: '#0D9488', bg: '#F0FDFA' },
-          { label: 'Completed', value: totalDone, color: '#059669', bg: '#F0FDF4' },
-          { label: 'In Progress', value: totalInProgress, color: '#D97706', bg: '#FFFBEB' },
-          { label: 'Blocked', value: totalBlocked, color: '#DC2626', bg: '#FEF2F2' },
-        ].map(stat => (
-          <div key={stat.label} style={{
-            background: stat.bg,
-            border: `1px solid ${stat.color}22`,
-            borderRadius: 10, padding: '12px 16px',
-            display: 'flex', flexDirection: 'column', gap: 2,
-          }}>
-            <div style={{ fontSize: 22, fontWeight: 800, color: stat.color }}>{stat.value}</div>
-            <div style={{ fontSize: 12, color: stat.color, fontWeight: 500, opacity: 0.8 }}>{stat.label}</div>
+    <div className="mx-auto grid max-w-[1440px] gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <main className="min-w-0 space-y-6">
+        <header className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">HR Manager Portal</p>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">Task Planner</h1>
+            <p className="mt-1 max-w-[70ch] text-sm leading-6 text-slate-ink">
+              Assign, track, and resolve recruitment tasks across active campaign plans.
+            </p>
           </div>
-        ))}
-      </div>
+        </header>
 
-      {/* Main layout: sidebar + content */}
-      <div style={{ display: 'flex', gap: 20, flex: 1, minHeight: 0 }}>
-
-        {/* Campaign Sidebar */}
-        <div style={{
-          width: 220, flexShrink: 0,
-          display: 'flex', flexDirection: 'column', gap: 6,
-        }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--wr-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-            Campaigns
-          </div>
-          {campaignsWithStats.map(c => {
-            const isActive = selectedCampaignId === c.id;
-            const pct = c.totalTasks > 0 ? Math.round((c.doneTasks / c.totalTasks) * 100) : 0;
-            return (
-              <button
-                key={c.id}
-                id={`campaign-filter-${c.id}`}
-                onClick={() => setSelectedCampaignId(c.id)}
-                style={{
-                  width: '100%', textAlign: 'left',
-                  padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
-                  border: isActive ? `1.5px solid ${c.id === 'all' ? '#0D9488' : c.color}` : '1.5px solid transparent',
-                  background: isActive ? (c.id === 'all' ? '#F0FDFA' : c.color + '12') : 'var(--wr-bg-surface)',
-                  transition: 'all 0.15s',
-                  display: 'flex', flexDirection: 'column', gap: 4,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {c.id !== 'all' && (
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: c.color, flexShrink: 0 }} />
-                  )}
-                  <span style={{
-                    fontSize: 12.5, fontWeight: isActive ? 700 : 500,
-                    color: isActive ? (c.id === 'all' ? '#0D9488' : c.color) : 'var(--wr-text-primary)',
-                    flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>
-                    {c.position}
-                  </span>
-                </div>
-                {c.id !== 'all' && c.department && (
-                  <div style={{ fontSize: 11, color: 'var(--wr-text-secondary)', paddingLeft: 14 }}>{c.department}</div>
-                )}
-                {c.id !== 'all' && c.totalTasks > 0 && (
-                  <div style={{ paddingLeft: 14, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <div style={{ height: 3, background: 'var(--wr-border-subtle)', borderRadius: 99, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${pct}%`, background: c.color, borderRadius: 99 }} />
-                    </div>
-                    <span style={{ fontSize: 10.5, color: 'var(--wr-text-secondary)' }}>{c.doneTasks}/{c.totalTasks} done</span>
-                  </div>
-                )}
-                {c.id === 'all' && (
-                  <div style={{ fontSize: 11, color: 'var(--wr-text-secondary)' }}>{c.totalTasks} tasks total</div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Right panel */}
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {/* Filters row */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            {/* Search */}
-            <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 160 }}>
-              <svg style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--wr-text-secondary)' }}
-                width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-              <input
-                id="task-search"
-                type="text"
-                placeholder="Search tasks or assignees…"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                style={{
-                  width: '100%', paddingLeft: 32, paddingRight: 12, paddingTop: 8, paddingBottom: 8,
-                  fontSize: 13, borderRadius: 8, border: '1.5px solid var(--wr-border-default)',
-                  background: 'var(--wr-bg-surface)', color: 'var(--wr-text-primary)',
-                  outline: 'none', boxSizing: 'border-box',
-                }}
-              />
-            </div>
-
-            {/* Status filter */}
-            <select
-              id="status-filter"
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value as TaskStatus | 'all')}
-              style={{
-                fontSize: 13, padding: '8px 12px', borderRadius: 8,
-                border: '1.5px solid var(--wr-border-default)',
-                background: 'var(--wr-bg-surface)', color: 'var(--wr-text-primary)',
-                cursor: 'pointer', outline: 'none',
-              }}
-            >
-              <option value="all">All Statuses</option>
-              <option value="todo">To Do</option>
-              <option value="in_progress">In Progress</option>
-              <option value="done">Done</option>
-              <option value="blocked">Blocked</option>
-            </select>
-
-            {/* Phase tabs */}
-            <div style={{ display: 'flex', gap: 4, background: 'var(--wr-bg-elevated)', padding: 4, borderRadius: 8 }}>
-              {[{ key: 'all', label: 'All', icon: '⚡' }, ...PHASES].map(p => (
-                <button
-                  key={p.key}
-                  id={`phase-tab-${p.key}`}
-                  onClick={() => setActivePhase(p.key as TaskPhase | 'all')}
-                  style={{
-                    fontSize: 12, fontWeight: activePhase === p.key ? 700 : 500,
-                    padding: '5px 10px', borderRadius: 6, cursor: 'pointer',
-                    border: 'none',
-                    background: activePhase === p.key ? 'var(--wr-bg-surface)' : 'transparent',
-                    color: activePhase === p.key ? '#0D9488' : 'var(--wr-text-secondary)',
-                    boxShadow: activePhase === p.key ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
-                    transition: 'all 0.15s',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {p.icon} {'shortLabel' in p ? p.shortLabel : p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Task phase columns */}
-          {activePhase === 'all' ? (
-            <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 8, alignItems: 'flex-start' }}>
-              {PHASES.map(phase => (
-                <PhaseColumn
-                  key={phase.key}
-                  phase={phase}
-                  tasks={filteredTasks.filter(t => t.phase === phase.key)}
-                  onStatusChange={handleStatusChange}
-                  onToggleChecklist={handleToggleChecklist}
-                  expandedTasks={expandedTasks}
-                  onToggleExpand={handleToggleExpand}
-                />
-              ))}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--wr-text-secondary)' }}>
-                {PHASES.find(p => p.key === activePhase)?.icon}{' '}
-                {PHASES.find(p => p.key === activePhase)?.label} — {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
+        <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4" aria-label="Task planner metrics">
+          {kpis.map((kpi) => (
+            <section className="rounded-lg border border-border-warm bg-clean-surface p-5 shadow-sm" key={kpi.label}>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-secondary">{kpi.label}</p>
+              <div className="flex items-baseline gap-2">
+                <span className={`font-mono text-[32px] font-semibold leading-none ${kpi.tone}`}>{String(kpi.value).padStart(2, '0')}</span>
+                <span className="text-sm font-semibold text-on-surface-variant">{kpi.helper}</span>
               </div>
-              {filteredTasks.length === 0 ? (
-                <div style={{
-                  border: '2px dashed var(--wr-border-subtle)', borderRadius: 10,
-                  padding: '48px 16px', textAlign: 'center', color: 'var(--wr-text-secondary)', fontSize: 13,
-                }}>
-                  No tasks match your current filters.
-                </div>
-              ) : (
-                filteredTasks.map(task => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    onStatusChange={handleStatusChange}
-                    onToggleChecklist={handleToggleChecklist}
-                    expanded={expandedTasks.has(task.id)}
-                    onToggleExpand={() => handleToggleExpand(task.id)}
-                  />
-                ))
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+            </section>
+          ))}
+        </section>
 
-      {/* Add Task Modal */}
-      {showAddModal && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50,
-        }} onClick={e => { if (e.target === e.currentTarget) setShowAddModal(false); }}>
-          <div style={{
-            background: 'var(--wr-bg-surface)', borderRadius: 14,
-            padding: '28px 28px 24px', width: 460, maxWidth: '90vw',
-            boxShadow: '0 8px 40px rgba(0,0,0,0.2)',
-            display: 'flex', flexDirection: 'column', gap: 16,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--wr-text-primary)' }}>Add New Task</h2>
-              <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--wr-text-secondary)', fontSize: 18 }}>✕</button>
-            </div>
-
-            {/* Task title */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--wr-text-secondary)' }}>Task Title *</label>
-              <input
-                id="new-task-title"
-                type="text"
-                autoFocus
-                placeholder="e.g. Screen CVs for Data Analyst role"
-                value={newTaskTitle}
-                onChange={e => setNewTaskTitle(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleAddTask()}
-                style={{
-                  padding: '10px 12px', fontSize: 13.5, borderRadius: 8,
-                  border: '1.5px solid var(--wr-border-default)',
-                  background: 'var(--wr-bg-elevated)', color: 'var(--wr-text-primary)', outline: 'none',
-                }}
-              />
-            </div>
-
-            {/* Campaign */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--wr-text-secondary)' }}>Campaign</label>
-              <select
-                id="new-task-campaign"
-                value={newTaskCampaign}
-                onChange={e => setNewTaskCampaign(e.target.value)}
-                style={{
-                  padding: '10px 12px', fontSize: 13, borderRadius: 8,
-                  border: '1.5px solid var(--wr-border-default)',
-                  background: 'var(--wr-bg-elevated)', color: 'var(--wr-text-primary)', outline: 'none', cursor: 'pointer',
-                }}
-              >
-                {CAMPAIGNS.filter(c => c.id !== 'all').map(c => (
-                  <option key={c.id} value={c.id}>{c.position} — {c.department}</option>
+        <section className="rounded-lg border border-border-warm bg-clean-surface p-5 shadow-sm">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto] xl:items-end">
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-semibold text-on-surface-variant">Campaign</span>
+              <select className="h-10 rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20" onChange={(event) => setCampaign(event.target.value)} value={campaign}>
+                <option>All Campaigns</option>
+                <option>Q2 Marketing Specialist</option>
+                <option>Senior Developer</option>
+                <option>Product Designer</option>
+                <option>UX Researcher</option>
+                <option>Cloud Security Specialist</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-semibold text-on-surface-variant">Task Type</span>
+              <select className="h-10 rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20" onChange={(event) => setType(event.target.value as TaskType | 'All Types')} value={type}>
+                <option>All Types</option>
+                <option value="JOB_POSTING">Job Posting</option>
+                <option value="CV_COLLECTION">CV Collection</option>
+                <option value="CV_SCREENING">CV Screening</option>
+                <option value="INTERVIEW_COORDINATION">Interview</option>
+                <option value="REFERENCE_CHECK">Reference Check</option>
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-semibold text-on-surface-variant">Assignee</span>
+              <select className="h-10 rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20" onChange={(event) => setAssignee(event.target.value)} value={assignee}>
+                <option>All Personnel</option>
+                {tasks.map((task) => (
+                  <option key={task.id}>{task.assignee}</option>
                 ))}
               </select>
-            </div>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-semibold text-on-surface-variant">Status</span>
+              <select className="h-10 rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20" onChange={(event) => setStatus(event.target.value as TaskStatus | 'Any Status')} value={status}>
+                <option>Any Status</option>
+                <option>Completed</option>
+                <option>In Progress</option>
+                <option>Pending</option>
+                <option>Blocked</option>
+              </select>
+            </label>
+            <button className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border-warm bg-workflow-ivory px-4 text-sm font-semibold text-slate-ink transition hover:bg-surface-variant active:scale-[0.98]" onClick={resetFilters} type="button">
+              <Icon className="h-4 w-4" name="filter" />
+              Reset Filters
+            </button>
+          </div>
+        </section>
 
-            {/* Phase + Priority row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--wr-text-secondary)' }}>Phase</label>
-                <select
-                  id="new-task-phase"
-                  value={newTaskPhase}
-                  onChange={e => setNewTaskPhase(e.target.value as TaskPhase)}
-                  style={{
-                    padding: '10px 12px', fontSize: 13, borderRadius: 8,
-                    border: '1.5px solid var(--wr-border-default)',
-                    background: 'var(--wr-bg-elevated)', color: 'var(--wr-text-primary)', outline: 'none', cursor: 'pointer',
-                  }}
-                >
-                  {PHASES.map(p => <option key={p.key} value={p.key}>{p.icon} {p.label}</option>)}
-                </select>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--wr-text-secondary)' }}>Priority</label>
-                <select
-                  id="new-task-priority"
-                  value={newTaskPriority}
-                  onChange={e => setNewTaskPriority(e.target.value as TaskPriority)}
-                  style={{
-                    padding: '10px 12px', fontSize: 13, borderRadius: 8,
-                    border: '1.5px solid var(--wr-border-default)',
-                    background: 'var(--wr-bg-elevated)', color: 'var(--wr-text-primary)', outline: 'none', cursor: 'pointer',
-                  }}
-                >
-                  {(['Critical', 'High', 'Normal', 'Low'] as TaskPriority[]).map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
-              <button
-                onClick={() => setShowAddModal(false)}
-                style={{
-                  padding: '9px 18px', fontSize: 13, fontWeight: 600, borderRadius: 8,
-                  border: '1.5px solid var(--wr-border-default)',
-                  background: 'var(--wr-bg-elevated)', color: 'var(--wr-text-secondary)', cursor: 'pointer',
-                }}
-              >
-                Cancel
+        <section className="overflow-hidden rounded-lg border border-border-warm bg-clean-surface shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[980px] border-collapse text-left">
+              <thead className="bg-parchment-lift text-xs uppercase tracking-[0.14em] text-secondary">
+                <tr>
+                  {['Task Type', 'Campaign', 'Assignee', 'Start Date', 'Due Date', 'Status', 'Blocker', 'Actions'].map((column) => (
+                    <th className={`px-5 py-4 font-semibold ${column === 'Actions' ? 'text-right' : ''}`} key={column}>
+                      {column}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-warm">
+                {visibleTasks.map((task, index) => (
+                  <tr
+                    className={`cursor-pointer transition hover:bg-teal-command/5 ${index % 2 === 1 ? 'bg-workflow-ivory/50' : 'bg-clean-surface'} ${task.blocker ? 'border-l-4 border-revision' : ''}`}
+                    key={task.id}
+                    onClick={() => setSelectedTask(task)}
+                  >
+                    <td className="px-5 py-4 font-mono text-sm font-semibold text-deep-charcoal">{task.type}</td>
+                    <td className="px-5 py-4 text-sm text-deep-charcoal">{task.campaign}</td>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-2">
+                        <span className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold ${avatarStyles[index % avatarStyles.length]}`}>{task.initials}</span>
+                        <span className="text-sm text-deep-charcoal">{task.assignee}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-sm text-slate-ink">{task.startDate}</td>
+                    <td className="px-5 py-4 text-sm text-slate-ink">{task.dueDate}</td>
+                    <td className="px-5 py-4">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold uppercase ${statusStyles[task.status]}`}>
+                        <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                        {task.status}
+                      </span>
+                    </td>
+                    <td className={`px-5 py-4 text-sm ${task.blocker ? 'font-semibold text-rejected' : 'text-on-surface-variant/50'}`}>{task.blocker || '-'}</td>
+                    <td className="px-5 py-4 text-right" onClick={(event) => event.stopPropagation()}>
+                      <button className="rounded p-1.5 text-on-surface-variant transition hover:text-teal-command" type="button">
+                        <Icon className="h-4 w-4" name="edit" />
+                      </button>
+                      <button className="rounded p-1.5 text-on-surface-variant transition hover:text-rejected" type="button">
+                        <Icon className="h-4 w-4" name="trash" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex items-center justify-between border-t border-border-warm bg-parchment-lift/40 px-5 py-3">
+            <p className="text-xs font-semibold text-on-surface-variant">Showing {visibleTasks.length} of {tasks.length} tasks in active cycle</p>
+            <div className="flex items-center gap-2">
+              <button className="rounded p-1 text-on-surface-variant opacity-40" disabled type="button">
+                <Icon className="h-4 w-4" name="chevronLeft" />
               </button>
-              <button
-                id="btn-confirm-add-task"
-                onClick={handleAddTask}
-                disabled={!newTaskTitle.trim()}
-                style={{
-                  padding: '9px 22px', fontSize: 13, fontWeight: 600, borderRadius: 8,
-                  border: 'none', background: newTaskTitle.trim() ? '#0D9488' : '#CBD5E1',
-                  color: 'white', cursor: newTaskTitle.trim() ? 'pointer' : 'not-allowed',
-                  transition: 'background 0.15s',
-                }}
-              >
-                Add Task
+              <span className="rounded border border-border-warm bg-clean-surface px-3 py-1 text-sm font-semibold">1</span>
+              <button className="rounded p-1 text-on-surface-variant transition hover:bg-surface-variant" type="button">
+                <Icon className="h-4 w-4" name="chevronRight" />
               </button>
             </div>
           </div>
-        </div>
-      )}
+        </section>
+      </main>
+
+      <aside className={`min-w-0 rounded-lg border border-border-warm bg-clean-surface shadow-xl xl:sticky xl:top-6 xl:self-start ${selectedTask ? '' : 'hidden xl:block'}`}>
+        {selectedTask ? (
+          <>
+            <header className="flex items-start justify-between border-b border-border-warm bg-workflow-ivory p-5">
+              <div>
+                <h2 className="text-lg font-semibold text-primary">Task Details</h2>
+                <p className="mt-1 font-mono text-xs text-secondary">{selectedTask.type}</p>
+              </div>
+              <button className="rounded-full bg-teal-command p-2 text-white transition active:scale-[0.98]" onClick={() => setSelectedTask(null)} type="button">
+                <span className="sr-only">Close task detail</span>
+                <Icon className="h-4 w-4" name="close" />
+              </button>
+            </header>
+            <div className="space-y-6 p-5">
+              <section>
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-secondary">Plan Window</p>
+                <div className="flex items-center gap-3 rounded border border-border-warm bg-workflow-ivory p-3">
+                  <Icon className="h-5 w-5 text-primary" name="calendar" />
+                  <span className="text-sm font-semibold text-deep-charcoal">{selectedTask.planWindow}</span>
+                </div>
+              </section>
+
+              <section>
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-secondary">Assignee</p>
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-teal-command/10 font-bold text-teal-command">{selectedTask.initials}</span>
+                  <div>
+                    <p className="text-sm font-semibold text-deep-charcoal">{selectedTask.assignee}</p>
+                    <p className="text-sm text-on-surface-variant">{selectedTask.role}</p>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-secondary">Dependency</p>
+                <div className="flex items-start gap-3 rounded border border-revision/30 bg-revision/5 p-3">
+                  <Icon className="h-5 w-5 text-revision" name="warning" />
+                  <p className="text-sm leading-6 text-deep-charcoal">
+                    {selectedTask.blocker || 'No active dependency is blocking this task.'}
+                  </p>
+                </div>
+              </section>
+
+              <section>
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-secondary">Comments</p>
+                <div className="space-y-3">
+                  {selectedTask.comments.map((comment) => (
+                    <div className="rounded border border-border-warm bg-workflow-ivory p-3 text-sm" key={`${comment.author}-${comment.time}`}>
+                      <p className="mb-1 font-semibold text-primary">
+                        {comment.author} <span className="ml-2 text-[11px] font-normal text-on-surface-variant">{comment.time}</span>
+                      </p>
+                      <p className="leading-6 text-deep-charcoal">{comment.body}</p>
+                    </div>
+                  ))}
+                  <textarea className="h-24 w-full resize-none rounded border border-border-warm bg-clean-surface p-3 text-sm outline-none transition placeholder:text-on-surface-variant focus:border-teal-command focus:ring-2 focus:ring-teal-command/20" placeholder="Add a comment..." />
+                </div>
+              </section>
+            </div>
+            <footer className="space-y-4 border-t border-border-warm bg-workflow-ivory/60 p-5">
+              <div className="flex items-center gap-3 rounded border border-error/20 bg-error/5 p-3">
+                <Icon className="h-5 w-5 text-error" name="info" />
+                <p className="text-xs font-semibold text-error">Task dates must stay within the overall plan date range.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button className="h-10 rounded-lg border border-teal-command bg-clean-surface text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98]" type="button">
+                  Reassign
+                </button>
+                <button className="h-10 rounded-lg bg-teal-command text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]" type="button">
+                  Mark Complete
+                </button>
+              </div>
+              <button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-border-warm bg-workflow-ivory text-sm font-semibold text-rejected transition hover:bg-rejected/5 active:scale-[0.98]" type="button">
+                <Icon className="h-4 w-4" name="bolt" />
+                Escalate
+              </button>
+            </footer>
+          </>
+        ) : (
+          <div className="p-8 text-center">
+            <p className="text-sm font-semibold text-deep-charcoal">Select a task</p>
+            <p className="mt-1 text-sm text-on-surface-variant">Choose a row to inspect task details.</p>
+          </div>
+        )}
+      </aside>
     </div>
   );
 };
