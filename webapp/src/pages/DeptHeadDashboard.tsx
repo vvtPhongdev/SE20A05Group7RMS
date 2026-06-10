@@ -1,11 +1,11 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
-type Tone = 'teal' | 'cyan' | 'amber' | 'green' | 'red' | 'stone';
+type Tone = 'teal' | 'cyan' | 'amber' | 'green' | 'red';
 
 const kpis = [
   { label: 'Active Requests', value: '8', helper: '23 open headcount', icon: 'requests', tone: 'teal' as Tone },
-  { label: 'Pending Plans', value: '3', helper: 'Waiting for HR plan approval', icon: 'clock', tone: 'cyan' as Tone },
+  { label: 'Pending Plans', value: '3', helper: 'Waiting for HR plan review', icon: 'clock', tone: 'cyan' as Tone },
   { label: 'Interview Panels', value: '6', helper: 'Scheduled this week', icon: 'calendar', tone: 'amber' as Tone },
   { label: 'Filled Positions', value: '11', helper: '45.8% of annual target', icon: 'progress', tone: 'green' as Tone },
 ];
@@ -13,7 +13,7 @@ const kpis = [
 const activeRequests = [
   {
     id: 'REQ-2026-001',
-    role: 'Senior Developer',
+    role: 'Senior Backend Engineer',
     headcount: 2,
     stage: 'Sourcing',
     progress: 64,
@@ -29,27 +29,27 @@ const activeRequests = [
     progress: 38,
     priority: 'Critical',
     owner: 'Infrastructure',
-    due: 'Jun 10, 2026',
+    due: 'Jun 18, 2026',
   },
   {
     id: 'REQ-2026-008',
-    role: 'Data Analyst',
-    headcount: 3,
-    stage: 'Interviewing',
-    progress: 72,
+    role: 'Integration Engineer',
+    headcount: 2,
+    stage: 'Screening',
+    progress: 58,
     priority: 'High',
-    owner: 'Business Intelligence',
-    due: 'Jun 21, 2026',
+    owner: 'Platform',
+    due: 'Jun 26, 2026',
   },
   {
-    id: 'REQ-2026-011',
-    role: 'QA Specialist',
+    id: 'REQ-2026-010',
+    role: 'QA Automation Engineer',
     headcount: 1,
-    stage: 'Draft',
-    progress: 18,
+    stage: 'Interview Completed',
+    progress: 82,
     priority: 'Medium',
     owner: 'Quality Enablement',
-    due: 'Jun 26, 2026',
+    due: 'Jun 20, 2026',
   },
 ];
 
@@ -70,10 +70,10 @@ const pendingPlans = [
   },
   {
     title: 'Analytics hiring plan',
-    requestId: 'REQ-2026-008',
-    status: 'Awaiting interview panel',
+    requestId: 'REQ-2026-005',
+    status: 'Revision needed',
     age: '1 day',
-    next: 'Assign technical reviewers',
+    next: 'Strengthen business impact',
   },
 ];
 
@@ -85,9 +85,21 @@ const departmentMetrics = [
 ];
 
 const attentionItems = [
-  { label: 'Critical request idle for 4 days', detail: 'REQ-2026-005 needs budget clarification before HR can publish the plan.', tone: 'border-rejected' },
-  { label: 'Panel assignment missing', detail: 'Analytics hiring plan requires two department reviewers by Friday.', tone: 'border-revision' },
-  { label: 'Draft nearly ready', detail: 'QA Specialist request has all role details and only needs final justification.', tone: 'border-teal-command' },
+  {
+    label: 'Critical request idle for 4 days',
+    detail: 'REQ-2026-005 needs budget clarification before HR can publish the plan.',
+    tone: 'border-rejected',
+  },
+  {
+    label: 'Interview feedback due today',
+    detail: 'QA Automation final panel requires department feedback before HR can proceed.',
+    tone: 'border-revision',
+  },
+  {
+    label: 'Draft nearly ready',
+    detail: 'Backend Engineer request has role details and only needs final justification.',
+    tone: 'border-teal-command',
+  },
 ];
 
 const toneClasses: Record<Tone, string> = {
@@ -96,13 +108,12 @@ const toneClasses: Record<Tone, string> = {
   amber: 'bg-amber-50 text-revision',
   green: 'bg-green-50 text-approved',
   red: 'bg-red-50 text-rejected',
-  stone: 'bg-stone-100 text-draft',
 };
 
 const priorityClasses: Record<string, string> = {
-  Critical: 'bg-red-50 text-rejected border-red-200',
-  High: 'bg-amber-50 text-revision border-amber-200',
-  Medium: 'bg-stone-100 text-draft border-stone-200',
+  Critical: 'border-red-200 bg-red-50 text-rejected',
+  High: 'border-amber-200 bg-amber-50 text-revision',
+  Medium: 'border-stone-200 bg-stone-100 text-draft',
 };
 
 const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: string }) => {
@@ -155,10 +166,10 @@ export const DeptHeadDashboard: React.FC = () => {
         <div className="flex flex-col gap-3 sm:flex-row">
           <button
             className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border-warm bg-clean-surface px-4 text-sm font-semibold text-slate-ink transition hover:border-teal-command hover:text-teal-command active:scale-[0.98]"
-            onClick={() => navigate('/dept-head/requests')}
+            onClick={() => navigate('/dept-head/interviews')}
             type="button"
           >
-            View Requests
+            Interviews
             <Icon className="h-4 w-4" name="arrow" />
           </button>
           <button
@@ -194,7 +205,7 @@ export const DeptHeadDashboard: React.FC = () => {
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-xl font-semibold text-deep-charcoal">Active Requests</h2>
-              <p className="mt-1 text-sm text-slate-ink">Live requests owned by your department.</p>
+              <p className="mt-1 text-sm text-slate-ink">Live department requests. Open the full list for the 13-state workflow.</p>
             </div>
             <button className="w-fit text-sm font-semibold text-teal-command transition hover:underline active:scale-[0.98]" onClick={() => navigate('/dept-head/requests')} type="button">
               Open request list
@@ -215,14 +226,12 @@ export const DeptHeadDashboard: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-border-warm text-sm">
                 {activeRequests.map((request) => (
-                  <tr
-                    className="transition hover:bg-workflow-ivory/70 cursor-pointer"
-                    key={request.id}
-                    onClick={() => navigate(`/dept-head/requests/${request.id}`)}
-                  >
+                  <tr className="cursor-pointer transition hover:bg-workflow-ivory/70" key={request.id} onClick={() => navigate(`/dept-head/requests/${request.id}`)}>
                     <td className="py-4 pr-4">
-                      <p className="font-semibold text-deep-charcoal hover:underline hover:text-teal-command">{request.role}</p>
-                      <p className="mt-1 font-mono text-xs text-teal-command">{request.id} · {request.owner}</p>
+                      <p className="font-semibold text-deep-charcoal hover:text-teal-command hover:underline">{request.role}</p>
+                      <p className="mt-1 font-mono text-xs text-teal-command">
+                        {request.id} - {request.owner}
+                      </p>
                     </td>
                     <td className="px-4 py-4 font-mono text-deep-charcoal">{request.headcount}</td>
                     <td className="px-4 py-4 text-slate-ink">{request.stage}</td>
@@ -259,13 +268,13 @@ export const DeptHeadDashboard: React.FC = () => {
           <div className="space-y-4">
             {pendingPlans.map((plan) => (
               <div
-                className="rounded-lg border border-border-warm bg-workflow-ivory/60 p-4 cursor-pointer hover:border-teal-command hover:shadow-sm transition"
+                className="cursor-pointer rounded-lg border border-border-warm bg-workflow-ivory/60 p-4 transition hover:border-teal-command hover:shadow-sm"
                 key={plan.requestId}
                 onClick={() => navigate(`/dept-head/requests/${plan.requestId}`)}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-sm font-semibold text-deep-charcoal hover:underline hover:text-teal-command">{plan.title}</h3>
+                    <h3 className="text-sm font-semibold text-deep-charcoal hover:text-teal-command hover:underline">{plan.title}</h3>
                     <p className="mt-1 font-mono text-xs text-teal-command">{plan.requestId}</p>
                   </div>
                   <span className="shrink-0 rounded-full bg-clean-surface px-2.5 py-1 text-xs font-semibold text-slate-ink">{plan.age}</span>
@@ -289,7 +298,9 @@ export const DeptHeadDashboard: React.FC = () => {
                 <div className="mb-2 flex items-end justify-between gap-4">
                   <span className="text-sm font-medium text-on-surface-variant">{metric.label}</span>
                   <span className="font-mono text-sm font-semibold text-deep-charcoal">
-                    {metric.value}{metric.suffix ?? ''} / {metric.target}{metric.suffix ?? ''}
+                    {metric.value}
+                    {metric.suffix ?? ''} / {metric.target}
+                    {metric.suffix ?? ''}
                   </span>
                 </div>
                 <div className="h-3 overflow-hidden rounded-full bg-surface-container">
