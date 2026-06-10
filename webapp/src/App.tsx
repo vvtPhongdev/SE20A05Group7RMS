@@ -15,6 +15,7 @@ import { AdminSettings } from './pages/AdminSettings';
 import { AdminUsers } from './pages/AdminUsers';
 import { DeptHeadCreateRequest } from './pages/DeptHeadCreateRequest';
 import { DeptHeadDashboard } from './pages/DeptHeadDashboard';
+import { DeptHeadInterviews } from './pages/DeptHeadInterviews';
 import { DeptHeadRequests } from './pages/DeptHeadRequests';
 import { DeptHeadRequestDetail } from './pages/DeptHeadRequestDetail';
 import { DeptHeadSettings } from './pages/DeptHeadSettings';
@@ -205,10 +206,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.DEPARTMENT_HEAD]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Interviews & Assessment"
-                    description="Review interview invitations, schedules, and prepare technical candidate evaluations."
-                  />
+                  <DeptHeadInterviews />
                 </Layout>
               </ProtectedRoute>
             }
