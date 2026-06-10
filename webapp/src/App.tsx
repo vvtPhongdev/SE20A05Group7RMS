@@ -21,6 +21,7 @@ import { DeptHeadRequestDetail } from './pages/DeptHeadRequestDetail';
 import { DeptHeadSettings } from './pages/DeptHeadSettings';
 import { HRDashBoard } from './pages/HRDashBoard';
 import { HRCampaigns } from './pages/HRCampaigns';
+import { HRCampaignDetail } from './pages/HRCampaignDetail';
 import { CandidateDashboard } from './pages/CandidateDashboard';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { UserRole } from '@wr/contracts';
@@ -253,6 +254,16 @@ export function App() {
               <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
                 <Layout>
                   <HRCampaigns />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/hr/campaigns/:id"
+            element={
+              <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
+                <Layout>
+                  <HRCampaignDetail />
                 </Layout>
               </ProtectedRoute>
             }

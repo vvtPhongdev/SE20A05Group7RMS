@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -216,8 +217,9 @@ const StatusBadge: React.FC<{ status: PlanStatus }> = ({ status }) => {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export const HRCampaigns: React.FC = () => {
+  const navigate = useNavigate();
   const [selectedId, setSelectedId] = useState<string | null>('#REQ-2024-041');
-  const [searchQuery, setSearchQuery] = useState('');
+  const searchQuery = '';
 
   const detail = selectedId ? campaignDetails[selectedId] : null;
 
@@ -553,9 +555,12 @@ export const HRCampaigns: React.FC = () => {
                 <button className="flex-1 bg-transparent border border-teal-command text-teal-command font-label-md text-label-md py-2 hover:bg-teal-command/5 transition-colors rounded-lg">
                   Edit Plan
                 </button>
-                <button className="flex-1 text-teal-command font-label-md text-label-md py-2 hover:underline flex items-center justify-center gap-1 rounded-lg">
-                  View Tasks{' '}
-                  <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                <button
+                  onClick={() => navigate(`/hr/campaigns/${encodeURIComponent(detail.id.replace('#', ''))}`)}
+                  className="flex-1 text-teal-command font-label-md text-label-md py-2 hover:underline flex items-center justify-center gap-1 rounded-lg"
+                >
+                  Open Detail{' '}
+                  <span className="material-symbols-outlined text-[16px]">open_in_full</span>
                 </button>
               </div>
             </div>
