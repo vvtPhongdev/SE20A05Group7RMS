@@ -33,6 +33,7 @@ import { HRSystemNotifications } from './pages/HRSystemNotifications';
 import { CandidateDashboard } from './pages/CandidateDashboard';
 import { CandidateProfile } from './pages/CandidateProfile';
 import { CandidateNotifications } from './pages/CandidateNotifications';
+import { CandidateUploadCv } from './pages/CandidateUploadCv';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { UserRole } from '@wr/contracts';
 
@@ -392,10 +393,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.CANDIDATE]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Upload CV"
-                    description="Submit your PDF or DOCX CV for parsing and vector embedding indexing."
-                  />
+                  <CandidateUploadCv />
                 </Layout>
               </ProtectedRoute>
             }
