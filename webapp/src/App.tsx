@@ -28,6 +28,7 @@ import { TalentPool } from './pages/TalentPool';
 import { CandidateSearch } from './pages/CandidateSearch';
 import { HRInterviewSchedule } from './pages/HRInterviewSchedule';
 import { HRPipelineReports } from './pages/HRPipelineReports';
+import { HRInterviewResults } from './pages/HRInterviewResults';
 import { CandidateDashboard } from './pages/CandidateDashboard';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { UserRole } from '@wr/contracts';
@@ -326,10 +327,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Interview Results"
-                    description="Log interview feedback, pass/fail status, and progress candidates."
-                  />
+                  <HRInterviewResults />
                 </Layout>
               </ProtectedRoute>
             }
