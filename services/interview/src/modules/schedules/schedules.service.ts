@@ -92,7 +92,8 @@ export class SchedulesService {
     if (plan.tasks.length === 0) {
       throw new RpcException({
         status: HttpStatus.FORBIDDEN,
-        message: 'Plan-lock violated: no INTERVIEW_COORDINATION TaskPlan assigned for this campaign.',
+        message:
+          'Plan-lock violated: no INTERVIEW_COORDINATION TaskPlan assigned for this campaign.',
       });
     }
 
@@ -280,33 +281,46 @@ export class SchedulesService {
       }),
     ]);
 
-    this.auditLog.log({
-      entityType: AuditEntityType.INTERVIEW_SCHEDULE,
-      entityId: schedule.id,
-      action: AuditAction.INTERVIEW_SCHEDULED,
-      toStatus: InterviewStatus.SCHEDULED,
-      performedById: payload.interviewers[0] || 'SYSTEM',
-      metadata: { candidateId: payload.candidateId, scheduledAt: scheduledAt.toISOString() },
-    }).catch((err) => console.error('Failed to write audit log for INTERVIEW_SCHEDULED:', err));
+    this.auditLog
+      .log({
+        entityType: AuditEntityType.INTERVIEW_SCHEDULE,
+        entityId: schedule.id,
+        action: AuditAction.INTERVIEW_SCHEDULED,
+        toStatus: InterviewStatus.SCHEDULED,
+        performedById: payload.interviewers[0] || 'SYSTEM',
+        metadata: { candidateId: payload.candidateId, scheduledAt: scheduledAt.toISOString() },
+      })
+      .catch((err) => console.error('Failed to write audit log for INTERVIEW_SCHEDULED:', err));
 
     // Send in-app status update notification to Department Head
-    this.prisma.recruitmentRequest.findUnique({
-      where: { id: payload.requestId },
-      select: { createdById: true, position: true },
-    }).then((reqObj) => {
-      if (reqObj) {
-        this.notificationClient.send('notification.create_notification', {
-          userId: reqObj.createdById,
-          type: NotificationType.REQUEST_UPDATE,
-          title: 'Request status update: Interviewing',
-          body: `Recruitment request for ${reqObj.position} has transitioned to Interviewing.`,
-          relatedEntityId: payload.requestId,
-          relatedEntityType: 'RecruitmentRequest',
-        }).subscribe({
-          error: (err) => console.error('Failed to send status change notification on interview schedule:', err),
-        });
-      }
-    }).catch((err) => console.error('Failed to query request for interview scheduled notification:', err));
+    this.prisma.recruitmentRequest
+      .findUnique({
+        where: { id: payload.requestId },
+        select: { createdById: true, position: true },
+      })
+      .then((reqObj) => {
+        if (reqObj) {
+          this.notificationClient
+            .send('notification.create_notification', {
+              userId: reqObj.createdById,
+              type: NotificationType.REQUEST_UPDATE,
+              title: 'Request status update: Interviewing',
+              body: `Recruitment request for ${reqObj.position} has transitioned to Interviewing.`,
+              relatedEntityId: payload.requestId,
+              relatedEntityType: 'RecruitmentRequest',
+            })
+            .subscribe({
+              error: (err) =>
+                console.error(
+                  'Failed to send status change notification on interview schedule:',
+                  err,
+                ),
+            });
+        }
+      })
+      .catch((err) =>
+        console.error('Failed to query request for interview scheduled notification:', err),
+      );
 
     // Resolve candidate and interviewers details for email notifications (FR-13/16)
     Promise.all([
@@ -322,47 +336,62 @@ export class SchedulesService {
         where: { id: payload.requestId },
         select: { position: true },
       }),
-    ]).then(([candidateProfile, interviewerUsers, reqObj]) => {
-      const scheduledDateStr = scheduledAt.toLocaleString('en-GB', {
-        timeZone: 'Asia/Ho_Chi_Minh',
-        dateStyle: 'full',
-        timeStyle: 'short',
-      });
-
-      if (candidateProfile) {
-        this.notificationClient.send('notification.send_templated_email', {
-          userId: candidateProfile.userId,
-          toEmail: candidateProfile.email,
-          templateType: 'INTERVIEW_INVITATION',
-          templateData: {
-            recipientName: candidateProfile.fullName,
-            position: reqObj?.position || 'Position',
-            scheduledAt: scheduledDateStr,
-            location: payload.location,
-            preparationInstructions: 'Please prepare by reviewing the job description, having a copy of your resume ready, and ensuring a stable internet connection if the interview is online.',
-          },
-        }).subscribe({
-          error: (err) => console.error('Failed to send candidate interview invitation email:', err),
+    ])
+      .then(([candidateProfile, interviewerUsers, reqObj]) => {
+        const scheduledDateStr = scheduledAt.toLocaleString('en-GB', {
+          timeZone: 'Asia/Ho_Chi_Minh',
+          dateStyle: 'full',
+          timeStyle: 'short',
         });
-      }
 
-      for (const u of interviewerUsers) {
-        this.notificationClient.send('notification.send_templated_email', {
-          userId: u.id,
-          toEmail: u.email,
-          templateType: 'INTERVIEW_INVITATION',
-          templateData: {
-            recipientName: u.displayName,
-            position: reqObj?.position || 'Position',
-            scheduledAt: scheduledDateStr,
-            location: payload.location,
-            preparationInstructions: 'Please review the candidate profile and CV prior to the interview.',
-          },
-        }).subscribe({
-          error: (err) => console.error(`Failed to send interviewer ${u.email} interview invitation email:`, err),
-        });
-      }
-    }).catch((err) => console.error('Failed to query details for interview invitation emails:', err));
+        if (candidateProfile) {
+          this.notificationClient
+            .send('notification.send_templated_email', {
+              userId: candidateProfile.userId,
+              toEmail: candidateProfile.email,
+              templateType: 'INTERVIEW_INVITATION',
+              templateData: {
+                recipientName: candidateProfile.fullName,
+                position: reqObj?.position || 'Position',
+                scheduledAt: scheduledDateStr,
+                location: payload.location,
+                preparationInstructions:
+                  'Please prepare by reviewing the job description, having a copy of your resume ready, and ensuring a stable internet connection if the interview is online.',
+              },
+            })
+            .subscribe({
+              error: (err) =>
+                console.error('Failed to send candidate interview invitation email:', err),
+            });
+        }
+
+        for (const u of interviewerUsers) {
+          this.notificationClient
+            .send('notification.send_templated_email', {
+              userId: u.id,
+              toEmail: u.email,
+              templateType: 'INTERVIEW_INVITATION',
+              templateData: {
+                recipientName: u.displayName,
+                position: reqObj?.position || 'Position',
+                scheduledAt: scheduledDateStr,
+                location: payload.location,
+                preparationInstructions:
+                  'Please review the candidate profile and CV prior to the interview.',
+              },
+            })
+            .subscribe({
+              error: (err) =>
+                console.error(
+                  `Failed to send interviewer ${u.email} interview invitation email:`,
+                  err,
+                ),
+            });
+        }
+      })
+      .catch((err) =>
+        console.error('Failed to query details for interview invitation emails:', err),
+      );
 
     return schedule;
   }
@@ -498,59 +527,71 @@ export class SchedulesService {
       }),
     ]);
 
-    this.auditLog.log({
-      entityType: AuditEntityType.INTERVIEW_SCHEDULE,
-      entityId: payload.id,
-      action: AuditAction.INTERVIEW_CANCELLED,
-      fromStatus: schedule.status,
-      toStatus: InterviewStatus.CANCELLED,
-      performedById: payload.cancelledBy,
-      reason: payload.reason.trim(),
-    }).catch((err) => console.error('Failed to write audit log for INTERVIEW_CANCELLED:', err));
+    this.auditLog
+      .log({
+        entityType: AuditEntityType.INTERVIEW_SCHEDULE,
+        entityId: payload.id,
+        action: AuditAction.INTERVIEW_CANCELLED,
+        fromStatus: schedule.status,
+        toStatus: InterviewStatus.CANCELLED,
+        performedById: payload.cancelledBy,
+        reason: payload.reason.trim(),
+      })
+      .catch((err) => console.error('Failed to write audit log for INTERVIEW_CANCELLED:', err));
 
     // Send emails and notifications asynchronously via microservice
     if (candidateProfile) {
-      this.notificationClient.send('notification.send_email', {
-        userId: candidateProfile.userId,
-        toEmail: candidateProfile.email,
-        subject: emailSubject,
-        body: buildEmailBody(candidateProfile.fullName, 'Candidate'),
-      }).subscribe({
-        error: (err) => console.error('Failed to send candidate cancellation email:', err),
-      });
+      this.notificationClient
+        .send('notification.send_email', {
+          userId: candidateProfile.userId,
+          toEmail: candidateProfile.email,
+          subject: emailSubject,
+          body: buildEmailBody(candidateProfile.fullName, 'Candidate'),
+        })
+        .subscribe({
+          error: (err) => console.error('Failed to send candidate cancellation email:', err),
+        });
 
-      this.notificationClient.send('notification.create_notification', {
-        userId: candidateProfile.userId,
-        type: NotificationType.SYSTEM,
-        title: notificationTitle,
-        body: buildNotificationBody('Candidate'),
-        relatedEntityId: payload.id,
-        relatedEntityType: 'InterviewSchedule',
-      }).subscribe({
-        error: (err) => console.error('Failed to send candidate cancellation notification:', err),
-      });
+      this.notificationClient
+        .send('notification.create_notification', {
+          userId: candidateProfile.userId,
+          type: NotificationType.SYSTEM,
+          title: notificationTitle,
+          body: buildNotificationBody('Candidate'),
+          relatedEntityId: payload.id,
+          relatedEntityType: 'InterviewSchedule',
+        })
+        .subscribe({
+          error: (err) => console.error('Failed to send candidate cancellation notification:', err),
+        });
     }
 
     for (const u of interviewerUsers) {
-      this.notificationClient.send('notification.send_email', {
-        userId: u.id,
-        toEmail: u.email,
-        subject: emailSubject,
-        body: buildEmailBody(u.displayName, 'Interviewer'),
-      }).subscribe({
-        error: (err) => console.error(`Failed to send interviewer ${u.email} cancellation email:`, err),
-      });
+      this.notificationClient
+        .send('notification.send_email', {
+          userId: u.id,
+          toEmail: u.email,
+          subject: emailSubject,
+          body: buildEmailBody(u.displayName, 'Interviewer'),
+        })
+        .subscribe({
+          error: (err) =>
+            console.error(`Failed to send interviewer ${u.email} cancellation email:`, err),
+        });
 
-      this.notificationClient.send('notification.create_notification', {
-        userId: u.id,
-        type: NotificationType.SYSTEM,
-        title: notificationTitle,
-        body: buildNotificationBody('Interviewer'),
-        relatedEntityId: payload.id,
-        relatedEntityType: 'InterviewSchedule',
-      }).subscribe({
-        error: (err) => console.error(`Failed to send interviewer ${u.email} cancellation notification:`, err),
-      });
+      this.notificationClient
+        .send('notification.create_notification', {
+          userId: u.id,
+          type: NotificationType.SYSTEM,
+          title: notificationTitle,
+          body: buildNotificationBody('Interviewer'),
+          relatedEntityId: payload.id,
+          relatedEntityType: 'InterviewSchedule',
+        })
+        .subscribe({
+          error: (err) =>
+            console.error(`Failed to send interviewer ${u.email} cancellation notification:`, err),
+        });
     }
 
     return {
@@ -735,63 +776,75 @@ export class SchedulesService {
       }),
     ]);
 
-    this.auditLog.log({
-      entityType: AuditEntityType.INTERVIEW_SCHEDULE,
-      entityId: payload.id,
-      action: AuditAction.INTERVIEW_RESCHEDULED,
-      fromStatus: existing.status,
-      toStatus: InterviewStatus.RESCHEDULED,
-      performedById: payload.interviewers[0] || 'SYSTEM',
-      reason: payload.reason.trim(),
-      metadata: {
-        oldScheduledAt: existing.scheduledAt.toISOString(),
-        newScheduledAt: newStart.toISOString(),
-      },
-    }).catch((err) => console.error('Failed to write audit log for INTERVIEW_RESCHEDULED:', err));
+    this.auditLog
+      .log({
+        entityType: AuditEntityType.INTERVIEW_SCHEDULE,
+        entityId: payload.id,
+        action: AuditAction.INTERVIEW_RESCHEDULED,
+        fromStatus: existing.status,
+        toStatus: InterviewStatus.RESCHEDULED,
+        performedById: payload.interviewers[0] || 'SYSTEM',
+        reason: payload.reason.trim(),
+        metadata: {
+          oldScheduledAt: existing.scheduledAt.toISOString(),
+          newScheduledAt: newStart.toISOString(),
+        },
+      })
+      .catch((err) => console.error('Failed to write audit log for INTERVIEW_RESCHEDULED:', err));
 
     // Send emails and notifications asynchronously via microservice
     if (candidateProfile) {
-      this.notificationClient.send('notification.send_email', {
-        userId: candidateProfile.userId,
-        toEmail: candidateProfile.email,
-        subject: emailSubject,
-        body: buildEmailBody(candidateProfile.fullName, 'Candidate'),
-      }).subscribe({
-        error: (err) => console.error('Failed to send candidate reschedule email:', err),
-      });
+      this.notificationClient
+        .send('notification.send_email', {
+          userId: candidateProfile.userId,
+          toEmail: candidateProfile.email,
+          subject: emailSubject,
+          body: buildEmailBody(candidateProfile.fullName, 'Candidate'),
+        })
+        .subscribe({
+          error: (err) => console.error('Failed to send candidate reschedule email:', err),
+        });
 
-      this.notificationClient.send('notification.create_notification', {
-        userId: candidateProfile.userId,
-        type: NotificationType.INTERVIEW_INVITE,
-        title: notificationTitle,
-        body: buildNotificationBody('Candidate'),
-        relatedEntityId: payload.id,
-        relatedEntityType: 'InterviewSchedule',
-      }).subscribe({
-        error: (err) => console.error('Failed to send candidate reschedule notification:', err),
-      });
+      this.notificationClient
+        .send('notification.create_notification', {
+          userId: candidateProfile.userId,
+          type: NotificationType.INTERVIEW_INVITE,
+          title: notificationTitle,
+          body: buildNotificationBody('Candidate'),
+          relatedEntityId: payload.id,
+          relatedEntityType: 'InterviewSchedule',
+        })
+        .subscribe({
+          error: (err) => console.error('Failed to send candidate reschedule notification:', err),
+        });
     }
 
     for (const u of interviewerUsers) {
-      this.notificationClient.send('notification.send_email', {
-        userId: u.id,
-        toEmail: u.email,
-        subject: emailSubject,
-        body: buildEmailBody(u.displayName, 'Interviewer'),
-      }).subscribe({
-        error: (err) => console.error(`Failed to send interviewer ${u.email} reschedule email:`, err),
-      });
+      this.notificationClient
+        .send('notification.send_email', {
+          userId: u.id,
+          toEmail: u.email,
+          subject: emailSubject,
+          body: buildEmailBody(u.displayName, 'Interviewer'),
+        })
+        .subscribe({
+          error: (err) =>
+            console.error(`Failed to send interviewer ${u.email} reschedule email:`, err),
+        });
 
-      this.notificationClient.send('notification.create_notification', {
-        userId: u.id,
-        type: NotificationType.INTERVIEW_INVITE,
-        title: notificationTitle,
-        body: buildNotificationBody('Interviewer'),
-        relatedEntityId: payload.id,
-        relatedEntityType: 'InterviewSchedule',
-      }).subscribe({
-        error: (err) => console.error(`Failed to send interviewer ${u.email} reschedule notification:`, err),
-      });
+      this.notificationClient
+        .send('notification.create_notification', {
+          userId: u.id,
+          type: NotificationType.INTERVIEW_INVITE,
+          title: notificationTitle,
+          body: buildNotificationBody('Interviewer'),
+          relatedEntityId: payload.id,
+          relatedEntityType: 'InterviewSchedule',
+        })
+        .subscribe({
+          error: (err) =>
+            console.error(`Failed to send interviewer ${u.email} reschedule notification:`, err),
+        });
     }
 
     return {

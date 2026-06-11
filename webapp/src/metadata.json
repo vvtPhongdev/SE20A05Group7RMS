@@ -2,7 +2,7 @@
   "coverageMatrix": {
     "ADMIN": {
       "expectedNavItems": 8,
-      "description": "Dashboard, Approval Queue, All Requests, Interview Results, Users, Settings, Reports > Annual, Reports > Dept Stats"
+      "description": "Dashboard, Approval Queue, All Requests, Interview Results, Users, Settings, Reports, Department Statistics"
     },
     "DEPARTMENT_HEAD": {
       "expectedNavItems": 5,
@@ -25,14 +25,8 @@
       { "label": "Interview Results", "path": "/admin/interview-results", "icon": "interviews" },
       { "label": "Users", "path": "/admin/users", "icon": "users" },
       { "label": "Settings", "path": "/admin/settings", "icon": "settings" },
-      {
-        "label": "Reports",
-        "icon": "reports",
-        "children": [
-          { "label": "Annual", "path": "/admin/reports/annual", "icon": "reports" },
-          { "label": "Dept Stats", "path": "/admin/reports/dept-stats", "icon": "reports" }
-        ]
-      }
+      { "label": "Department Statistics", "path": "/admin/dept-stats", "icon": "reports" },
+      { "label": "Reports", "path": "/admin/reports", "icon": "reports" }
     ],
     "DEPARTMENT_HEAD": [
       { "label": "Dashboard", "path": "/dept-head", "icon": "dashboard" },

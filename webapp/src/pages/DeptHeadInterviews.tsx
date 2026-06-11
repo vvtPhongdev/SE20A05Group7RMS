@@ -90,8 +90,12 @@ const stageStyles: Record<InterviewStage, string> = {
 };
 
 const iconPaths: Record<string, React.ReactNode> = {
-  calendar: <path d="M7 3v4m10-4v4M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />,
-  feedback: <path d="M8 10h8M8 14h5M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5l-4 3v-3H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />,
+  calendar: (
+    <path d="M7 3v4m10-4v4M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
+  ),
+  feedback: (
+    <path d="M8 10h8M8 14h5M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5l-4 3v-3H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
+  ),
   check: <path d="m8 12 2.6 2.6L16.5 8.8M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
   search: <path d="m21 21-4.3-4.3M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" />,
   clock: <path d="M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
@@ -130,9 +134,14 @@ export const DeptHeadInterviews: React.FC = () => {
       const matchesStage = stage === 'All' || interview.stage === stage;
       const matchesQuery =
         !normalizedQuery ||
-        [interview.id, interview.candidate, interview.role, interview.requestId, interview.mode, interview.notes].some((value) =>
-          value.toLowerCase().includes(normalizedQuery),
-        );
+        [
+          interview.id,
+          interview.candidate,
+          interview.role,
+          interview.requestId,
+          interview.mode,
+          interview.notes,
+        ].some((value) => value.toLowerCase().includes(normalizedQuery));
 
       return matchesStage && matchesQuery;
     });
@@ -146,16 +155,24 @@ export const DeptHeadInterviews: React.FC = () => {
     <div className="mx-auto flex max-w-[1440px] flex-col gap-6">
       <header className="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-end">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">Department Head Workspace</p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">Interviews & Assessment</h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">
+            Department Head Workspace
+          </p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">
+            Interviews & Assessment
+          </h1>
           <p className="mt-1 max-w-[70ch] text-sm leading-6 text-slate-ink">
-            Review interview schedules, panel assignments, and pending feedback for department candidates.
+            Review interview schedules, panel assignments, and pending feedback for department
+            candidates.
           </p>
         </div>
 
         <label className="relative block xl:min-w-[360px]">
           <span className="sr-only">Search interviews</span>
-          <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-outline" name="search" />
+          <Icon
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-outline"
+            name="search"
+          />
           <input
             className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface pl-10 pr-3 text-sm text-deep-charcoal outline-none transition placeholder:text-on-surface-variant focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
             onChange={(event) => setQuery(event.target.value)}
@@ -168,18 +185,40 @@ export const DeptHeadInterviews: React.FC = () => {
 
       <section className="grid grid-cols-1 gap-5 md:grid-cols-3" aria-label="Interview summary">
         {[
-          { label: 'Scheduled', value: scheduled, icon: 'calendar', tone: 'bg-cyan-50 text-pending' },
-          { label: 'Feedback Due', value: feedbackDue, icon: 'feedback', tone: 'bg-amber-50 text-revision' },
-          { label: 'Completed', value: completed, icon: 'check', tone: 'bg-green-50 text-approved' },
+          {
+            label: 'Scheduled',
+            value: scheduled,
+            icon: 'calendar',
+            tone: 'bg-cyan-50 text-pending',
+          },
+          {
+            label: 'Feedback Due',
+            value: feedbackDue,
+            icon: 'feedback',
+            tone: 'bg-amber-50 text-revision',
+          },
+          {
+            label: 'Completed',
+            value: completed,
+            icon: 'check',
+            tone: 'bg-green-50 text-approved',
+          },
         ].map((item) => (
-          <section className="rounded-xl border border-border-warm bg-clean-surface p-5 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]" key={item.label}>
+          <section
+            className="rounded-xl border border-border-warm bg-clean-surface p-5 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]"
+            key={item.label}
+          >
             <div className="mb-4 flex items-center justify-between">
               <span className={`rounded-lg p-2 ${item.tone}`}>
                 <Icon name={item.icon} />
               </span>
             </div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-on-surface-variant">{item.label}</p>
-            <p className="mt-3 font-mono text-[32px] font-semibold leading-none text-deep-charcoal">{item.value}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-on-surface-variant">
+              {item.label}
+            </p>
+            <p className="mt-3 font-mono text-[32px] font-semibold leading-none text-deep-charcoal">
+              {item.value}
+            </p>
           </section>
         ))}
       </section>
@@ -188,7 +227,11 @@ export const DeptHeadInterviews: React.FC = () => {
         <aside className="rounded-xl border border-border-warm bg-clean-surface p-5 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]">
           <h2 className="text-lg font-semibold text-deep-charcoal">Quick Filters</h2>
           <div className="mt-4 flex flex-wrap gap-2 xl:flex-col">
-            {(['All', 'Scheduled', 'Needs Feedback', 'Completed', 'Reschedule'] as Array<InterviewStage | 'All'>).map((item) => (
+            {(
+              ['All', 'Scheduled', 'Needs Feedback', 'Completed', 'Reschedule'] as Array<
+                InterviewStage | 'All'
+              >
+            ).map((item) => (
               <button
                 className={`h-10 rounded-lg px-4 text-left text-sm font-semibold transition active:scale-[0.98] ${
                   stage === item
@@ -205,34 +248,57 @@ export const DeptHeadInterviews: React.FC = () => {
           </div>
 
           <div className="mt-6 rounded-lg border border-border-warm bg-workflow-ivory/70 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-on-surface-variant">Today</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-on-surface-variant">
+              Today
+            </p>
             <p className="mt-2 text-sm font-semibold text-deep-charcoal">1 feedback decision due</p>
-            <p className="mt-1 text-sm leading-6 text-slate-ink">Finalize interview notes for Pham Thuy An before HR moves the candidate forward.</p>
+            <p className="mt-1 text-sm leading-6 text-slate-ink">
+              Finalize interview notes for Pham Thuy An before HR moves the candidate forward.
+            </p>
           </div>
         </aside>
 
         <section className="rounded-xl border border-border-warm bg-clean-surface shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]">
           <div className="border-b border-border-warm px-5 py-4">
             <h2 className="text-lg font-semibold text-deep-charcoal">Panel Schedule</h2>
-            <p className="mt-1 text-sm text-slate-ink">Showing {visibleInterviews.length} of {interviews.length} interview sessions.</p>
+            <p className="mt-1 text-sm text-slate-ink">
+              Showing {visibleInterviews.length} of {interviews.length} interview sessions.
+            </p>
           </div>
 
           <div className="divide-y divide-border-warm">
             {visibleInterviews.map((interview) => (
-              <article className="grid gap-4 p-5 transition hover:bg-workflow-ivory/60 lg:grid-cols-[1fr_auto]" key={interview.id}>
+              <article
+                className="grid gap-4 p-5 transition hover:bg-workflow-ivory/60 lg:grid-cols-[1fr_auto]"
+                key={interview.id}
+              >
                 <div>
                   <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-base font-semibold text-deep-charcoal">{interview.candidate}</h3>
-                    <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${stageStyles[interview.stage]}`}>{interview.stage}</span>
-                    <span className="rounded-full bg-surface-container px-2.5 py-1 text-xs font-semibold text-on-surface-variant">{interview.mode}</span>
+                    <h3 className="text-base font-semibold text-deep-charcoal">
+                      {interview.candidate}
+                    </h3>
+                    <span
+                      className={`rounded-full border px-2.5 py-1 text-xs font-bold ${stageStyles[interview.stage]}`}
+                    >
+                      {interview.stage}
+                    </span>
+                    <span className="rounded-full bg-surface-container px-2.5 py-1 text-xs font-semibold text-on-surface-variant">
+                      {interview.mode}
+                    </span>
                   </div>
                   <p className="mt-2 text-sm text-slate-ink">
-                    {interview.role} · <span className="font-mono text-teal-command">{interview.requestId}</span>
+                    {interview.role} ·{' '}
+                    <span className="font-mono text-teal-command">{interview.requestId}</span>
                   </p>
-                  <p className="mt-3 max-w-[70ch] text-sm leading-6 text-deep-charcoal">{interview.notes}</p>
+                  <p className="mt-3 max-w-[70ch] text-sm leading-6 text-deep-charcoal">
+                    {interview.notes}
+                  </p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {interview.panel.map((member) => (
-                      <span className="rounded-lg border border-border-warm bg-clean-surface px-3 py-1.5 text-xs font-semibold text-on-surface-variant" key={member}>
+                      <span
+                        className="rounded-lg border border-border-warm bg-clean-surface px-3 py-1.5 text-xs font-semibold text-on-surface-variant"
+                        key={member}
+                      >
                         {member}
                       </span>
                     ))}
@@ -247,7 +313,10 @@ export const DeptHeadInterviews: React.FC = () => {
                     </div>
                     <p className="mt-1 text-sm text-slate-ink">{formatDate(interview.date)}</p>
                   </div>
-                  <button className="h-10 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]" type="button">
+                  <button
+                    className="h-10 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
+                    type="button"
+                  >
                     {interview.stage === 'Needs Feedback' ? 'Add Feedback' : 'View Detail'}
                   </button>
                 </div>
@@ -257,8 +326,12 @@ export const DeptHeadInterviews: React.FC = () => {
 
           {visibleInterviews.length === 0 ? (
             <div className="px-6 py-12 text-center">
-              <p className="text-sm font-semibold text-deep-charcoal">No interviews match this view.</p>
-              <p className="mt-1 text-sm text-slate-ink">Try another status filter or search term.</p>
+              <p className="text-sm font-semibold text-deep-charcoal">
+                No interviews match this view.
+              </p>
+              <p className="mt-1 text-sm text-slate-ink">
+                Try another status filter or search term.
+              </p>
             </div>
           ) : null}
         </section>

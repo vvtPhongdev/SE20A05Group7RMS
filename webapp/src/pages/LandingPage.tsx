@@ -2,14 +2,42 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 
 const approvalRows = [
-  { name: 'Sarah Jenkins', role: 'Senior Architect', status: 'Approved', tone: 'bg-[#059669]', text: 'text-[#047857]' },
-  { name: 'Michael Chen', role: 'Product Lead', status: 'Pending', tone: 'bg-[#0891b2]', text: 'text-[#0e7490]' },
-  { name: 'Elena Rodriguez', role: 'UI Designer', status: 'Draft', tone: 'bg-[#78716c]', text: 'text-[#57534e]' },
-  { name: 'David Okafor', role: 'Backend Dev', status: 'Pending', tone: 'bg-[#0891b2]', text: 'text-[#0e7490]' },
+  {
+    name: 'Sarah Jenkins',
+    role: 'Senior Architect',
+    status: 'Approved',
+    tone: 'bg-[#059669]',
+    text: 'text-[#047857]',
+  },
+  {
+    name: 'Michael Chen',
+    role: 'Product Lead',
+    status: 'Pending',
+    tone: 'bg-[#0891b2]',
+    text: 'text-[#0e7490]',
+  },
+  {
+    name: 'Elena Rodriguez',
+    role: 'UI Designer',
+    status: 'Draft',
+    tone: 'bg-[#78716c]',
+    text: 'text-[#57534e]',
+  },
+  {
+    name: 'David Okafor',
+    role: 'Backend Dev',
+    status: 'Pending',
+    tone: 'bg-[#0891b2]',
+    text: 'text-[#0e7490]',
+  },
 ];
 
 const steps = [
-  { title: 'Submit Request', description: 'Department Head creates recruitment request', icon: 'clipboard' },
+  {
+    title: 'Submit Request',
+    description: 'Department Head creates recruitment request',
+    icon: 'clipboard',
+  },
   { title: 'Create Plan', description: 'HR Manager builds structured plan', icon: 'calendar' },
   { title: 'Search Candidates', description: 'Semantic CV matching', icon: 'search' },
   { title: 'Approve Hire', description: 'Admin makes final decision', icon: 'check' },
@@ -23,11 +51,17 @@ const footerLinks = {
 const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: string }) => {
   const paths: Record<string, React.ReactNode> = {
     filter: <path d="M4 6h16M7 12h10M10 18h4" />,
-    clipboard: <path d="M9 5h6M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 0H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />,
-    calendar: <path d="M7 3v4m10-4v4M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />,
+    clipboard: (
+      <path d="M9 5h6M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 0H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+    ),
+    calendar: (
+      <path d="M7 3v4m10-4v4M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
+    ),
     search: <path d="m21 21-4.3-4.3M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" />,
     check: <path d="M20 6 9 17l-5-5" />,
-    brain: <path d="M9 7a3 3 0 0 0-3 3v1a3 3 0 0 0 0 6 3 3 0 0 0 5 2.2M15 7a3 3 0 0 1 3 3v1a3 3 0 0 1 0 6 3 3 0 0 1-5 2.2M9 7a3 3 0 0 1 6 0m-6 0v12m6-12v12" />,
+    brain: (
+      <path d="M9 7a3 3 0 0 0-3 3v1a3 3 0 0 0 0 6 3 3 0 0 0 5 2.2M15 7a3 3 0 0 1 3 3v1a3 3 0 0 1 0 6 3 3 0 0 1-5 2.2M9 7a3 3 0 0 1 6 0m-6 0v12m6-12v12" />
+    ),
     schedule: <path d="M12 8v5l3 2m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
   };
 
@@ -57,19 +91,31 @@ export const LandingPage: React.FC = () => {
               RMS
             </Link>
             <div className="hidden items-center gap-6 md:flex">
-              <a className="border-b-2 border-teal-command pb-1 text-sm font-medium text-teal-command" href="#features">
+              <a
+                className="border-b-2 border-teal-command pb-1 text-sm font-medium text-teal-command"
+                href="#features"
+              >
                 Features
               </a>
-              <a className="text-sm font-medium text-slate-ink transition hover:text-teal-command" href="#workflow">
+              <a
+                className="text-sm font-medium text-slate-ink transition hover:text-teal-command"
+                href="#workflow"
+              >
                 How It Works
               </a>
-              <a className="text-sm font-medium text-slate-ink transition hover:text-teal-command" href="#pricing">
+              <a
+                className="text-sm font-medium text-slate-ink transition hover:text-teal-command"
+                href="#pricing"
+              >
                 Pricing
               </a>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Link className="hidden px-3 py-2 text-sm font-medium text-slate-ink transition hover:text-teal-command sm:inline-flex" to="/login">
+            <Link
+              className="hidden px-3 py-2 text-sm font-medium text-slate-ink transition hover:text-teal-command sm:inline-flex"
+              to="/login"
+            >
               Sign In
             </Link>
             <Link
@@ -85,12 +131,15 @@ export const LandingPage: React.FC = () => {
       <main className="pt-16">
         <section className="mx-auto grid max-w-[1440px] grid-cols-1 items-center gap-12 px-5 py-16 sm:px-8 lg:min-h-[calc(100dvh-4rem)] lg:grid-cols-[1fr_1.05fr] lg:py-24">
           <div className="max-w-xl text-left">
-            <p className="mb-4 text-sm font-semibold uppercase tracking-[0.08em] text-teal-command">Recruitment operations</p>
+            <p className="mb-4 text-sm font-semibold uppercase tracking-[0.08em] text-teal-command">
+              Recruitment operations
+            </p>
             <h1 className="text-[40px] font-semibold leading-[1.05] tracking-tight text-deep-charcoal sm:text-[54px]">
               Streamline your entire recruitment workflow
             </h1>
             <p className="mt-6 max-w-lg text-lg leading-8 text-slate-ink">
-              From department request to final hiring decision. Automate approvals, plan execution, and candidate screening.
+              From department request to final hiring decision. Automate approvals, plan execution,
+              and candidate screening.
             </p>
             <div className="mt-10 flex flex-col gap-3 sm:flex-row">
               <Link
@@ -140,16 +189,23 @@ export const LandingPage: React.FC = () => {
 
         <section className="bg-[#f5f3f0] py-20" id="workflow">
           <div className="mx-auto max-w-[1440px] px-5 sm:px-8">
-            <h2 className="mb-14 text-left text-3xl font-semibold tracking-tight text-deep-charcoal sm:text-center">How It Works</h2>
+            <h2 className="mb-14 text-left text-3xl font-semibold tracking-tight text-deep-charcoal sm:text-center">
+              How It Works
+            </h2>
             <div className="relative grid grid-cols-1 gap-8 md:grid-cols-4">
               <div className="absolute left-6 top-6 hidden h-px w-[calc(100%-48px)] border-t border-dashed border-[#bcc9c6] md:block" />
               {steps.map((step) => (
-                <div className="relative flex flex-col items-start md:items-center md:text-center" key={step.title}>
+                <div
+                  className="relative flex flex-col items-start md:items-center md:text-center"
+                  key={step.title}
+                >
                   <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full border-2 border-teal-command bg-clean-surface text-teal-command shadow-sm">
                     <Icon name={step.icon} />
                   </div>
                   <h3 className="mb-2 text-lg font-semibold text-deep-charcoal">{step.title}</h3>
-                  <p className="max-w-[18rem] text-sm leading-6 text-slate-ink">{step.description}</p>
+                  <p className="max-w-[18rem] text-sm leading-6 text-slate-ink">
+                    {step.description}
+                  </p>
                 </div>
               ))}
             </div>
@@ -160,16 +216,26 @@ export const LandingPage: React.FC = () => {
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
             <div className="relative overflow-hidden rounded-xl border border-border-warm bg-clean-surface p-8 lg:col-span-8 lg:p-10">
               <div className="relative z-10 max-w-xl">
-                <h2 className="mb-4 text-3xl font-semibold tracking-tight text-deep-charcoal">Plan-Locked Execution</h2>
+                <h2 className="mb-4 text-3xl font-semibold tracking-tight text-deep-charcoal">
+                  Plan-Locked Execution
+                </h2>
                 <p className="text-lg leading-8 text-slate-ink">
-                  Structured workflow enforcement ensures every hire follows the predefined regulatory and organizational roadmap without deviations.
+                  Structured workflow enforcement ensures every hire follows the predefined
+                  regulatory and organizational roadmap without deviations.
                 </p>
               </div>
               <div className="mt-10 grid min-h-64 gap-3 rounded-lg bg-[#f0f5f2] p-4 sm:grid-cols-[1.2fr_0.8fr]">
                 <div className="space-y-3 rounded-lg border border-[#d6cec4] bg-white p-4">
-                  {['Request approved', 'Campaign generated', 'Screening assigned', 'Interview panel ready'].map((item, index) => (
+                  {[
+                    'Request approved',
+                    'Campaign generated',
+                    'Screening assigned',
+                    'Interview panel ready',
+                  ].map((item, index) => (
                     <div className="flex items-center gap-3" key={item}>
-                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-teal-command text-xs font-semibold text-white">{index + 1}</span>
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-teal-command text-xs font-semibold text-white">
+                        {index + 1}
+                      </span>
                       <span className="text-sm font-medium text-deep-charcoal">{item}</span>
                     </div>
                   ))}
@@ -188,10 +254,21 @@ export const LandingPage: React.FC = () => {
 
             <div className="flex flex-col gap-6 lg:col-span-4">
               {[
-                ['Semantic CV Search', 'Go beyond keywords. RMS understands experience and skills to find strong technical and culture matches.', 'brain'],
-                ['Interview Scheduling', 'Automated calendar coordination removes back-and-forth and keeps interview panels aligned.', 'schedule'],
+                [
+                  'Semantic CV Search',
+                  'Go beyond keywords. RMS understands experience and skills to find strong technical and culture matches.',
+                  'brain',
+                ],
+                [
+                  'Interview Scheduling',
+                  'Automated calendar coordination removes back-and-forth and keeps interview panels aligned.',
+                  'schedule',
+                ],
               ].map(([title, description, icon]) => (
-                <div className="flex-1 rounded-xl border border-border-warm bg-clean-surface p-8 transition hover:-translate-y-[2px] hover:shadow-[0_18px_50px_-42px_rgba(28,25,23,0.6)]" key={title}>
+                <div
+                  className="flex-1 rounded-xl border border-border-warm bg-clean-surface p-8 transition hover:-translate-y-[2px] hover:shadow-[0_18px_50px_-42px_rgba(28,25,23,0.6)]"
+                  key={title}
+                >
                   <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-lg bg-teal-command/10 text-teal-command">
                     <Icon name={icon} />
                   </div>
@@ -206,15 +283,24 @@ export const LandingPage: React.FC = () => {
         <section className="mx-auto max-w-[1440px] px-5 pb-20 sm:px-8" id="pricing">
           <div className="relative overflow-hidden rounded-xl bg-deep-charcoal p-8 text-left text-workflow-ivory sm:p-12 lg:text-center">
             <div className="relative z-10">
-              <h2 className="mb-5 text-3xl font-semibold tracking-tight">Ready to transform your hiring?</h2>
+              <h2 className="mb-5 text-3xl font-semibold tracking-tight">
+                Ready to transform your hiring?
+              </h2>
               <p className="mx-auto mb-8 max-w-2xl text-lg leading-8 text-[#c8c6c4]">
-                Give every team a clear hiring path with request approvals, campaign planning, candidate screening, and final decisions in one place.
+                Give every team a clear hiring path with request approvals, campaign planning,
+                candidate screening, and final decisions in one place.
               </p>
               <div className="flex flex-col justify-center gap-3 sm:flex-row">
-                <Link className="inline-flex h-12 items-center justify-center rounded-lg bg-teal-command px-7 text-sm font-semibold text-white transition hover:bg-[#0f766e] active:scale-[0.98]" to="/signup">
+                <Link
+                  className="inline-flex h-12 items-center justify-center rounded-lg bg-teal-command px-7 text-sm font-semibold text-white transition hover:bg-[#0f766e] active:scale-[0.98]"
+                  to="/signup"
+                >
                   Get Started Now
                 </Link>
-                <Link className="inline-flex h-12 items-center justify-center rounded-lg border border-white/20 px-7 text-sm font-semibold text-workflow-ivory transition hover:bg-white/10 active:scale-[0.98]" to="/signup">
+                <Link
+                  className="inline-flex h-12 items-center justify-center rounded-lg border border-white/20 px-7 text-sm font-semibold text-workflow-ivory transition hover:bg-white/10 active:scale-[0.98]"
+                  to="/signup"
+                >
                   Request Demo
                 </Link>
               </div>
@@ -228,7 +314,8 @@ export const LandingPage: React.FC = () => {
           <div>
             <span className="text-xl font-semibold">RMS</span>
             <p className="mt-5 max-w-sm text-sm leading-6 text-[#c8c6c4]">
-              The enterprise standard for high-frequency recruitment workflow management. Built for stability, clarity, and performance.
+              The enterprise standard for high-frequency recruitment workflow management. Built for
+              stability, clarity, and performance.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-8 md:col-span-2">
@@ -251,8 +338,12 @@ export const LandingPage: React.FC = () => {
         <div className="mx-auto flex max-w-[1440px] flex-col justify-between gap-4 border-t border-white/10 px-5 py-8 text-sm text-[#c8c6c4] sm:px-8 md:flex-row">
           <span>(c) 2026 RMS Recruitment Management System. All rights reserved.</span>
           <div className="flex gap-6">
-            <a className="hover:text-white" href="#">Privacy Policy</a>
-            <a className="hover:text-white" href="#">Terms of Service</a>
+            <a className="hover:text-white" href="#">
+              Privacy Policy
+            </a>
+            <a className="hover:text-white" href="#">
+              Terms of Service
+            </a>
           </div>
         </div>
       </footer>

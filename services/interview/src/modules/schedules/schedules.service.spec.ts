@@ -1,8 +1,5 @@
 import { of } from 'rxjs';
-import {
-  InterviewStatus,
-  RecruitmentRequestStatus,
-} from '@wr/contracts';
+import { InterviewStatus, RecruitmentRequestStatus } from '@wr/contracts';
 import { SchedulesService } from './schedules.service';
 
 describe('SchedulesService', () => {

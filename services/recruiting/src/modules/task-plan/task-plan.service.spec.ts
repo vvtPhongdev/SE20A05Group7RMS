@@ -120,7 +120,11 @@ describe('TaskPlanService', () => {
       prisma.taskPlan.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.updateStatus({ id: 'task-1', status: TaskStatus.IN_PROGRESS, performedById: 'user-1' }),
+        service.updateStatus({
+          id: 'task-1',
+          status: TaskStatus.IN_PROGRESS,
+          performedById: 'user-1',
+        }),
       ).rejects.toThrow(NotFoundException);
     });
 

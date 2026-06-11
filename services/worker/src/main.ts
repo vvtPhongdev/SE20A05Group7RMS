@@ -20,12 +20,12 @@ async function bootstrap() {
   });
 
   console.log(`🔌 Worker connecting to Redis at ${redisUrl}`);
-  
+
   // Optimized options for Redis connection to prevent rate limiting (especially on Upstash)
   const workerOptions = {
     connection: client,
     stalledInterval: 300000, // Check for stalled jobs every 5 minutes (default 30s)
-    drainDelay: 30,          // Poll every 30 seconds when queue is empty (default 5s)
+    drainDelay: 30, // Poll every 30 seconds when queue is empty (default 5s)
   };
 
   // CV Parse Queue Worker

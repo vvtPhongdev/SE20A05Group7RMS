@@ -1,8 +1,5 @@
 import { of } from 'rxjs';
-import {
-  OfferStatus,
-  RecruitmentRequestStatus,
-} from '@wr/contracts';
+import { OfferStatus, RecruitmentRequestStatus } from '@wr/contracts';
 import { OfferLetterService } from './offer-letter.service';
 
 describe('OfferLetterService', () => {
@@ -35,7 +32,11 @@ describe('OfferLetterService', () => {
       });
     }),
   };
-  const service = new OfferLetterService(prisma as any, emailQueue as any, notificationClient as any);
+  const service = new OfferLetterService(
+    prisma as any,
+    emailQueue as any,
+    notificationClient as any,
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();

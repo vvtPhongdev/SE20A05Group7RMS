@@ -29,7 +29,8 @@ const campaigns: Campaign[] = [
     owner: 'Sarah Jenkins',
     budget: '$15,000',
     taskCount: 14,
-    adminNote: 'Please ensure the technical screening phase includes the new security compliance module before submitting for final approval.',
+    adminNote:
+      'Please ensure the technical screening phase includes the new security compliance module before submitting for final approval.',
   },
   {
     id: 'REQ-2024-038',
@@ -68,7 +69,8 @@ const campaigns: Campaign[] = [
     owner: 'Bao Nguyen',
     budget: '$22,000',
     taskCount: 18,
-    adminNote: 'The salary range listed does not align with the approved headcount budget. Please revise and resubmit.',
+    adminNote:
+      'The salary range listed does not align with the approved headcount budget. Please revise and resubmit.',
   },
   {
     id: 'REQ-2024-050',
@@ -92,7 +94,10 @@ const metricCards = [
   { label: 'Revision Required', value: 2, tone: 'revision' },
 ] as const;
 
-const statusConfig: Record<PlanStatus, { label: string; dot: string; badge: string; progress: string }> = {
+const statusConfig: Record<
+  PlanStatus,
+  { label: string; dot: string; badge: string; progress: string }
+> = {
   PENDING_APPROVAL: {
     label: 'PENDING_APPROVAL',
     dot: 'bg-pending',
@@ -157,7 +162,9 @@ const StatusBadge = ({ status }: { status: PlanStatus }) => {
   const config = statusConfig[status];
 
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold ${config.badge}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold ${config.badge}`}
+    >
       <span className={`h-1.5 w-1.5 rounded-full ${config.dot}`} />
       {config.label}
     </span>
@@ -177,23 +184,28 @@ export const HRCampaigns: React.FC = () => {
       const matchesStatus = status === 'All' || campaign.status === status;
       const matchesQuery =
         !normalizedQuery ||
-        [campaign.id, campaign.position, campaign.department, campaign.owner, campaign.status].some((value) =>
-          value.toLowerCase().includes(normalizedQuery),
+        [campaign.id, campaign.position, campaign.department, campaign.owner, campaign.status].some(
+          (value) => value.toLowerCase().includes(normalizedQuery),
         );
 
       return matchesStatus && matchesQuery;
     });
   }, [query, status]);
 
-  const selected = campaigns.find((campaign) => campaign.id === selectedId) ?? visibleCampaigns[0] ?? null;
+  const selected =
+    campaigns.find((campaign) => campaign.id === selectedId) ?? visibleCampaigns[0] ?? null;
 
   return (
     <div className="mx-auto grid max-w-[1440px] gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
       <main className="min-w-0 space-y-6">
         <header className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">HR Manager</p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">Recruitment Campaigns</h1>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">
+              HR Manager
+            </p>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">
+              Recruitment Campaigns
+            </h1>
             <p className="mt-1 max-w-[70ch] text-sm leading-6 text-slate-ink">
               Build and maintain overall plans for Admin-approved recruitment requests.
             </p>
@@ -207,17 +219,27 @@ export const HRCampaigns: React.FC = () => {
           </button>
         </header>
 
-        <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4" aria-label="Campaign metrics">
+        <section
+          className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4"
+          aria-label="Campaign metrics"
+        >
           {metricCards.map((card) => {
             const tone = metricToneClasses[card.tone];
 
             return (
-              <section className="rounded-lg border border-border-warm bg-clean-surface p-5 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]" key={card.label}>
-                <p className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] ${tone.label}`}>
+              <section
+                className="rounded-lg border border-border-warm bg-clean-surface p-5 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]"
+                key={card.label}
+              >
+                <p
+                  className={`flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] ${tone.label}`}
+                >
                   <span className={`h-2 w-2 rounded-full ${tone.dot}`} />
                   {card.label}
                 </p>
-                <p className="mt-4 font-mono text-[32px] font-semibold leading-none text-deep-charcoal">{card.value}</p>
+                <p className="mt-4 font-mono text-[32px] font-semibold leading-none text-deep-charcoal">
+                  {card.value}
+                </p>
               </section>
             );
           })}
@@ -227,13 +249,18 @@ export const HRCampaigns: React.FC = () => {
           <div className="flex flex-col gap-4 border-b border-border-warm bg-workflow-ivory/60 p-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-xl font-semibold text-deep-charcoal">Active Campaigns</h2>
-              <p className="mt-1 text-sm text-slate-ink">Showing {visibleCampaigns.length} of {campaigns.length} entries.</p>
+              <p className="mt-1 text-sm text-slate-ink">
+                Showing {visibleCampaigns.length} of {campaigns.length} entries.
+              </p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-[minmax(220px,1fr)_180px]">
               <label className="relative block">
                 <span className="sr-only">Search campaigns</span>
-                <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-outline" name="search" />
+                <Icon
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-outline"
+                  name="search"
+                />
                 <input
                   className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface pl-10 pr-3 text-sm text-deep-charcoal outline-none transition placeholder:text-on-surface-variant focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
                   onChange={(event) => setQuery(event.target.value)}
@@ -264,7 +291,15 @@ export const HRCampaigns: React.FC = () => {
             <table className="w-full min-w-[920px] border-collapse text-left">
               <thead className="bg-workflow-ivory text-xs uppercase tracking-[0.14em] text-on-surface-variant">
                 <tr>
-                  {['Request ID', 'Position', 'Department', 'HC', 'Plan Status', 'Campaign Window', 'Progress'].map((column) => (
+                  {[
+                    'Request ID',
+                    'Position',
+                    'Department',
+                    'HC',
+                    'Plan Status',
+                    'Campaign Window',
+                    'Progress',
+                  ].map((column) => (
                     <th className="px-5 py-4 font-semibold" key={column}>
                       {column}
                     </th>
@@ -281,20 +316,37 @@ export const HRCampaigns: React.FC = () => {
                       key={campaign.id}
                       onClick={() => setSelectedId(campaign.id)}
                     >
-                      <td className={`px-5 py-4 font-mono text-sm ${selectedRow ? 'text-teal-command' : 'text-slate-ink'}`}>#{campaign.id}</td>
-                      <td className="px-5 py-4 text-sm font-semibold text-deep-charcoal">{campaign.position}</td>
-                      <td className="px-5 py-4 text-sm text-on-surface-variant">{campaign.department}</td>
-                      <td className="px-5 py-4 font-mono text-sm text-on-surface-variant">{campaign.headcount}</td>
+                      <td
+                        className={`px-5 py-4 font-mono text-sm ${selectedRow ? 'text-teal-command' : 'text-slate-ink'}`}
+                      >
+                        #{campaign.id}
+                      </td>
+                      <td className="px-5 py-4 text-sm font-semibold text-deep-charcoal">
+                        {campaign.position}
+                      </td>
+                      <td className="px-5 py-4 text-sm text-on-surface-variant">
+                        {campaign.department}
+                      </td>
+                      <td className="px-5 py-4 font-mono text-sm text-on-surface-variant">
+                        {campaign.headcount}
+                      </td>
                       <td className="px-5 py-4">
                         <StatusBadge status={campaign.status} />
                       </td>
-                      <td className="px-5 py-4 text-sm text-on-surface-variant">{campaign.window}</td>
+                      <td className="px-5 py-4 text-sm text-on-surface-variant">
+                        {campaign.window}
+                      </td>
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2">
                           <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface-variant">
-                            <div className={`h-full rounded-full ${statusConfig[campaign.status].progress}`} style={{ width: `${campaign.progress}%` }} />
+                            <div
+                              className={`h-full rounded-full ${statusConfig[campaign.status].progress}`}
+                              style={{ width: `${campaign.progress}%` }}
+                            />
                           </div>
-                          <span className="font-mono text-xs text-on-surface-variant">{campaign.progress}%</span>
+                          <span className="font-mono text-xs text-on-surface-variant">
+                            {campaign.progress}%
+                          </span>
                         </div>
                       </td>
                     </tr>
@@ -306,8 +358,12 @@ export const HRCampaigns: React.FC = () => {
 
           {visibleCampaigns.length === 0 ? (
             <div className="border-t border-border-warm px-6 py-12 text-center">
-              <p className="text-sm font-semibold text-deep-charcoal">No campaigns match this view.</p>
-              <p className="mt-1 text-sm text-slate-ink">Adjust the search term or status filter.</p>
+              <p className="text-sm font-semibold text-deep-charcoal">
+                No campaigns match this view.
+              </p>
+              <p className="mt-1 text-sm text-slate-ink">
+                Adjust the search term or status filter.
+              </p>
             </div>
           ) : null}
         </section>
@@ -352,7 +408,10 @@ export const HRCampaigns: React.FC = () => {
                   <Icon className="mt-0.5 h-4 w-4 text-revision" name="lock" />
                   <div>
                     <p className="text-sm font-semibold text-amber-800">Plan locked</p>
-                    <p className="mt-1 text-xs leading-5 text-amber-700">Execution stays locked until Admin approves the plan. Tasks cannot be activated.</p>
+                    <p className="mt-1 text-xs leading-5 text-amber-700">
+                      Execution stays locked until Admin approves the plan. Tasks cannot be
+                      activated.
+                    </p>
                   </div>
                 </div>
               ) : null}
@@ -365,7 +424,9 @@ export const HRCampaigns: React.FC = () => {
                   ['Task Count', `${selected.taskCount} tasks configured`],
                 ].map(([label, value]) => (
                   <div key={label}>
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">{label}</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                      {label}
+                    </p>
                     <p className="mt-1 text-sm font-semibold text-deep-charcoal">{value}</p>
                   </div>
                 ))}
@@ -375,23 +436,35 @@ export const HRCampaigns: React.FC = () => {
                 <h4 className="text-sm font-semibold text-deep-charcoal">Admin Notes (Latest)</h4>
                 <div className="mt-3 rounded-lg border border-border-warm bg-workflow-ivory p-3">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-xs font-semibold text-deep-charcoal">David Chen (Admin)</span>
+                    <span className="text-xs font-semibold text-deep-charcoal">
+                      David Chen (Admin)
+                    </span>
                     <span className="text-[11px] text-on-surface-variant">Yesterday, 2:30 PM</span>
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-on-surface-variant">{selected.adminNote}</p>
+                  <p className="mt-2 text-sm leading-6 text-on-surface-variant">
+                    {selected.adminNote}
+                  </p>
                 </div>
               </div>
             </div>
 
             <div className="space-y-3 border-t border-border-warm bg-workflow-ivory/50 p-5">
               {selected.status !== 'APPROVED' ? (
-                <button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]" type="button">
+                <button
+                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
+                  type="button"
+                >
                   <Icon className="h-4 w-4" name="send" />
-                  {selected.status === 'REVISION_REQUIRED' ? 'Resubmit for Approval' : 'Submit for Approval'}
+                  {selected.status === 'REVISION_REQUIRED'
+                    ? 'Resubmit for Approval'
+                    : 'Submit for Approval'}
                 </button>
               ) : null}
               <div className="grid grid-cols-2 gap-3">
-                <button className="h-10 rounded-lg border border-teal-command text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98]" type="button">
+                <button
+                  className="h-10 rounded-lg border border-teal-command text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98]"
+                  type="button"
+                >
                   Edit Plan
                 </button>
                 <button

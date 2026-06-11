@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
 
 interface DepartmentCardData {
   name: string;
@@ -47,10 +46,42 @@ const mockData: Record<
 > = {
   'Last 30 days': {
     cards: [
-      { name: 'IT & Engineering', head: 'Nguyen Van A', fillRate: 88, timeToHire: 22, activeRequests: 5, pendingApprovalsText: '2 Pending Approvals', pendingApproved: false },
-      { name: 'Marketing', head: 'Tran Thi B', fillRate: 72, timeToHire: 28, activeRequests: 3, pendingApprovalsText: '1 Pending Approval', pendingApproved: false },
-      { name: 'Human Resources', head: 'Le Van C', fillRate: 95, timeToHire: 15, activeRequests: 1, pendingApprovalsText: '0 Pending Approvals', pendingApproved: true },
-      { name: 'Finance', head: 'Pham Van D', fillRate: 65, timeToHire: 32, activeRequests: 2, pendingApprovalsText: '1 Pending Approval', pendingApproved: false },
+      {
+        name: 'IT & Engineering',
+        head: 'Nguyen Van A',
+        fillRate: 88,
+        timeToHire: 22,
+        activeRequests: 5,
+        pendingApprovalsText: '2 Pending Approvals',
+        pendingApproved: false,
+      },
+      {
+        name: 'Marketing',
+        head: 'Tran Thi B',
+        fillRate: 72,
+        timeToHire: 28,
+        activeRequests: 3,
+        pendingApprovalsText: '1 Pending Approval',
+        pendingApproved: false,
+      },
+      {
+        name: 'Human Resources',
+        head: 'Le Van C',
+        fillRate: 95,
+        timeToHire: 15,
+        activeRequests: 1,
+        pendingApprovalsText: '0 Pending Approvals',
+        pendingApproved: true,
+      },
+      {
+        name: 'Finance',
+        head: 'Pham Van D',
+        fillRate: 65,
+        timeToHire: 32,
+        activeRequests: 2,
+        pendingApprovalsText: '1 Pending Approval',
+        pendingApproved: false,
+      },
     ],
     chart: [
       { label: 'IT', requested: 17, inProgress: 12, filled: 15 },
@@ -66,18 +97,82 @@ const mockData: Record<
       { department: 'Design & UX', requests: 4, plans: 0, oldest: '1 day', badge: false },
     ],
     activity: [
-      { name: 'Nguyen Van A', initials: 'NA', dept: 'Engineering', reqs: 42, score: 4.8, lastActive: '2h ago', avatarBg: 'bg-primary-container' },
-      { name: 'Hoang Thi E', initials: 'HE', dept: 'Design', reqs: 38, score: 4.9, lastActive: 'Active', avatarBg: 'bg-secondary' },
-      { name: 'Tran Thi B', initials: 'TB', dept: 'Marketing', reqs: 24, score: 4.2, lastActive: '1d ago', avatarBg: 'bg-teal-command' },
-      { name: 'Pham Van D', initials: 'PD', dept: 'Finance', reqs: 19, score: 4.5, lastActive: '3h ago', avatarBg: 'bg-slate-ink' },
+      {
+        name: 'Nguyen Van A',
+        initials: 'NA',
+        dept: 'Engineering',
+        reqs: 42,
+        score: 4.8,
+        lastActive: '2h ago',
+        avatarBg: 'bg-primary-container',
+      },
+      {
+        name: 'Hoang Thi E',
+        initials: 'HE',
+        dept: 'Design',
+        reqs: 38,
+        score: 4.9,
+        lastActive: 'Active',
+        avatarBg: 'bg-secondary',
+      },
+      {
+        name: 'Tran Thi B',
+        initials: 'TB',
+        dept: 'Marketing',
+        reqs: 24,
+        score: 4.2,
+        lastActive: '1d ago',
+        avatarBg: 'bg-teal-command',
+      },
+      {
+        name: 'Pham Van D',
+        initials: 'PD',
+        dept: 'Finance',
+        reqs: 19,
+        score: 4.5,
+        lastActive: '3h ago',
+        avatarBg: 'bg-slate-ink',
+      },
     ],
   },
   Quarter: {
     cards: [
-      { name: 'IT & Engineering', head: 'Nguyen Van A', fillRate: 85, timeToHire: 24, activeRequests: 12, pendingApprovalsText: '4 Pending Approvals', pendingApproved: false },
-      { name: 'Marketing', head: 'Tran Thi B', fillRate: 75, timeToHire: 26, activeRequests: 6, pendingApprovalsText: '2 Pending Approvals', pendingApproved: false },
-      { name: 'Human Resources', head: 'Le Van C', fillRate: 92, timeToHire: 17, activeRequests: 2, pendingApprovalsText: '0 Pending Approvals', pendingApproved: true },
-      { name: 'Finance', head: 'Pham Van D', fillRate: 70, timeToHire: 30, activeRequests: 5, pendingApprovalsText: '1 Pending Approval', pendingApproved: false },
+      {
+        name: 'IT & Engineering',
+        head: 'Nguyen Van A',
+        fillRate: 85,
+        timeToHire: 24,
+        activeRequests: 12,
+        pendingApprovalsText: '4 Pending Approvals',
+        pendingApproved: false,
+      },
+      {
+        name: 'Marketing',
+        head: 'Tran Thi B',
+        fillRate: 75,
+        timeToHire: 26,
+        activeRequests: 6,
+        pendingApprovalsText: '2 Pending Approvals',
+        pendingApproved: false,
+      },
+      {
+        name: 'Human Resources',
+        head: 'Le Van C',
+        fillRate: 92,
+        timeToHire: 17,
+        activeRequests: 2,
+        pendingApprovalsText: '0 Pending Approvals',
+        pendingApproved: true,
+      },
+      {
+        name: 'Finance',
+        head: 'Pham Van D',
+        fillRate: 70,
+        timeToHire: 30,
+        activeRequests: 5,
+        pendingApprovalsText: '1 Pending Approval',
+        pendingApproved: false,
+      },
     ],
     chart: [
       { label: 'IT', requested: 32, inProgress: 24, filled: 28 },
@@ -87,24 +182,94 @@ const mockData: Record<
       { label: 'Design', requested: 25, inProgress: 20, filled: 21 },
     ],
     pending: [
-      { department: 'IT & Engineering', requests: 12, plans: 5, oldest: '12 Days Old', badge: true },
+      {
+        department: 'IT & Engineering',
+        requests: 12,
+        plans: 5,
+        oldest: '12 Days Old',
+        badge: true,
+      },
       { department: 'Marketing', requests: 6, plans: 2, oldest: '4 days', badge: false },
       { department: 'Finance', requests: 5, plans: 2, oldest: '5 days', badge: false },
       { department: 'Design & UX', requests: 7, plans: 1, oldest: '2 days', badge: false },
     ],
     activity: [
-      { name: 'Nguyen Van A', initials: 'NA', dept: 'Engineering', reqs: 110, score: 4.8, lastActive: '1h ago', avatarBg: 'bg-primary-container' },
-      { name: 'Hoang Thi E', initials: 'HE', dept: 'Design', reqs: 95, score: 4.9, lastActive: 'Active', avatarBg: 'bg-secondary' },
-      { name: 'Tran Thi B', initials: 'TB', dept: 'Marketing', reqs: 74, score: 4.3, lastActive: '2d ago', avatarBg: 'bg-teal-command' },
-      { name: 'Pham Van D', initials: 'PD', dept: 'Finance', reqs: 60, score: 4.6, lastActive: '1h ago', avatarBg: 'bg-slate-ink' },
+      {
+        name: 'Nguyen Van A',
+        initials: 'NA',
+        dept: 'Engineering',
+        reqs: 110,
+        score: 4.8,
+        lastActive: '1h ago',
+        avatarBg: 'bg-primary-container',
+      },
+      {
+        name: 'Hoang Thi E',
+        initials: 'HE',
+        dept: 'Design',
+        reqs: 95,
+        score: 4.9,
+        lastActive: 'Active',
+        avatarBg: 'bg-secondary',
+      },
+      {
+        name: 'Tran Thi B',
+        initials: 'TB',
+        dept: 'Marketing',
+        reqs: 74,
+        score: 4.3,
+        lastActive: '2d ago',
+        avatarBg: 'bg-teal-command',
+      },
+      {
+        name: 'Pham Van D',
+        initials: 'PD',
+        dept: 'Finance',
+        reqs: 60,
+        score: 4.6,
+        lastActive: '1h ago',
+        avatarBg: 'bg-slate-ink',
+      },
     ],
   },
   Year: {
     cards: [
-      { name: 'IT & Engineering', head: 'Nguyen Van A', fillRate: 82, timeToHire: 26, activeRequests: 35, pendingApprovalsText: '6 Pending Approvals', pendingApproved: false },
-      { name: 'Marketing', head: 'Tran Thi B', fillRate: 70, timeToHire: 30, activeRequests: 18, pendingApprovalsText: '3 Pending Approvals', pendingApproved: false },
-      { name: 'Human Resources', head: 'Le Van C', fillRate: 89, timeToHire: 19, activeRequests: 8, pendingApprovalsText: '0 Pending Approvals', pendingApproved: true },
-      { name: 'Finance', head: 'Pham Van D', fillRate: 68, timeToHire: 34, activeRequests: 12, pendingApprovalsText: '2 Pending Approvals', pendingApproved: false },
+      {
+        name: 'IT & Engineering',
+        head: 'Nguyen Van A',
+        fillRate: 82,
+        timeToHire: 26,
+        activeRequests: 35,
+        pendingApprovalsText: '6 Pending Approvals',
+        pendingApproved: false,
+      },
+      {
+        name: 'Marketing',
+        head: 'Tran Thi B',
+        fillRate: 70,
+        timeToHire: 30,
+        activeRequests: 18,
+        pendingApprovalsText: '3 Pending Approvals',
+        pendingApproved: false,
+      },
+      {
+        name: 'Human Resources',
+        head: 'Le Van C',
+        fillRate: 89,
+        timeToHire: 19,
+        activeRequests: 8,
+        pendingApprovalsText: '0 Pending Approvals',
+        pendingApproved: true,
+      },
+      {
+        name: 'Finance',
+        head: 'Pham Van D',
+        fillRate: 68,
+        timeToHire: 34,
+        activeRequests: 12,
+        pendingApprovalsText: '2 Pending Approvals',
+        pendingApproved: false,
+      },
     ],
     chart: [
       { label: 'IT', requested: 120, inProgress: 95, filled: 102 },
@@ -114,16 +279,54 @@ const mockData: Record<
       { label: 'Design', requested: 82, inProgress: 70, filled: 74 },
     ],
     pending: [
-      { department: 'IT & Engineering', requests: 35, plans: 15, oldest: '18 Days Old', badge: true },
+      {
+        department: 'IT & Engineering',
+        requests: 35,
+        plans: 15,
+        oldest: '18 Days Old',
+        badge: true,
+      },
       { department: 'Marketing', requests: 18, plans: 8, oldest: '8 days', badge: false },
       { department: 'Finance', requests: 12, plans: 5, oldest: '10 days', badge: false },
       { department: 'Design & UX', requests: 14, plans: 3, oldest: '5 days', badge: false },
     ],
     activity: [
-      { name: 'Nguyen Van A', initials: 'NA', dept: 'Engineering', reqs: 380, score: 4.8, lastActive: '5h ago', avatarBg: 'bg-primary-container' },
-      { name: 'Hoang Thi E', initials: 'HE', dept: 'Design', reqs: 320, score: 4.9, lastActive: 'Active', avatarBg: 'bg-secondary' },
-      { name: 'Tran Thi B', initials: 'TB', dept: 'Marketing', reqs: 210, score: 4.4, lastActive: '1w ago', avatarBg: 'bg-teal-command' },
-      { name: 'Pham Van D', initials: 'PD', dept: 'Finance', reqs: 180, score: 4.7, lastActive: '4h ago', avatarBg: 'bg-slate-ink' },
+      {
+        name: 'Nguyen Van A',
+        initials: 'NA',
+        dept: 'Engineering',
+        reqs: 380,
+        score: 4.8,
+        lastActive: '5h ago',
+        avatarBg: 'bg-primary-container',
+      },
+      {
+        name: 'Hoang Thi E',
+        initials: 'HE',
+        dept: 'Design',
+        reqs: 320,
+        score: 4.9,
+        lastActive: 'Active',
+        avatarBg: 'bg-secondary',
+      },
+      {
+        name: 'Tran Thi B',
+        initials: 'TB',
+        dept: 'Marketing',
+        reqs: 210,
+        score: 4.4,
+        lastActive: '1w ago',
+        avatarBg: 'bg-teal-command',
+      },
+      {
+        name: 'Pham Van D',
+        initials: 'PD',
+        dept: 'Finance',
+        reqs: 180,
+        score: 4.7,
+        lastActive: '4h ago',
+        avatarBg: 'bg-slate-ink',
+      },
     ],
   },
 };
@@ -144,7 +347,7 @@ export const AdminDeptStats: React.FC = () => {
           <div className="flex items-center text-secondary font-label-md text-label-md">
             <span>Director Portal</span>
             <span className="material-symbols-outlined text-[16px] mx-2">chevron_right</span>
-            <span className="text-on-surface font-semibold">Reports</span>
+            <span className="text-on-surface font-semibold">Department Statistics</span>
           </div>
           <h2 className="font-headline-lg text-headline-lg font-semibold text-deep-charcoal mt-2">
             Department Statistics
@@ -168,22 +371,6 @@ export const AdminDeptStats: React.FC = () => {
         </div>
       </div>
 
-      {/* Sub Navigation Tabs */}
-      <div className="flex gap-8 border-b border-border-warm h-12">
-        <Link
-          to="/admin/reports/annual"
-          className="flex items-center h-full font-label-md text-label-md text-secondary hover:text-teal-command transition-colors"
-        >
-          Annual Report
-        </Link>
-        <Link
-          to="/admin/reports/dept-stats"
-          className="relative flex items-center h-full font-label-md text-label-md text-teal-command font-bold after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-full after:h-1 after:bg-teal-command after:rounded-t-full"
-        >
-          Department Statistics
-        </Link>
-      </div>
-
       {/* Department Metrics Cards Row */}
       <div className="flex gap-margin-md overflow-x-auto no-scrollbar pb-4 text-on-surface">
         {cards.map((card) => (
@@ -203,12 +390,16 @@ export const AdminDeptStats: React.FC = () => {
                   card.fillRate >= 85
                     ? 'text-approved'
                     : card.fillRate >= 70
-                    ? 'text-pending'
-                    : 'text-rejected'
+                      ? 'text-pending'
+                      : 'text-rejected'
                 }`}
               >
                 <span className="material-symbols-outlined text-[16px] mr-1">
-                  {card.fillRate >= 85 ? 'trending_up' : card.fillRate >= 70 ? 'horizontal_rule' : 'trending_down'}
+                  {card.fillRate >= 85
+                    ? 'trending_up'
+                    : card.fillRate >= 70
+                      ? 'horizontal_rule'
+                      : 'trending_down'}
                 </span>
                 {card.fillRate}%
               </div>
@@ -222,11 +413,15 @@ export const AdminDeptStats: React.FC = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-label-sm text-secondary mb-1">Time-to-Hire</p>
-                <p className="font-data-mono text-deep-charcoal font-semibold">{card.timeToHire} days</p>
+                <p className="font-data-mono text-deep-charcoal font-semibold">
+                  {card.timeToHire} days
+                </p>
               </div>
               <div>
                 <p className="text-label-sm text-secondary mb-1">Active Requests</p>
-                <p className="font-data-mono text-deep-charcoal font-semibold">{card.activeRequests}</p>
+                <p className="font-data-mono text-deep-charcoal font-semibold">
+                  {card.activeRequests}
+                </p>
               </div>
               <div className="col-span-2 flex items-center gap-2">
                 <div
@@ -273,7 +468,10 @@ export const AdminDeptStats: React.FC = () => {
           </div>
           {/* Chart Bars */}
           {chart.map((group) => (
-            <div className="flex flex-col items-center group/group w-1/5 max-w-[120px]" key={group.label}>
+            <div
+              className="flex flex-col items-center group/group w-1/5 max-w-[120px]"
+              key={group.label}
+            >
               <div className="flex items-end gap-1.5 h-64 w-full justify-center">
                 <div
                   className="w-1/3 min-w-[8px] bg-[#99f6e4] rounded-t-sm hover:opacity-80 transition-all duration-300"
@@ -316,9 +514,15 @@ export const AdminDeptStats: React.FC = () => {
               <thead className="bg-surface-container-low text-label-sm text-secondary">
                 <tr>
                   <th className="px-6 py-3 font-semibold uppercase tracking-wider">Department</th>
-                  <th className="px-6 py-3 font-semibold uppercase tracking-wider text-center">Requests</th>
-                  <th className="px-6 py-3 font-semibold uppercase tracking-wider text-center">Plans</th>
-                  <th className="px-6 py-3 font-semibold uppercase tracking-wider">Oldest Pending</th>
+                  <th className="px-6 py-3 font-semibold uppercase tracking-wider text-center">
+                    Requests
+                  </th>
+                  <th className="px-6 py-3 font-semibold uppercase tracking-wider text-center">
+                    Plans
+                  </th>
+                  <th className="px-6 py-3 font-semibold uppercase tracking-wider">
+                    Oldest Pending
+                  </th>
                   <th className="px-6 py-3 font-semibold uppercase tracking-wider">Action</th>
                 </tr>
               </thead>
@@ -365,14 +569,21 @@ export const AdminDeptStats: React.FC = () => {
             <thead className="bg-surface-container-low text-label-sm text-secondary">
               <tr>
                 <th className="px-6 py-3 font-semibold uppercase tracking-wider">Name / Dept</th>
-                <th className="px-6 py-3 font-semibold uppercase tracking-wider text-center">Reqs</th>
-                <th className="px-6 py-3 font-semibold uppercase tracking-wider text-center">Score</th>
+                <th className="px-6 py-3 font-semibold uppercase tracking-wider text-center">
+                  Reqs
+                </th>
+                <th className="px-6 py-3 font-semibold uppercase tracking-wider text-center">
+                  Score
+                </th>
                 <th className="px-6 py-3 font-semibold uppercase tracking-wider">Last Active</th>
               </tr>
             </thead>
             <tbody className="text-body-sm text-on-surface">
               {activity.map((act) => (
-                <tr className="border-b border-border-warm hover:bg-workflow-ivory transition-colors" key={act.name}>
+                <tr
+                  className="border-b border-border-warm hover:bg-workflow-ivory transition-colors"
+                  key={act.name}
+                >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div

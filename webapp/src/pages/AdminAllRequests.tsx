@@ -326,10 +326,10 @@ const generateAllMockRequests = (): RecruitmentRequest[] => {
       idCounter % 4 === 0
         ? 'Critical'
         : idCounter % 4 === 1
-        ? 'High'
-        : idCounter % 4 === 2
-        ? 'Medium'
-        : 'Low';
+          ? 'High'
+          : idCounter % 4 === 2
+            ? 'Medium'
+            : 'Low';
     const dept = departments[idCounter % departments.length];
     const pos = positions[idCounter % positions.length];
     const owner = owners[idCounter % owners.length];
@@ -359,11 +359,7 @@ const generateAllMockRequests = (): RecruitmentRequest[] => {
       headcount,
       budget: `$${30 + (idCounter % 10) * 10}k`,
       location:
-        idCounter % 3 === 0
-          ? 'Ho Chi Minh City'
-          : idCounter % 3 === 1
-          ? 'Da Nang'
-          : 'Hanoi',
+        idCounter % 3 === 0 ? 'Ho Chi Minh City' : idCounter % 3 === 1 ? 'Da Nang' : 'Hanoi',
       skills: ['TypeScript', 'Communication', 'Agile development'],
       notes: `Additional requirements for ${pos} role.`,
       lastActivity: `Processed on Oct ${Math.max(1, idCounter % 28)}, 2023`,
@@ -378,7 +374,14 @@ const generateAllMockRequests = (): RecruitmentRequest[] => {
   return base.sort((a, b) => b.id.localeCompare(a.id));
 };
 
-type SortField = 'id' | 'position' | 'department' | 'submittedDate' | 'headcount' | 'status' | 'urgency';
+type SortField =
+  | 'id'
+  | 'position'
+  | 'department'
+  | 'submittedDate'
+  | 'headcount'
+  | 'status'
+  | 'urgency';
 type SortDirection = 'asc' | 'desc' | 'none';
 
 export const AdminAllRequests: React.FC = () => {
@@ -607,9 +610,13 @@ export const AdminAllRequests: React.FC = () => {
       {/* Top App Bar Header */}
       <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-border-warm pb-4">
         <div className="flex items-center gap-4">
-          <h2 className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant font-semibold">Director Portal</h2>
+          <h2 className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant font-semibold">
+            Director Portal
+          </h2>
           <div className="h-6 w-[1px] bg-border-warm"></div>
-          <h3 className="font-headline-md text-headline-md text-on-surface font-semibold">Admin - All Requests View</h3>
+          <h3 className="font-headline-md text-headline-md text-on-surface font-semibold">
+            Admin - All Requests View
+          </h3>
         </div>
         <div className="flex items-center gap-4">
           <div className="relative">
@@ -637,42 +644,50 @@ export const AdminAllRequests: React.FC = () => {
       <div className="space-y-4 mb-4">
         {/* Status Tabs */}
         <div className="flex items-center gap-2 border-b border-border-warm overflow-x-auto no-scrollbar py-1">
-          {(['All', 'Pending', 'Approved', 'Active', 'Completed', 'Rejected'] as const).map((tab) => (
-            <button
-              key={tab}
-              className={`px-4 py-2.5 border-b-2 font-semibold text-sm whitespace-nowrap transition-all ${
-                statusFilter === tab
-                  ? 'border-teal-command text-teal-command font-bold'
-                  : 'border-transparent text-on-surface-variant hover:text-teal-command'
-              }`}
-              onClick={() => setStatusFilter(tab)}
-            >
-              {tab === 'All' ? 'All' : tab}
-              <span className="ml-1 opacity-60">({counts[tab]})</span>
-            </button>
-          ))}
+          {(['All', 'Pending', 'Approved', 'Active', 'Completed', 'Rejected'] as const).map(
+            (tab) => (
+              <button
+                key={tab}
+                className={`px-4 py-2.5 border-b-2 font-semibold text-sm whitespace-nowrap transition-all ${
+                  statusFilter === tab
+                    ? 'border-teal-command text-teal-command font-bold'
+                    : 'border-transparent text-on-surface-variant hover:text-teal-command'
+                }`}
+                onClick={() => setStatusFilter(tab)}
+              >
+                {tab === 'All' ? 'All' : tab}
+                <span className="ml-1 opacity-60">({counts[tab]})</span>
+              </button>
+            ),
+          )}
         </div>
 
         {/* Contextual Filters */}
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex flex-col gap-1">
-            <label className="text-[12px] font-bold text-slate-ink uppercase tracking-wider ml-1">Department</label>
+            <label className="text-[12px] font-bold text-slate-ink uppercase tracking-wider ml-1">
+              Department
+            </label>
             <select
               className="bg-clean-surface border border-border-warm rounded-lg px-3 py-2 text-body-sm focus:ring-2 focus:ring-teal-command min-w-[180px] outline-none text-sm font-medium"
               value={deptFilter}
               onChange={(e) => setDeptFilter(e.target.value)}
             >
               <option value="All">All Departments</option>
-              {departments.filter(d => d !== 'All').map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
+              {departments
+                .filter((d) => d !== 'All')
+                .map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
             </select>
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[12px] font-bold text-slate-ink uppercase tracking-wider ml-1">Priority</label>
+            <label className="text-[12px] font-bold text-slate-ink uppercase tracking-wider ml-1">
+              Priority
+            </label>
             <select
               className="bg-clean-surface border border-border-warm rounded-lg px-3 py-2 text-body-sm focus:ring-2 focus:ring-teal-command min-w-[140px] outline-none text-sm font-medium"
               value={priorityFilter}
@@ -687,7 +702,9 @@ export const AdminAllRequests: React.FC = () => {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[12px] font-bold text-slate-ink uppercase tracking-wider ml-1">Date Range</label>
+            <label className="text-[12px] font-bold text-slate-ink uppercase tracking-wider ml-1">
+              Date Range
+            </label>
             <div className="relative">
               <input
                 className="bg-clean-surface border border-border-warm rounded-lg pl-10 pr-4 py-2 text-body-sm focus:ring-2 focus:ring-teal-command w-64 text-sm font-medium"
@@ -715,7 +732,9 @@ export const AdminAllRequests: React.FC = () => {
 
           <button
             className="mt-5 ml-auto bg-teal-command text-white px-6 py-2 rounded-lg font-bold hover:brightness-95 transition-all flex items-center gap-2 shadow-sm active:scale-95 text-sm"
-            onClick={() => alert('New request dialog would open... (Not implemented in Admin Oversight View)')}
+            onClick={() =>
+              alert('New request dialog would open... (Not implemented in Admin Oversight View)')
+            }
           >
             <span className="material-symbols-outlined">add</span> New Request
           </button>
@@ -746,8 +765,8 @@ export const AdminAllRequests: React.FC = () => {
                       ? sortDir === 'asc'
                         ? 'arrow_upward'
                         : sortDir === 'desc'
-                        ? 'arrow_downward'
-                        : 'unfold_more'
+                          ? 'arrow_downward'
+                          : 'unfold_more'
                       : 'unfold_more'}
                   </span>
                 </th>
@@ -761,8 +780,8 @@ export const AdminAllRequests: React.FC = () => {
                       ? sortDir === 'asc'
                         ? 'arrow_upward'
                         : sortDir === 'desc'
-                        ? 'arrow_downward'
-                        : 'unfold_more'
+                          ? 'arrow_downward'
+                          : 'unfold_more'
                       : 'unfold_more'}
                   </span>
                 </th>
@@ -776,8 +795,8 @@ export const AdminAllRequests: React.FC = () => {
                       ? sortDir === 'asc'
                         ? 'arrow_upward'
                         : sortDir === 'desc'
-                        ? 'arrow_downward'
-                        : 'unfold_more'
+                          ? 'arrow_downward'
+                          : 'unfold_more'
                       : 'unfold_more'}
                   </span>
                 </th>
@@ -791,8 +810,8 @@ export const AdminAllRequests: React.FC = () => {
                       ? sortDir === 'asc'
                         ? 'arrow_upward'
                         : sortDir === 'desc'
-                        ? 'arrow_downward'
-                        : 'unfold_more'
+                          ? 'arrow_downward'
+                          : 'unfold_more'
                       : 'unfold_more'}
                   </span>
                 </th>
@@ -806,8 +825,8 @@ export const AdminAllRequests: React.FC = () => {
                       ? sortDir === 'asc'
                         ? 'arrow_upward'
                         : sortDir === 'desc'
-                        ? 'arrow_downward'
-                        : 'unfold_more'
+                          ? 'arrow_downward'
+                          : 'unfold_more'
                       : 'unfold_more'}
                   </span>
                 </th>
@@ -821,8 +840,8 @@ export const AdminAllRequests: React.FC = () => {
                       ? sortDir === 'asc'
                         ? 'arrow_upward'
                         : sortDir === 'desc'
-                        ? 'arrow_downward'
-                        : 'unfold_more'
+                          ? 'arrow_downward'
+                          : 'unfold_more'
                       : 'unfold_more'}
                   </span>
                 </th>
@@ -836,13 +855,17 @@ export const AdminAllRequests: React.FC = () => {
                       ? sortDir === 'asc'
                         ? 'arrow_upward'
                         : sortDir === 'desc'
-                        ? 'arrow_downward'
-                        : 'unfold_more'
+                          ? 'arrow_downward'
+                          : 'unfold_more'
                       : 'unfold_more'}
                   </span>
                 </th>
-                <th className="px-4 py-4 font-label-sm text-slate-ink uppercase tracking-wider text-xs font-semibold">Assigned</th>
-                <th className="px-4 py-4 font-label-sm text-slate-ink uppercase tracking-wider text-right text-xs font-semibold">Actions</th>
+                <th className="px-4 py-4 font-label-sm text-slate-ink uppercase tracking-wider text-xs font-semibold">
+                  Assigned
+                </th>
+                <th className="px-4 py-4 font-label-sm text-slate-ink uppercase tracking-wider text-right text-xs font-semibold">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-warm/50 text-sm">
@@ -883,8 +906,8 @@ export const AdminAllRequests: React.FC = () => {
                             request.urgency === 'High' || request.urgency === 'Critical'
                               ? 'bg-rejected'
                               : request.urgency === 'Medium'
-                              ? 'bg-revision'
-                              : 'bg-slate-ink'
+                                ? 'bg-revision'
+                                : 'bg-slate-ink'
                           }`}
                         />
                         {request.urgency}
@@ -896,7 +919,9 @@ export const AdminAllRequests: React.FC = () => {
                           request.status,
                         )}`}
                       >
-                        <span className={`w-1.5 h-1.5 rounded-full ${getStatusDotColor(request.status)}`} />
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${getStatusDotColor(request.status)}`}
+                        />
                         {request.status}
                       </span>
                     </td>
@@ -928,7 +953,9 @@ export const AdminAllRequests: React.FC = () => {
               {filteredRequests.length === 0 && (
                 <tr>
                   <td colSpan={10} className="px-6 py-12 text-center text-on-surface-variant">
-                    <span className="material-symbols-outlined text-4xl block mb-2 text-slate-ink">search_off</span>
+                    <span className="material-symbols-outlined text-4xl block mb-2 text-slate-ink">
+                      search_off
+                    </span>
                     No requests found matching the current search parameters and filters.
                   </td>
                 </tr>
@@ -1030,7 +1057,10 @@ export const AdminAllRequests: React.FC = () => {
           <span className="material-symbols-outlined text-[20px]">assignment_ind</span>
           <span className="font-label-md">Assign to HR</span>
         </button>
-        <button className="ml-4 text-outline-variant hover:text-white flex items-center" onClick={clearSelection}>
+        <button
+          className="ml-4 text-outline-variant hover:text-white flex items-center"
+          onClick={clearSelection}
+        >
           <span className="material-symbols-outlined">close</span>
         </button>
       </div>

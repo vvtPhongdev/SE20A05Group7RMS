@@ -56,9 +56,7 @@ export class TalentSearchService {
     const scoredResults = candidates
       .map((candidate: any) => {
         // Extract skills from the structured data JSONB
-        const capabilities = candidate.structuredData as
-          | { skills?: string[] }
-          | null;
+        const capabilities = candidate.structuredData as { skills?: string[] } | null;
         const candidateSkills = capabilities?.skills ?? [];
 
         const result = this.scorer.scoreCandidate({

@@ -36,7 +36,8 @@ const notifications: Notification[] = [
     priority: 'High',
     status: 'Failed',
     created: '10:01 AM',
-    preview: 'Candidate Tran Ngoc Mai has not received the interview invitation due to an SMTP timeout.',
+    preview:
+      'Candidate Tran Ngoc Mai has not received the interview invitation due to an SMTP timeout.',
     retryCount: '1 / 3',
     errorCode: 'ERR_SMTP_451',
   },
@@ -92,15 +93,21 @@ const notifications: Notification[] = [
 
 const iconPaths: Record<string, React.ReactNode> = {
   mail: <path d="M4 6h16v12H4zM4 7l8 6 8-6" />,
-  error: <path d="M12 9v4m0 4h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />,
+  error: (
+    <path d="M12 9v4m0 4h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+  ),
   edit: <path d="M4 20h4L19 9l-4-4L4 16v4Zm11-15 4 4" />,
   check: <path d="M20 6 9 17l-5-5" />,
   search: <path d="m21 21-4.3-4.3M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" />,
   refresh: <path d="M20 7v5h-5M4 17v-5h5m9.2-4.2A7 7 0 0 0 6.4 9M5.8 16.2A7 7 0 0 0 17.6 15" />,
-  eye: <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Zm9.5 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />,
+  eye: (
+    <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Zm9.5 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+  ),
   download: <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16" />,
   close: <path d="M18 6 6 18M6 6l12 12" />,
-  calendar: <path d="M8 2v4m8-4v4M4 10h16M6 5h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />,
+  calendar: (
+    <path d="M8 2v4m8-4v4M4 10h16M6 5h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
+  ),
   offer: <path d="M20 12v8H4v-8m16 0H4m16 0-2-6H6l-2 6m8-6v14" />,
   request: <path d="M7 3h7l3 3v15H7zM14 3v4h4M9 12h6M9 16h6" />,
   template: <path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h4" />,
@@ -166,7 +173,9 @@ export const HRSystemNotifications: React.FC = () => {
       const matchesStatus = status === 'All Statuses' || item.status === status;
       const matchesSearch =
         !normalized ||
-        [item.type, item.subject, item.relatedId, item.recipient, item.id].some((value) => value.toLowerCase().includes(normalized));
+        [item.type, item.subject, item.relatedId, item.recipient, item.id].some((value) =>
+          value.toLowerCase().includes(normalized),
+        );
       return matchesPriority && matchesStatus && matchesSearch;
     });
   }, [priority, query, status]);
@@ -178,14 +187,22 @@ export const HRSystemNotifications: React.FC = () => {
       <main className="min-w-0 space-y-6">
         <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">HR Manager Portal</p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">System Notifications</h1>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">
+              HR Manager Portal
+            </p>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">
+              System Notifications
+            </h1>
             <p className="mt-1 max-w-[72ch] text-sm leading-6 text-slate-ink">
-              Manage delivery alerts, email queue status, templates, and candidate-facing notification logs.
+              Manage delivery alerts, email queue status, templates, and candidate-facing
+              notification logs.
             </p>
           </div>
           <div className="relative w-full max-w-sm">
-            <Icon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-outline" name="search" />
+            <Icon
+              className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-outline"
+              name="search"
+            />
             <input
               className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface pl-10 pr-4 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
               onChange={(event) => setQuery(event.target.value)}
@@ -196,10 +213,18 @@ export const HRSystemNotifications: React.FC = () => {
           </div>
         </header>
 
-        <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4" aria-label="Notification metrics">
+        <section
+          className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4"
+          aria-label="Notification metrics"
+        >
           {kpis.map((kpi) => (
-            <section className="rounded-lg border border-border-warm bg-clean-surface p-5 shadow-sm" key={kpi.label}>
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-secondary">{kpi.label}</p>
+            <section
+              className="rounded-lg border border-border-warm bg-clean-surface p-5 shadow-sm"
+              key={kpi.label}
+            >
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-secondary">
+                {kpi.label}
+              </p>
               <div className="mt-2 flex items-end justify-between">
                 <span className={`text-3xl font-semibold ${kpi.tone}`}>{kpi.value}</span>
                 <Icon className={`h-6 w-6 ${kpi.tone}`} name={kpi.icon} />
@@ -213,7 +238,9 @@ export const HRSystemNotifications: React.FC = () => {
             {tabs.map((item) => (
               <button
                 className={`shrink-0 border-b-2 px-5 py-4 text-sm font-semibold transition ${
-                  tab === item ? 'border-teal-command text-teal-command' : 'border-transparent text-secondary hover:text-teal-command'
+                  tab === item
+                    ? 'border-teal-command text-teal-command'
+                    : 'border-transparent text-secondary hover:text-teal-command'
                 }`}
                 key={item}
                 onClick={() => setTab(item)}
@@ -238,7 +265,9 @@ export const HRSystemNotifications: React.FC = () => {
               </select>
               <select
                 className="h-9 rounded-lg border border-border-warm bg-clean-surface px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                onChange={(event) => setStatus(event.target.value as DeliveryStatus | 'All Statuses')}
+                onChange={(event) =>
+                  setStatus(event.target.value as DeliveryStatus | 'All Statuses')
+                }
                 value={status}
               >
                 <option>All Statuses</option>
@@ -248,7 +277,10 @@ export const HRSystemNotifications: React.FC = () => {
                 <option>Queued</option>
               </select>
             </div>
-            <button className="inline-flex w-fit items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98]" type="button">
+            <button
+              className="inline-flex w-fit items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98]"
+              type="button"
+            >
               <Icon className="h-4 w-4" name="download" />
               Export CSV
             </button>
@@ -258,14 +290,30 @@ export const HRSystemNotifications: React.FC = () => {
             <table className="w-full min-w-[920px] border-collapse text-left">
               <thead>
                 <tr className="border-b border-border-warm bg-clean-surface">
-                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">Type</th>
-                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">Subject</th>
-                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">Related ID</th>
-                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">Recipient</th>
-                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">Priority</th>
-                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">Status</th>
-                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">Created</th>
-                  <th className="px-6 py-4 text-right text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">Actions</th>
+                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">
+                    Type
+                  </th>
+                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">
+                    Subject
+                  </th>
+                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">
+                    Related ID
+                  </th>
+                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">
+                    Recipient
+                  </th>
+                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">
+                    Priority
+                  </th>
+                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">
+                    Status
+                  </th>
+                  <th className="px-4 py-4 text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">
+                    Created
+                  </th>
+                  <th className="px-6 py-4 text-right text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-warm">
@@ -277,29 +325,48 @@ export const HRSystemNotifications: React.FC = () => {
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2 text-sm font-bold text-on-surface">
-                        <Icon className={`h-5 w-5 ${typeClass[item.type]}`} name={typeIcon[item.type]} />
+                        <Icon
+                          className={`h-5 w-5 ${typeClass[item.type]}`}
+                          name={typeIcon[item.type]}
+                        />
                         {item.type}
                       </div>
                     </td>
                     <td className="max-w-[240px] truncate px-4 py-4 text-sm">{item.subject}</td>
-                    <td className="px-4 py-4 font-mono text-sm text-secondary">#{item.relatedId}</td>
+                    <td className="px-4 py-4 font-mono text-sm text-secondary">
+                      #{item.relatedId}
+                    </td>
                     <td className="px-4 py-4 text-sm text-secondary">{item.recipient}</td>
                     <td className="px-4 py-4">
-                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${priorityClass[item.priority]}`}>
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${priorityClass[item.priority]}`}
+                      >
                         <span className="h-1.5 w-1.5 rounded-full bg-current" />
                         {item.priority}
                       </span>
                     </td>
                     <td className="px-4 py-4">
-                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${statusClass[item.status]}`}>{item.status}</span>
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${statusClass[item.status]}`}
+                      >
+                        {item.status}
+                      </span>
                     </td>
                     <td className="px-4 py-4 text-sm text-slate-ink">{item.created}</td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-1 opacity-50 transition group-hover:opacity-100">
-                        <button className="rounded-lg p-1.5 transition hover:bg-surface-container hover:text-teal-command" type="button" aria-label={`Retry ${item.id}`}>
+                        <button
+                          className="rounded-lg p-1.5 transition hover:bg-surface-container hover:text-teal-command"
+                          type="button"
+                          aria-label={`Retry ${item.id}`}
+                        >
                           <Icon className="h-4 w-4" name="refresh" />
                         </button>
-                        <button className="rounded-lg p-1.5 transition hover:bg-surface-container hover:text-teal-command" type="button" aria-label={`View ${item.id}`}>
+                        <button
+                          className="rounded-lg p-1.5 transition hover:bg-surface-container hover:text-teal-command"
+                          type="button"
+                          aria-label={`View ${item.id}`}
+                        >
                           <Icon className="h-4 w-4" name="eye" />
                         </button>
                       </div>
@@ -315,17 +382,25 @@ export const HRSystemNotifications: React.FC = () => {
       <aside className="overflow-hidden rounded-lg border border-border-warm bg-parchment-lift shadow-sm xl:sticky xl:top-24 xl:max-h-[calc(100vh-8rem)]">
         <div className="flex items-center justify-between border-b border-border-warm p-6">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-secondary">Alert Detail</p>
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-secondary">
+              Alert Detail
+            </p>
             <h2 className="mt-1 text-xl font-semibold text-deep-charcoal">#{selected.id}</h2>
           </div>
-          <button className="rounded-lg p-2 transition hover:bg-surface-container-high active:scale-[0.98]" type="button" aria-label="Close detail">
+          <button
+            className="rounded-lg p-2 transition hover:bg-surface-container-high active:scale-[0.98]"
+            type="button"
+            aria-label="Close detail"
+          >
             <Icon className="h-5 w-5" name="close" />
           </button>
         </div>
 
         <div className="space-y-6 overflow-y-auto p-6">
           <section className="rounded-lg border border-border-warm bg-workflow-ivory p-4">
-            <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-secondary">Message Preview</p>
+            <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-secondary">
+              Message Preview
+            </p>
             <p className="text-sm leading-6 text-on-surface">{selected.preview}</p>
           </section>
 
@@ -335,15 +410,24 @@ export const HRSystemNotifications: React.FC = () => {
               ['Retry Count', selected.retryCount],
               ['Error Code', selected.errorCode ?? 'None'],
             ].map(([label, value]) => (
-              <div className="flex items-center justify-between gap-4 border-b border-border-warm py-3" key={label}>
+              <div
+                className="flex items-center justify-between gap-4 border-b border-border-warm py-3"
+                key={label}
+              >
                 <span className="text-xs font-semibold text-secondary">{label}</span>
-                <span className={`text-right font-mono text-sm ${label === 'Error Code' && selected.errorCode ? 'text-rejected' : 'text-deep-charcoal'}`}>{value}</span>
+                <span
+                  className={`text-right font-mono text-sm ${label === 'Error Code' && selected.errorCode ? 'text-rejected' : 'text-deep-charcoal'}`}
+                >
+                  {value}
+                </span>
               </div>
             ))}
           </section>
 
           <section>
-            <p className="mb-4 text-xs font-bold uppercase tracking-[0.12em] text-secondary">Delivery Status Timeline</p>
+            <p className="mb-4 text-xs font-bold uppercase tracking-[0.12em] text-secondary">
+              Delivery Status Timeline
+            </p>
             <div className="relative space-y-6 pl-6 before:absolute before:bottom-2 before:left-2 before:top-2 before:w-px before:bg-border-warm">
               <div className="relative">
                 <div className="absolute -left-[22px] top-1.5 h-2.5 w-2.5 rounded-full bg-slate-ink ring-4 ring-parchment-lift" />
@@ -351,11 +435,19 @@ export const HRSystemNotifications: React.FC = () => {
                 <p className="text-xs text-secondary">Today, 10:00 AM</p>
               </div>
               <div className="relative">
-                <div className={`absolute -left-[22px] top-1.5 h-2.5 w-2.5 rounded-full ring-4 ring-parchment-lift ${selected.status === 'Failed' ? 'bg-rejected' : 'bg-approved'}`} />
-                <p className={`text-sm font-bold ${selected.status === 'Failed' ? 'text-rejected' : 'text-approved'}`}>
+                <div
+                  className={`absolute -left-[22px] top-1.5 h-2.5 w-2.5 rounded-full ring-4 ring-parchment-lift ${selected.status === 'Failed' ? 'bg-rejected' : 'bg-approved'}`}
+                />
+                <p
+                  className={`text-sm font-bold ${selected.status === 'Failed' ? 'text-rejected' : 'text-approved'}`}
+                >
                   {selected.status === 'Failed' ? 'Attempt 1 Failed' : 'Delivered'}
                 </p>
-                <p className="text-xs text-secondary">{selected.status === 'Failed' ? 'Today, 10:01 AM - Server timed out' : selected.created}</p>
+                <p className="text-xs text-secondary">
+                  {selected.status === 'Failed'
+                    ? 'Today, 10:01 AM - Server timed out'
+                    : selected.created}
+                </p>
               </div>
               {selected.status === 'Failed' ? (
                 <div className="relative">
@@ -369,15 +461,24 @@ export const HRSystemNotifications: React.FC = () => {
         </div>
 
         <div className="space-y-3 border-t border-border-warm p-6">
-          <button className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-teal-command py-3 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]" type="button">
+          <button
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-teal-command py-3 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
+            type="button"
+          >
             <Icon className="h-4 w-4" name="refresh" />
             Retry Delivery
           </button>
           <div className="grid grid-cols-2 gap-3">
-            <button className="rounded-lg border border-teal-command py-2.5 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98]" type="button">
+            <button
+              className="rounded-lg border border-teal-command py-2.5 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98]"
+              type="button"
+            >
               Mark Resolved
             </button>
-            <button className="rounded-lg border border-teal-command py-2.5 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98]" type="button">
+            <button
+              className="rounded-lg border border-teal-command py-2.5 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98]"
+              type="button"
+            >
               Open Request
             </button>
           </div>

@@ -3,8 +3,6 @@ import { RpcException } from '@nestjs/microservices';
 import { PrismaService } from '../../common/database/prisma.service';
 import { UserRole } from '@wr/contracts';
 
-
-
 type DepartmentRequestSummary = {
   status: string;
   headcount: number;
@@ -52,7 +50,10 @@ export class ReportsService {
     const totalRequests = requests.length;
     const completedHires = requests
       .filter((r) => r.status === 'CLOSED' || r.status === 'OFFER_ACCEPTED')
-      .reduce((sum, r) => sum + r.applications.filter((a) => a.status === 'OFFER_ACCEPTED').length, 0);
+      .reduce(
+        (sum, r) => sum + r.applications.filter((a) => a.status === 'OFFER_ACCEPTED').length,
+        0,
+      );
 
     const monthlyRequests = Array(12).fill(0);
     for (const req of requests) {
@@ -85,7 +86,10 @@ export class ReportsService {
     const prevRequestsCount = prevRequests.length;
     const prevCompletedHires = prevRequests
       .filter((r) => r.status === 'CLOSED' || r.status === 'OFFER_ACCEPTED')
-      .reduce((sum, r) => sum + r.applications.filter((a) => a.status === 'OFFER_ACCEPTED').length, 0);
+      .reduce(
+        (sum, r) => sum + r.applications.filter((a) => a.status === 'OFFER_ACCEPTED').length,
+        0,
+      );
 
     const prevInterviews = await this.prisma.interviewSchedule.count({
       where: {
@@ -121,14 +125,17 @@ export class ReportsService {
     };
 
     // Department Breakdown
-    const deptMap = new Map<string, {
-      departmentId: string;
-      departmentName: string;
-      departmentCode: string;
-      totalRequests: number;
-      targetHeadcount: number;
-      totalFilled: number;
-    }>();
+    const deptMap = new Map<
+      string,
+      {
+        departmentId: string;
+        departmentName: string;
+        departmentCode: string;
+        totalRequests: number;
+        targetHeadcount: number;
+        totalFilled: number;
+      }
+    >();
 
     for (const req of requests) {
       const deptId = req.department.id;
@@ -150,7 +157,10 @@ export class ReportsService {
     }
 
     const departmentBreakdown = Array.from(deptMap.values()).map((dept) => {
-      const fillRate = dept.targetHeadcount > 0 ? Number(((dept.totalFilled / dept.targetHeadcount) * 100).toFixed(2)) : 0;
+      const fillRate =
+        dept.targetHeadcount > 0
+          ? Number(((dept.totalFilled / dept.targetHeadcount) * 100).toFixed(2))
+          : 0;
       return {
         ...dept,
         fillRate,
@@ -196,20 +206,30 @@ export class ReportsService {
 
     csvLines.push('SUMMARY');
     csvLines.push('Total Requests,Total Interviews,Completed Hires');
-    csvLines.push(`${report.summary.totalRequests},${report.summary.totalInterviews},${report.summary.completedHires}`);
+    csvLines.push(
+      `${report.summary.totalRequests},${report.summary.totalInterviews},${report.summary.completedHires}`,
+    );
     csvLines.push('');
 
     csvLines.push(`YEAR-OVER-YEAR COMPARISON (vs ${report.yoyComparison.previousYear})`);
     csvLines.push('Metric,Current Year,Previous Year,Growth %');
-    csvLines.push(`Requests,${report.yoyComparison.requests.current},${report.yoyComparison.requests.previous},${report.yoyComparison.requests.growthPercentage}%`);
-    csvLines.push(`Interviews,${report.yoyComparison.interviews.current},${report.yoyComparison.interviews.previous},${report.yoyComparison.interviews.growthPercentage}%`);
-    csvLines.push(`Completed Hires,${report.yoyComparison.completedHires.current},${report.yoyComparison.completedHires.previous},${report.yoyComparison.completedHires.growthPercentage}%`);
+    csvLines.push(
+      `Requests,${report.yoyComparison.requests.current},${report.yoyComparison.requests.previous},${report.yoyComparison.requests.growthPercentage}%`,
+    );
+    csvLines.push(
+      `Interviews,${report.yoyComparison.interviews.current},${report.yoyComparison.interviews.previous},${report.yoyComparison.interviews.growthPercentage}%`,
+    );
+    csvLines.push(
+      `Completed Hires,${report.yoyComparison.completedHires.current},${report.yoyComparison.completedHires.previous},${report.yoyComparison.completedHires.growthPercentage}%`,
+    );
     csvLines.push('');
 
     csvLines.push('DEPARTMENT BREAKDOWN');
     csvLines.push('Department,Code,Total Requests,Target Headcount,Total Filled,Fill Rate %');
     for (const dept of report.departmentBreakdown) {
-      csvLines.push(`"${dept.departmentName.replace(/"/g, '""')}",${dept.departmentCode},${dept.totalRequests},${dept.targetHeadcount},${dept.totalFilled},${dept.fillRate}%`);
+      csvLines.push(
+        `"${dept.departmentName.replace(/"/g, '""')}",${dept.departmentCode},${dept.totalRequests},${dept.targetHeadcount},${dept.totalFilled},${dept.fillRate}%`,
+      );
     }
 
     return csvLines.join('\n');
@@ -237,11 +257,23 @@ export class ReportsService {
       doc.moveDown(1.5);
 
       // Section 2: YoY Comparison
-      doc.fontSize(14).text(`2. Year-over-Year Comparison (vs ${report.yoyComparison.previousYear})`, { underline: true });
+      doc
+        .fontSize(14)
+        .text(`2. Year-over-Year Comparison (vs ${report.yoyComparison.previousYear})`, {
+          underline: true,
+        });
       doc.moveDown(0.5);
-      doc.fontSize(12).text(`Requests: ${report.yoyComparison.requests.current} (Current) vs ${report.yoyComparison.requests.previous} (Previous) | Growth: ${report.yoyComparison.requests.growthPercentage}%`);
-      doc.text(`Interviews: ${report.yoyComparison.interviews.current} (Current) vs ${report.yoyComparison.interviews.previous} (Previous) | Growth: ${report.yoyComparison.interviews.growthPercentage}%`);
-      doc.text(`Completed Hires: ${report.yoyComparison.completedHires.current} (Current) vs ${report.yoyComparison.completedHires.previous} (Previous) | Growth: ${report.yoyComparison.completedHires.growthPercentage}%`);
+      doc
+        .fontSize(12)
+        .text(
+          `Requests: ${report.yoyComparison.requests.current} (Current) vs ${report.yoyComparison.requests.previous} (Previous) | Growth: ${report.yoyComparison.requests.growthPercentage}%`,
+        );
+      doc.text(
+        `Interviews: ${report.yoyComparison.interviews.current} (Current) vs ${report.yoyComparison.interviews.previous} (Previous) | Growth: ${report.yoyComparison.interviews.growthPercentage}%`,
+      );
+      doc.text(
+        `Completed Hires: ${report.yoyComparison.completedHires.current} (Current) vs ${report.yoyComparison.completedHires.previous} (Previous) | Growth: ${report.yoyComparison.completedHires.growthPercentage}%`,
+      );
       doc.moveDown(1.5);
 
       // Section 3: Department Breakdown
@@ -336,7 +368,10 @@ export class ReportsService {
     });
 
     const totalRequests = requests.length;
-    const totalHeadcount = requests.reduce((sum: number, r: DepartmentRequestSummary) => sum + r.headcount, 0);
+    const totalHeadcount = requests.reduce(
+      (sum: number, r: DepartmentRequestSummary) => sum + r.headcount,
+      0,
+    );
 
     const statusBreakdown: Record<string, number> = {};
     for (const req of requests) {
@@ -357,16 +392,17 @@ export class ReportsService {
   }
 
   async getTimeToHireReport() {
-    const completedRequests: CompletedRequestSummary[] = await this.prisma.recruitmentRequest.findMany({
-      where: {
-        status: { in: ['CLOSED', 'OFFER_ACCEPTED'] },
-      },
-      select: {
-        id: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    const completedRequests: CompletedRequestSummary[] =
+      await this.prisma.recruitmentRequest.findMany({
+        where: {
+          status: { in: ['CLOSED', 'OFFER_ACCEPTED'] },
+        },
+        select: {
+          id: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
 
     if (completedRequests.length === 0) {
       return {
@@ -429,7 +465,8 @@ export class ReportsService {
       totalTimeToHireMs += req.updatedAt.getTime() - req.createdAt.getTime();
     }
 
-    const averageTimeToHireDays = totalTimeToHireMs / completedRequests.length / (1000 * 60 * 60 * 24);
+    const averageTimeToHireDays =
+      totalTimeToHireMs / completedRequests.length / (1000 * 60 * 60 * 24);
 
     const averageTimeInStageDays: Record<string, number> = {};
     for (const stage of Object.keys(stageTimes)) {
@@ -584,8 +621,10 @@ export class ReportsService {
         }
       }
 
-      const fillRate = totalRequested > 0 ? Number(((totalFilled / totalRequested) * 100).toFixed(2)) : 0;
-      const averageTimeToHireDays = timeToHireCount > 0 ? Number((totalTimeToHireDays / timeToHireCount).toFixed(2)) : 0;
+      const fillRate =
+        totalRequested > 0 ? Number(((totalFilled / totalRequested) * 100).toFixed(2)) : 0;
+      const averageTimeToHireDays =
+        timeToHireCount > 0 ? Number((totalTimeToHireDays / timeToHireCount).toFixed(2)) : 0;
       const costPerHire = totalFilled > 0 ? Number((totalCost / totalFilled).toFixed(2)) : 0;
 
       result.push({

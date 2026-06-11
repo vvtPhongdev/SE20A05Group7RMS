@@ -1,6 +1,7 @@
 # 5. Implementation Plan (MVP Milestones)
 
 ## Milestone 0: Foundation
+
 - Monorepo workspace verification (all packages build + typecheck)
 - Domain enums: `UserRole` (4 roles), `RecruitmentRequestStatus`, `PlanStatus`, `InterviewStatus`
 - Design token system (`packages/ui/src/styles/tokens.css`)
@@ -10,6 +11,7 @@
 - Prisma schema + initial migration
 
 ## Milestone 1: Identity & Auth
+
 - User registration with role selection (Department Head, HR Manager, Admin, Candidate)
 - Login / logout with JWT + refresh token rotation
 - Password reset flow (email OTP)
@@ -17,6 +19,7 @@
 - Organization + Department structure management
 
 ## Milestone 2: Recruitment Request & Approval
+
 - Trưởng Phòng Ban creates recruitment request (DRAFT → PENDING_APPROVAL)
 - Phòng Tuyển Dụng receives and reviews request
 - Phòng Tuyển Dụng forwards to Admin/Boss for approval
@@ -25,6 +28,7 @@
 - Request tracking dashboard for Department Head
 
 ## Milestone 3: Recruitment Planning
+
 - HR Manager creates **kế hoạch tổng thể** (overall plan: start date → end date)
 - HR Manager creates **kế hoạch triển khai** (detailed task assignments):
   - Job posting assignment
@@ -36,6 +40,7 @@
 - Plan timeline enforcement: activities must fall within the overall plan dates
 
 ## Milestone 4: Candidate & CV Management
+
 - Candidate uploads CV (PDF/DOCX) via standardized form
 - BullMQ worker: CV parsing → structured data extraction
 - BullMQ worker: Vector embedding generation (all-MiniLM-L6-v2)
@@ -44,6 +49,7 @@
 - Candidate profile management (view, update)
 
 ## Milestone 5: Interview & Decision
+
 - Interview scheduling with calendar integration
 - Smart interview scheduling — auto-suggest available time slots based on interviewer calendars
 - Send interview invitation to Candidate (email notification)
@@ -54,6 +60,7 @@
 - **If FAIL:** Send polite rejection email with appropriate reasons
 
 ## Milestone 6: Reporting & Analytics
+
 - Annual recruitment report for Admin/Boss:
   - Total positions opened vs filled
   - Time-to-hire metrics

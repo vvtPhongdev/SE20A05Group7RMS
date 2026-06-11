@@ -41,7 +41,6 @@ export interface LlmClient {
 
 // ─── LLM Output Schemas ────────────────────────────────────────────
 
-
 export const InterviewFocusOutputSchema = z.object({
   items: z.array(
     z.object({

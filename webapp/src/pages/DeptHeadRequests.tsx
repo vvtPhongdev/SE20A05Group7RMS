@@ -256,12 +256,14 @@ const statusStyles: Record<RequestStatus, string> = {
   [RecruitmentRequestStatus.APPROVED]: 'border-green-200 bg-green-50 text-approved',
   [RecruitmentRequestStatus.REJECTED]: 'border-red-200 bg-red-50 text-rejected',
   [RecruitmentRequestStatus.REVISION_NEEDED]: 'border-amber-200 bg-amber-50 text-revision',
-  [RecruitmentRequestStatus.PLANNING]: 'border-teal-command/20 bg-teal-command/10 text-teal-command',
+  [RecruitmentRequestStatus.PLANNING]:
+    'border-teal-command/20 bg-teal-command/10 text-teal-command',
   [RecruitmentRequestStatus.PLAN_APPROVED]: 'border-green-200 bg-green-50 text-approved',
   [RecruitmentRequestStatus.SCREENING]: 'border-cyan-200 bg-cyan-50 text-pending',
   [RecruitmentRequestStatus.INTERVIEWING]: 'border-amber-200 bg-amber-50 text-revision',
   [RecruitmentRequestStatus.INTERVIEW_COMPLETED]: 'border-stone-300 bg-stone-100 text-slate-ink',
-  [RecruitmentRequestStatus.OFFER_EXTENDED]: 'border-teal-command/20 bg-teal-command/10 text-teal-command',
+  [RecruitmentRequestStatus.OFFER_EXTENDED]:
+    'border-teal-command/20 bg-teal-command/10 text-teal-command',
   [RecruitmentRequestStatus.OFFER_ACCEPTED]: 'border-green-200 bg-green-50 text-approved',
   [RecruitmentRequestStatus.CLOSED]: 'border-stone-300 bg-stone-100 text-slate-ink',
 };
@@ -320,14 +322,20 @@ export const DeptHeadRequests: React.FC = () => {
         const matchesStatus = status === 'All' || request.status === status;
         const matchesQuery =
           !normalizedQuery ||
-          [request.id, request.position, request.team, request.owner, request.reason, request.plan].some((value) =>
-            value.toLowerCase().includes(normalizedQuery),
-          );
+          [
+            request.id,
+            request.position,
+            request.team,
+            request.owner,
+            request.reason,
+            request.plan,
+          ].some((value) => value.toLowerCase().includes(normalizedQuery));
 
         return matchesStatus && matchesQuery;
       })
       .sort((left, right) => {
-        if (sortKey === 'status') return statusOrder.indexOf(left.status) - statusOrder.indexOf(right.status);
+        if (sortKey === 'status')
+          return statusOrder.indexOf(left.status) - statusOrder.indexOf(right.status);
         if (sortKey === 'headcount') return right.headcount - left.headcount;
 
         const leftDate = new Date(sortKey === 'due' ? left.due : left.updated).getTime();
@@ -336,17 +344,30 @@ export const DeptHeadRequests: React.FC = () => {
       });
   }, [query, sortKey, status]);
 
-  const activeCount = requests.filter((request) => ![RecruitmentRequestStatus.REJECTED, RecruitmentRequestStatus.CLOSED].includes(request.status)).length;
-  const openHeadcount = requests.reduce((total, request) => total + request.headcount - request.filled, 0);
+  const activeCount = requests.filter(
+    (request) =>
+      ![RecruitmentRequestStatus.REJECTED, RecruitmentRequestStatus.CLOSED].includes(
+        request.status,
+      ),
+  ).length;
+  const openHeadcount = requests.reduce(
+    (total, request) => total + request.headcount - request.filled,
+    0,
+  );
 
   return (
     <div className="mx-auto flex max-w-[1440px] flex-col gap-6">
       <header className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">Department Head Workspace</p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">My Requests</h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">
+            Department Head Workspace
+          </p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">
+            My Requests
+          </h1>
           <p className="mt-1 max-w-[68ch] text-sm leading-6 text-slate-ink">
-            Track department requests through the 13-state workflow, filter by lifecycle status, and inspect request details inline.
+            Track department requests through the 13-state workflow, filter by lifecycle status, and
+            inspect request details inline.
           </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
@@ -375,9 +396,16 @@ export const DeptHeadRequests: React.FC = () => {
           ['Active workflow', activeCount],
           ['Open headcount', openHeadcount],
         ].map(([label, value]) => (
-          <div className="rounded-xl border border-border-warm bg-clean-surface p-5 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]" key={label}>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-on-surface-variant">{label}</p>
-            <p className="mt-3 font-mono text-[30px] font-semibold leading-none text-deep-charcoal">{value}</p>
+          <div
+            className="rounded-xl border border-border-warm bg-clean-surface p-5 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]"
+            key={label}
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-on-surface-variant">
+              {label}
+            </p>
+            <p className="mt-3 font-mono text-[30px] font-semibold leading-none text-deep-charcoal">
+              {value}
+            </p>
           </div>
         ))}
       </section>
@@ -387,7 +415,10 @@ export const DeptHeadRequests: React.FC = () => {
           <div className="grid gap-3 lg:grid-cols-[1fr_220px_180px]">
             <label className="relative">
               <span className="sr-only">Search requests</span>
-              <Icon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-outline" name="search" />
+              <Icon
+                className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-outline"
+                name="search"
+              />
               <input
                 className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface pl-9 pr-3 text-sm text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
                 onChange={(event) => setQuery(event.target.value)}
@@ -468,12 +499,16 @@ export const DeptHeadRequests: React.FC = () => {
                       </td>
                       <td className="px-5 py-4 text-sm text-slate-ink">{request.team}</td>
                       <td className="px-5 py-4">
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${statusStyles[request.status]}`}>
+                        <span
+                          className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${statusStyles[request.status]}`}
+                        >
                           {formatStatus(request.status)}
                         </span>
                       </td>
                       <td className="px-5 py-4">
-                        <span className={`inline-flex items-center gap-1.5 text-xs font-bold uppercase ${urgencyStyles[request.urgency]}`}>
+                        <span
+                          className={`inline-flex items-center gap-1.5 text-xs font-bold uppercase ${urgencyStyles[request.urgency]}`}
+                        >
                           <span className="h-1.5 w-1.5 rounded-full bg-current" />
                           {request.urgency}
                         </span>
@@ -489,7 +524,10 @@ export const DeptHeadRequests: React.FC = () => {
                           type="button"
                         >
                           {expanded ? 'Hide' : 'View'}
-                          <Icon className={`h-4 w-4 transition ${expanded ? 'rotate-180' : ''}`} name="chevron" />
+                          <Icon
+                            className={`h-4 w-4 transition ${expanded ? 'rotate-180' : ''}`}
+                            name="chevron"
+                          />
                         </button>
                       </td>
                     </tr>
@@ -498,12 +536,20 @@ export const DeptHeadRequests: React.FC = () => {
                         <td className="bg-workflow-ivory/40 px-5 py-5" colSpan={7}>
                           <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
                             <div>
-                              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-on-surface-variant">Justification</p>
-                              <p className="mt-2 text-sm leading-6 text-deep-charcoal">{request.reason}</p>
+                              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-on-surface-variant">
+                                Justification
+                              </p>
+                              <p className="mt-2 text-sm leading-6 text-deep-charcoal">
+                                {request.reason}
+                              </p>
                             </div>
                             <div>
-                              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-on-surface-variant">Current plan</p>
-                              <p className="mt-2 text-sm leading-6 text-deep-charcoal">{request.plan}</p>
+                              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-on-surface-variant">
+                                Current plan
+                              </p>
+                              <p className="mt-2 text-sm leading-6 text-deep-charcoal">
+                                {request.plan}
+                              </p>
                             </div>
                             <div className="grid gap-3 sm:grid-cols-3 lg:col-span-2">
                               {[
@@ -511,9 +557,16 @@ export const DeptHeadRequests: React.FC = () => {
                                 ['Due', request.due],
                                 ['Owner', request.owner],
                               ].map(([label, value]) => (
-                                <div className="rounded-lg border border-border-warm bg-clean-surface p-3" key={label}>
-                                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">{label}</p>
-                                  <p className="mt-2 text-sm font-semibold text-deep-charcoal">{value}</p>
+                                <div
+                                  className="rounded-lg border border-border-warm bg-clean-surface p-3"
+                                  key={label}
+                                >
+                                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                                    {label}
+                                  </p>
+                                  <p className="mt-2 text-sm font-semibold text-deep-charcoal">
+                                    {value}
+                                  </p>
                                 </div>
                               ))}
                             </div>
@@ -544,7 +597,9 @@ export const DeptHeadRequests: React.FC = () => {
             </div>
             <div>
               <h2 className="text-base font-semibold text-deep-charcoal">No matching requests</h2>
-              <p className="mt-1 text-sm text-slate-ink">Adjust the search or choose a different lifecycle state.</p>
+              <p className="mt-1 text-sm text-slate-ink">
+                Adjust the search or choose a different lifecycle state.
+              </p>
             </div>
           </div>
         )}

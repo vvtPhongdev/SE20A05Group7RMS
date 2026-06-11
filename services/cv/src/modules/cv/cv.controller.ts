@@ -13,7 +13,8 @@ export class CvController {
   @UseGuards(PlanLockedGuard)
   @PlanLocked(TaskType.CV_COLLECTION)
   async uploadCv(
-    @Payload() payload: {
+    @Payload()
+    payload: {
       candidateId: string;
       fileName: string;
       fileType: 'PDF' | 'DOCX';

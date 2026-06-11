@@ -40,7 +40,7 @@ async function bootstrap() {
   const reflector = app.get(Reflector);
   app.useGlobalGuards(
     new JwtAuthGuard(reflector), // Chạy trước để xác thực danh tính
-    new RolesGuard(reflector)    // Chạy sau để phân quyền dựa trên danh tính đã xác thực
+    new RolesGuard(reflector), // Chạy sau để phân quyền dựa trên danh tính đã xác thực
   );
 
   // Swagger / OpenAPI

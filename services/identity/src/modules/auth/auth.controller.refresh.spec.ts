@@ -186,7 +186,11 @@ describe('AuthController - Refresh Message Pattern', () => {
       const results = await Promise.allSettled(payloads.map((p) => controller.refresh(p)));
 
       // Assert
-      const [res1, res2, res3] = results as [PromiseFulfilledResult<any>, PromiseRejectedResult, PromiseFulfilledResult<any>];
+      const [res1, res2, res3] = results as [
+        PromiseFulfilledResult<any>,
+        PromiseRejectedResult,
+        PromiseFulfilledResult<any>,
+      ];
       expect(res1.status).toBe('fulfilled');
       expect(res2.status).toBe('rejected');
       expect(res3.status).toBe('fulfilled');
@@ -226,7 +230,8 @@ describe('AuthController - Refresh Message Pattern', () => {
     it('should handle refresh tokens with special characters', async () => {
       // Arrange
       const payload = {
-        refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c',
+        refreshToken:
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c',
       };
 
       // Act

@@ -227,10 +227,7 @@ describe('AuthService - resetPassword', () => {
         passwordHash: '$2b$12$new_hash',
       });
 
-      (redisMock.scan as jest.Mock).mockResolvedValueOnce([
-        '0',
-        ['refresh:token_hash_other'],
-      ]);
+      (redisMock.scan as jest.Mock).mockResolvedValueOnce(['0', ['refresh:token_hash_other']]);
 
       (redisMock.del as jest.Mock).mockResolvedValue(1);
 
@@ -266,7 +263,7 @@ describe('AuthService - resetPassword', () => {
         new RpcException({
           status: HttpStatus.BAD_REQUEST,
           message: 'Invalid or expired reset link',
-        })
+        }),
       );
     });
 
@@ -277,7 +274,7 @@ describe('AuthService - resetPassword', () => {
         new RpcException({
           status: HttpStatus.BAD_REQUEST,
           message: 'Invalid or expired reset link',
-        })
+        }),
       );
     });
 
@@ -288,7 +285,7 @@ describe('AuthService - resetPassword', () => {
         new RpcException({
           status: HttpStatus.BAD_REQUEST,
           message: 'Invalid or expired reset link',
-        })
+        }),
       );
     });
 
@@ -300,7 +297,7 @@ describe('AuthService - resetPassword', () => {
         new RpcException({
           status: HttpStatus.BAD_REQUEST,
           message: 'Invalid or expired reset link',
-        })
+        }),
       );
     });
   });
@@ -397,23 +394,14 @@ describe('AuthService - resetPassword', () => {
         passwordHash: '$2b$12$new_hash',
       });
 
-      (redisMock.scan as jest.Mock).mockResolvedValueOnce([
-        '0',
-        ['refresh:token_hash_1'],
-      ]);
+      (redisMock.scan as jest.Mock).mockResolvedValueOnce(['0', ['refresh:token_hash_1']]);
 
       (redisMock.del as jest.Mock).mockResolvedValue(1);
 
       await service.resetPassword(mockResetPayload);
 
       // Verify all refresh tokens were invalidated
-      expect(redisMock.scan).toHaveBeenCalledWith(
-        '0',
-        'MATCH',
-        'refresh:*',
-        'COUNT',
-        100
-      );
+      expect(redisMock.scan).toHaveBeenCalledWith('0', 'MATCH', 'refresh:*', 'COUNT', 100);
     });
 
     it('should handle case with no existing refresh tokens', async () => {
@@ -455,7 +443,7 @@ describe('AuthService - resetPassword', () => {
         new RpcException({
           status: HttpStatus.BAD_REQUEST,
           message: 'Invalid or expired reset link',
-        })
+        }),
       );
 
       // Second attempt should succeed

@@ -20,13 +20,15 @@ const auditLog = new AuditLogService(prisma);
 export async function processCvParseJob(payload: CvParseJobPayload): Promise<void> {
   const { cvDocumentId, filePath } = payload;
 
-  await auditLog.log({
-    entityType: AuditEntityType.CV,
-    entityId: cvDocumentId,
-    action: AuditAction.CV_PARSE_STARTED,
-    toStatus: 'PARSING',
-    performedById: 'SYSTEM',
-  }).catch((err) => console.error('Failed to write audit log for CV_PARSE_STARTED:', err));
+  await auditLog
+    .log({
+      entityType: AuditEntityType.CV,
+      entityId: cvDocumentId,
+      action: AuditAction.CV_PARSE_STARTED,
+      toStatus: 'PARSING',
+      performedById: 'SYSTEM',
+    })
+    .catch((err) => console.error('Failed to write audit log for CV_PARSE_STARTED:', err));
 
   try {
     // 1️⃣ Retrieve the CV record
@@ -54,26 +56,30 @@ export async function processCvParseJob(payload: CvParseJobPayload): Promise<voi
       },
     });
 
-    await auditLog.log({
-      entityType: AuditEntityType.CV,
-      entityId: cvDocumentId,
-      action: AuditAction.CV_PARSE_COMPLETED,
-      fromStatus: 'PARSING',
-      toStatus: 'PARSED',
-      performedById: 'SYSTEM',
-    }).catch((err) => console.error('Failed to write audit log for CV_PARSE_COMPLETED:', err));
+    await auditLog
+      .log({
+        entityType: AuditEntityType.CV,
+        entityId: cvDocumentId,
+        action: AuditAction.CV_PARSE_COMPLETED,
+        fromStatus: 'PARSING',
+        toStatus: 'PARSED',
+        performedById: 'SYSTEM',
+      })
+      .catch((err) => console.error('Failed to write audit log for CV_PARSE_COMPLETED:', err));
 
     console.log(`✅ CV ${cvDocumentId} parsed and stored (type=${fileType})`);
   } catch (err) {
-    await auditLog.log({
-      entityType: AuditEntityType.CV,
-      entityId: cvDocumentId,
-      action: AuditAction.CV_PARSE_FAILED,
-      fromStatus: 'PARSING',
-      toStatus: 'FAILED',
-      performedById: 'SYSTEM',
-      reason: err instanceof Error ? err.message : String(err),
-    }).catch((logErr) => console.error('Failed to write audit log for CV_PARSE_FAILED:', logErr));
+    await auditLog
+      .log({
+        entityType: AuditEntityType.CV,
+        entityId: cvDocumentId,
+        action: AuditAction.CV_PARSE_FAILED,
+        fromStatus: 'PARSING',
+        toStatus: 'FAILED',
+        performedById: 'SYSTEM',
+        reason: err instanceof Error ? err.message : String(err),
+      })
+      .catch((logErr) => console.error('Failed to write audit log for CV_PARSE_FAILED:', logErr));
 
     throw err;
   }

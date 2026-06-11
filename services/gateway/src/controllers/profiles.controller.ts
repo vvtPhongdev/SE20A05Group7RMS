@@ -89,9 +89,7 @@ export class UpdateCandidateProfileDto {
 @ApiBearerAuth()
 @Controller()
 export class ProfilesController {
-  constructor(
-    @Inject(SERVICE_TOKENS.PROFILES) private readonly profilesClient: ClientProxy,
-  ) {}
+  constructor(@Inject(SERVICE_TOKENS.PROFILES) private readonly profilesClient: ClientProxy) {}
 
   // ─── Candidate Profiles ──────────────────────────────────────────
 
@@ -115,10 +113,7 @@ export class ProfilesController {
 
   @Post('cv/:candidateProfileId/screen')
   @ApiOperation({ summary: 'Screen a candidate CV against a role' })
-  screenCv(
-    @Param('candidateProfileId') candidateProfileId: string,
-    @Body() body: ScreenCvDto,
-  ) {
+  screenCv(@Param('candidateProfileId') candidateProfileId: string, @Body() body: ScreenCvDto) {
     return firstValueFrom(
       this.profilesClient.send('profiles.screen', { candidateProfileId, ...body }),
     );

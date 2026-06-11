@@ -154,7 +154,7 @@ export class NotificationsService {
         await this.pubClient.publish('notifications:created', JSON.stringify(notification));
 
         return notification;
-      })
+      }),
     );
 
     return { count: notifications.length };

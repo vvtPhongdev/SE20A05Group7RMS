@@ -30,10 +30,7 @@ describe('DepartmentsService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        DepartmentsService,
-        { provide: PrismaService, useValue: mockPrismaService },
-      ],
+      providers: [DepartmentsService, { provide: PrismaService, useValue: mockPrismaService }],
     }).compile();
 
     service = module.get<DepartmentsService>(DepartmentsService);
@@ -54,8 +51,11 @@ describe('DepartmentsService', () => {
     it('should successfully create a department', async () => {
       mockPrismaService.department.findFirst.mockResolvedValue(null); // name is unique
       mockPrismaService.department.findUnique.mockResolvedValue(null); // code is unique
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: mockHeadUserId, role: UserRole.DEPARTMENT_HEAD });
-      
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: mockHeadUserId,
+        role: UserRole.DEPARTMENT_HEAD,
+      });
+
       // parent check finds parent in the same org
       mockPrismaService.department.findUnique.mockImplementation((params) => {
         if (params.where.id === mockParentDeptId) {
@@ -114,7 +114,10 @@ describe('DepartmentsService', () => {
     it('should throw BAD_REQUEST if department head user does not have DEPARTMENT_HEAD role', async () => {
       mockPrismaService.department.findFirst.mockResolvedValue(null);
       mockPrismaService.department.findUnique.mockResolvedValue(null);
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: mockHeadUserId, role: UserRole.CANDIDATE });
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: mockHeadUserId,
+        role: UserRole.CANDIDATE,
+      });
 
       await expect(service.create(createDto)).rejects.toThrow(
         new RpcException({
@@ -133,7 +136,10 @@ describe('DepartmentsService', () => {
         }
         return Promise.resolve(null);
       });
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: mockHeadUserId, role: UserRole.DEPARTMENT_HEAD });
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: mockHeadUserId,
+        role: UserRole.DEPARTMENT_HEAD,
+      });
 
       await expect(service.create(createDto)).rejects.toThrow(
         new RpcException({
@@ -210,7 +216,10 @@ describe('DepartmentsService', () => {
     });
 
     it('should throw BAD_REQUEST if department is assigned to itself as parent', async () => {
-      mockPrismaService.department.findUnique.mockResolvedValue({ id: mockDeptId, organizationId: mockOrgId });
+      mockPrismaService.department.findUnique.mockResolvedValue({
+        id: mockDeptId,
+        organizationId: mockOrgId,
+      });
 
       await expect(
         service.update({

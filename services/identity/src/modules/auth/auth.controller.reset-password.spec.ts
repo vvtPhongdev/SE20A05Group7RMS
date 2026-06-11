@@ -67,18 +67,14 @@ describe('AuthController - resetPassword', () => {
       });
       (service.resetPassword as jest.Mock).mockRejectedValue(error);
 
-      await expect(controller.resetPassword(mockResetPayload)).rejects.toThrow(
-        error
-      );
+      await expect(controller.resetPassword(mockResetPayload)).rejects.toThrow(error);
     });
 
     it('should propagate validation error from service', async () => {
       const error = new Error('Validation failed');
       (service.resetPassword as jest.Mock).mockRejectedValue(error);
 
-      await expect(controller.resetPassword(mockResetPayload)).rejects.toThrow(
-        'Validation failed'
-      );
+      await expect(controller.resetPassword(mockResetPayload)).rejects.toThrow('Validation failed');
     });
 
     it('should propagate database error from service', async () => {
@@ -86,7 +82,7 @@ describe('AuthController - resetPassword', () => {
       (service.resetPassword as jest.Mock).mockRejectedValue(error);
 
       await expect(controller.resetPassword(mockResetPayload)).rejects.toThrow(
-        'Database connection error'
+        'Database connection error',
       );
     });
 
@@ -95,7 +91,7 @@ describe('AuthController - resetPassword', () => {
       (service.resetPassword as jest.Mock).mockRejectedValue(error);
 
       await expect(controller.resetPassword(mockResetPayload)).rejects.toThrow(
-        'Redis connection error'
+        'Redis connection error',
       );
     });
   });
@@ -119,21 +115,15 @@ describe('AuthController - resetPassword', () => {
     });
 
     it('should handle null payload', async () => {
-      (service.resetPassword as jest.Mock).mockRejectedValue(
-        new Error('Validation failed')
-      );
+      (service.resetPassword as jest.Mock).mockRejectedValue(new Error('Validation failed'));
 
       await expect(controller.resetPassword(null as any)).rejects.toThrow();
     });
 
     it('should handle undefined payload', async () => {
-      (service.resetPassword as jest.Mock).mockRejectedValue(
-        new Error('Validation failed')
-      );
+      (service.resetPassword as jest.Mock).mockRejectedValue(new Error('Validation failed'));
 
-      await expect(
-        controller.resetPassword(undefined as any)
-      ).rejects.toThrow();
+      await expect(controller.resetPassword(undefined as any)).rejects.toThrow();
     });
 
     it('should pass payload as-is to service', async () => {
@@ -176,7 +166,7 @@ describe('AuthController - resetPassword', () => {
           new RpcException({
             status: HttpStatus.BAD_REQUEST,
             message: 'Invalid code',
-          })
+          }),
         )
         .mockResolvedValueOnce({ success: true });
 
@@ -324,9 +314,7 @@ describe('AuthController - resetPassword', () => {
       });
       (service.resetPassword as jest.Mock).mockRejectedValue(error);
 
-      await expect(controller.resetPassword(mockResetPayload)).rejects.toThrow(
-        error
-      );
+      await expect(controller.resetPassword(mockResetPayload)).rejects.toThrow(error);
     });
 
     it('should propagate error for non-existent code', async () => {
@@ -352,9 +340,7 @@ describe('AuthController - resetPassword', () => {
       });
       (service.resetPassword as jest.Mock).mockRejectedValue(error);
 
-      await expect(controller.resetPassword(mockResetPayload)).rejects.toThrow(
-        error
-      );
+      await expect(controller.resetPassword(mockResetPayload)).rejects.toThrow(error);
     });
   });
 

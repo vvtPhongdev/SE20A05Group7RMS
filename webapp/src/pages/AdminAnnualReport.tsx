@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
 
 interface ManagerPerformance {
   name: string;
@@ -11,46 +10,211 @@ interface ManagerPerformance {
 
 const managerPerformanceData: Record<string, ManagerPerformance[]> = {
   '2026': [
-    { name: 'Sarah Jenkins', requests: 14, avgProcessing: '22d', fillRate: 85, efficiencyPath: 'M0 15 L20 10 L40 18 L60 5 L80 12' },
-    { name: 'Marcus Chen', requests: 12, avgProcessing: '29d', fillRate: 62, efficiencyPath: 'M0 10 L20 15 L40 5 L60 12 L80 8' },
-    { name: 'Elena Rodriguez', requests: 18, avgProcessing: '31d', fillRate: 78, efficiencyPath: 'M0 18 L20 12 L40 15 L60 8 L80 5' },
-    { name: 'David Okafor', requests: 8, avgProcessing: '26d', fillRate: 90, efficiencyPath: 'M0 12 L20 8 L40 10 L60 5 L80 2' },
+    {
+      name: 'Sarah Jenkins',
+      requests: 14,
+      avgProcessing: '22d',
+      fillRate: 85,
+      efficiencyPath: 'M0 15 L20 10 L40 18 L60 5 L80 12',
+    },
+    {
+      name: 'Marcus Chen',
+      requests: 12,
+      avgProcessing: '29d',
+      fillRate: 62,
+      efficiencyPath: 'M0 10 L20 15 L40 5 L60 12 L80 8',
+    },
+    {
+      name: 'Elena Rodriguez',
+      requests: 18,
+      avgProcessing: '31d',
+      fillRate: 78,
+      efficiencyPath: 'M0 18 L20 12 L40 15 L60 8 L80 5',
+    },
+    {
+      name: 'David Okafor',
+      requests: 8,
+      avgProcessing: '26d',
+      fillRate: 90,
+      efficiencyPath: 'M0 12 L20 8 L40 10 L60 5 L80 2',
+    },
   ],
   '2025': [
-    { name: 'Sarah Jenkins', requests: 11, avgProcessing: '25d', fillRate: 80, efficiencyPath: 'M0 18 L20 15 L40 12 L60 10 L80 8' },
-    { name: 'Marcus Chen', requests: 15, avgProcessing: '28d', fillRate: 70, efficiencyPath: 'M0 12 L20 10 L40 15 L60 12 L80 14' },
-    { name: 'Elena Rodriguez', requests: 12, avgProcessing: '35d', fillRate: 75, efficiencyPath: 'M0 15 L20 18 L40 10 L60 8 L80 5' },
-    { name: 'David Okafor', requests: 10, avgProcessing: '24d', fillRate: 88, efficiencyPath: 'M0 10 L20 8 L40 6 L60 4 L80 2' },
+    {
+      name: 'Sarah Jenkins',
+      requests: 11,
+      avgProcessing: '25d',
+      fillRate: 80,
+      efficiencyPath: 'M0 18 L20 15 L40 12 L60 10 L80 8',
+    },
+    {
+      name: 'Marcus Chen',
+      requests: 15,
+      avgProcessing: '28d',
+      fillRate: 70,
+      efficiencyPath: 'M0 12 L20 10 L40 15 L60 12 L80 14',
+    },
+    {
+      name: 'Elena Rodriguez',
+      requests: 12,
+      avgProcessing: '35d',
+      fillRate: 75,
+      efficiencyPath: 'M0 15 L20 18 L40 10 L60 8 L80 5',
+    },
+    {
+      name: 'David Okafor',
+      requests: 10,
+      avgProcessing: '24d',
+      fillRate: 88,
+      efficiencyPath: 'M0 10 L20 8 L40 6 L60 4 L80 2',
+    },
   ],
   '2024': [
-    { name: 'Sarah Jenkins', requests: 9, avgProcessing: '28d', fillRate: 75, efficiencyPath: 'M0 20 L20 15 L40 18 L60 12 L80 15' },
-    { name: 'Marcus Chen', requests: 10, avgProcessing: '32d', fillRate: 58, efficiencyPath: 'M0 15 L20 18 L40 12 L60 14 L80 10' },
-    { name: 'Elena Rodriguez', requests: 14, avgProcessing: '30d', fillRate: 82, efficiencyPath: 'M0 12 L20 10 L40 8 L60 6 L80 4' },
-    { name: 'David Okafor', requests: 7, avgProcessing: '30d', fillRate: 85, efficiencyPath: 'M0 15 L20 12 L40 10 L60 8 L80 5' },
+    {
+      name: 'Sarah Jenkins',
+      requests: 9,
+      avgProcessing: '28d',
+      fillRate: 75,
+      efficiencyPath: 'M0 20 L20 15 L40 18 L60 12 L80 15',
+    },
+    {
+      name: 'Marcus Chen',
+      requests: 10,
+      avgProcessing: '32d',
+      fillRate: 58,
+      efficiencyPath: 'M0 15 L20 18 L40 12 L60 14 L80 10',
+    },
+    {
+      name: 'Elena Rodriguez',
+      requests: 14,
+      avgProcessing: '30d',
+      fillRate: 82,
+      efficiencyPath: 'M0 12 L20 10 L40 8 L60 6 L80 4',
+    },
+    {
+      name: 'David Okafor',
+      requests: 7,
+      avgProcessing: '30d',
+      fillRate: 85,
+      efficiencyPath: 'M0 15 L20 12 L40 10 L60 8 L80 5',
+    },
   ],
 };
 
-const statsData: Record<string, { label: string; value: string; helper: string; sub: string; positive: boolean }[]> = {
+const statsData: Record<
+  string,
+  { label: string; value: string; helper: string; sub: string; positive: boolean }[]
+> = {
   '2026': [
-    { label: 'Total Positions Opened', value: '52', helper: '15%', sub: 'vs 2025 FY', positive: true },
-    { label: 'Positions Filled', value: '34', helper: '65.4%', sub: 'Active pipelines', positive: true },
-    { label: 'Avg. Time-to-Hire', value: '28', helper: '5d', sub: 'Optimized workflow', positive: true },
-    { label: 'Offer Acceptance', value: '87%', helper: 'steady', sub: 'Market competitive', positive: true },
-    { label: 'Cost per Hire', value: '₫15.2M', helper: '8%', sub: 'Internal sourcing', positive: true },
+    {
+      label: 'Total Positions Opened',
+      value: '52',
+      helper: '15%',
+      sub: 'vs 2025 FY',
+      positive: true,
+    },
+    {
+      label: 'Positions Filled',
+      value: '34',
+      helper: '65.4%',
+      sub: 'Active pipelines',
+      positive: true,
+    },
+    {
+      label: 'Avg. Time-to-Hire',
+      value: '28',
+      helper: '5d',
+      sub: 'Optimized workflow',
+      positive: true,
+    },
+    {
+      label: 'Offer Acceptance',
+      value: '87%',
+      helper: 'steady',
+      sub: 'Market competitive',
+      positive: true,
+    },
+    {
+      label: 'Cost per Hire',
+      value: 'VND 15.2M',
+      helper: '8%',
+      sub: 'Internal sourcing',
+      positive: true,
+    },
   ],
   '2025': [
-    { label: 'Total Positions Opened', value: '45', helper: '8%', sub: 'vs 2024 FY', positive: true },
-    { label: 'Positions Filled', value: '30', helper: '66.7%', sub: 'Completed pipelines', positive: true },
-    { label: 'Avg. Time-to-Hire', value: '33', helper: '2d', sub: 'Standard workflow', positive: true },
-    { label: 'Offer Acceptance', value: '85%', helper: '2% increase', sub: 'Market average', positive: true },
-    { label: 'Cost per Hire', value: '₫16.5M', helper: '5%', sub: 'External sourcing', positive: false },
+    {
+      label: 'Total Positions Opened',
+      value: '45',
+      helper: '8%',
+      sub: 'vs 2024 FY',
+      positive: true,
+    },
+    {
+      label: 'Positions Filled',
+      value: '30',
+      helper: '66.7%',
+      sub: 'Completed pipelines',
+      positive: true,
+    },
+    {
+      label: 'Avg. Time-to-Hire',
+      value: '33',
+      helper: '2d',
+      sub: 'Standard workflow',
+      positive: true,
+    },
+    {
+      label: 'Offer Acceptance',
+      value: '85%',
+      helper: '2% increase',
+      sub: 'Market average',
+      positive: true,
+    },
+    {
+      label: 'Cost per Hire',
+      value: 'VND 16.5M',
+      helper: '5%',
+      sub: 'External sourcing',
+      positive: false,
+    },
   ],
   '2024': [
-    { label: 'Total Positions Opened', value: '42', helper: '10%', sub: 'vs 2023 FY', positive: true },
-    { label: 'Positions Filled', value: '28', helper: '66.7%', sub: 'Completed pipelines', positive: true },
-    { label: 'Avg. Time-to-Hire', value: '35', helper: '3d', sub: 'Legacy workflow', positive: true },
-    { label: 'Offer Acceptance', value: '83%', helper: 'steady', sub: 'Market average', positive: true },
-    { label: 'Cost per Hire', value: '₫17.3M', helper: '12%', sub: 'Agency sourcing', positive: false },
+    {
+      label: 'Total Positions Opened',
+      value: '42',
+      helper: '10%',
+      sub: 'vs 2023 FY',
+      positive: true,
+    },
+    {
+      label: 'Positions Filled',
+      value: '28',
+      helper: '66.7%',
+      sub: 'Completed pipelines',
+      positive: true,
+    },
+    {
+      label: 'Avg. Time-to-Hire',
+      value: '35',
+      helper: '3d',
+      sub: 'Legacy workflow',
+      positive: true,
+    },
+    {
+      label: 'Offer Acceptance',
+      value: '83%',
+      helper: 'steady',
+      sub: 'Market average',
+      positive: true,
+    },
+    {
+      label: 'Cost per Hire',
+      value: 'VND 17.3M',
+      helper: '12%',
+      sub: 'Agency sourcing',
+      positive: false,
+    },
   ],
 };
 
@@ -78,6 +242,9 @@ export const AdminAnnualReport: React.FC = () => {
           <h2 className="font-headline-lg text-headline-lg font-semibold text-deep-charcoal mt-2">
             Annual Recruitment Report {selectedYear}
           </h2>
+          <p className="font-body-sm text-body-sm text-slate-ink mt-1">
+            Comprehensive hiring performance overview
+          </p>
         </div>
         <div className="flex items-center gap-margin-sm">
           <div className="relative">
@@ -104,27 +271,6 @@ export const AdminAnnualReport: React.FC = () => {
         </div>
       </div>
 
-      {/* Sub Navigation Tabs */}
-      <div className="flex items-center justify-between border-b border-border-warm/50 h-12">
-        <nav className="flex gap-8 h-full">
-          <Link
-            to="/admin/reports/annual"
-            className="relative flex items-center h-full font-label-md text-label-md text-teal-command font-bold after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-full after:h-1 after:bg-teal-command after:rounded-t-full"
-          >
-            Annual Report
-          </Link>
-          <Link
-            to="/admin/reports/dept-stats"
-            className="flex items-center h-full font-label-md text-label-md text-secondary hover:text-teal-command transition-colors"
-          >
-            Department Statistics
-          </Link>
-        </nav>
-        <span className="font-body-sm text-body-sm text-slate-ink hidden sm:inline">
-          Comprehensive hiring performance overview
-        </span>
-      </div>
-
       {/* Top Row: Summary Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         {stats.map((stat, idx) => (
@@ -145,8 +291,8 @@ export const AdminAnnualReport: React.FC = () => {
                   stat.helper === 'steady'
                     ? 'text-outline'
                     : stat.positive
-                    ? 'text-approved'
-                    : 'text-rejected'
+                      ? 'text-approved'
+                      : 'text-rejected'
                 }`}
               >
                 {stat.helper !== 'steady' && !stat.helper.includes('%') && (
@@ -175,7 +321,7 @@ export const AdminAnnualReport: React.FC = () => {
                 Monthly Hiring Trend
               </h3>
               <p className="font-body-sm text-body-sm text-secondary">
-                Recruitment activity flow (Jan – May {selectedYear})
+                Recruitment activity flow (Jan - May {selectedYear})
               </p>
             </div>
             <div className="flex gap-4">
@@ -191,12 +337,19 @@ export const AdminAnnualReport: React.FC = () => {
           </div>
           <div className="flex-1 min-h-[300px] w-full relative border-l border-b border-outline-variant/30 flex items-end">
             {/* Grid overlay */}
-            <div className="absolute inset-0 opacity-[0.05] pointer-events-none"
-                 style={{
-                   backgroundImage: 'linear-gradient(to right, #6d7a77 1px, transparent 1px), linear-gradient(to bottom, #6d7a77 1px, transparent 1px)',
-                   backgroundSize: '40px 40px',
-                 }}></div>
-            <svg className="w-full h-full absolute top-0 left-0" preserveAspectRatio="none" viewBox="0 0 100 100">
+            <div
+              className="absolute inset-0 opacity-[0.05] pointer-events-none"
+              style={{
+                backgroundImage:
+                  'linear-gradient(to right, #6d7a77 1px, transparent 1px), linear-gradient(to bottom, #6d7a77 1px, transparent 1px)',
+                backgroundSize: '40px 40px',
+              }}
+            ></div>
+            <svg
+              className="w-full h-full absolute top-0 left-0"
+              preserveAspectRatio="none"
+              viewBox="0 0 100 100"
+            >
               {/* Opened Line (Solid) */}
               <path
                 d="M 0 60 L 25 40 L 50 45 L 75 25 L 100 35"
@@ -238,7 +391,8 @@ export const AdminAnnualReport: React.FC = () => {
               Hiring by Department
             </h3>
             <p className="font-body-sm text-body-sm text-secondary mb-6">
-              Distribution of total {selectedYear === '2026' ? '52' : selectedYear === '2025' ? '45' : '42'} requests
+              Distribution of total{' '}
+              {selectedYear === '2026' ? '52' : selectedYear === '2025' ? '45' : '42'} requests
             </p>
             <div className="flex items-center justify-center mb-6 relative h-48">
               <div className="w-40 h-40 rounded-full border-[12px] border-teal-command/20 flex items-center justify-center relative">
@@ -267,10 +421,16 @@ export const AdminAnnualReport: React.FC = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-teal-command"></span>
-                <span className="font-body-sm text-body-sm text-deep-charcoal">IT &amp; Engineering</span>
+                <span className="font-body-sm text-body-sm text-deep-charcoal">
+                  IT &amp; Engineering
+                </span>
               </div>
               <span className="font-data-mono text-label-md text-slate-ink">
-                {selectedYear === '2026' ? '18 (35%)' : selectedYear === '2025' ? '16 (35%)' : '15 (35%)'}
+                {selectedYear === '2026'
+                  ? '18 (35%)'
+                  : selectedYear === '2025'
+                    ? '16 (35%)'
+                    : '15 (35%)'}
               </span>
             </div>
             <div className="flex items-center justify-between">
@@ -279,7 +439,11 @@ export const AdminAnnualReport: React.FC = () => {
                 <span className="font-body-sm text-body-sm text-deep-charcoal">Marketing</span>
               </div>
               <span className="font-data-mono text-label-md text-slate-ink">
-                {selectedYear === '2026' ? '10 (20%)' : selectedYear === '2025' ? '9 (20%)' : '8 (20%)'}
+                {selectedYear === '2026'
+                  ? '10 (20%)'
+                  : selectedYear === '2025'
+                    ? '9 (20%)'
+                    : '8 (20%)'}
               </span>
             </div>
             <div className="flex items-center justify-between">
@@ -288,7 +452,11 @@ export const AdminAnnualReport: React.FC = () => {
                 <span className="font-body-sm text-body-sm text-deep-charcoal">Finance</span>
               </div>
               <span className="font-data-mono text-label-md text-slate-ink">
-                {selectedYear === '2026' ? '9 (18%)' : selectedYear === '2025' ? '8 (18%)' : '7 (18%)'}
+                {selectedYear === '2026'
+                  ? '9 (18%)'
+                  : selectedYear === '2025'
+                    ? '8 (18%)'
+                    : '7 (18%)'}
               </span>
             </div>
             <div className="flex items-center justify-between">
@@ -297,7 +465,11 @@ export const AdminAnnualReport: React.FC = () => {
                 <span className="font-body-sm text-body-sm text-deep-charcoal">Design</span>
               </div>
               <span className="font-data-mono text-label-md text-slate-ink">
-                {selectedYear === '2026' ? '8 (15%)' : selectedYear === '2025' ? '7 (15%)' : '6 (15%)'}
+                {selectedYear === '2026'
+                  ? '8 (15%)'
+                  : selectedYear === '2025'
+                    ? '7 (15%)'
+                    : '6 (15%)'}
               </span>
             </div>
             <div className="flex items-center justify-between">
@@ -306,7 +478,11 @@ export const AdminAnnualReport: React.FC = () => {
                 <span className="font-body-sm text-body-sm text-deep-charcoal">HR &amp; Admin</span>
               </div>
               <span className="font-data-mono text-label-md text-slate-ink">
-                {selectedYear === '2026' ? '7 (12%)' : selectedYear === '2025' ? '5 (12%)' : '6 (12%)'}
+                {selectedYear === '2026'
+                  ? '7 (12%)'
+                  : selectedYear === '2025'
+                    ? '5 (12%)'
+                    : '6 (12%)'}
               </span>
             </div>
           </div>
@@ -385,10 +561,14 @@ export const AdminAnnualReport: React.FC = () => {
                 <h3 className="font-headline-md text-headline-md text-deep-charcoal font-semibold">
                   Time-to-Hire by Stage
                 </h3>
-                <p className="font-body-sm text-body-sm text-secondary">Breakdown of the 28-day average</p>
+                <p className="font-body-sm text-body-sm text-secondary">
+                  Breakdown of the 28-day average
+                </p>
               </div>
               <div className="text-right">
-                <p className="font-headline-lg text-headline-lg text-teal-command font-semibold">28</p>
+                <p className="font-headline-lg text-headline-lg text-teal-command font-semibold">
+                  28
+                </p>
                 <p className="font-label-sm text-label-sm text-outline uppercase">Total Days</p>
               </div>
             </div>
@@ -462,7 +642,9 @@ export const AdminAnnualReport: React.FC = () => {
                 <div className="flex items-center gap-3">
                   <span className="w-3 h-3 bg-teal-command/20 rounded-sm"></span>
                   <div>
-                    <p className="font-label-md text-label-md text-deep-charcoal">Onboarding Prep</p>
+                    <p className="font-label-md text-label-md text-deep-charcoal">
+                      Onboarding Prep
+                    </p>
                     <p className="font-body-sm text-body-sm text-outline">8 days average</p>
                   </div>
                 </div>
@@ -473,8 +655,8 @@ export const AdminAnnualReport: React.FC = () => {
             <div className="bg-surface-container p-4 rounded-lg flex items-center gap-3">
               <span className="material-symbols-outlined text-teal-command select-none">info</span>
               <p className="font-body-sm text-body-sm text-slate-ink">
-                Interview stage remains the longest bottleneck. Consider technical screening automation to
-                reduce by 2 days.
+                Interview stage remains the longest bottleneck. Consider technical screening
+                automation to reduce by 2 days.
               </p>
             </div>
           </div>

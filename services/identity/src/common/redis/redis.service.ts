@@ -33,7 +33,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    * @param userId User ID
    * @param ttl Time to live in seconds (default: 30 days)
    */
-  async storeRefreshToken(tokenId: string, userId: string, ttl: number = 30 * 24 * 60 * 60): Promise<void> {
+  async storeRefreshToken(
+    tokenId: string,
+    userId: string,
+    ttl: number = 30 * 24 * 60 * 60,
+  ): Promise<void> {
     await this.client.setex(`refresh:${tokenId}`, ttl, userId);
   }
 

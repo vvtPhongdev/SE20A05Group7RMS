@@ -65,7 +65,8 @@ const initialRequests: RecruitmentRequest[] = [
     budgetLabel: 'Monthly Budget',
     urgency: 'Normal',
     status: 'PENDING',
-    justification: 'Drive growth campaigns and manage social branding across local and regional channels.',
+    justification:
+      'Drive growth campaigns and manage social branding across local and regional channels.',
     skillsRequired: ['SEO', 'Content Writing', 'Google Ads', 'Analytics'],
   },
   {
@@ -80,7 +81,8 @@ const initialRequests: RecruitmentRequest[] = [
     budgetLabel: 'Monthly Budget',
     urgency: 'Normal',
     status: 'PENDING',
-    justification: 'Manage onboarding documentation, interview scheduling coordination, and employee records maintenance.',
+    justification:
+      'Manage onboarding documentation, interview scheduling coordination, and employee records maintenance.',
     skillsRequired: ['HR Administration', 'Onboarding', 'Communication', 'Scheduling'],
   },
   {
@@ -95,7 +97,8 @@ const initialRequests: RecruitmentRequest[] = [
     budgetLabel: 'Monthly Stipend',
     urgency: 'Low',
     status: 'PENDING',
-    justification: 'Support data cleaning and dashboard building for department performance reporting.',
+    justification:
+      'Support data cleaning and dashboard building for department performance reporting.',
     skillsRequired: ['SQL', 'Excel', 'Tableau', 'Data Cleaning'],
   },
   {
@@ -140,7 +143,8 @@ const initialRequests: RecruitmentRequest[] = [
     budgetLabel: 'Monthly Budget',
     urgency: 'High',
     status: 'FORWARDED',
-    justification: 'Verify regulatory compliance frameworks and run internal vulnerability auditing.',
+    justification:
+      'Verify regulatory compliance frameworks and run internal vulnerability auditing.',
     skillsRequired: ['CISSP', 'Network Security', 'ISO 27001', 'Penetration Testing'],
   },
   {
@@ -226,9 +230,13 @@ const iconPaths: Record<string, React.ReactNode> = {
   bell: <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />,
   wallet: <path d="M4 7h16v11H4zM16 11h4M7 7V5h10v2" />,
   dashboard: <path d="M4 13h6V4H4zm10 7h6V4h-6zM4 20h6v-3H4z" />,
-  alert: <path d="M12 9v4m0 4h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />,
+  alert: (
+    <path d="M12 9v4m0 4h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+  ),
   monitor: <path d="M4 5h16v11H4zM9 21h6m-3-5v5" />,
-  palette: <path d="M12 3a9 9 0 0 0 0 18h1.5a2 2 0 0 0 .5-3.94 1 1 0 0 1-.24-1.9H16a5 5 0 0 0 0-10h-4Zm-4 8h.01M9 7h.01M13 7h.01" />,
+  palette: (
+    <path d="M12 3a9 9 0 0 0 0 18h1.5a2 2 0 0 0 .5-3.94 1 1 0 0 1-.24-1.9H16a5 5 0 0 0 0-10h-4Zm-4 8h.01M9 7h.01M13 7h.01" />
+  ),
   close: <path d="m6 6 12 12M18 6 6 18" />,
   send: <path d="m22 2-7 20-4-9-9-4 20-7Z" />,
   campaign: <path d="M4 12h3l9-5v10l-9-5H4Zm3 0v6a2 2 0 0 0 2 2h1" />,
@@ -278,9 +286,13 @@ export const HRRequestQueue: React.FC = () => {
       const matchesStatus = request.status === activeTab;
       const matchesQuery =
         !normalizedQuery ||
-        [request.id, request.position, request.department, request.requestedBy, request.urgency].some((value) =>
-          value.toLowerCase().includes(normalizedQuery),
-        );
+        [
+          request.id,
+          request.position,
+          request.department,
+          request.requestedBy,
+          request.urgency,
+        ].some((value) => value.toLowerCase().includes(normalizedQuery));
 
       return matchesStatus && matchesQuery;
     });
@@ -289,12 +301,18 @@ export const HRRequestQueue: React.FC = () => {
   const openReview = (request: RecruitmentRequest) => {
     setSelectedRequest(request);
     if (request.status === 'PENDING') {
-      setRequests((current) => current.map((item) => (item.id === request.id ? { ...item, status: 'UNDER_REVIEW' } : item)));
+      setRequests((current) =>
+        current.map((item) =>
+          item.id === request.id ? { ...item, status: 'UNDER_REVIEW' } : item,
+        ),
+      );
     }
   };
 
   const forwardToAdmin = (id: string) => {
-    setRequests((current) => current.map((item) => (item.id === id ? { ...item, status: 'FORWARDED' } : item)));
+    setRequests((current) =>
+      current.map((item) => (item.id === id ? { ...item, status: 'FORWARDED' } : item)),
+    );
     setSelectedRequest(null);
     setActiveTab('FORWARDED');
   };
@@ -324,17 +342,25 @@ export const HRRequestQueue: React.FC = () => {
       <main className="min-w-0 space-y-6">
         <header className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">HR Manager Portal</p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">Request Review Queue</h1>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">
+              HR Manager Portal
+            </p>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">
+              Request Review Queue
+            </h1>
             <p className="mt-1 max-w-[70ch] text-sm leading-6 text-slate-ink">
-              Review incoming recruitment requests, return incomplete requisitions, or forward validated requests to Admin.
+              Review incoming recruitment requests, return incomplete requisitions, or forward
+              validated requests to Admin.
             </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-[minmax(240px,1fr)_auto_auto]">
             <label className="relative block">
               <span className="sr-only">Search requests</span>
-              <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-outline" name="search" />
+              <Icon
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-outline"
+                name="search"
+              />
               <input
                 className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface pl-10 pr-3 text-sm text-deep-charcoal outline-none transition placeholder:text-on-surface-variant focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
                 onChange={(event) => setQuery(event.target.value)}
@@ -343,10 +369,15 @@ export const HRRequestQueue: React.FC = () => {
                 value={query}
               />
             </label>
-            <button className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-border-warm bg-clean-surface text-on-surface-variant transition hover:border-teal-command hover:text-teal-command" type="button">
+            <button
+              className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-border-warm bg-clean-surface text-on-surface-variant transition hover:border-teal-command hover:text-teal-command"
+              type="button"
+            >
               <span className="sr-only">Notifications</span>
               <Icon className="h-4 w-4" name="bell" />
-              {counts.PENDING > 0 ? <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-error" /> : null}
+              {counts.PENDING > 0 ? (
+                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-error" />
+              ) : null}
             </button>
             <button
               className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
@@ -401,26 +432,40 @@ export const HRRequestQueue: React.FC = () => {
                 <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
                   <div>
                     <div className="mb-1 flex flex-wrap items-center gap-2">
-                      <span className={`rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${urgency.badge}`}>
+                      <span
+                        className={`rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${urgency.badge}`}
+                      >
                         {urgency.label}
                       </span>
                       <span className="text-xs text-secondary">ID: #{request.id}</span>
                     </div>
-                    <h2 className="text-xl font-semibold text-deep-charcoal transition group-hover:text-teal-command">{request.position}</h2>
+                    <h2 className="text-xl font-semibold text-deep-charcoal transition group-hover:text-teal-command">
+                      {request.position}
+                    </h2>
                     <p className="mt-1 text-sm text-secondary">
-                      {request.department} / Requested by: <span className="font-semibold text-on-surface">{request.requestedBy}</span>
+                      {request.department} / Requested by:{' '}
+                      <span className="font-semibold text-on-surface">{request.requestedBy}</span>
                     </p>
                   </div>
                   <div className="text-left lg:text-right">
-                    <p className="mb-2 font-mono text-sm text-secondary">Submitted: {request.submittedDate}</p>
+                    <p className="mb-2 font-mono text-sm text-secondary">
+                      Submitted: {request.submittedDate}
+                    </p>
                     <div className="flex flex-wrap gap-2 lg:justify-end">
-                      <span className="rounded border border-border-warm bg-workflow-ivory px-3 py-1 text-xs font-semibold">Headcount: {request.headcount}</span>
-                      <span className="rounded border border-border-warm bg-workflow-ivory px-3 py-1 text-xs font-semibold">{request.type}</span>
+                      <span className="rounded border border-border-warm bg-workflow-ivory px-3 py-1 text-xs font-semibold">
+                        Headcount: {request.headcount}
+                      </span>
+                      <span className="rounded border border-border-warm bg-workflow-ivory px-3 py-1 text-xs font-semibold">
+                        {request.type}
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-4 flex flex-col gap-4 border-t border-border-warm/60 pt-4 lg:flex-row lg:items-center lg:justify-between" onClick={(event) => event.stopPropagation()}>
+                <div
+                  className="mt-4 flex flex-col gap-4 border-t border-border-warm/60 pt-4 lg:flex-row lg:items-center lg:justify-between"
+                  onClick={(event) => event.stopPropagation()}
+                >
                   <div className="flex items-center gap-2">
                     <Icon className="h-4 w-4 text-outline" name="wallet" />
                     <span className="text-sm font-bold text-on-surface">{request.budget}</span>
@@ -453,7 +498,9 @@ export const HRRequestQueue: React.FC = () => {
                 <Icon className="h-6 w-6" name="inbox" />
               </div>
               <h2 className="mt-3 text-sm font-semibold text-deep-charcoal">No requests found</h2>
-              <p className="mt-1 max-w-[42ch] text-sm text-on-surface-variant">Try clearing search or switch to another review queue tab.</p>
+              <p className="mt-1 max-w-[42ch] text-sm text-on-surface-variant">
+                Try clearing search or switch to another review queue tab.
+              </p>
             </div>
           ) : null}
         </section>
@@ -463,7 +510,10 @@ export const HRRequestQueue: React.FC = () => {
             Showing <span className="font-bold text-on-surface">{filteredRequests.length}</span> of{' '}
             <span className="font-bold text-on-surface">{counts[activeTab]}</span> requests
           </p>
-          <button className="inline-flex h-11 items-center justify-center rounded-lg border border-border-warm bg-clean-surface px-6 text-sm font-semibold text-on-surface shadow-sm transition hover:bg-surface-container active:scale-[0.98]" type="button">
+          <button
+            className="inline-flex h-11 items-center justify-center rounded-lg border border-border-warm bg-clean-surface px-6 text-sm font-semibold text-on-surface shadow-sm transition hover:bg-surface-container active:scale-[0.98]"
+            type="button"
+          >
             Load More Requests
           </button>
         </footer>
@@ -493,11 +543,15 @@ export const HRRequestQueue: React.FC = () => {
                 <span className="text-xl font-bold text-revision">5 days</span>
                 <Icon className="h-5 w-5 text-revision" name="alert" />
               </div>
-              <p className="mt-1 text-[11px] font-medium text-revision/80">Action recommended for SLAs</p>
+              <p className="mt-1 text-[11px] font-medium text-revision/80">
+                Action recommended for SLAs
+              </p>
             </div>
 
             <div className="space-y-3 border-t border-border-warm/60 pt-4">
-              <h3 className="text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface">This Week Performance</h3>
+              <h3 className="text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface">
+                This Week Performance
+              </h3>
               {[
                 ['Reviewed', 3, 'bg-approved'],
                 ['Forwarded', 2, 'bg-pending'],
@@ -543,7 +597,9 @@ export const HRRequestQueue: React.FC = () => {
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.24),transparent_28%),linear-gradient(135deg,rgba(0,104,95,0.1),rgba(28,25,23,0.38))]" />
           <div className="relative flex h-full flex-col justify-end">
             <p className="text-sm font-bold">Need assistance?</p>
-            <p className="mt-1 text-xs text-teal-50">Schedule a sync with the recruitment admin team.</p>
+            <p className="mt-1 text-xs text-teal-50">
+              Schedule a sync with the recruitment admin team.
+            </p>
           </div>
         </section>
       </aside>
@@ -553,8 +609,12 @@ export const HRRequestQueue: React.FC = () => {
           <section className="flex h-full w-full max-w-[520px] flex-col bg-clean-surface shadow-2xl">
             <header className="flex items-center justify-between border-b border-border-warm bg-workflow-ivory/60 px-6 py-4">
               <div>
-                <p className="font-mono text-xs font-semibold text-teal-command">#{selectedRequest.id}</p>
-                <h2 className="mt-0.5 text-base font-semibold text-deep-charcoal">Recruitment Requisition</h2>
+                <p className="font-mono text-xs font-semibold text-teal-command">
+                  #{selectedRequest.id}
+                </p>
+                <h2 className="mt-0.5 text-base font-semibold text-deep-charcoal">
+                  Recruitment Requisition
+                </h2>
               </div>
               <button
                 className="rounded-full p-1.5 text-on-surface-variant transition hover:bg-surface-variant hover:text-deep-charcoal"
@@ -568,12 +628,19 @@ export const HRRequestQueue: React.FC = () => {
 
             <div className="flex-1 space-y-6 overflow-y-auto p-6">
               <div>
-                <span className={`rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${urgencyConfig[selectedRequest.urgency].badge}`}>
+                <span
+                  className={`rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${urgencyConfig[selectedRequest.urgency].badge}`}
+                >
                   {selectedRequest.urgency} Priority
                 </span>
-                <h3 className="mt-2 text-xl font-bold text-deep-charcoal">{selectedRequest.position}</h3>
+                <h3 className="mt-2 text-xl font-bold text-deep-charcoal">
+                  {selectedRequest.position}
+                </h3>
                 <p className="mt-1 text-xs text-secondary">
-                  Department: <span className="font-semibold text-on-surface">{selectedRequest.department}</span>
+                  Department:{' '}
+                  <span className="font-semibold text-on-surface">
+                    {selectedRequest.department}
+                  </span>
                 </p>
               </div>
 
@@ -592,15 +659,24 @@ export const HRRequestQueue: React.FC = () => {
               </div>
 
               <div>
-                <h4 className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">Justification & Sourcing Brief</h4>
-                <p className="rounded-lg border border-border-warm/60 bg-workflow-ivory/50 p-4 text-sm leading-6 text-slate-ink">{selectedRequest.justification}</p>
+                <h4 className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">
+                  Justification & Sourcing Brief
+                </h4>
+                <p className="rounded-lg border border-border-warm/60 bg-workflow-ivory/50 p-4 text-sm leading-6 text-slate-ink">
+                  {selectedRequest.justification}
+                </p>
               </div>
 
               <div>
-                <h4 className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">Key Technical Competencies</h4>
+                <h4 className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">
+                  Key Technical Competencies
+                </h4>
                 <div className="flex flex-wrap gap-2">
                   {selectedRequest.skillsRequired.map((skill) => (
-                    <span className="rounded-full border border-teal-command/20 bg-teal-command/5 px-3 py-1 text-xs font-semibold text-teal-command" key={skill}>
+                    <span
+                      className="rounded-full border border-teal-command/20 bg-teal-command/5 px-3 py-1 text-xs font-semibold text-teal-command"
+                      key={skill}
+                    >
                       {skill}
                     </span>
                   ))}
@@ -658,10 +734,13 @@ export const HRRequestQueue: React.FC = () => {
             </header>
             <div className="space-y-4 p-6">
               <p className="text-sm leading-6 text-secondary">
-                Provide clear instructions for the Department Head before HR planning continues for #{revisionTarget.id}.
+                Provide clear instructions for the Department Head before HR planning continues for
+                #{revisionTarget.id}.
               </p>
               <label className="block">
-                <span className="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">Revision Feedback Notes</span>
+                <span className="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">
+                  Revision Feedback Notes
+                </span>
                 <textarea
                   className="w-full resize-none rounded-lg border border-border-warm bg-clean-surface p-3 text-sm outline-none transition placeholder:text-on-surface-variant focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
                   onChange={(event) => setRevisionFeedback(event.target.value)}
