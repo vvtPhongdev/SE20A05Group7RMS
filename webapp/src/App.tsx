@@ -15,14 +15,13 @@ import { AdminAllRequests } from './pages/AdminAllRequests';
 import { AdminInterviewResults } from './pages/AdminInterviewResults';
 import { AdminSettings } from './pages/AdminSettings';
 import { AdminUsers } from './pages/AdminUsers';
-// import { AdminAnnualReport } from './pages/AdminAnnualReport';
-// import { AdminDeptStats } from './pages/AdminDeptStats';
+import { AdminAnnualReport } from './pages/AdminAnnualReport';
+import { AdminDeptStats } from './pages/AdminDeptStats';
 import { DeptHeadCreateRequest } from './pages/DeptHeadCreateRequest';
 import { DeptHeadDashboard } from './pages/DeptHeadDashboard';
-// import { DeptHeadInterviews } from './pages/DeptHeadInterviews';
+import { DeptHeadInterviews } from './pages/DeptHeadInterviews';
 import { DeptHeadRequests } from './pages/DeptHeadRequests';
-import { DeptHeadRequestDetail } from './pages/DeptHeadRequestDetail';
-// import { DeptHeadSettings } from './pages/DeptHeadSettings';
+import { DeptHeadSettings } from './pages/DeptHeadSettings';
 import { HRDashBoard } from './pages/HRDashBoard';
 import { HRRequestQueue } from './pages/HRRequestQueue';
 import { HRCampaigns } from './pages/HRCampaigns';
@@ -216,16 +215,6 @@ export function App() {
               <ProtectedRoute allowedRoles={[UserRole.DEPARTMENT_HEAD]}>
                 <Layout>
                   <DeptHeadRequests />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/dept-head/requests/:id"
-            element={
-              <ProtectedRoute allowedRoles={[UserRole.DEPARTMENT_HEAD]}>
-                <Layout>
-                  <DeptHeadRequestDetail />
                 </Layout>
               </ProtectedRoute>
             }
