@@ -151,7 +151,7 @@ const statusClass: Record<ParseStatus, string> = {
   Pending: 'bg-surface-container text-on-surface-variant',
 };
 
-export const TalentPool: React.FC = () => {
+export const HRTalentPool: React.FC = () => {
   const [query, setQuery] = useState('');
   const [role, setRole] = useState('All Roles');
   const [availability, setAvailability] = useState('All Availability');
