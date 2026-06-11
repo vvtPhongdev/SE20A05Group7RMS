@@ -33,14 +33,19 @@ export const AdminSettings: React.FC = () => {
   const [industry, setIndustry] = useState('Information Technology');
   const [orgSize, setOrgSize] = useState('201-500 employees');
   const [logoUrl] = useState(
-    'https://lh3.googleusercontent.com/aida-public/AB6AXBKIWziYFI2f30JGLWZLz7T_wVjimcKWVHMmtsvMkfoHEldDaGfgCfgVZJXmzebuiG6fPfWhkykmBw6Ylcam_o1bphMSdQrNH0F1GlVFFCHTmnnAmz2nQg_ANkCMisECS19Eq-ki0nYqBoo8t8AEkXneZbpguANpUA8g7M-cpzcwpsQ5N82H_T9-d5gQbtf5pg9lDyd0B6VGPK_E1DZcQ2_70N6Je3mWOkrR-NdyZ_zo1Emx9PxT7JNOyzNOnj7zscbs0LwRouLzP8'
+    'https://lh3.googleusercontent.com/aida-public/AB6AXBKIWziYFI2f30JGLWZLz7T_wVjimcKWVHMmtsvMkfoHEldDaGfgCfgVZJXmzebuiG6fPfWhkykmBw6Ylcam_o1bphMSdQrNH0F1GlVFFCHTmnnAmz2nQg_ANkCMisECS19Eq-ki0nYqBoo8t8AEkXneZbpguANpUA8g7M-cpzcwpsQ5N82H_T9-d5gQbtf5pg9lDyd0B6VGPK_E1DZcQ2_70N6Je3mWOkrR-NdyZ_zo1Emx9PxT7JNOyzNOnj7zscbs0LwRouLzP8',
   );
 
   // Department Management
   const [departments, setDepartments] = useState<Department[]>(defaultDepartments);
   const [deptModalOpen, setDeptModalOpen] = useState(false);
   const [editingDeptIdx, setEditingDeptIdx] = useState<number | null>(null);
-  const [deptForm, setDeptForm] = useState<Department>({ name: '', head: '', headcount: 0, activeRequests: 0 });
+  const [deptForm, setDeptForm] = useState<Department>({
+    name: '',
+    head: '',
+    headcount: 0,
+    activeRequests: 0,
+  });
 
   // Workflow Configuration
   const [budgetJustification, setBudgetJustification] = useState(true);
@@ -103,9 +108,7 @@ export const AdminSettings: React.FC = () => {
     if (!deptForm.name.trim() || !deptForm.head.trim()) return;
 
     if (editingDeptIdx !== null) {
-      setDepartments((prev) =>
-        prev.map((d, i) => (i === editingDeptIdx ? { ...deptForm } : d))
-      );
+      setDepartments((prev) => prev.map((d, i) => (i === editingDeptIdx ? { ...deptForm } : d)));
       triggerToast(`Department "${deptForm.name}" updated.`);
     } else {
       setDepartments((prev) => [...prev, { ...deptForm }]);
@@ -188,13 +191,17 @@ export const AdminSettings: React.FC = () => {
         <section className="col-span-12 lg:col-span-5 bg-clean-surface p-margin-md rounded-lg border border-border-warm shadow-sm flex flex-col h-full">
           <div className="flex items-center gap-2 mb-6">
             <span className="material-symbols-outlined text-teal-command">corporate_fare</span>
-            <h3 className="font-headline-md text-headline-md font-semibold">Organization Profile</h3>
+            <h3 className="font-headline-md text-headline-md font-semibold">
+              Organization Profile
+            </h3>
           </div>
           <div className="space-y-5 flex-1">
             <div className="flex gap-6 mb-6">
               <div className="relative group">
                 <div className="w-24 h-24 bg-surface-container-low rounded-lg border-2 border-dashed border-border-warm flex flex-col items-center justify-center cursor-pointer hover:border-teal-command transition-colors overflow-hidden">
-                  <span className="material-symbols-outlined text-outline-variant mb-1">add_photo_alternate</span>
+                  <span className="material-symbols-outlined text-outline-variant mb-1">
+                    add_photo_alternate
+                  </span>
                   <span className="text-[10px] font-label-sm text-secondary">Upload Logo</span>
                   {logoUrl && (
                     <img
@@ -232,7 +239,9 @@ export const AdminSettings: React.FC = () => {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block font-label-md text-label-md text-on-surface-variant mb-1.5">Industry</label>
+                <label className="block font-label-md text-label-md text-on-surface-variant mb-1.5">
+                  Industry
+                </label>
                 <select
                   className="w-full px-4 py-2.5 bg-white border border-border-warm rounded-lg text-body-md focus:ring-2 focus:ring-teal-command focus:border-teal-command outline-none text-on-surface"
                   value={industry}
@@ -245,7 +254,9 @@ export const AdminSettings: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block font-label-md text-label-md text-on-surface-variant mb-1.5">Size</label>
+                <label className="block font-label-md text-label-md text-on-surface-variant mb-1.5">
+                  Size
+                </label>
                 <select
                   className="w-full px-4 py-2.5 bg-white border border-border-warm rounded-lg text-body-md focus:ring-2 focus:ring-teal-command focus:border-teal-command outline-none text-on-surface"
                   value={orgSize}
@@ -274,7 +285,9 @@ export const AdminSettings: React.FC = () => {
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-teal-command">domain</span>
-              <h3 className="font-headline-md text-headline-md font-semibold">Department Management</h3>
+              <h3 className="font-headline-md text-headline-md font-semibold">
+                Department Management
+              </h3>
             </div>
             <button
               onClick={openAddDeptModal}
@@ -288,11 +301,19 @@ export const AdminSettings: React.FC = () => {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-surface-container-low border-b border-border-warm">
-                  <th className="px-4 py-3 font-label-md text-label-md text-secondary">Department Name</th>
+                  <th className="px-4 py-3 font-label-md text-label-md text-secondary">
+                    Department Name
+                  </th>
                   <th className="px-4 py-3 font-label-md text-label-md text-secondary">Head</th>
-                  <th className="px-4 py-3 font-label-md text-label-md text-secondary text-center">Headcount</th>
-                  <th className="px-4 py-3 font-label-md text-label-md text-secondary text-center">Active Requests</th>
-                  <th className="px-4 py-3 font-label-md text-label-md text-secondary text-right">Actions</th>
+                  <th className="px-4 py-3 font-label-md text-label-md text-secondary text-center">
+                    Headcount
+                  </th>
+                  <th className="px-4 py-3 font-label-md text-label-md text-secondary text-center">
+                    Active Requests
+                  </th>
+                  <th className="px-4 py-3 font-label-md text-label-md text-secondary text-right">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-warm/50 text-on-surface">
@@ -303,9 +324,13 @@ export const AdminSettings: React.FC = () => {
                     }`}
                     key={dept.name}
                   >
-                    <td className="px-4 py-3.5 font-body-md text-body-md font-medium">{dept.name}</td>
+                    <td className="px-4 py-3.5 font-body-md text-body-md font-medium">
+                      {dept.name}
+                    </td>
                     <td className="px-4 py-3.5 font-body-md text-body-md">{dept.head}</td>
-                    <td className="px-4 py-3.5 font-data-mono text-data-mono text-center">{dept.headcount}</td>
+                    <td className="px-4 py-3.5 font-data-mono text-data-mono text-center">
+                      {dept.headcount}
+                    </td>
                     <td className="px-4 py-3.5 text-center">
                       <span
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[12px] font-medium border ${
@@ -347,7 +372,9 @@ export const AdminSettings: React.FC = () => {
         <section className="col-span-12 bg-clean-surface p-margin-md rounded-lg border border-border-warm shadow-sm">
           <div className="flex items-center gap-2 mb-8">
             <span className="material-symbols-outlined text-teal-command">account_tree</span>
-            <h3 className="font-headline-md text-headline-md font-semibold">Approval Workflow Configuration</h3>
+            <h3 className="font-headline-md text-headline-md font-semibold">
+              Approval Workflow Configuration
+            </h3>
           </div>
           <div className="bg-workflow-ivory rounded-lg p-8 mb-8 border border-border-warm/50 relative overflow-hidden">
             <div
@@ -408,7 +435,9 @@ export const AdminSettings: React.FC = () => {
                 }`}
                 key={idx}
               >
-                <span className="font-label-md text-label-md pr-4 text-on-surface">{toggle.label}</span>
+                <span className="font-label-md text-label-md pr-4 text-on-surface">
+                  {toggle.label}
+                </span>
                 <button
                   type="button"
                   onClick={() => toggle.set(!toggle.val)}
@@ -432,7 +461,9 @@ export const AdminSettings: React.FC = () => {
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-teal-command">view_kanban</span>
-              <h3 className="font-headline-md text-headline-md font-semibold">Recruitment Pipeline Stages</h3>
+              <h3 className="font-headline-md text-headline-md font-semibold">
+                Recruitment Pipeline Stages
+              </h3>
             </div>
             <button
               onClick={openAddStageModal}
@@ -630,4 +661,3 @@ export const AdminSettings: React.FC = () => {
     </div>
   );
 };
-

@@ -3,7 +3,17 @@ project_name: 'works-reruiter'
 user_name: 'Minh_dev'
 date: '2026-05-28'
 scope: 'Recruitment Workflow Management System (RMS)'
-sections_completed: ['technology_stack', 'architecture_rules', 'language_rules', 'framework_rules', 'testing_rules', 'code_quality', 'workflow_rules', 'critical_rules']
+sections_completed:
+  [
+    'technology_stack',
+    'architecture_rules',
+    'language_rules',
+    'framework_rules',
+    'testing_rules',
+    'code_quality',
+    'workflow_rules',
+    'critical_rules',
+  ]
 existing_patterns_found: 16
 ---
 
@@ -19,44 +29,44 @@ _This file contains critical rules and patterns that AI agents must follow when 
 
 ### Core
 
-| Technology | Version | Package / Notes |
-|-----------|---------|-----------------|
-| **Node.js** | 22+ | `@types/node: ^22.15.0` across all packages |
-| **TypeScript** | ^5.8.3 | Strict mode enforced everywhere |
-| **Turborepo** | latest | Monorepo orchestrator — `turbo run build/dev/lint/typecheck` |
+| Technology     | Version | Package / Notes                                              |
+| -------------- | ------- | ------------------------------------------------------------ |
+| **Node.js**    | 22+     | `@types/node: ^22.15.0` across all packages                  |
+| **TypeScript** | ^5.8.3  | Strict mode enforced everywhere                              |
+| **Turborepo**  | latest  | Monorepo orchestrator — `turbo run build/dev/lint/typecheck` |
 
 ### Backend (`services/`)
 
-| Technology | Version | Notes |
-|-----------|---------|-------|
-| **NestJS** | ^11.1.0 | `@nestjs/common`, `@nestjs/core`, `@nestjs/microservices` |
-| **NestJS Swagger** | ^11.2.0 | Gateway only |
-| **NestJS JWT** | ^11.0.0 | Identity service + Gateway guards |
-| **NestJS BullMQ** | ^11.0.0 | Worker service |
-| **PostgreSQL** | 16 | Docker image: `pgvector/pgvector:pg16` |
-| **Prisma** | ^6.8.2 | ORM + `postgresqlExtensions` preview feature |
-| **pgvector** | built-in | `vector(384)` columns, `ivfflat` indexes |
-| **BullMQ** | ^5.52.0 | Async job queue |
-| **Redis** | 7-alpine | BullMQ backend |
-| **IORedis** | ^5.6.1 | Redis client |
-| **Zod** | ^3.25.1 | Schema validation (contracts + ai packages) |
+| Technology         | Version  | Notes                                                     |
+| ------------------ | -------- | --------------------------------------------------------- |
+| **NestJS**         | ^11.1.0  | `@nestjs/common`, `@nestjs/core`, `@nestjs/microservices` |
+| **NestJS Swagger** | ^11.2.0  | Gateway only                                              |
+| **NestJS JWT**     | ^11.0.0  | Identity service + Gateway guards                         |
+| **NestJS BullMQ**  | ^11.0.0  | Worker service                                            |
+| **PostgreSQL**     | 16       | Docker image: `pgvector/pgvector:pg16`                    |
+| **Prisma**         | ^6.8.2   | ORM + `postgresqlExtensions` preview feature              |
+| **pgvector**       | built-in | `vector(384)` columns, `ivfflat` indexes                  |
+| **BullMQ**         | ^5.52.0  | Async job queue                                           |
+| **Redis**          | 7-alpine | BullMQ backend                                            |
+| **IORedis**        | ^5.6.1   | Redis client                                              |
+| **Zod**            | ^3.25.1  | Schema validation (contracts + ai packages)               |
 
 ### Frontend (`webapp/`)
 
-| Technology | Version | Notes |
-|-----------|---------|-------|
-| **React** | ^19.1.0 | SPA, no SSR |
-| **React DOM** | ^19.1.0 | |
-| **React Router** | ^7.6.0 | `react-router-dom` v7 |
-| **Vite** | ^6.3.0 | Dev server on `:3000`, proxy `/api` → `:3001` |
-| **@vitejs/plugin-react** | ^4.4.0 | |
+| Technology               | Version | Notes                                         |
+| ------------------------ | ------- | --------------------------------------------- |
+| **React**                | ^19.1.0 | SPA, no SSR                                   |
+| **React DOM**            | ^19.1.0 |                                               |
+| **React Router**         | ^7.6.0  | `react-router-dom` v7                         |
+| **Vite**                 | ^6.3.0  | Dev server on `:3000`, proxy `/api` → `:3001` |
+| **@vitejs/plugin-react** | ^4.4.0  |                                               |
 
 ### Dev Tooling
 
-| Tool | Config |
-|------|--------|
-| **Prettier** | `prettier.config.mjs` — semi, singleQuote, trailing commas, 100 printWidth, 2 tab |
-| **TypeScript** | strict, noUnusedLocals, noUnusedParameters, noFallthroughCasesInSwitch |
+| Tool           | Config                                                                            |
+| -------------- | --------------------------------------------------------------------------------- |
+| **Prettier**   | `prettier.config.mjs` — semi, singleQuote, trailing commas, 100 printWidth, 2 tab |
+| **TypeScript** | strict, noUnusedLocals, noUnusedParameters, noFallthroughCasesInSwitch            |
 
 ---
 
@@ -69,12 +79,12 @@ An internal enterprise system that digitizes and automates the recruitment workf
 
 ### 4 Actors (Roles)
 
-| Role | Enum Value | Responsibilities |
-|------|-----------|-----------------|
-| **Admin / Boss** | `ADMIN` | Final approval authority, strategic reporting, system configuration |
-| **Trưởng Phòng Ban** | `DEPARTMENT_HEAD` | Creates recruitment requests, tracks progress, reviews candidates |
-| **Trưởng Phòng Nhân Sự** | `HR_MANAGER` | Reviews requests, creates campaign plans, manages interviews, screens CVs |
-| **Ứng Viên** | `CANDIDATE` | Submits CV, receives interview invitations, views results |
+| Role                     | Enum Value        | Responsibilities                                                          |
+| ------------------------ | ----------------- | ------------------------------------------------------------------------- |
+| **Admin / Boss**         | `ADMIN`           | Final approval authority, strategic reporting, system configuration       |
+| **Trưởng Phòng Ban**     | `DEPARTMENT_HEAD` | Creates recruitment requests, tracks progress, reviews candidates         |
+| **Trưởng Phòng Nhân Sự** | `HR_MANAGER`      | Reviews requests, creates campaign plans, manages interviews, screens CVs |
+| **Ứng Viên**             | `CANDIDATE`       | Submits CV, receives interview invitations, views results                 |
 
 ### 13-State Recruitment Request Lifecycle
 
@@ -91,39 +101,88 @@ DRAFT → PENDING_HR_REVIEW → PENDING_BOSS_APPROVAL → APPROVED → PLANNING
 
 ### Core Entities (Target Schema)
 
-| Entity | Description |
-|--------|-------------|
-| `User` | All system actors (4 roles) |
-| `Organization` | Company / enterprise |
-| `Department` | Org unit, each has a head (DEPARTMENT_HEAD) |
-| `RecruitmentRequest` | The 13-state workflow entity, created by DEPARTMENT_HEAD |
-| `OverallPlan` | Campaign plan created by HR_MANAGER, requires ADMIN approval |
-| `TaskPlan` | Individual tasks within an OverallPlan (JOB_POSTING, CV_COLLECTION, etc.) |
-| `Interview` | Scheduled interview, linked to a request + candidate |
-| `InterviewResult` | PASS/FAIL outcome of an interview |
-| `CandidateProfile` | Candidate's profile (linked to User with CANDIDATE role) |
-| `CvDocument` | Uploaded CV file (PDF/DOCX) |
-| `CvEmbedding` | Vector embedding chunks from parsed CV (pgvector) |
-| `RequestLog` | Audit trail — every status change auto-logged |
-| `Notification` | In-app and email notifications |
+| Entity               | Description                                                               |
+| -------------------- | ------------------------------------------------------------------------- |
+| `User`               | All system actors (4 roles)                                               |
+| `Organization`       | Company / enterprise                                                      |
+| `Department`         | Org unit, each has a head (DEPARTMENT_HEAD)                               |
+| `RecruitmentRequest` | The 13-state workflow entity, created by DEPARTMENT_HEAD                  |
+| `OverallPlan`        | Campaign plan created by HR_MANAGER, requires ADMIN approval              |
+| `TaskPlan`           | Individual tasks within an OverallPlan (JOB_POSTING, CV_COLLECTION, etc.) |
+| `Interview`          | Scheduled interview, linked to a request + candidate                      |
+| `InterviewResult`    | PASS/FAIL outcome of an interview                                         |
+| `CandidateProfile`   | Candidate's profile (linked to User with CANDIDATE role)                  |
+| `CvDocument`         | Uploaded CV file (PDF/DOCX)                                               |
+| `CvEmbedding`        | Vector embedding chunks from parsed CV (pgvector)                         |
+| `RequestLog`         | Audit trail — every status change auto-logged                             |
+| `Notification`       | In-app and email notifications                                            |
 
 ### Key Enums (Target)
 
 ```typescript
-enum UserRole { ADMIN, DEPARTMENT_HEAD, HR_MANAGER, CANDIDATE }
-enum RecruitmentRequestStatus {
-  DRAFT, PENDING_HR_REVIEW, PENDING_BOSS_APPROVAL,
-  APPROVED, REJECTED, PLANNING, PLAN_PENDING_APPROVAL,
-  ACTIVE, INTERVIEWING, DECISION_PENDING,
-  HIRED, NOT_HIRED, COMPLETED
+enum UserRole {
+  ADMIN,
+  DEPARTMENT_HEAD,
+  HR_MANAGER,
+  CANDIDATE,
 }
-enum PlanStatus { DRAFT, PENDING_APPROVAL, APPROVED, REVISION_REQUIRED }
-enum TaskType { JOB_POSTING, CV_COLLECTION, CV_SCREENING, INTERVIEW_COORDINATION }
-enum TaskStatus { PENDING, IN_PROGRESS, COMPLETED }
-enum InterviewStatus { SCHEDULED, COMPLETED, CANCELLED, RESCHEDULED }
-enum InterviewResult { PENDING, PASS, FAIL }
-enum Urgency { LOW, MEDIUM, HIGH, CRITICAL }
-enum NotificationType { REQUEST_UPDATE, INTERVIEW_INVITE, OFFER, REJECTION, PLAN_UPDATE, SYSTEM }
+enum RecruitmentRequestStatus {
+  DRAFT,
+  PENDING_HR_REVIEW,
+  PENDING_BOSS_APPROVAL,
+  APPROVED,
+  REJECTED,
+  PLANNING,
+  PLAN_PENDING_APPROVAL,
+  ACTIVE,
+  INTERVIEWING,
+  DECISION_PENDING,
+  HIRED,
+  NOT_HIRED,
+  COMPLETED,
+}
+enum PlanStatus {
+  DRAFT,
+  PENDING_APPROVAL,
+  APPROVED,
+  REVISION_REQUIRED,
+}
+enum TaskType {
+  JOB_POSTING,
+  CV_COLLECTION,
+  CV_SCREENING,
+  INTERVIEW_COORDINATION,
+}
+enum TaskStatus {
+  PENDING,
+  IN_PROGRESS,
+  COMPLETED,
+}
+enum InterviewStatus {
+  SCHEDULED,
+  COMPLETED,
+  CANCELLED,
+  RESCHEDULED,
+}
+enum InterviewResult {
+  PENDING,
+  PASS,
+  FAIL,
+}
+enum Urgency {
+  LOW,
+  MEDIUM,
+  HIGH,
+  CRITICAL,
+}
+enum NotificationType {
+  REQUEST_UPDATE,
+  INTERVIEW_INVITE,
+  OFFER,
+  REJECTION,
+  PLAN_UPDATE,
+  SYSTEM,
+}
 ```
 
 ---
@@ -173,25 +232,25 @@ webapp → gateway (HTTP) → microservice (TCP via @nestjs/microservices)
 
 ### Service Responsibilities
 
-| Service | Port | Responsibilities |
-|---------|------|-----------------|
-| **Gateway** | `:3001` | HTTP entry, CORS, Swagger, JWT validation, RBAC guards, request routing |
-| **Identity** | `:3010` (TCP) | User registration/login, JWT + refresh tokens, organizations, departments |
-| **Recruiting** | `:3011` (TCP) | Recruitment requests, approval workflow, OverallPlan + TaskPlan, interviews, results |
-| **Profiles** | `:3012` (TCP) | Candidate profiles, CV storage, CV text extraction, vector embeddings, semantic search |
-| **Notification** | `:3013` (TCP) | Email dispatch (interview invites, offer letters, rejections), in-app notifications |
-| **Worker** | — (BullMQ) | Async CV parsing (PDF/DOCX → text), embedding generation (text → vector) |
+| Service          | Port          | Responsibilities                                                                       |
+| ---------------- | ------------- | -------------------------------------------------------------------------------------- |
+| **Gateway**      | `:3001`       | HTTP entry, CORS, Swagger, JWT validation, RBAC guards, request routing                |
+| **Identity**     | `:3010` (TCP) | User registration/login, JWT + refresh tokens, organizations, departments              |
+| **Recruiting**   | `:3011` (TCP) | Recruitment requests, approval workflow, OverallPlan + TaskPlan, interviews, results   |
+| **Profiles**     | `:3012` (TCP) | Candidate profiles, CV storage, CV text extraction, vector embeddings, semantic search |
+| **Notification** | `:3013` (TCP) | Email dispatch (interview invites, offer letters, rejections), in-app notifications    |
+| **Worker**       | — (BullMQ)    | Async CV parsing (PDF/DOCX → text), embedding generation (text → vector)               |
 
 ### Service Ports
 
-| Service | Port | Env Var |
-|---------|------|---------|
-| Gateway | 3001 | `GATEWAY_PORT` |
-| Identity | 3010 | `IDENTITY_PORT` |
-| Recruiting | 3011 | `RECRUITING_PORT` |
-| Profiles | 3012 | `PROFILES_PORT` |
-| Notification | 3013 | `NOTIFICATION_PORT` |
-| Webapp (Vite) | 3000 | N/A |
+| Service       | Port | Env Var             |
+| ------------- | ---- | ------------------- |
+| Gateway       | 3001 | `GATEWAY_PORT`      |
+| Identity      | 3010 | `IDENTITY_PORT`     |
+| Recruiting    | 3011 | `RECRUITING_PORT`   |
+| Profiles      | 3012 | `PROFILES_PORT`     |
+| Notification  | 3013 | `NOTIFICATION_PORT` |
+| Webapp (Vite) | 3000 | N/A                 |
 
 ### Shared Database
 
@@ -203,16 +262,17 @@ webapp → gateway (HTTP) → microservice (TCP via @nestjs/microservices)
 
 ### Database Schema Ownership
 
-| Schema Area | Tables | Managed By |
-|------------|--------|-----------|
-| Identity | `users`, `organizations`, `departments`, `refresh_tokens` | Identity Service |
-| Recruiting | `recruitment_requests`, `overall_plans`, `task_plans`, `interviews`, `interview_results`, `request_logs` | Recruiting Service |
-| Profiles | `candidate_profiles`, `cv_documents`, `cv_embeddings`, `cv_structured_data` | Profiles Service |
-| Notification | `notifications`, `email_logs` | Notification Service |
+| Schema Area  | Tables                                                                                                   | Managed By           |
+| ------------ | -------------------------------------------------------------------------------------------------------- | -------------------- |
+| Identity     | `users`, `organizations`, `departments`, `refresh_tokens`                                                | Identity Service     |
+| Recruiting   | `recruitment_requests`, `overall_plans`, `task_plans`, `interviews`, `interview_results`, `request_logs` | Recruiting Service   |
+| Profiles     | `candidate_profiles`, `cv_documents`, `cv_embeddings`, `cv_structured_data`                              | Profiles Service     |
+| Notification | `notifications`, `email_logs`                                                                            | Notification Service |
 
 ### Workspace Package References
 
 All internal packages use `"*"` version in `package.json`:
+
 ```json
 "@wr/contracts": "*",
 "@wr/config": "*",
@@ -289,27 +349,27 @@ All internal packages use `"*"` version in `package.json`:
 ### Prettier Config (enforced)
 
 ```js
-semi: true
-singleQuote: true
-trailingComma: "all"
-printWidth: 100
-tabWidth: 2
-arrowParens: "always"
-endOfLine: "lf"
+semi: true;
+singleQuote: true;
+trailingComma: 'all';
+printWidth: 100;
+tabWidth: 2;
+arrowParens: 'always';
+endOfLine: 'lf';
 ```
 
 ### Naming Conventions
 
-| Entity | Pattern | Example |
-|--------|---------|---------|
-| Files | kebab-case | `recruitment-request.service.ts` |
-| Classes | PascalCase | `RecruitmentRequestService` |
-| Functions/methods | camelCase | `createRequest()` |
-| Enums | PascalCase (name), UPPER_SNAKE (values) | `UserRole.DEPARTMENT_HEAD` |
-| DB tables | snake_case (via `@@map`) | `recruitment_requests` |
-| DB columns | camelCase in Prisma, snake_case in SQL (via `@map`) | `createdAt` → `created_at` |
-| Message patterns | dot.notation | `recruiting.create-request` |
-| Workspace packages | `@wr/{name}` | `@wr/contracts` |
+| Entity             | Pattern                                             | Example                          |
+| ------------------ | --------------------------------------------------- | -------------------------------- |
+| Files              | kebab-case                                          | `recruitment-request.service.ts` |
+| Classes            | PascalCase                                          | `RecruitmentRequestService`      |
+| Functions/methods  | camelCase                                           | `createRequest()`                |
+| Enums              | PascalCase (name), UPPER_SNAKE (values)             | `UserRole.DEPARTMENT_HEAD`       |
+| DB tables          | snake_case (via `@@map`)                            | `recruitment_requests`           |
+| DB columns         | camelCase in Prisma, snake_case in SQL (via `@map`) | `createdAt` → `created_at`       |
+| Message patterns   | dot.notation                                        | `recruiting.create-request`      |
+| Workspace packages | `@wr/{name}`                                        | `@wr/contracts`                  |
 
 ### Code Comments
 
@@ -366,33 +426,33 @@ npm run db:push          # Prisma push (no migration)
 
 ### Legacy Entities (in Prisma schema — TO BE REPLACED)
 
-| Legacy Entity | Replacement |
-|--------------|-------------|
-| `EvaluationRun` | Removed — no AI-driven evaluation |
-| `EvidenceRecord` | Removed — no evidence-based assessment |
-| `GapFinding` | Removed — no gap analysis |
-| `ExplanationBox` | Removed — no AI narration |
-| `InterviewFocusItem` | Simplified → `Interview` |
-| `ReviewerFeedback` | Simplified → `InterviewResult` |
-| `CandidatePacket` | Removed |
-| `SkillNode` / `SkillEdge` | Removed — no skill knowledge graph |
-| `EvidenceEmbedding` | Replaced by `CvEmbedding` (simpler) |
-| `JobCapabilityModel` | Removed — JD is plain text |
+| Legacy Entity              | Replacement                             |
+| -------------------------- | --------------------------------------- |
+| `EvaluationRun`            | Removed — no AI-driven evaluation       |
+| `EvidenceRecord`           | Removed — no evidence-based assessment  |
+| `GapFinding`               | Removed — no gap analysis               |
+| `ExplanationBox`           | Removed — no AI narration               |
+| `InterviewFocusItem`       | Simplified → `Interview`                |
+| `ReviewerFeedback`         | Simplified → `InterviewResult`          |
+| `CandidatePacket`          | Removed                                 |
+| `SkillNode` / `SkillEdge`  | Removed — no skill knowledge graph      |
+| `EvidenceEmbedding`        | Replaced by `CvEmbedding` (simpler)     |
+| `JobCapabilityModel`       | Removed — JD is plain text              |
 | `CandidateCapabilityModel` | Removed — CV structured data is simpler |
 
 ### Legacy Enums (in `@wr/contracts` — TO BE REPLACED)
 
-| Legacy Enum | Status |
-|------------|--------|
-| `ReadinessLabel` | Remove — no readiness scoring |
-| `EvaluationState` | Remove — no evaluation runs |
-| `GapType` / `GapSeverity` | Remove — no gap analysis |
-| `EvidenceType` | Remove — no evidence tracking |
-| `ApplicationStatus` | Simplify — candidates don't "apply"; HR finds them |
-| `InviteStatus` | Keep — for interview invitations |
-| `CandidateVisibility` | Remove — all candidates are internal |
-| `SkillCategory` / `SkillRelationship` | Remove — no skill graph |
-| `RECRUITER` / `HIRING_MANAGER` roles | Replace with `HR_MANAGER` |
+| Legacy Enum                           | Status                                             |
+| ------------------------------------- | -------------------------------------------------- |
+| `ReadinessLabel`                      | Remove — no readiness scoring                      |
+| `EvaluationState`                     | Remove — no evaluation runs                        |
+| `GapType` / `GapSeverity`             | Remove — no gap analysis                           |
+| `EvidenceType`                        | Remove — no evidence tracking                      |
+| `ApplicationStatus`                   | Simplify — candidates don't "apply"; HR finds them |
+| `InviteStatus`                        | Keep — for interview invitations                   |
+| `CandidateVisibility`                 | Remove — all candidates are internal               |
+| `SkillCategory` / `SkillRelationship` | Remove — no skill graph                            |
+| `RECRUITER` / `HIRING_MANAGER` roles  | Replace with `HR_MANAGER`                          |
 
 ### What to Do When Encountering Legacy Code
 
@@ -437,13 +497,13 @@ npm run db:push          # Prisma push (no migration)
 
 ## Reference Documents
 
-| Document | Path | Purpose |
-|----------|------|---------|
-| Architecture | `docs/architecture.md` | Service diagram, communication rules, Docker setup |
-| Data Models | `docs/data-models.md` | Target entity schemas + enums |
-| All Tasks | `docs/all-tasks.md` | Master implementation roadmap (T-001 to T-084) |
-| API Contracts | `docs/api-contracts.md` | Endpoint specifications |
-| Auth Design | `docs/auth-design.md` | JWT flow, guards, RBAC |
-| Project Overview | `PROJECT_OVERVIEW/` | Full product context (Vietnamese) |
+| Document         | Path                    | Purpose                                            |
+| ---------------- | ----------------------- | -------------------------------------------------- |
+| Architecture     | `docs/architecture.md`  | Service diagram, communication rules, Docker setup |
+| Data Models      | `docs/data-models.md`   | Target entity schemas + enums                      |
+| All Tasks        | `docs/all-tasks.md`     | Master implementation roadmap (T-001 to T-084)     |
+| API Contracts    | `docs/api-contracts.md` | Endpoint specifications                            |
+| Auth Design      | `docs/auth-design.md`   | JWT flow, guards, RBAC                             |
+| Project Overview | `PROJECT_OVERVIEW/`     | Full product context (Vietnamese)                  |
 
 ---

@@ -17,7 +17,11 @@ export const SKILL_NODES: SkillNodeDef[] = [
   n('Web Developer', 'ROLE', ['Web Dev', 'Webdev']),
   n('Frontend Developer', 'ROLE', ['Frontend Dev', 'Frontend Engineer', 'FE Developer']),
   n('Backend Developer', 'ROLE', ['Backend Dev', 'Backend Engineer', 'BE Developer']),
-  n('Fullstack Developer', 'ROLE', ['Fullstack Dev', 'Full Stack Developer', 'Full-Stack Developer']),
+  n('Fullstack Developer', 'ROLE', [
+    'Fullstack Dev',
+    'Full Stack Developer',
+    'Full-Stack Developer',
+  ]),
   n('Mobile Developer', 'ROLE', ['Mobile Dev', 'Mobile Engineer']),
   n('iOS Developer', 'ROLE', ['iOS Dev', 'iOS Engineer']),
   n('Android Developer', 'ROLE', ['Android Dev', 'Android Engineer']),

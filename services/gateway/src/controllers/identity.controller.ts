@@ -1,4 +1,16 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Inject, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Body,
+  Param,
+  Query,
+  Inject,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
 import { SERVICE_TOKENS } from '../constants';
@@ -7,7 +19,18 @@ import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser, JwtPayload } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '@wr/contracts';
-import { IsEmail, IsString, IsNotEmpty, IsEnum, IsOptional, IsUUID, IsInt, Min, Max, IsBoolean } from 'class-validator';
+import {
+  IsEmail,
+  IsString,
+  IsNotEmpty,
+  IsEnum,
+  IsOptional,
+  IsUUID,
+  IsInt,
+  Min,
+  Max,
+  IsBoolean,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class LoginDto {
@@ -119,12 +142,20 @@ export class CreateDepartmentDto {
   @IsNotEmpty()
   code!: string;
 
-  @ApiProperty({ example: 'uuid-of-head-user', required: false, description: 'Department head user ID' })
+  @ApiProperty({
+    example: 'uuid-of-head-user',
+    required: false,
+    description: 'Department head user ID',
+  })
   @IsOptional()
   @IsUUID()
   headUserId?: string;
 
-  @ApiProperty({ example: 'uuid-of-parent-department', required: false, description: 'Parent department ID' })
+  @ApiProperty({
+    example: 'uuid-of-parent-department',
+    required: false,
+    description: 'Parent department ID',
+  })
   @IsOptional()
   @IsUUID()
   parentId?: string;
@@ -143,19 +174,31 @@ export class UpdateDepartmentDto {
   @IsNotEmpty()
   code?: string;
 
-  @ApiProperty({ example: 'uuid-of-head-user', required: false, description: 'Department head user ID' })
+  @ApiProperty({
+    example: 'uuid-of-head-user',
+    required: false,
+    description: 'Department head user ID',
+  })
   @IsOptional()
   @IsUUID()
   headUserId?: string;
 
-  @ApiProperty({ example: 'uuid-of-parent-department', required: false, description: 'Parent department ID' })
+  @ApiProperty({
+    example: 'uuid-of-parent-department',
+    required: false,
+    description: 'Parent department ID',
+  })
   @IsOptional()
   @IsUUID()
   parentId?: string;
 }
 
 export class ListDepartmentsQueryDto {
-  @ApiProperty({ example: 'uuid-of-organization', required: false, description: 'Filter by organization ID' })
+  @ApiProperty({
+    example: 'uuid-of-organization',
+    required: false,
+    description: 'Filter by organization ID',
+  })
   @IsOptional()
   @IsUUID()
   organizationId?: string;
@@ -267,9 +310,7 @@ export class ListUsersQueryDto {
 @ApiTags('Auth & Users')
 @Controller()
 export class IdentityController {
-  constructor(
-    @Inject(SERVICE_TOKENS.IDENTITY) private readonly identityClient: ClientProxy,
-  ) {}
+  constructor(@Inject(SERVICE_TOKENS.IDENTITY) private readonly identityClient: ClientProxy) {}
 
   // ─── Auth ────────────────────────────────────────────────────────
 

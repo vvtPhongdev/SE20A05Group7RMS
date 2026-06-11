@@ -42,7 +42,9 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
     arrowLeft: <path d="M19 12H5m6-6-6 6 6 6" />,
     arrowRight: <path d="M5 12h14m-6-6 6 6-6 6" />,
     check: <path d="m8 12 3 3 5-6M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
-    save: <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2ZM7 3v6h8M7 21v-8h10v8" />,
+    save: (
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2ZM7 3v6h8M7 21v-8h10v8" />
+    ),
     send: <path d="m22 2-7 20-4-9-9-4 20-7Z" />,
   };
 
@@ -81,7 +83,11 @@ const Field = ({
   <label className="flex flex-col gap-2">
     <span className="text-sm font-semibold text-deep-charcoal">{label}</span>
     {children}
-    {error ? <span className="text-xs font-semibold text-rejected">{error}</span> : helper ? <span className="text-xs text-slate-ink">{helper}</span> : null}
+    {error ? (
+      <span className="text-xs font-semibold text-rejected">{error}</span>
+    ) : helper ? (
+      <span className="text-xs text-slate-ink">{helper}</span>
+    ) : null}
   </label>
 );
 
@@ -114,7 +120,8 @@ export const DeptHeadCreateRequest: React.FC = () => {
     }
 
     if (targetStep === 'justification') {
-      if (form.justification.trim().length < 30) nextErrors.justification = 'Add a clearer hiring reason.';
+      if (form.justification.trim().length < 30)
+        nextErrors.justification = 'Add a clearer hiring reason.';
       if (form.impact.trim().length < 25) nextErrors.impact = 'Describe the business impact.';
     }
 
@@ -163,10 +170,15 @@ export const DeptHeadCreateRequest: React.FC = () => {
     <div className="mx-auto flex max-w-[1440px] flex-col gap-6">
       <header className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">Department Head Workspace</p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">Create Recruitment Request</h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">
+            Department Head Workspace
+          </p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">
+            Create Recruitment Request
+          </h1>
           <p className="mt-1 max-w-[66ch] text-sm leading-6 text-slate-ink">
-            Build a staffing request with role details, justification, headcount, and urgency before saving or submitting.
+            Build a staffing request with role details, justification, headcount, and urgency before
+            saving or submitting.
           </p>
         </div>
         <button
@@ -187,7 +199,10 @@ export const DeptHeadCreateRequest: React.FC = () => {
               <span className="font-mono">{progress}%</span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-surface-container">
-              <div className="h-full rounded-full bg-teal-command transition-all" style={{ width: `${progress}%` }} />
+              <div
+                className="h-full rounded-full bg-teal-command transition-all"
+                style={{ width: `${progress}%` }}
+              />
             </div>
           </div>
 
@@ -222,8 +237,12 @@ export const DeptHeadCreateRequest: React.FC = () => {
 
         <main className="rounded-xl border border-border-warm bg-clean-surface p-6 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]">
           {result !== 'idle' && (
-            <div className={`mb-5 rounded-lg border p-4 text-sm font-semibold ${result === 'submitted' ? 'border-green-200 bg-green-50 text-approved' : 'border-cyan-200 bg-cyan-50 text-pending'}`}>
-              {result === 'submitted' ? 'Request submitted for approval.' : 'Draft saved for this session.'}
+            <div
+              className={`mb-5 rounded-lg border p-4 text-sm font-semibold ${result === 'submitted' ? 'border-green-200 bg-green-50 text-approved' : 'border-cyan-200 bg-cyan-50 text-pending'}`}
+            >
+              {result === 'submitted'
+                ? 'Request submitted for approval.'
+                : 'Draft saved for this session.'}
             </div>
           )}
 
@@ -235,13 +254,26 @@ export const DeptHeadCreateRequest: React.FC = () => {
               </div>
               <div className="grid gap-5 md:grid-cols-2">
                 <Field error={errors.positionTitle} label="Position title">
-                  <input className={inputClass} onChange={(event) => update('positionTitle', event.target.value)} placeholder="Senior Backend Engineer" value={form.positionTitle} />
+                  <input
+                    className={inputClass}
+                    onChange={(event) => update('positionTitle', event.target.value)}
+                    placeholder="Senior Backend Engineer"
+                    value={form.positionTitle}
+                  />
                 </Field>
                 <Field label="Department">
-                  <input className={inputClass} onChange={(event) => update('department', event.target.value)} value={form.department} />
+                  <input
+                    className={inputClass}
+                    onChange={(event) => update('department', event.target.value)}
+                    value={form.department}
+                  />
                 </Field>
                 <Field label="Employment type">
-                  <select className={inputClass} onChange={(event) => update('employmentType', event.target.value)} value={form.employmentType}>
+                  <select
+                    className={inputClass}
+                    onChange={(event) => update('employmentType', event.target.value)}
+                    value={form.employmentType}
+                  >
                     <option>Full-time</option>
                     <option>Part-time</option>
                     <option>Contract</option>
@@ -249,11 +281,24 @@ export const DeptHeadCreateRequest: React.FC = () => {
                   </select>
                 </Field>
                 <Field label="Work location">
-                  <input className={inputClass} onChange={(event) => update('workLocation', event.target.value)} value={form.workLocation} />
+                  <input
+                    className={inputClass}
+                    onChange={(event) => update('workLocation', event.target.value)}
+                    value={form.workLocation}
+                  />
                 </Field>
               </div>
-              <Field error={errors.skills} helper="Example: Java, Spring Boot, PostgreSQL, system design." label="Core skills">
-                <textarea className={textareaClass} onChange={(event) => update('skills', event.target.value)} placeholder="List required skills, tools, and seniority expectations." value={form.skills} />
+              <Field
+                error={errors.skills}
+                helper="Example: Java, Spring Boot, PostgreSQL, system design."
+                label="Core skills"
+              >
+                <textarea
+                  className={textareaClass}
+                  onChange={(event) => update('skills', event.target.value)}
+                  placeholder="List required skills, tools, and seniority expectations."
+                  value={form.skills}
+                />
               </Field>
             </div>
           )}
@@ -262,13 +307,25 @@ export const DeptHeadCreateRequest: React.FC = () => {
             <div className="space-y-5">
               <div>
                 <h2 className="text-xl font-semibold text-deep-charcoal">Justification</h2>
-                <p className="mt-1 text-sm text-slate-ink">Explain why this request should be approved.</p>
+                <p className="mt-1 text-sm text-slate-ink">
+                  Explain why this request should be approved.
+                </p>
               </div>
               <Field error={errors.justification} label="Hiring justification">
-                <textarea className={textareaClass} onChange={(event) => update('justification', event.target.value)} placeholder="Explain workload, replacement, project need, or capability gap." value={form.justification} />
+                <textarea
+                  className={textareaClass}
+                  onChange={(event) => update('justification', event.target.value)}
+                  placeholder="Explain workload, replacement, project need, or capability gap."
+                  value={form.justification}
+                />
               </Field>
               <Field error={errors.impact} label="Business impact">
-                <textarea className={textareaClass} onChange={(event) => update('impact', event.target.value)} placeholder="Describe what is delayed or at risk without this hire." value={form.impact} />
+                <textarea
+                  className={textareaClass}
+                  onChange={(event) => update('impact', event.target.value)}
+                  placeholder="Describe what is delayed or at risk without this hire."
+                  value={form.impact}
+                />
               </Field>
             </div>
           )}
@@ -277,14 +334,26 @@ export const DeptHeadCreateRequest: React.FC = () => {
             <div className="space-y-5">
               <div>
                 <h2 className="text-xl font-semibold text-deep-charcoal">Headcount and Urgency</h2>
-                <p className="mt-1 text-sm text-slate-ink">Set how many hires are needed and how fast the workflow should move.</p>
+                <p className="mt-1 text-sm text-slate-ink">
+                  Set how many hires are needed and how fast the workflow should move.
+                </p>
               </div>
               <div className="grid gap-5 md:grid-cols-2">
                 <Field error={errors.headcount} label="Headcount">
-                  <input className={inputClass} min={1} onChange={(event) => update('headcount', Number(event.target.value))} type="number" value={form.headcount} />
+                  <input
+                    className={inputClass}
+                    min={1}
+                    onChange={(event) => update('headcount', Number(event.target.value))}
+                    type="number"
+                    value={form.headcount}
+                  />
                 </Field>
                 <Field label="Urgency">
-                  <select className={inputClass} onChange={(event) => update('urgency', event.target.value as Urgency)} value={form.urgency}>
+                  <select
+                    className={inputClass}
+                    onChange={(event) => update('urgency', event.target.value as Urgency)}
+                    value={form.urgency}
+                  >
                     <option>Low</option>
                     <option>Medium</option>
                     <option>High</option>
@@ -292,7 +361,12 @@ export const DeptHeadCreateRequest: React.FC = () => {
                   </select>
                 </Field>
                 <Field error={errors.targetDate} label="Target start date">
-                  <input className={inputClass} onChange={(event) => update('targetDate', event.target.value)} type="date" value={form.targetDate} />
+                  <input
+                    className={inputClass}
+                    onChange={(event) => update('targetDate', event.target.value)}
+                    type="date"
+                    value={form.targetDate}
+                  />
                 </Field>
               </div>
             </div>
@@ -302,7 +376,9 @@ export const DeptHeadCreateRequest: React.FC = () => {
             <div className="space-y-5">
               <div>
                 <h2 className="text-xl font-semibold text-deep-charcoal">Review Request</h2>
-                <p className="mt-1 text-sm text-slate-ink">Confirm the draft before saving or submitting.</p>
+                <p className="mt-1 text-sm text-slate-ink">
+                  Confirm the draft before saving or submitting.
+                </p>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 {[
@@ -314,36 +390,62 @@ export const DeptHeadCreateRequest: React.FC = () => {
                   ['Urgency', form.urgency],
                   ['Target date', form.targetDate || 'Not set'],
                 ].map(([label, value]) => (
-                  <div className="rounded-lg border border-border-warm bg-workflow-ivory/60 p-4" key={label}>
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">{label}</p>
+                  <div
+                    className="rounded-lg border border-border-warm bg-workflow-ivory/60 p-4"
+                    key={label}
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                      {label}
+                    </p>
                     <p className="mt-2 text-sm font-semibold text-deep-charcoal">{value}</p>
                   </div>
                 ))}
               </div>
               <div className="rounded-lg border border-border-warm bg-workflow-ivory/60 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">Justification</p>
-                <p className="mt-2 text-sm leading-6 text-deep-charcoal">{form.justification || 'Not set'}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                  Justification
+                </p>
+                <p className="mt-2 text-sm leading-6 text-deep-charcoal">
+                  {form.justification || 'Not set'}
+                </p>
               </div>
             </div>
           )}
 
           <div className="mt-8 flex flex-col gap-3 border-t border-border-warm pt-5 sm:flex-row sm:items-center sm:justify-between">
-            <button className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border-warm bg-clean-surface px-4 text-sm font-semibold text-slate-ink transition hover:border-teal-command hover:text-teal-command active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40" disabled={stepIndex === 0} onClick={previousStep} type="button">
+            <button
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border-warm bg-clean-surface px-4 text-sm font-semibold text-slate-ink transition hover:border-teal-command hover:text-teal-command active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={stepIndex === 0}
+              onClick={previousStep}
+              type="button"
+            >
               <Icon className="h-4 w-4" name="arrowLeft" />
               Back
             </button>
             <div className="flex flex-col gap-3 sm:flex-row">
-              <button className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border-warm bg-clean-surface px-4 text-sm font-semibold text-slate-ink transition hover:border-pending hover:text-pending active:scale-[0.98]" onClick={saveDraft} type="button">
+              <button
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border-warm bg-clean-surface px-4 text-sm font-semibold text-slate-ink transition hover:border-pending hover:text-pending active:scale-[0.98]"
+                onClick={saveDraft}
+                type="button"
+              >
                 <Icon className="h-4 w-4" name="save" />
                 Save Draft
               </button>
               {step === 'review' ? (
-                <button className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]" onClick={submit} type="button">
+                <button
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
+                  onClick={submit}
+                  type="button"
+                >
                   <Icon className="h-4 w-4" name="send" />
                   Submit
                 </button>
               ) : (
-                <button className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]" onClick={nextStep} type="button">
+                <button
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
+                  onClick={nextStep}
+                  type="button"
+                >
                   Continue
                   <Icon className="h-4 w-4" name="arrowRight" />
                 </button>
@@ -362,7 +464,9 @@ export const DeptHeadCreateRequest: React.FC = () => {
             ].map((item) => (
               <div className="flex items-center justify-between gap-3" key={item.label}>
                 <span className="text-sm text-slate-ink">{item.label}</span>
-                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${item.ready ? 'bg-green-50 text-approved' : 'bg-stone-100 text-draft'}`}>
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${item.ready ? 'bg-green-50 text-approved' : 'bg-stone-100 text-draft'}`}
+                >
                   {item.ready ? 'Ready' : 'Missing'}
                 </span>
               </div>

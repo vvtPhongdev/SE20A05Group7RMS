@@ -29,7 +29,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
     const isProduction = config.NODE_ENV === 'production';
 
-    const correlationId = (request.headers['x-correlation-id'] as string | undefined) ?? randomUUID();
+    const correlationId =
+      (request.headers['x-correlation-id'] as string | undefined) ?? randomUUID();
     const resolved = this.resolve(exception, isProduction);
 
     console.error(
@@ -84,7 +85,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     //    services arrive here as plain objects shaped like { status, message, ...extra }.
     if (exception && typeof exception === 'object' && !(exception instanceof Error)) {
       const raw = exception as Record<string, unknown>;
-      const status = Number(raw.status ?? raw.statusCode ?? raw.status_code) || HttpStatus.INTERNAL_SERVER_ERROR;
+      const status =
+        Number(raw.status ?? raw.statusCode ?? raw.status_code) || HttpStatus.INTERNAL_SERVER_ERROR;
       const message = typeof raw.message === 'string' ? raw.message : 'Internal server error';
 
       const extraEntries = Object.entries(raw).filter(

@@ -4,10 +4,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagg
 import { SERVICE_TOKENS } from '../constants';
 import { firstValueFrom } from 'rxjs';
 import { Roles } from '../auth/decorators/roles.decorator';
-import {
-  OfferResponse,
-  UserRole,
-} from '@wr/contracts';
+import { OfferResponse, UserRole } from '@wr/contracts';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { IsUUID, IsString, IsOptional, IsDateString, IsNotEmpty, IsEnum } from 'class-validator';
 
@@ -17,13 +14,21 @@ export class CreateJobPostingDto {
   @IsNotEmpty()
   requestId!: string;
 
-  @ApiProperty({ example: 'Senior TypeScript Developer', required: false, description: 'Custom Job Title' })
+  @ApiProperty({
+    example: 'Senior TypeScript Developer',
+    required: false,
+    description: 'Custom Job Title',
+  })
   @IsOptional()
   @IsString()
   @IsNotEmpty()
   title?: string;
 
-  @ApiProperty({ example: 'Looking for a developer...', required: false, description: 'Custom Job Description' })
+  @ApiProperty({
+    example: 'Looking for a developer...',
+    required: false,
+    description: 'Custom Job Description',
+  })
   @IsOptional()
   @IsString()
   @IsNotEmpty()
@@ -33,7 +38,12 @@ export class CreateJobPostingDto {
   @IsOptional()
   requirements?: any;
 
-  @ApiProperty({ example: 'PUBLIC', enum: ['PUBLIC', 'PRIVATE'], default: 'PRIVATE', description: 'Visibility status' })
+  @ApiProperty({
+    example: 'PUBLIC',
+    enum: ['PUBLIC', 'PRIVATE'],
+    default: 'PRIVATE',
+    description: 'Visibility status',
+  })
   @IsOptional()
   @IsString()
   visibility?: any;
@@ -45,13 +55,21 @@ export class CreateJobPostingDto {
 }
 
 export class UpdateJobPostingDto {
-  @ApiProperty({ example: 'Senior TypeScript Developer', required: false, description: 'Custom Job Title' })
+  @ApiProperty({
+    example: 'Senior TypeScript Developer',
+    required: false,
+    description: 'Custom Job Title',
+  })
   @IsOptional()
   @IsString()
   @IsNotEmpty()
   title?: string;
 
-  @ApiProperty({ example: 'Looking for a developer...', required: false, description: 'Custom Job Description' })
+  @ApiProperty({
+    example: 'Looking for a developer...',
+    required: false,
+    description: 'Custom Job Description',
+  })
   @IsOptional()
   @IsString()
   @IsNotEmpty()
@@ -109,9 +127,7 @@ export class OfferResponseDto {
 @ApiBearerAuth()
 @Controller()
 export class RecruitingController {
-  constructor(
-    @Inject(SERVICE_TOKENS.RECRUITING) private readonly recruitingClient: ClientProxy,
-  ) { }
+  constructor(@Inject(SERVICE_TOKENS.RECRUITING) private readonly recruitingClient: ClientProxy) {}
 
   // ─── Roles ───────────────────────────────────────────────────────
 
@@ -175,9 +191,7 @@ export class RecruitingController {
   @Roles(UserRole.HR_MANAGER, UserRole.ADMIN, UserRole.CANDIDATE)
   @ApiOperation({ summary: 'Review an offer letter' })
   getOffer(@Param('id') id: string) {
-    return firstValueFrom(
-      this.recruitingClient.send('recruiting.offers.get', { id }),
-    );
+    return firstValueFrom(this.recruitingClient.send('recruiting.offers.get', { id }));
   }
 
   @Post('offers/:id/send')
@@ -287,7 +301,9 @@ export class RecruitingController {
   @Roles(UserRole.HR_MANAGER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Update job posting details' })
   updateJobPosting(@Param('id') id: string, @Body() body: UpdateJobPostingDto) {
-    return firstValueFrom(this.recruitingClient.send('recruiting.job_posting.update', { id, ...body }));
+    return firstValueFrom(
+      this.recruitingClient.send('recruiting.job_posting.update', { id, ...body }),
+    );
   }
 
   @Post('job-postings/:id/publish')
@@ -311,14 +327,22 @@ export class RecruitingController {
   @ApiOperation({ summary: 'Get annual recruitment report' })
   getAnnualReport(@Query('year') year?: string) {
     const parsedYear = year ? parseInt(year, 10) : new Date().getFullYear();
-    return firstValueFrom(this.recruitingClient.send('recruiting.annual_report', { year: parsedYear }));
+    return firstValueFrom(
+      this.recruitingClient.send('recruiting.annual_report', { year: parsedYear }),
+    );
   }
 
   @Get('reports/department/:id')
   @Roles(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
   @ApiOperation({ summary: 'Get department recruitment report' })
   getDepartmentReport(@Param('id') id: string, @CurrentUser() user: any) {
-    return firstValueFrom(this.recruitingClient.send('recruiting.department_report', { id, userId: user.sub, role: user.role }));
+    return firstValueFrom(
+      this.recruitingClient.send('recruiting.department_report', {
+        id,
+        userId: user.sub,
+        role: user.role,
+      }),
+    );
   }
 
   @Get('reports/time-to-hire')
@@ -385,4 +409,3 @@ export class RecruitingController {
     );
   }
 }
-

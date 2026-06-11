@@ -28,10 +28,7 @@ export class CvService {
     // Check if the candidate profile exists (can check by id or userId)
     const profile = await this.prisma.candidateProfile.findFirst({
       where: {
-        OR: [
-          { id: candidateId },
-          { userId: candidateId },
-        ],
+        OR: [{ id: candidateId }, { userId: candidateId }],
       },
     });
 
@@ -53,14 +50,16 @@ export class CvService {
       },
     });
 
-    this.auditLog.log({
-      entityType: AuditEntityType.CV,
-      entityId: cvRecord.id,
-      action: AuditAction.CV_UPLOADED,
-      toStatus: 'UPLOADED',
-      performedById: candidateId,
-      metadata: { fileName, fileType },
-    }).catch((err) => console.error('Failed to write audit log for CV_UPLOADED:', err));
+    this.auditLog
+      .log({
+        entityType: AuditEntityType.CV,
+        entityId: cvRecord.id,
+        action: AuditAction.CV_UPLOADED,
+        toStatus: 'UPLOADED',
+        performedById: candidateId,
+        metadata: { fileName, fileType },
+      })
+      .catch((err) => console.error('Failed to write audit log for CV_UPLOADED:', err));
 
     // Enqueue BullMQ job for parsing
     await this.cvParseQueue.add(
@@ -99,10 +98,7 @@ export class CvService {
   async getCvByCandidate(candidateId: string) {
     const profile = await this.prisma.candidateProfile.findFirst({
       where: {
-        OR: [
-          { id: candidateId },
-          { userId: candidateId },
-        ],
+        OR: [{ id: candidateId }, { userId: candidateId }],
       },
     });
 
@@ -133,10 +129,7 @@ export class CvService {
     if (candidateId) {
       const profile = await this.prisma.candidateProfile.findFirst({
         where: {
-          OR: [
-            { id: candidateId },
-            { userId: candidateId },
-          ],
+          OR: [{ id: candidateId }, { userId: candidateId }],
         },
       });
       if (profile) {

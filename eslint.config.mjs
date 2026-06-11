@@ -23,5 +23,5 @@ export default ts.config(
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-empty-object-type': 'off',
     },
-  }
+  },
 );

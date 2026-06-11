@@ -138,9 +138,18 @@ async function main() {
 
   // 5. Create Candidate Profiles
   const profileDetails = [
-    { phone: '123-456-7890', summary: 'Senior Full-Stack Developer with 8 years of experience in React and Node.js.' },
-    { phone: '987-654-3210', summary: 'ML Engineer and Data Scientist specializing in neural networks.' },
-    { phone: '555-555-5555', summary: 'DevOps engineer with extensive AWS and Kubernetes experience.' },
+    {
+      phone: '123-456-7890',
+      summary: 'Senior Full-Stack Developer with 8 years of experience in React and Node.js.',
+    },
+    {
+      phone: '987-654-3210',
+      summary: 'ML Engineer and Data Scientist specializing in neural networks.',
+    },
+    {
+      phone: '555-555-5555',
+      summary: 'DevOps engineer with extensive AWS and Kubernetes experience.',
+    },
   ];
 
   const createdProfiles = [];
@@ -247,7 +256,8 @@ async function main() {
       fileName: 'alex_rivera_cv.pdf',
       fileType: 'PDF',
       filePath: '/storage/cvs/alex_rivera_cv.pdf',
-      rawText: 'Alex Rivera CV: Senior TypeScript Engineer. Skilled in React, Node, PostgreSQL, and Prisma.',
+      rawText:
+        'Alex Rivera CV: Senior TypeScript Engineer. Skilled in React, Node, PostgreSQL, and Prisma.',
       parsedAt: new Date(),
     },
   });
@@ -256,7 +266,8 @@ async function main() {
     data: {
       cvDocumentId: candidateCv.id,
       chunkIndex: 0,
-      chunkText: 'Alex Rivera CV: Senior TypeScript Engineer. Skilled in React, Node, PostgreSQL, and Prisma.',
+      chunkText:
+        'Alex Rivera CV: Senior TypeScript Engineer. Skilled in React, Node, PostgreSQL, and Prisma.',
     },
   });
 

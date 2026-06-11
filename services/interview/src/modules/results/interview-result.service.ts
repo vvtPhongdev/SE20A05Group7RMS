@@ -251,12 +251,10 @@ export class InterviewResultService {
     const isLastInterview = activeSchedulesCount === 0;
 
     // Define pipeline status updates
-    let nextAppStatus: RecruitmentRequestStatus | null = null;
-    if (finalRecommendation === 'Recommend Hire') {
-      nextAppStatus = RecruitmentRequestStatus.INTERVIEW_COMPLETED;
-    } else if (finalRecommendation === 'Recommend Reject') {
-      nextAppStatus = RecruitmentRequestStatus.REJECTED;
-    }
+    const isPass = result === InterviewResult.PASS;
+    const nextAppStatus = isPass
+      ? RecruitmentRequestStatus.INTERVIEW_COMPLETED
+      : RecruitmentRequestStatus.REJECTED;
 
     // Find existing interview results to see what needs to be created vs updated
     const existingResults = await this.prisma.interviewResult.findMany({
@@ -370,22 +368,24 @@ export class InterviewResultService {
       where: { interviewId }
     });
 
-    for (const res of updatedResults) {
-      this.auditLog.log({
+    this.auditLog
+      .log({
         entityType: AuditEntityType.INTERVIEW_RESULT,
-        entityId: res.id,
+        entityId: recordedResult.id,
         action: AuditAction.INTERVIEW_RESULT_RECORDED,
-        toStatus: res.result,
+        toStatus: result,
         performedById: evaluatorId || 'SYSTEM',
-        reason: res.notes,
-        metadata: { interviewId, candidateId: schedule.candidateId, evaluatorId: res.evaluatorId },
-      }).catch((err) => console.error('Failed to write audit log for INTERVIEW_RESULT_RECORDED:', err));
-    }
+        reason: notes.trim(),
+        metadata: { interviewId, candidateId: schedule.candidateId },
+      })
+      .catch((err) =>
+        console.error('Failed to write audit log for INTERVIEW_RESULT_RECORDED:', err),
+      );
 
     // --- Next-step communications & workflows ---
-    
-    // 1. If candidate was rejected, trigger rejection email and notification
-    if (finalRecommendation === 'Recommend Reject') {
+
+    // 1. If candidate failed, trigger rejection email and notification
+    if (!isPass) {
       const emailSubject = `Application Update: ${schedule.request.position}`;
       const emailBody = [
         `Dear ${schedule.candidate.fullName},`,
@@ -404,51 +404,59 @@ export class InterviewResultService {
       const notifBody = `Your application for ${schedule.request.position} was not selected.`;
 
       // Enqueue email
-      this.notificationClient.send('notification.send_email', {
-        userId: schedule.candidate.userId,
-        toEmail: schedule.candidate.email,
-        subject: emailSubject,
-        body: emailBody,
-      }).subscribe({
-        error: (err) => console.error('Failed to send rejection email:', err),
-      });
+      this.notificationClient
+        .send('notification.send_email', {
+          userId: schedule.candidate.userId,
+          toEmail: schedule.candidate.email,
+          subject: emailSubject,
+          body: emailBody,
+        })
+        .subscribe({
+          error: (err) => console.error('Failed to send rejection email:', err),
+        });
 
       // Send in-app notification
-      this.notificationClient.send('notification.create_notification', {
-        userId: schedule.candidate.userId,
-        type: NotificationType.REJECTION,
-        title: notifTitle,
-        body: notifBody,
-        relatedEntityId: schedule.requestId,
-        relatedEntityType: 'RecruitmentRequest',
-      }).subscribe({
-        error: (err) => console.error('Failed to send rejection notification:', err),
-      });
+      this.notificationClient
+        .send('notification.create_notification', {
+          userId: schedule.candidate.userId,
+          type: NotificationType.REJECTION,
+          title: notifTitle,
+          body: notifBody,
+          relatedEntityId: schedule.requestId,
+          relatedEntityType: 'RecruitmentRequest',
+        })
+        .subscribe({
+          error: (err) => console.error('Failed to send rejection notification:', err),
+        });
     }
 
-    // 2. If all interviews are completed and candidate is recommended for hire, notify Admins to review and make final decision (FR-15)
-    if (isLastInterview && finalRecommendation === 'Recommend Hire') {
-      this.notificationClient.send('notification.send_to_role', {
-        role: UserRole.ADMIN,
-        title: 'Review Required: Interview Stage Completed',
-        body: `All scheduled interviews for "${schedule.request.position}" are completed. Please review results and make the final decision.`,
-        type: NotificationType.PLAN_UPDATE,
-        relatedEntityId: schedule.requestId,
-        relatedEntityType: 'RecruitmentRequest',
-      }).subscribe({
-        error: (err) => console.error('Failed to send Admin review notifications:', err),
-      });
+    // 2. If all interviews are completed, notify Admins to review and make final decision (FR-15)
+    if (isLastInterview) {
+      this.notificationClient
+        .send('notification.send_to_role', {
+          role: UserRole.ADMIN,
+          title: 'Review Required: Interview Stage Completed',
+          body: `All scheduled interviews for "${schedule.request.position}" are completed. Please review results and make the final decision.`,
+          type: NotificationType.PLAN_UPDATE,
+          relatedEntityId: schedule.requestId,
+          relatedEntityType: 'RecruitmentRequest',
+        })
+        .subscribe({
+          error: (err) => console.error('Failed to send Admin review notifications:', err),
+        });
 
-      this.notificationClient.send('notification.create_notification', {
-        userId: schedule.request.createdById,
-        type: NotificationType.REQUEST_UPDATE,
-        title: 'Request status update: Interview Completed',
-        body: `All interviews for recruitment request "${schedule.request.position}" have been completed.`,
-        relatedEntityId: schedule.requestId,
-        relatedEntityType: 'RecruitmentRequest',
-      }).subscribe({
-        error: (err) => console.error('Failed to send Dept Head review notifications:', err),
-      });
+      this.notificationClient
+        .send('notification.create_notification', {
+          userId: schedule.request.createdById,
+          type: NotificationType.REQUEST_UPDATE,
+          title: 'Request status update: Interview Completed',
+          body: `All interviews for recruitment request "${schedule.request.position}" have been completed.`,
+          relatedEntityId: schedule.requestId,
+          relatedEntityType: 'RecruitmentRequest',
+        })
+        .subscribe({
+          error: (err) => console.error('Failed to send Dept Head review notifications:', err),
+        });
     }
 
     return { success: true };

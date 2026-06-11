@@ -1,4 +1,9 @@
-import { ArgumentsHost, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  ArgumentsHost,
+  BadRequestException,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { ERROR_CODES } from '@wr/contracts';
 import { GlobalExceptionFilter } from './global-exception.filter';
 

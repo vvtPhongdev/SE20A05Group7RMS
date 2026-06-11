@@ -4,10 +4,34 @@ import { useNavigate } from 'react-router-dom';
 type Tone = 'teal' | 'cyan' | 'amber' | 'green' | 'red';
 
 const kpis = [
-  { label: 'Active Requests', value: '8', helper: '23 open headcount', icon: 'requests', tone: 'teal' as Tone },
-  { label: 'Pending Plans', value: '3', helper: 'Waiting for HR plan review', icon: 'clock', tone: 'cyan' as Tone },
-  { label: 'Interview Panels', value: '6', helper: 'Scheduled this week', icon: 'calendar', tone: 'amber' as Tone },
-  { label: 'Filled Positions', value: '11', helper: '45.8% of annual target', icon: 'progress', tone: 'green' as Tone },
+  {
+    label: 'Active Requests',
+    value: '8',
+    helper: '23 open headcount',
+    icon: 'requests',
+    tone: 'teal' as Tone,
+  },
+  {
+    label: 'Pending Plans',
+    value: '3',
+    helper: 'Waiting for HR plan review',
+    icon: 'clock',
+    tone: 'cyan' as Tone,
+  },
+  {
+    label: 'Interview Panels',
+    value: '6',
+    helper: 'Scheduled this week',
+    icon: 'calendar',
+    tone: 'amber' as Tone,
+  },
+  {
+    label: 'Filled Positions',
+    value: '11',
+    helper: '45.8% of annual target',
+    icon: 'progress',
+    tone: 'green' as Tone,
+  },
 ];
 
 const activeRequests = [
@@ -79,9 +103,30 @@ const pendingPlans = [
 
 const departmentMetrics = [
   { label: 'Approved headcount', value: 24, target: 32, width: '75%', tone: 'bg-teal-command' },
-  { label: 'Budget committed', value: 412, suffix: 'k', target: 620, width: '66%', tone: 'bg-pending' },
-  { label: 'Average time-to-approve', value: 3.8, suffix: 'd', target: 5, width: '76%', tone: 'bg-approved' },
-  { label: 'Panel response SLA', value: 91, suffix: '%', target: 95, width: '91%', tone: 'bg-revision' },
+  {
+    label: 'Budget committed',
+    value: 412,
+    suffix: 'k',
+    target: 620,
+    width: '66%',
+    tone: 'bg-pending',
+  },
+  {
+    label: 'Average time-to-approve',
+    value: 3.8,
+    suffix: 'd',
+    target: 5,
+    width: '76%',
+    tone: 'bg-approved',
+  },
+  {
+    label: 'Panel response SLA',
+    value: 91,
+    suffix: '%',
+    target: 95,
+    width: '91%',
+    tone: 'bg-revision',
+  },
 ];
 
 const attentionItems = [
@@ -118,13 +163,19 @@ const priorityClasses: Record<string, string> = {
 
 const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: string }) => {
   const paths: Record<string, React.ReactNode> = {
-    requests: <path d="M9 4h6l1 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1-2Zm0 7h6m-6 4h4" />,
+    requests: (
+      <path d="M9 4h6l1 2h3a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l1-2Zm0 7h6m-6 4h4" />
+    ),
     clock: <path d="M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
-    calendar: <path d="M7 3v4m10-4v4M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />,
+    calendar: (
+      <path d="M7 3v4m10-4v4M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
+    ),
     progress: <path d="M4 19V5m0 14h16M8 16v-5m4 5V8m4 8v-3" />,
     plus: <path d="M12 5v14M5 12h14" />,
     arrow: <path d="M5 12h14m-6-6 6 6-6 6" />,
-    alert: <path d="M12 9v4m0 4h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />,
+    alert: (
+      <path d="M12 9v4m0 4h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+    ),
   };
 
   return (
@@ -143,8 +194,16 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
   );
 };
 
-const DashboardCard = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
-  <section className={`rounded-xl border border-border-warm bg-clean-surface p-6 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)] ${className}`}>
+const DashboardCard = ({
+  children,
+  className = '',
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => (
+  <section
+    className={`rounded-xl border border-border-warm bg-clean-surface p-6 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)] ${className}`}
+  >
     {children}
   </section>
 );
@@ -156,10 +215,15 @@ export const DeptHeadDashboard: React.FC = () => {
     <div className="mx-auto flex max-w-[1440px] flex-col gap-6">
       <header className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">Department Head Workspace</p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">Department Overview</h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">
+            Department Head Workspace
+          </p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">
+            Department Overview
+          </h1>
           <p className="mt-1 max-w-[66ch] text-sm leading-6 text-slate-ink">
-            Monitor active staffing requests, pending recruitment plans, and department hiring health for Information Technology.
+            Monitor active staffing requests, pending recruitment plans, and department hiring
+            health for Information Technology.
           </p>
         </div>
 
@@ -183,13 +247,23 @@ export const DeptHeadDashboard: React.FC = () => {
         </div>
       </header>
 
-      <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4" aria-label="Department dashboard metrics">
+      <section
+        className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4"
+        aria-label="Department dashboard metrics"
+      >
         {kpis.map((kpi) => (
-          <DashboardCard className="transition duration-200 hover:-translate-y-[2px]" key={kpi.label}>
+          <DashboardCard
+            className="transition duration-200 hover:-translate-y-[2px]"
+            key={kpi.label}
+          >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-on-surface-variant">{kpi.label}</p>
-                <p className="mt-3 font-mono text-[32px] font-semibold leading-none text-deep-charcoal">{kpi.value}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-on-surface-variant">
+                  {kpi.label}
+                </p>
+                <p className="mt-3 font-mono text-[32px] font-semibold leading-none text-deep-charcoal">
+                  {kpi.value}
+                </p>
               </div>
               <span className={`rounded-lg p-2 ${toneClasses[kpi.tone]}`}>
                 <Icon name={kpi.icon} />
@@ -205,9 +279,15 @@ export const DeptHeadDashboard: React.FC = () => {
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-xl font-semibold text-deep-charcoal">Active Requests</h2>
-              <p className="mt-1 text-sm text-slate-ink">Live department requests. Open the full list for the 13-state workflow.</p>
+              <p className="mt-1 text-sm text-slate-ink">
+                Live department requests. Open the full list for the 13-state workflow.
+              </p>
             </div>
-            <button className="w-fit text-sm font-semibold text-teal-command transition hover:underline active:scale-[0.98]" onClick={() => navigate('/dept-head/requests')} type="button">
+            <button
+              className="w-fit text-sm font-semibold text-teal-command transition hover:underline active:scale-[0.98]"
+              onClick={() => navigate('/dept-head/requests')}
+              type="button"
+            >
               Open request list
             </button>
           </div>
@@ -226,9 +306,15 @@ export const DeptHeadDashboard: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-border-warm text-sm">
                 {activeRequests.map((request) => (
-                  <tr className="cursor-pointer transition hover:bg-workflow-ivory/70" key={request.id} onClick={() => navigate(`/dept-head/requests/${request.id}`)}>
+                  <tr
+                    className="cursor-pointer transition hover:bg-workflow-ivory/70"
+                    key={request.id}
+                    onClick={() => navigate(`/dept-head/requests/${request.id}`)}
+                  >
                     <td className="py-4 pr-4">
-                      <p className="font-semibold text-deep-charcoal hover:text-teal-command hover:underline">{request.role}</p>
+                      <p className="font-semibold text-deep-charcoal hover:text-teal-command hover:underline">
+                        {request.role}
+                      </p>
                       <p className="mt-1 font-mono text-xs text-teal-command">
                         {request.id} - {request.owner}
                       </p>
@@ -238,13 +324,20 @@ export const DeptHeadDashboard: React.FC = () => {
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
                         <div className="h-2 w-28 overflow-hidden rounded-full bg-surface-container">
-                          <div className="h-full rounded-full bg-teal-command" style={{ width: `${request.progress}%` }} />
+                          <div
+                            className="h-full rounded-full bg-teal-command"
+                            style={{ width: `${request.progress}%` }}
+                          />
                         </div>
-                        <span className="font-mono text-xs text-slate-ink">{request.progress}%</span>
+                        <span className="font-mono text-xs text-slate-ink">
+                          {request.progress}%
+                        </span>
                       </div>
                     </td>
                     <td className="px-4 py-4">
-                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${priorityClasses[request.priority]}`}>
+                      <span
+                        className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${priorityClasses[request.priority]}`}
+                      >
                         {request.priority}
                       </span>
                     </td>
@@ -260,9 +353,13 @@ export const DeptHeadDashboard: React.FC = () => {
           <div className="mb-5 flex items-start justify-between gap-4">
             <div>
               <h2 className="text-xl font-semibold text-deep-charcoal">Pending Plans</h2>
-              <p className="mt-1 text-sm text-slate-ink">Recruitment plans needing department input.</p>
+              <p className="mt-1 text-sm text-slate-ink">
+                Recruitment plans needing department input.
+              </p>
             </div>
-            <span className="rounded-full bg-cyan-50 px-3 py-1 font-mono text-xs font-semibold text-pending">3 open</span>
+            <span className="rounded-full bg-cyan-50 px-3 py-1 font-mono text-xs font-semibold text-pending">
+              3 open
+            </span>
           </div>
 
           <div className="space-y-4">
@@ -274,13 +371,19 @@ export const DeptHeadDashboard: React.FC = () => {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-sm font-semibold text-deep-charcoal hover:text-teal-command hover:underline">{plan.title}</h3>
+                    <h3 className="text-sm font-semibold text-deep-charcoal hover:text-teal-command hover:underline">
+                      {plan.title}
+                    </h3>
                     <p className="mt-1 font-mono text-xs text-teal-command">{plan.requestId}</p>
                   </div>
-                  <span className="shrink-0 rounded-full bg-clean-surface px-2.5 py-1 text-xs font-semibold text-slate-ink">{plan.age}</span>
+                  <span className="shrink-0 rounded-full bg-clean-surface px-2.5 py-1 text-xs font-semibold text-slate-ink">
+                    {plan.age}
+                  </span>
                 </div>
                 <p className="mt-3 text-sm text-slate-ink">{plan.status}</p>
-                <p className="mt-2 text-xs font-semibold text-on-surface-variant">Next: {plan.next}</p>
+                <p className="mt-2 text-xs font-semibold text-on-surface-variant">
+                  Next: {plan.next}
+                </p>
               </div>
             ))}
           </div>
@@ -290,13 +393,17 @@ export const DeptHeadDashboard: React.FC = () => {
       <section className="grid grid-cols-1 gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <DashboardCard>
           <h2 className="text-xl font-semibold text-deep-charcoal">Department Metrics</h2>
-          <p className="mt-1 text-sm text-slate-ink">Progress against annual staffing and response goals.</p>
+          <p className="mt-1 text-sm text-slate-ink">
+            Progress against annual staffing and response goals.
+          </p>
 
           <div className="mt-6 space-y-5">
             {departmentMetrics.map((metric) => (
               <div key={metric.label}>
                 <div className="mb-2 flex items-end justify-between gap-4">
-                  <span className="text-sm font-medium text-on-surface-variant">{metric.label}</span>
+                  <span className="text-sm font-medium text-on-surface-variant">
+                    {metric.label}
+                  </span>
                   <span className="font-mono text-sm font-semibold text-deep-charcoal">
                     {metric.value}
                     {metric.suffix ?? ''} / {metric.target}
@@ -304,7 +411,10 @@ export const DeptHeadDashboard: React.FC = () => {
                   </span>
                 </div>
                 <div className="h-3 overflow-hidden rounded-full bg-surface-container">
-                  <div className={`h-full rounded-full ${metric.tone}`} style={{ width: metric.width }} />
+                  <div
+                    className={`h-full rounded-full ${metric.tone}`}
+                    style={{ width: metric.width }}
+                  />
                 </div>
               </div>
             ))}
@@ -318,7 +428,9 @@ export const DeptHeadDashboard: React.FC = () => {
             </span>
             <div>
               <h2 className="text-xl font-semibold text-deep-charcoal">Needs Attention</h2>
-              <p className="mt-1 text-sm text-slate-ink">Items that can slow department hiring progress.</p>
+              <p className="mt-1 text-sm text-slate-ink">
+                Items that can slow department hiring progress.
+              </p>
             </div>
           </div>
 

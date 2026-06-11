@@ -5,13 +5,13 @@ import { createParamDecorator, ExecutionContext } from '@nestjs/common';
  * sent by the passport-jwt strategy after successful authentication
  */
 export interface JwtPayload {
-  sub: string;                  // User ID
-  email: string;                // User email
-  role: string;                 // User role (ADMIN, RECRUITER, CANDIDATE, etc.)
-  organizationId?: string;      // Organization ID (may be optional for certain roles)
-  displayName?: string;         // User's display name
-  iat?: number;                 // Issued at
-  exp?: number;                 // Expiration time
+  sub: string; // User ID
+  email: string; // User email
+  role: string; // User role (ADMIN, RECRUITER, CANDIDATE, etc.)
+  organizationId?: string; // Organization ID (may be optional for certain roles)
+  displayName?: string; // User's display name
+  iat?: number; // Issued at
+  exp?: number; // Expiration time
 }
 
 /**

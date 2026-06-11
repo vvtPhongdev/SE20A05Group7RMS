@@ -29,8 +29,9 @@ const initialRequests: ApprovalRequest[] = [
     status: 'Pending',
     submitted: 'Oct 24, 2023',
     salaryRange: '$2,500 - $3,800 USD',
-    description: 'We are looking for a Senior Frontend Engineer to lead the migration of our enterprise dashboard to a modern tech stack. Requires 5+ years of experience with React, TypeScript, and high-performance UI optimization.',
-    documents: ['JD_Senior_Frontend_Final.pdf', 'Budget_Approval_Q4.xlsx']
+    description:
+      'We are looking for a Senior Frontend Engineer to lead the migration of our enterprise dashboard to a modern tech stack. Requires 5+ years of experience with React, TypeScript, and high-performance UI optimization.',
+    documents: ['JD_Senior_Frontend_Final.pdf', 'Budget_Approval_Q4.xlsx'],
   },
   {
     id: 'RMS-9420',
@@ -42,8 +43,9 @@ const initialRequests: ApprovalRequest[] = [
     status: 'Approved',
     submitted: 'Oct 23, 2023',
     salaryRange: '$1,500 - $2,200 USD',
-    description: 'Lead our creative content team. Drive content strategy across all digital channels, manage content pipeline, and collaborate with product/design teams.',
-    documents: ['JD_Creative_Lead.pdf']
+    description:
+      'Lead our creative content team. Drive content strategy across all digital channels, manage content pipeline, and collaborate with product/design teams.',
+    documents: ['JD_Creative_Lead.pdf'],
   },
   {
     id: 'RMS-9418',
@@ -55,8 +57,9 @@ const initialRequests: ApprovalRequest[] = [
     status: 'Draft',
     submitted: 'Oct 22, 2023',
     salaryRange: '$1,000 - $1,500 USD',
-    description: 'Coordinate interview scheduling, communicate with candidates, manage applicant tracking system updates, and support onboarding logistics.',
-    documents: ['JD_Recruiter_Coord.pdf']
+    description:
+      'Coordinate interview scheduling, communicate with candidates, manage applicant tracking system updates, and support onboarding logistics.',
+    documents: ['JD_Recruiter_Coord.pdf'],
   },
   {
     id: 'RMS-9415',
@@ -68,25 +71,38 @@ const initialRequests: ApprovalRequest[] = [
     status: 'Pending',
     submitted: 'Oct 21, 2023',
     salaryRange: '$3,500 - $5,000 USD',
-    description: 'Design and optimize our multi-region AWS cloud infrastructure. Automate CI/CD pipelines, ensure high availability, and lead security compliance audits.',
-    documents: ['JD_DevOps_Architect.pdf', 'Infra_Budget_2024.xlsx']
-  }
+    description:
+      'Design and optimize our multi-region AWS cloud infrastructure. Automate CI/CD pipelines, ensure high availability, and lead security compliance audits.',
+    documents: ['JD_DevOps_Architect.pdf', 'Infra_Budget_2024.xlsx'],
+  },
 ];
 
 // Generate the rest programmatically to reach exactly 45 total to match the HTML design stats
 const generateMockRequests = (): ApprovalRequest[] => {
   const base = [...initialRequests];
-  const departments = ['Phòng Kỹ Thuật', 'Phòng Marketing', 'Phòng Nhân Sự', 'Phòng Tài Chính', 'Phòng Kinh Doanh'];
+  const departments = [
+    'Phòng Kỹ Thuật',
+    'Phòng Marketing',
+    'Phòng Nhân Sự',
+    'Phòng Tài Chính',
+    'Phòng Kinh Doanh',
+  ];
   const positions = [
-    'Backend Engineer', 'Product Manager', 'UX/UI Designer', 'QA Engineer',
-    'SEO Specialist', 'HR Business Partner', 'Financial Analyst', 'Sales Executive'
+    'Backend Engineer',
+    'Product Manager',
+    'UX/UI Designer',
+    'QA Engineer',
+    'SEO Specialist',
+    'HR Business Partner',
+    'Financial Analyst',
+    'Sales Executive',
   ];
   const names = ['Nguyễn Văn X', 'Lê Thị Y', 'Trần Minh Z', 'Phạm Hoàng W', 'Vũ Đức V'];
 
-  let pendingNeeded = 3 - base.filter(r => r.status === 'Pending').length; // 1
-  let approvedNeeded = 12 - base.filter(r => r.status === 'Approved').length; // 11
-  let rejectedNeeded = 2 - base.filter(r => r.status === 'Rejected').length; // 2
-  let draftNeeded = 28 - base.filter(r => r.status === 'Draft').length; // 27
+  let pendingNeeded = 3 - base.filter((r) => r.status === 'Pending').length; // 1
+  let approvedNeeded = 12 - base.filter((r) => r.status === 'Approved').length; // 11
+  let rejectedNeeded = 2 - base.filter((r) => r.status === 'Rejected').length; // 2
+  let draftNeeded = 28 - base.filter((r) => r.status === 'Draft').length; // 27
 
   let idCounter = 9414;
   while (pendingNeeded > 0 || approvedNeeded > 0 || rejectedNeeded > 0 || draftNeeded > 0) {
@@ -105,7 +121,8 @@ const generateMockRequests = (): ApprovalRequest[] => {
       draftNeeded--;
     }
 
-    const priority: Priority = idCounter % 3 === 0 ? 'High' : idCounter % 3 === 1 ? 'Medium' : 'Low';
+    const priority: Priority =
+      idCounter % 3 === 0 ? 'High' : idCounter % 3 === 1 ? 'Medium' : 'Low';
     const dept = departments[idCounter % departments.length];
     const pos = positions[idCounter % positions.length];
     const name = names[idCounter % names.length];
@@ -123,7 +140,7 @@ const generateMockRequests = (): ApprovalRequest[] => {
       submitted: date,
       salaryRange: `$${1500 + (idCounter % 5) * 400} - $${2500 + (idCounter % 5) * 500} USD`,
       description: `We are looking for a qualified ${pos} to join our team. Responsibilities include working on core platforms, optimizing workflow, and contributing to overall product quality.`,
-      documents: [`JD_${pos.replace(/ /g, '_')}_v1.pdf`]
+      documents: [`JD_${pos.replace(/ /g, '_')}_v1.pdf`],
     });
 
     idCounter--;
@@ -205,9 +222,7 @@ export const AdminApprovalQueue: React.FC = () => {
   };
 
   const handleApprove = (id: string) => {
-    setRequests((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: 'Approved' } : r))
-    );
+    setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status: 'Approved' } : r)));
     if (selectedRequest && selectedRequest.id === id) {
       setSelectedRequest((prev) => (prev ? { ...prev, status: 'Approved' } : null));
     }
@@ -215,9 +230,7 @@ export const AdminApprovalQueue: React.FC = () => {
   };
 
   const handleReject = (id: string) => {
-    setRequests((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: 'Rejected' } : r))
-    );
+    setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status: 'Rejected' } : r)));
     if (selectedRequest && selectedRequest.id === id) {
       setSelectedRequest((prev) => (prev ? { ...prev, status: 'Rejected' } : null));
     }
@@ -229,9 +242,13 @@ export const AdminApprovalQueue: React.FC = () => {
       {/* Local Page Header */}
       <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-border-warm pb-4">
         <div className="flex items-center gap-4">
-          <h2 className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant font-semibold">Director Portal</h2>
+          <h2 className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant font-semibold">
+            Director Portal
+          </h2>
           <div className="h-6 w-[1px] bg-border-warm"></div>
-          <h3 className="font-headline-md text-headline-md text-on-surface font-semibold">Admin Approval Queue</h3>
+          <h3 className="font-headline-md text-headline-md text-on-surface font-semibold">
+            Admin Approval Queue
+          </h3>
         </div>
         <div className="flex items-center gap-4">
           <div className="relative">
@@ -260,14 +277,21 @@ export const AdminApprovalQueue: React.FC = () => {
         {/* Pending */}
         <div className="bg-clean-surface p-6 rounded-lg border border-border-warm flex items-start justify-between shadow-sm">
           <div>
-            <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Pending</p>
+            <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
+              Pending
+            </p>
             <h3 className="font-headline-xl text-headline-xl text-pending mt-1 font-semibold">
               {String(counts.Pending).padStart(2, '0')}
             </h3>
-            <p className="font-body-sm text-body-sm text-on-surface-variant mt-2">Requires immediate review</p>
+            <p className="font-body-sm text-body-sm text-on-surface-variant mt-2">
+              Requires immediate review
+            </p>
           </div>
           <div className="p-3 bg-surface-container-low rounded-lg text-pending">
-            <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+            <span
+              className="material-symbols-outlined text-[28px]"
+              style={{ fontVariationSettings: "'FILL' 1" }}
+            >
               pending_actions
             </span>
           </div>
@@ -276,14 +300,21 @@ export const AdminApprovalQueue: React.FC = () => {
         {/* Approved */}
         <div className="bg-clean-surface p-6 rounded-lg border border-border-warm flex items-start justify-between shadow-sm">
           <div>
-            <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Approved</p>
+            <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
+              Approved
+            </p>
             <h3 className="font-headline-xl text-headline-xl text-approved mt-1 font-semibold">
               {String(counts.Approved).padStart(2, '0')}
             </h3>
-            <p className="font-body-sm text-body-sm text-on-surface-variant mt-2">Processed this week</p>
+            <p className="font-body-sm text-body-sm text-on-surface-variant mt-2">
+              Processed this week
+            </p>
           </div>
           <div className="p-3 bg-surface-container-low rounded-lg text-approved">
-            <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+            <span
+              className="material-symbols-outlined text-[28px]"
+              style={{ fontVariationSettings: "'FILL' 1" }}
+            >
               check_circle
             </span>
           </div>
@@ -292,14 +323,21 @@ export const AdminApprovalQueue: React.FC = () => {
         {/* Rejected */}
         <div className="bg-clean-surface p-6 rounded-lg border border-border-warm flex items-start justify-between shadow-sm">
           <div>
-            <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Rejected</p>
+            <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
+              Rejected
+            </p>
             <h3 className="font-headline-xl text-headline-xl text-rejected mt-1 font-semibold">
               {String(counts.Rejected).padStart(2, '0')}
             </h3>
-            <p className="font-body-sm text-body-sm text-on-surface-variant mt-2">Failed requirements</p>
+            <p className="font-body-sm text-body-sm text-on-surface-variant mt-2">
+              Failed requirements
+            </p>
           </div>
           <div className="p-3 bg-surface-container-low rounded-lg text-rejected">
-            <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+            <span
+              className="material-symbols-outlined text-[28px]"
+              style={{ fontVariationSettings: "'FILL' 1" }}
+            >
               cancel
             </span>
           </div>
@@ -308,14 +346,21 @@ export const AdminApprovalQueue: React.FC = () => {
         {/* Total */}
         <div className="bg-clean-surface p-6 rounded-lg border border-border-warm flex items-start justify-between shadow-sm">
           <div>
-            <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Total Requests</p>
+            <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
+              Total Requests
+            </p>
             <h3 className="font-headline-xl text-headline-xl text-teal-command mt-1 font-semibold">
               {String(counts.All).padStart(2, '0')}
             </h3>
-            <p className="font-body-sm text-body-sm text-on-surface-variant mt-2">All-time volume</p>
+            <p className="font-body-sm text-body-sm text-on-surface-variant mt-2">
+              All-time volume
+            </p>
           </div>
           <div className="p-3 bg-surface-container-low rounded-lg text-teal-command">
-            <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+            <span
+              className="material-symbols-outlined text-[28px]"
+              style={{ fontVariationSettings: "'FILL' 1" }}
+            >
               analytics
             </span>
           </div>
@@ -340,9 +385,13 @@ export const AdminApprovalQueue: React.FC = () => {
                 onClick={() => setFilter(item)}
               >
                 {item === 'All' ? 'All Requests' : item}
-                <span className={`ml-2 text-xs py-0.5 px-1.5 rounded-full ${
-                  filter === item ? 'bg-white/20 text-white' : 'bg-surface-container-highest text-slate-ink'
-                }`}>
+                <span
+                  className={`ml-2 text-xs py-0.5 px-1.5 rounded-full ${
+                    filter === item
+                      ? 'bg-white/20 text-white'
+                      : 'bg-surface-container-highest text-slate-ink'
+                  }`}
+                >
                   {counts[item as keyof typeof counts] ?? counts.All}
                 </span>
               </button>
@@ -357,9 +406,13 @@ export const AdminApprovalQueue: React.FC = () => {
               onChange={(e) => setDepartment(e.target.value)}
             >
               <option value="All">All Departments</option>
-              {departments.filter(d => d !== 'All').map(d => (
-                <option key={d} value={d}>{d}</option>
-              ))}
+              {departments
+                .filter((d) => d !== 'All')
+                .map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
             </select>
 
             <button className="px-4 py-2 bg-white border border-border-warm rounded-lg text-on-surface-variant font-label-md flex items-center gap-2 hover:bg-surface-container-high transition-colors text-sm font-semibold">
@@ -380,7 +433,9 @@ export const AdminApprovalQueue: React.FC = () => {
                 <th className="px-6 py-4 font-semibold uppercase tracking-wider">Priority</th>
                 <th className="px-6 py-4 font-semibold uppercase tracking-wider">Status</th>
                 <th className="px-6 py-4 font-semibold uppercase tracking-wider">Date</th>
-                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-right">Actions</th>
+                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-right">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-warm font-body-sm text-body-sm">
@@ -395,38 +450,48 @@ export const AdminApprovalQueue: React.FC = () => {
                   </td>
                   <td className="px-6 py-4">{request.department}</td>
                   <td className="px-6 py-4 font-medium text-deep-charcoal">{request.position}</td>
-                  <td className="px-6 py-4 font-semibold">{String(request.headcount).padStart(2, '0')}</td>
+                  <td className="px-6 py-4 font-semibold">
+                    {String(request.headcount).padStart(2, '0')}
+                  </td>
                   <td className="px-6 py-4">
-                    <span className={`px-2.5 py-1 rounded-lg font-label-sm text-label-sm flex items-center gap-1.5 w-fit ${
-                      request.priority === 'High'
-                        ? 'bg-error-container text-rejected'
-                        : 'bg-tertiary-container/10 text-tertiary'
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${
-                        request.priority === 'High' ? 'bg-rejected' : 'bg-tertiary'
-                      }`}></span>
+                    <span
+                      className={`px-2.5 py-1 rounded-lg font-label-sm text-label-sm flex items-center gap-1.5 w-fit ${
+                        request.priority === 'High'
+                          ? 'bg-error-container text-rejected'
+                          : 'bg-tertiary-container/10 text-tertiary'
+                      }`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          request.priority === 'High' ? 'bg-rejected' : 'bg-tertiary'
+                        }`}
+                      ></span>
                       {request.priority}
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`px-2.5 py-1 rounded-lg font-label-sm text-label-sm flex items-center gap-1.5 w-fit ${
-                      request.status === 'Approved'
-                        ? 'bg-surface-container-high text-approved'
-                        : request.status === 'Rejected'
-                        ? 'bg-surface-container-high text-rejected'
-                        : request.status === 'Pending'
-                        ? 'bg-surface-container-high text-pending'
-                        : 'bg-surface-container-high text-draft'
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${
+                    <span
+                      className={`px-2.5 py-1 rounded-lg font-label-sm text-label-sm flex items-center gap-1.5 w-fit ${
                         request.status === 'Approved'
-                          ? 'bg-approved'
+                          ? 'bg-surface-container-high text-approved'
                           : request.status === 'Rejected'
-                          ? 'bg-rejected'
-                          : request.status === 'Pending'
-                          ? 'bg-pending'
-                          : 'bg-draft'
-                      }`}></span>
+                            ? 'bg-surface-container-high text-rejected'
+                            : request.status === 'Pending'
+                              ? 'bg-surface-container-high text-pending'
+                              : 'bg-surface-container-high text-draft'
+                      }`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          request.status === 'Approved'
+                            ? 'bg-approved'
+                            : request.status === 'Rejected'
+                              ? 'bg-rejected'
+                              : request.status === 'Pending'
+                                ? 'bg-pending'
+                                : 'bg-draft'
+                        }`}
+                      ></span>
                       {request.status}
                     </span>
                   </td>
@@ -454,7 +519,9 @@ export const AdminApprovalQueue: React.FC = () => {
               {filteredRequests.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-6 py-12 text-center text-on-surface-variant">
-                    <span className="material-symbols-outlined text-4xl block mb-2 text-slate-ink">search_off</span>
+                    <span className="material-symbols-outlined text-4xl block mb-2 text-slate-ink">
+                      search_off
+                    </span>
                     No requests found matching the current search parameters and filters.
                   </td>
                 </tr>
@@ -467,13 +534,14 @@ export const AdminApprovalQueue: React.FC = () => {
         <div className="p-4 bg-surface-container-low border-t border-border-warm flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
           <p className="font-body-sm text-body-sm text-on-surface-variant">
             Showing {filteredRequests.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}-
-            {Math.min(currentPage * itemsPerPage, filteredRequests.length)} of {filteredRequests.length} requests
+            {Math.min(currentPage * itemsPerPage, filteredRequests.length)} of{' '}
+            {filteredRequests.length} requests
           </p>
           <div className="flex gap-1 justify-center">
             <button
               className="p-2 rounded-lg hover:bg-surface-container-high text-on-surface-variant transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
               disabled={currentPage === 1}
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
             >
               <span className="material-symbols-outlined">chevron_left</span>
             </button>
@@ -493,7 +561,7 @@ export const AdminApprovalQueue: React.FC = () => {
             <button
               className="p-2 rounded-lg hover:bg-surface-container-high text-on-surface-variant transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center"
               disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
             >
               <span className="material-symbols-outlined">chevron_right</span>
             </button>
@@ -509,7 +577,9 @@ export const AdminApprovalQueue: React.FC = () => {
         id="detailDrawer"
       >
         <div className="p-6 border-b border-border-warm flex justify-between items-center bg-workflow-ivory/50">
-          <h3 className="font-headline-md text-headline-md font-semibold text-deep-charcoal">Request Details</h3>
+          <h3 className="font-headline-md text-headline-md font-semibold text-deep-charcoal">
+            Request Details
+          </h3>
           <button
             className="p-2 hover:bg-surface-container-low rounded-full transition-colors flex items-center justify-center"
             onClick={handleCloseDrawer}
@@ -527,35 +597,51 @@ export const AdminApprovalQueue: React.FC = () => {
                   <span className="material-symbols-outlined text-[24px]">badge</span>
                 </div>
                 <div>
-                  <p className="font-label-sm text-label-sm text-on-surface-variant uppercase font-semibold">Requesting Department</p>
-                  <p className="font-headline-md text-headline-md font-semibold text-deep-charcoal">{selectedRequest.department}</p>
+                  <p className="font-label-sm text-label-sm text-on-surface-variant uppercase font-semibold">
+                    Requesting Department
+                  </p>
+                  <p className="font-headline-md text-headline-md font-semibold text-deep-charcoal">
+                    {selectedRequest.department}
+                  </p>
                 </div>
               </div>
 
               {/* Position Title */}
               <div>
-                <label className="font-label-sm text-label-sm text-on-surface-variant block mb-1 font-semibold uppercase">Position Title</label>
-                <p className="font-body-md text-body-md font-semibold text-deep-charcoal">{selectedRequest.position}</p>
+                <label className="font-label-sm text-label-sm text-on-surface-variant block mb-1 font-semibold uppercase">
+                  Position Title
+                </label>
+                <p className="font-body-md text-body-md font-semibold text-deep-charcoal">
+                  {selectedRequest.position}
+                </p>
               </div>
 
               {/* Quantity and Priority */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="font-label-sm text-label-sm text-on-surface-variant block mb-1 font-semibold uppercase">Quantity</label>
+                  <label className="font-label-sm text-label-sm text-on-surface-variant block mb-1 font-semibold uppercase">
+                    Quantity
+                  </label>
                   <p className="font-body-md text-body-md text-deep-charcoal font-semibold">
                     {String(selectedRequest.headcount).padStart(2, '0')} Persons
                   </p>
                 </div>
                 <div>
-                  <label className="font-label-sm text-label-sm text-on-surface-variant block mb-1 font-semibold uppercase">Priority</label>
-                  <span className={`px-2.5 py-0.5 rounded-lg font-label-sm text-label-sm inline-flex items-center gap-1.5 ${
-                    selectedRequest.priority === 'High'
-                      ? 'bg-error-container text-rejected'
-                      : 'bg-tertiary-container/10 text-tertiary'
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${
-                      selectedRequest.priority === 'High' ? 'bg-rejected' : 'bg-tertiary'
-                    }`}></span>
+                  <label className="font-label-sm text-label-sm text-on-surface-variant block mb-1 font-semibold uppercase">
+                    Priority
+                  </label>
+                  <span
+                    className={`px-2.5 py-0.5 rounded-lg font-label-sm text-label-sm inline-flex items-center gap-1.5 ${
+                      selectedRequest.priority === 'High'
+                        ? 'bg-error-container text-rejected'
+                        : 'bg-tertiary-container/10 text-tertiary'
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        selectedRequest.priority === 'High' ? 'bg-rejected' : 'bg-tertiary'
+                      }`}
+                    ></span>
                     {selectedRequest.priority}
                   </span>
                 </div>
@@ -563,13 +649,19 @@ export const AdminApprovalQueue: React.FC = () => {
 
               {/* Salary Range */}
               <div>
-                <label className="font-label-sm text-label-sm text-on-surface-variant block mb-1 font-semibold uppercase">Expected Salary Range</label>
-                <p className="font-data-mono text-data-mono font-semibold text-teal-command">{selectedRequest.salaryRange}</p>
+                <label className="font-label-sm text-label-sm text-on-surface-variant block mb-1 font-semibold uppercase">
+                  Expected Salary Range
+                </label>
+                <p className="font-data-mono text-data-mono font-semibold text-teal-command">
+                  {selectedRequest.salaryRange}
+                </p>
               </div>
 
               {/* Description */}
               <div>
-                <label className="font-label-sm text-label-sm text-on-surface-variant block mb-1 font-semibold uppercase">Job Description Overview</label>
+                <label className="font-label-sm text-label-sm text-on-surface-variant block mb-1 font-semibold uppercase">
+                  Job Description Overview
+                </label>
                 <p className="font-body-sm text-body-sm text-slate-ink leading-relaxed">
                   {selectedRequest.description}
                 </p>
@@ -579,11 +671,15 @@ export const AdminApprovalQueue: React.FC = () => {
               {selectedRequest.documents && selectedRequest.documents.length > 0 && (
                 <div className="p-4 bg-surface-container-low rounded-lg border border-dashed border-outline-variant">
                   <p className="font-label-md text-label-md mb-3 flex items-center gap-2 font-semibold text-deep-charcoal">
-                    <span className="material-symbols-outlined text-[18px]">attachment</span> Attached Documents
+                    <span className="material-symbols-outlined text-[18px]">attachment</span>{' '}
+                    Attached Documents
                   </p>
                   <div className="space-y-2">
                     {selectedRequest.documents.map((doc, idx) => (
-                      <div key={idx} className="flex items-center justify-between text-body-sm py-2 px-3 bg-white rounded border border-border-warm shadow-sm">
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between text-body-sm py-2 px-3 bg-white rounded border border-border-warm shadow-sm"
+                      >
                         <span className="truncate text-slate-ink font-medium">{doc}</span>
                         <span className="material-symbols-outlined text-teal-command cursor-pointer hover:text-primary transition-colors">
                           download
@@ -618,7 +714,9 @@ export const AdminApprovalQueue: React.FC = () => {
                 </>
               ) : (
                 <div className="text-center py-2 text-on-surface-variant font-medium text-sm">
-                  This request has been <span className="font-bold uppercase">{selectedRequest.status}</span> and cannot be modified.
+                  This request has been{' '}
+                  <span className="font-bold uppercase">{selectedRequest.status}</span> and cannot
+                  be modified.
                 </div>
               )}
             </div>

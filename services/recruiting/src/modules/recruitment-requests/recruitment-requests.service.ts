@@ -29,7 +29,13 @@ export interface RequestLog {
 export class RecruitmentRequestsService {
   store = new Map<string, RecruitmentRequest>();
 
-  logTransition(req: RecruitmentRequest, actorId: string, previous: RecruitmentRequestStatus | null, next: RecruitmentRequestStatus, notes?: string) {
+  logTransition(
+    req: RecruitmentRequest,
+    actorId: string,
+    previous: RecruitmentRequestStatus | null,
+    next: RecruitmentRequestStatus,
+    notes?: string,
+  ) {
     const entry: RequestLog = {
       timestamp: new Date().toISOString(),
       actorId,

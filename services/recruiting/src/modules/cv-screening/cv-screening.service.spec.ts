@@ -73,7 +73,9 @@ describe('CvScreeningService', () => {
     it('throws if any IDs are missing', async () => {
       prisma.candidateCV.findMany.mockResolvedValue([{ id: 'cv-1', screeningStatus: 'PENDING' }]);
 
-      await expect(service.bulkUpdate(['cv-1', 'cv-2'], 'SHORTLISTED')).rejects.toThrow(RpcException);
+      await expect(service.bulkUpdate(['cv-1', 'cv-2'], 'SHORTLISTED')).rejects.toThrow(
+        RpcException,
+      );
     });
 
     it('updates all CVs and writes one audit log entry per CV', async () => {

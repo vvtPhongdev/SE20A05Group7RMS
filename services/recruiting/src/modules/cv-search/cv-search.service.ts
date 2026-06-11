@@ -39,7 +39,7 @@ export class CvSearchService {
 
     // 2️⃣ Query pgvector similarity directly in the database.
     //    The `<->` operator returns cosine distance; we convert to similarity by `1 - distance`.
-    const rawResults = await this.prisma.$queryRawUnsafe(
+    const rawResults = (await this.prisma.$queryRawUnsafe(
       `SELECT ce.id, ce."cvDocumentId", (1 - (ce.embedding <=> $1::vector)) AS similarity, cv.raw_text AS "rawText"
        FROM cv_embeddings ce
        JOIN candidate_cv cv ON cv.id = ce."cvDocumentId"
@@ -50,7 +50,7 @@ export class CvSearchService {
       threshold,
       pageSize,
       offset,
-    ) as any[];
+    )) as any[];
 
     // 3️⃣ Map results to a clean shape.
     const data = rawResults.map((r) => ({

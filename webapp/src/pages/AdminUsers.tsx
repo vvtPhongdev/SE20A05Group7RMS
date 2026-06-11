@@ -26,7 +26,8 @@ const getInitialUsers = (): ManagedUser[] => {
       department: 'Management',
       status: 'Active',
       lastLogin: '2024-05-29 14:30',
-      avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB17BiN4bnjWR_KZgkn_VFbqUa3K1Vz1M8XCYTk4xBoBEorBJAlElYxj2hzdjXN52k06t2qxYVVJRUfFbY1ig8ougqZ-Q3cu_Sezo4Nhw5T-LWbBwblZZxh-9D3BcVeHzkVGxSbV_e9dAqOZPI6PYnXYdkO_wsNVpTjDZs6sAWjDz-oPQpvsm9an_3xmf_qaMjEaxAFicYEs6e-XqKLyaXtNRotBP660ZkSdYo_5cpmH_jYM2UvGH2NX6PnZRV9liBMercVNBUU2ys'
+      avatarUrl:
+        'https://lh3.googleusercontent.com/aida-public/AB6AXuB17BiN4bnjWR_KZgkn_VFbqUa3K1Vz1M8XCYTk4xBoBEorBJAlElYxj2hzdjXN52k06t2qxYVVJRUfFbY1ig8ougqZ-Q3cu_Sezo4Nhw5T-LWbBwblZZxh-9D3BcVeHzkVGxSbV_e9dAqOZPI6PYnXYdkO_wsNVpTjDZs6sAWjDz-oPQpvsm9an_3xmf_qaMjEaxAFicYEs6e-XqKLyaXtNRotBP660ZkSdYo_5cpmH_jYM2UvGH2NX6PnZRV9liBMercVNBUU2ys',
     },
     {
       id: 'USR-002',
@@ -36,7 +37,8 @@ const getInitialUsers = (): ManagedUser[] => {
       department: 'Human Resources',
       status: 'Active',
       lastLogin: '2024-05-29 12:15',
-      avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCwiQBSGS5GX3llR0GMK9snbHFaYrPK0OyxBoQ4p6p2ZDbesdgxvCbAGSgqI_7KIof3bSSsghOjYTEX5dgYjr6aQZrSZcmDtBYLPyCGDZfFH5TXI2e2VmWVD8OrnlrqtE7XLSZ_5BKDGpbUb11KiCXfXEO-ap80enLVE4Fi_6OSezpvlarOsgTWe_FDrhwnn6DCCByiKG-X5Fq3dMbeKtp7e42bNCeuUgVDIL-GOKgrWZoP4u-dikZxRhs47xhFAj5LMmB7igJ_Ujw'
+      avatarUrl:
+        'https://lh3.googleusercontent.com/aida-public/AB6AXuCwiQBSGS5GX3llR0GMK9snbHFaYrPK0OyxBoQ4p6p2ZDbesdgxvCbAGSgqI_7KIof3bSSsghOjYTEX5dgYjr6aQZrSZcmDtBYLPyCGDZfFH5TXI2e2VmWVD8OrnlrqtE7XLSZ_5BKDGpbUb11KiCXfXEO-ap80enLVE4Fi_6OSezpvlarOsgTWe_FDrhwnn6DCCByiKG-X5Fq3dMbeKtp7e42bNCeuUgVDIL-GOKgrWZoP4u-dikZxRhs47xhFAj5LMmB7igJ_Ujw',
     },
     {
       id: 'USR-003',
@@ -46,7 +48,8 @@ const getInitialUsers = (): ManagedUser[] => {
       department: 'Engineering',
       status: 'Pending',
       lastLogin: '2024-05-28 09:45',
-      avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDOtZ4Zkmz7uN_YTlA5IELXMVlwFIJpSY-J6s9SDAo9j4FFfOF1lkJPQjPn4EquYDt0bBEo9Pq3na7GJ7lBFBA_o4SQFGOJ00UnPcYEYtb6bp5rE-lup_UoF43BKALZjpf-T-2WjtUyPXaNPaiRkrtyjmduL1ZQfCSHP8HdzaQRzTypR7E7vp-yBJEqftbcJQmMPq-xhS7EbkOY_we60KAJd0f2FbxMSMyvk75LY1rzGc8QP6WQvoPQdr5hKgFXnnIVnL76zum2q3c'
+      avatarUrl:
+        'https://lh3.googleusercontent.com/aida-public/AB6AXuDOtZ4Zkmz7uN_YTlA5IELXMVlwFIJpSY-J6s9SDAo9j4FFfOF1lkJPQjPn4EquYDt0bBEo9Pq3na7GJ7lBFBA_o4SQFGOJ00UnPcYEYtb6bp5rE-lup_UoF43BKALZjpf-T-2WjtUyPXaNPaiRkrtyjmduL1ZQfCSHP8HdzaQRzTypR7E7vp-yBJEqftbcJQmMPq-xhS7EbkOY_we60KAJd0f2FbxMSMyvk75LY1rzGc8QP6WQvoPQdr5hKgFXnnIVnL76zum2q3c',
     },
     {
       id: 'USR-004',
@@ -56,7 +59,8 @@ const getInitialUsers = (): ManagedUser[] => {
       department: '-',
       status: 'Inactive',
       lastLogin: '2024-05-20 16:20',
-      avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBHSkOyHLTzwQNc3WmVZIq0INpvIy55Kk9gHUieB-FJro63rQJYfhukTWQ12UdhwspBJYhtL9i7AIKKj94XMVHf7mDz5uIgECQdtrkVN5XxJjGGDzJpiAFC8fmUUcKKvBB4Vg_dbZpm_x_untpeXfCgZXuuxLd9wp_7_u7jR7QSZMNA_YCyge7dnbYC-mNYN5A_nt7VsirUFalJqWDO-dDeTlieAx1NvFbR05PPyji2K9pJemKdhE07Xur0cD8y1iaqnofJ6QKTQfY'
+      avatarUrl:
+        'https://lh3.googleusercontent.com/aida-public/AB6AXuBHSkOyHLTzwQNc3WmVZIq0INpvIy55Kk9gHUieB-FJro63rQJYfhukTWQ12UdhwspBJYhtL9i7AIKKj94XMVHf7mDz5uIgECQdtrkVN5XxJjGGDzJpiAFC8fmUUcKKvBB4Vg_dbZpm_x_untpeXfCgZXuuxLd9wp_7_u7jR7QSZMNA_YCyge7dnbYC-mNYN5A_nt7VsirUFalJqWDO-dDeTlieAx1NvFbR05PPyji2K9pJemKdhE07Xur0cD8y1iaqnofJ6QKTQfY',
     },
     {
       id: 'USR-005',
@@ -66,8 +70,9 @@ const getInitialUsers = (): ManagedUser[] => {
       department: 'Human Resources',
       status: 'Active',
       lastLogin: '2024-05-29 15:45',
-      avatarUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDhOMXOKfo4rw-zXs2fHnU-OtrL8yXViB_yQzFdZWOFpiZa-mEuChwtN9pqkapPa2v_QpJ2W1sAsUUKuNLjtivwzaTWHlaNPlBxfFS5YPNaCL8nlQk_us7qbczmHJhUpH5BosTgkgifYmIRytjfuH7iZS9EZWZurlCHO9_Rss5SulGalSqUMJW8U0acwvSRO09wgnZ1X2xdmP3lodrRpid5nlCOt8gE9g-BCPKW01O2OVZeQALG2cEUifeSlJIAuLPOLN3t088yqvE'
-    }
+      avatarUrl:
+        'https://lh3.googleusercontent.com/aida-public/AB6AXuDhOMXOKfo4rw-zXs2fHnU-OtrL8yXViB_yQzFdZWOFpiZa-mEuChwtN9pqkapPa2v_QpJ2W1sAsUUKuNLjtivwzaTWHlaNPlBxfFS5YPNaCL8nlQk_us7qbczmHJhUpH5BosTgkgifYmIRytjfuH7iZS9EZWZurlCHO9_Rss5SulGalSqUMJW8U0acwvSRO09wgnZ1X2xdmP3lodrRpid5nlCOt8gE9g-BCPKW01O2OVZeQALG2cEUifeSlJIAuLPOLN3t088yqvE',
+    },
   ];
 
   // We need to generate the rest:
@@ -76,10 +81,52 @@ const getInitialUsers = (): ManagedUser[] => {
   // Dept Heads: need 14 more (15 - 1 = 14)
   // Candidates: need 51 more (52 - 1 = 51)
   // Total to generate = 82 users, starting from index 6
-  
-  const firstNames = ['Viet', 'Tuan', 'Phuong', 'Thao', 'Trang', 'Huy', 'Lan', 'Quynh', 'Duy', 'Nam', 'Hoang', 'An', 'Minh', 'Khoa', 'Linh', 'Bao', 'Chi', 'Huong', 'Diep', 'Hai', 'Phong', 'Thanh', 'Son', 'Lam'];
+
+  const firstNames = [
+    'Viet',
+    'Tuan',
+    'Phuong',
+    'Thao',
+    'Trang',
+    'Huy',
+    'Lan',
+    'Quynh',
+    'Duy',
+    'Nam',
+    'Hoang',
+    'An',
+    'Minh',
+    'Khoa',
+    'Linh',
+    'Bao',
+    'Chi',
+    'Huong',
+    'Diep',
+    'Hai',
+    'Phong',
+    'Thanh',
+    'Son',
+    'Lam',
+  ];
   const middleNames = ['Van', 'Thi', 'Minh', 'Gia', 'Duc', 'Anh', 'Khanh', 'Ngoc', 'Bao', 'Quoc'];
-  const lastNames = ['Nguyen', 'Tran', 'Le', 'Pham', 'Hoang', 'Huynh', 'Phan', 'Vu', 'Vo', 'Dang', 'Bui', 'Do', 'Ho', 'Ngo', 'Duong', 'Ly'];
+  const lastNames = [
+    'Nguyen',
+    'Tran',
+    'Le',
+    'Pham',
+    'Hoang',
+    'Huynh',
+    'Phan',
+    'Vu',
+    'Vo',
+    'Dang',
+    'Bui',
+    'Do',
+    'Ho',
+    'Ngo',
+    'Duong',
+    'Ly',
+  ];
 
   let idCounter = 6;
 
@@ -92,7 +139,7 @@ const getInitialUsers = (): ManagedUser[] => {
       const name = `${ln} ${mn} ${fn}`;
       const email = `${fn.toLowerCase()}.${ln.toLowerCase()}${idx}@rms.vn`;
       const department = defaultDepts[idx % defaultDepts.length];
-      
+
       let status: UserStatus = 'Active';
       if (idx % 7 === 0) {
         status = 'Pending';
@@ -107,7 +154,7 @@ const getInitialUsers = (): ManagedUser[] => {
         role,
         department,
         status,
-        lastLogin: `2024-05-${String(20 + (idx % 10)).padStart(2, '0')} ${String(9 + (idx % 8)).padStart(2, '0')}:${String(10 + (idx % 45)).padStart(2, '0')}`
+        lastLogin: `2024-05-${String(20 + (idx % 10)).padStart(2, '0')} ${String(9 + (idx % 8)).padStart(2, '0')}:${String(10 + (idx % 45)).padStart(2, '0')}`,
       });
 
       idCounter++;
@@ -130,7 +177,13 @@ const emptyForm: UserForm = {
   status: 'Pending',
 };
 
-const roles: Array<RoleKey | 'All'> = ['All', 'Admin', 'Department Head', 'HR Manager', 'Candidate'];
+const roles: Array<RoleKey | 'All'> = [
+  'All',
+  'Admin',
+  'Department Head',
+  'HR Manager',
+  'Candidate',
+];
 const statuses: Array<UserStatus | 'All'> = ['All', 'Active', 'Inactive', 'Pending'];
 
 export const AdminUsers: React.FC = () => {
@@ -139,7 +192,7 @@ export const AdminUsers: React.FC = () => {
   const [roleFilter, setRoleFilter] = useState<RoleKey | 'All'>('All');
   const [statusFilter, setStatusFilter] = useState<UserStatus | 'All'>('All');
   const [deptFilter, setDeptFilter] = useState<string>('All');
-  
+
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
@@ -304,7 +357,7 @@ export const AdminUsers: React.FC = () => {
   // Render pagination numbers
   const renderPaginationButtons = () => {
     const buttons: React.ReactNode[] = [];
-    
+
     const pageBtnClass = (pageNum: number) =>
       `w-8 h-8 rounded flex items-center justify-center font-label-md transition-colors ${
         currentPage === pageNum
@@ -317,14 +370,14 @@ export const AdminUsers: React.FC = () => {
         buttons.push(
           <button key={i} className={pageBtnClass(i)} onClick={() => setCurrentPage(i)}>
             {i}
-          </button>
+          </button>,
         );
       }
     } else {
       buttons.push(
         <button key={1} className={pageBtnClass(1)} onClick={() => setCurrentPage(1)}>
           1
-        </button>
+        </button>,
       );
 
       if (currentPage <= 4) {
@@ -341,46 +394,94 @@ export const AdminUsers: React.FC = () => {
           <button key={5} className={pageBtnClass(5)} onClick={() => setCurrentPage(5)}>
             5
           </button>,
-          <span key="dots-1" className="text-slate-ink px-1">...</span>,
-          <button key={totalPages} className={pageBtnClass(totalPages)} onClick={() => setCurrentPage(totalPages)}>
+          <span key="dots-1" className="text-slate-ink px-1">
+            ...
+          </span>,
+          <button
+            key={totalPages}
+            className={pageBtnClass(totalPages)}
+            onClick={() => setCurrentPage(totalPages)}
+          >
             {totalPages}
-          </button>
+          </button>,
         );
       } else if (currentPage >= totalPages - 3) {
         buttons.push(
-          <span key="dots-1" className="text-slate-ink px-1">...</span>,
-          <button key={totalPages - 4} className={pageBtnClass(totalPages - 4)} onClick={() => setCurrentPage(totalPages - 4)}>
+          <span key="dots-1" className="text-slate-ink px-1">
+            ...
+          </span>,
+          <button
+            key={totalPages - 4}
+            className={pageBtnClass(totalPages - 4)}
+            onClick={() => setCurrentPage(totalPages - 4)}
+          >
             {totalPages - 4}
           </button>,
-          <button key={totalPages - 3} className={pageBtnClass(totalPages - 3)} onClick={() => setCurrentPage(totalPages - 3)}>
+          <button
+            key={totalPages - 3}
+            className={pageBtnClass(totalPages - 3)}
+            onClick={() => setCurrentPage(totalPages - 3)}
+          >
             {totalPages - 3}
           </button>,
-          <button key={totalPages - 2} className={pageBtnClass(totalPages - 2)} onClick={() => setCurrentPage(totalPages - 2)}>
+          <button
+            key={totalPages - 2}
+            className={pageBtnClass(totalPages - 2)}
+            onClick={() => setCurrentPage(totalPages - 2)}
+          >
             {totalPages - 2}
           </button>,
-          <button key={totalPages - 1} className={pageBtnClass(totalPages - 1)} onClick={() => setCurrentPage(totalPages - 1)}>
+          <button
+            key={totalPages - 1}
+            className={pageBtnClass(totalPages - 1)}
+            onClick={() => setCurrentPage(totalPages - 1)}
+          >
             {totalPages - 1}
           </button>,
-          <button key={totalPages} className={pageBtnClass(totalPages)} onClick={() => setCurrentPage(totalPages)}>
+          <button
+            key={totalPages}
+            className={pageBtnClass(totalPages)}
+            onClick={() => setCurrentPage(totalPages)}
+          >
             {totalPages}
-          </button>
+          </button>,
         );
       } else {
         buttons.push(
-          <span key="dots-1" className="text-slate-ink px-1">...</span>,
-          <button key={currentPage - 1} className={pageBtnClass(currentPage - 1)} onClick={() => setCurrentPage(currentPage - 1)}>
+          <span key="dots-1" className="text-slate-ink px-1">
+            ...
+          </span>,
+          <button
+            key={currentPage - 1}
+            className={pageBtnClass(currentPage - 1)}
+            onClick={() => setCurrentPage(currentPage - 1)}
+          >
             {currentPage - 1}
           </button>,
-          <button key={currentPage} className={pageBtnClass(currentPage)} onClick={() => setCurrentPage(currentPage)}>
+          <button
+            key={currentPage}
+            className={pageBtnClass(currentPage)}
+            onClick={() => setCurrentPage(currentPage)}
+          >
             {currentPage}
           </button>,
-          <button key={currentPage + 1} className={pageBtnClass(currentPage + 1)} onClick={() => setCurrentPage(currentPage + 1)}>
+          <button
+            key={currentPage + 1}
+            className={pageBtnClass(currentPage + 1)}
+            onClick={() => setCurrentPage(currentPage + 1)}
+          >
             {currentPage + 1}
           </button>,
-          <span key="dots-2" className="text-slate-ink px-1">...</span>,
-          <button key={totalPages} className={pageBtnClass(totalPages)} onClick={() => setCurrentPage(totalPages)}>
+          <span key="dots-2" className="text-slate-ink px-1">
+            ...
+          </span>,
+          <button
+            key={totalPages}
+            className={pageBtnClass(totalPages)}
+            onClick={() => setCurrentPage(totalPages)}
+          >
             {totalPages}
-          </button>
+          </button>,
         );
       }
     }
@@ -394,7 +495,9 @@ export const AdminUsers: React.FC = () => {
       <div className="flex justify-between items-end mb-margin-lg">
         <div>
           <h2 className="font-headline-lg text-on-surface mb-1">User Management</h2>
-          <p className="font-body-md text-slate-ink">Manage accounts and role assignments across the organization.</p>
+          <p className="font-body-md text-slate-ink">
+            Manage accounts and role assignments across the organization.
+          </p>
         </div>
         <button
           onClick={openCreateModal}
@@ -432,7 +535,9 @@ export const AdminUsers: React.FC = () => {
       {/* Filter Row */}
       <div className="flex flex-wrap gap-4 mb-margin-md items-center">
         <div className="flex-1 min-w-[300px] relative">
-          <span className="material-symbols-outlined absolute left-3 top-2.5 text-outline text-lg">search</span>
+          <span className="material-symbols-outlined absolute left-3 top-2.5 text-outline text-lg">
+            search
+          </span>
           <input
             className="w-full bg-clean-surface border border-border-warm rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-teal-command outline-none font-body-sm text-on-surface"
             placeholder="Search by name or email"
@@ -468,11 +573,13 @@ export const AdminUsers: React.FC = () => {
           onChange={(e) => handleDeptFilterChange(e.target.value)}
         >
           <option value="All">Department</option>
-          {uniqueDepartments.filter((d) => d !== 'All').map((dept) => (
-            <option key={dept} value={dept}>
-              {dept}
-            </option>
-          ))}
+          {uniqueDepartments
+            .filter((d) => d !== 'All')
+            .map((dept) => (
+              <option key={dept} value={dept}>
+                {dept}
+              </option>
+            ))}
         </select>
       </div>
 
@@ -482,12 +589,24 @@ export const AdminUsers: React.FC = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-workflow-ivory border-b border-border-warm">
-                <th className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider">User</th>
-                <th className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider">Role</th>
-                <th className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider">Department</th>
-                <th className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider">Status</th>
-                <th className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider">Last Active</th>
-                <th className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider text-right">Actions</th>
+                <th className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider">
+                  User
+                </th>
+                <th className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider">
+                  Role
+                </th>
+                <th className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider">
+                  Department
+                </th>
+                <th className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider">
+                  Last Active
+                </th>
+                <th className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider text-right">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-warm">
@@ -522,24 +641,26 @@ export const AdminUsers: React.FC = () => {
                         user.role === 'Admin'
                           ? 'bg-deep-charcoal'
                           : user.role === 'HR Manager'
-                          ? 'bg-teal-command'
-                          : user.role === 'Department Head'
-                          ? 'bg-revision'
-                          : 'bg-draft'
+                            ? 'bg-teal-command'
+                            : user.role === 'Department Head'
+                              ? 'bg-revision'
+                              : 'bg-draft'
                       }`}
                     >
                       {user.role === 'Department Head' ? 'Dept Head' : user.role}
                     </span>
                   </td>
-                  <td className="px-margin-md py-4 font-body-sm text-on-surface">{user.department}</td>
+                  <td className="px-margin-md py-4 font-body-sm text-on-surface">
+                    {user.department}
+                  </td>
                   <td className="px-margin-md py-4">
                     <span
                       className={`flex items-center gap-1.5 font-label-md ${
                         user.status === 'Active'
                           ? 'text-approved'
                           : user.status === 'Pending'
-                          ? 'text-revision'
-                          : 'text-slate-ink'
+                            ? 'text-revision'
+                            : 'text-slate-ink'
                       }`}
                     >
                       <span
@@ -547,25 +668,32 @@ export const AdminUsers: React.FC = () => {
                           user.status === 'Active'
                             ? 'bg-approved'
                             : user.status === 'Pending'
-                            ? 'bg-revision'
-                            : 'bg-slate-ink'
+                              ? 'bg-revision'
+                              : 'bg-slate-ink'
                         }`}
                       ></span>
                       {user.status}
                     </span>
                   </td>
-                  <td className="px-margin-md py-4 font-data-mono text-slate-ink">{user.lastLogin}</td>
+                  <td className="px-margin-md py-4 font-data-mono text-slate-ink">
+                    {user.lastLogin}
+                  </td>
                   <td className="px-margin-md py-4 text-right relative">
                     <button
                       className="text-on-surface-variant hover:text-teal-command p-1.5 rounded-full hover:bg-surface-container transition-colors"
-                      onClick={() => setActiveMenuUserId(activeMenuUserId === user.id ? null : user.id)}
+                      onClick={() =>
+                        setActiveMenuUserId(activeMenuUserId === user.id ? null : user.id)
+                      }
                     >
                       <span className="material-symbols-outlined">more_vert</span>
                     </button>
 
                     {activeMenuUserId === user.id && (
                       <>
-                        <div className="fixed inset-0 z-20" onClick={() => setActiveMenuUserId(null)} />
+                        <div
+                          className="fixed inset-0 z-20"
+                          onClick={() => setActiveMenuUserId(null)}
+                        />
                         <div className="absolute right-4 mt-1 w-36 rounded-lg border border-border-warm bg-clean-surface py-1 shadow-lg z-30 text-left">
                           <button
                             className="w-full px-4 py-2.5 text-sm text-on-surface hover:bg-workflow-ivory flex items-center gap-2 transition-colors"
@@ -604,8 +732,12 @@ export const AdminUsers: React.FC = () => {
         {filteredUsers.length === 0 && (
           <div className="flex flex-col items-center justify-center border-t border-border-warm py-16 text-center">
             <span className="material-symbols-outlined text-5xl text-outline mb-4">group</span>
-            <h2 className="text-lg font-semibold text-deep-charcoal">No users match these filters</h2>
-            <p className="mt-2 max-w-md text-sm text-slate-ink">Adjust the search, role, status, or department filter to find more accounts.</p>
+            <h2 className="text-lg font-semibold text-deep-charcoal">
+              No users match these filters
+            </h2>
+            <p className="mt-2 max-w-md text-sm text-slate-ink">
+              Adjust the search, role, status, or department filter to find more accounts.
+            </p>
           </div>
         )}
 
@@ -614,7 +746,8 @@ export const AdminUsers: React.FC = () => {
           <div className="px-margin-md py-4 border-t border-border-warm bg-workflow-ivory flex justify-between items-center">
             <p className="font-body-sm text-slate-ink">
               Showing {Math.min((currentPage - 1) * pageSize + 1, filteredUsers.length)}-
-              {Math.min(currentPage * pageSize, filteredUsers.length)} of {filteredUsers.length} users
+              {Math.min(currentPage * pageSize, filteredUsers.length)} of {filteredUsers.length}{' '}
+              users
             </p>
             <div className="flex items-center gap-2">
               <button
@@ -643,9 +776,13 @@ export const AdminUsers: React.FC = () => {
           <div className="w-full max-w-[560px] rounded-xl border border-border-warm bg-clean-surface shadow-[0_24px_80px_-48px_rgba(28,25,23,0.7)] overflow-hidden">
             <div className="flex items-start justify-between gap-4 border-b border-border-warm p-6">
               <div>
-                <h2 className="text-xl font-semibold text-deep-charcoal">{editingUser ? 'Edit user' : 'Create user'}</h2>
+                <h2 className="text-xl font-semibold text-deep-charcoal">
+                  {editingUser ? 'Edit user' : 'Create user'}
+                </h2>
                 <p className="mt-1 text-sm text-slate-ink">
-                  {editingUser ? 'Update role, department, or account status.' : 'Create a new workspace account and assign its access role.'}
+                  {editingUser
+                    ? 'Update role, department, or account status.'
+                    : 'Create a new workspace account and assign its access role.'}
                 </p>
               </div>
               <button
@@ -671,7 +808,9 @@ export const AdminUsers: React.FC = () => {
                   <input
                     className="h-11 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:bg-white focus:ring-2 focus:ring-teal-command/15"
                     value={form.name}
-                    onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, name: event.target.value }))
+                    }
                   />
                 </label>
                 <label className="space-y-2 block">
@@ -680,7 +819,9 @@ export const AdminUsers: React.FC = () => {
                     className="h-11 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:bg-white focus:ring-2 focus:ring-teal-command/15"
                     type="email"
                     value={form.email}
-                    onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, email: event.target.value }))
+                    }
                   />
                 </label>
                 <label className="space-y-2 block">
@@ -688,13 +829,17 @@ export const AdminUsers: React.FC = () => {
                   <select
                     className="h-11 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:bg-white focus:ring-2 focus:ring-teal-command/15 text-on-surface"
                     value={form.role}
-                    onChange={(event) => setForm((current) => ({ ...current, role: event.target.value as RoleKey }))}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, role: event.target.value as RoleKey }))
+                    }
                   >
-                    {roles.filter((role): role is RoleKey => role !== 'All').map((role) => (
-                      <option key={role} value={role}>
-                        {role}
-                      </option>
-                    ))}
+                    {roles
+                      .filter((role): role is RoleKey => role !== 'All')
+                      .map((role) => (
+                        <option key={role} value={role}>
+                          {role}
+                        </option>
+                      ))}
                   </select>
                 </label>
                 <label className="space-y-2 block">
@@ -702,7 +847,9 @@ export const AdminUsers: React.FC = () => {
                   <input
                     className="h-11 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:bg-white focus:ring-2 focus:ring-teal-command/15"
                     value={form.department}
-                    onChange={(event) => setForm((current) => ({ ...current, department: event.target.value }))}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, department: event.target.value }))
+                    }
                   />
                 </label>
                 <label className="space-y-2 sm:col-span-2 block">
@@ -710,13 +857,20 @@ export const AdminUsers: React.FC = () => {
                   <select
                     className="h-11 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:bg-white focus:ring-2 focus:ring-teal-command/15 text-on-surface"
                     value={form.status}
-                    onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as UserStatus }))}
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        status: event.target.value as UserStatus,
+                      }))
+                    }
                   >
-                    {statuses.filter((status): status is UserStatus => status !== 'All').map((status) => (
-                      <option key={status} value={status}>
-                        {status}
-                      </option>
-                    ))}
+                    {statuses
+                      .filter((status): status is UserStatus => status !== 'All')
+                      .map((status) => (
+                        <option key={status} value={status}>
+                          {status}
+                        </option>
+                      ))}
                   </select>
                 </label>
               </div>
@@ -743,4 +897,3 @@ export const AdminUsers: React.FC = () => {
     </div>
   );
 };
-

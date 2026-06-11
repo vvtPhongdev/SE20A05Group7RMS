@@ -104,9 +104,7 @@ export function loadConfig<T extends z.ZodTypeAny>(
       const path = err.path.join('.');
       return `- ${path}: ${err.message} (received: ${JSON.stringify(env[path])})`;
     });
-    throw new Error(
-      `❌ Invalid environment configuration:\n${errorMessages.join('\n')}`,
-    );
+    throw new Error(`❌ Invalid environment configuration:\n${errorMessages.join('\n')}`);
   }
   return result.data;
 }

@@ -86,12 +86,7 @@
       "primary_artifact_root": "_bmad-output/planning-artifacts"
     },
     "technology_stack": {
-      "current": [
-        "Markdown",
-        "YAML",
-        "TOML",
-        "Python helper scripts"
-      ],
+      "current": ["Markdown", "YAML", "TOML", "Python helper scripts"],
       "planned": [
         "NestJS",
         "PostgreSQL",

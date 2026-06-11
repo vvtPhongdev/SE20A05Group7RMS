@@ -15,4 +15,4 @@ import { EmailTemplateService } from './email-template.service';
   providers: [NotificationsService, EmailTemplateService],
   exports: [NotificationsService, EmailTemplateService],
 })
-export class NotificationsModule { }
+export class NotificationsModule {}

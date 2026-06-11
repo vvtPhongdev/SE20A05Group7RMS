@@ -1,6 +1,11 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
-import { HealthCheckService, HealthCheck, HealthIndicatorResult, HealthCheckError } from '@nestjs/terminus';
+import {
+  HealthCheckService,
+  HealthCheck,
+  HealthIndicatorResult,
+  HealthCheckError,
+} from '@nestjs/terminus';
 import { PrismaService } from '../../common/database/prisma.service';
 import Redis from 'ioredis';
 

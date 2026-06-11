@@ -10,10 +10,7 @@ export class CandidateProfilesService {
   async getProfile(id: string) {
     let profile = await this.prisma.candidateProfile.findFirst({
       where: {
-        OR: [
-          { id: id },
-          { userId: id },
-        ],
+        OR: [{ id: id }, { userId: id }],
       },
       include: {
         cvDocuments: true,
@@ -64,10 +61,7 @@ export class CandidateProfilesService {
   async updateProfile(id: string, data: any) {
     const profile = await this.prisma.candidateProfile.findFirst({
       where: {
-        OR: [
-          { id: id },
-          { userId: id },
-        ],
+        OR: [{ id: id }, { userId: id }],
       },
     });
 

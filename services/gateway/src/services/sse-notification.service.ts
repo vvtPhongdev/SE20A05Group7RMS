@@ -45,9 +45,12 @@ export class SseNotificationService implements OnModuleInit, OnModuleDestroy {
   getNotificationsForUser(userId: string): Observable<MessageEvent> {
     return this.notificationSubject.asObservable().pipe(
       filter((notification) => notification.userId === userId),
-      map((notification) => ({
-        data: notification,
-      } as MessageEvent))
+      map(
+        (notification) =>
+          ({
+            data: notification,
+          }) as MessageEvent,
+      ),
     );
   }
 }

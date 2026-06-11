@@ -29,9 +29,7 @@ describe('ReportsService - T-087 Annual Reports & Tracking', () => {
             headcount: 5,
             status: 'OFFER_ACCEPTED',
             createdAt: new Date('2026-03-01T00:00:00.000Z'),
-            applications: [
-              { status: 'OFFER_ACCEPTED', candidateId: 'c-1' },
-            ],
+            applications: [{ status: 'OFFER_ACCEPTED', candidateId: 'c-1' }],
           },
         ])
         .mockResolvedValueOnce([
@@ -41,14 +39,10 @@ describe('ReportsService - T-087 Annual Reports & Tracking', () => {
             headcount: 2,
             status: 'CLOSED',
             createdAt: new Date('2025-05-01T00:00:00.000Z'),
-            applications: [
-              { status: 'OFFER_ACCEPTED', candidateId: 'c-2' },
-            ],
+            applications: [{ status: 'OFFER_ACCEPTED', candidateId: 'c-2' }],
           },
         ]);
-      prisma.interviewSchedule.count
-        .mockResolvedValueOnce(5)
-        .mockResolvedValueOnce(2);
+      prisma.interviewSchedule.count.mockResolvedValueOnce(5).mockResolvedValueOnce(2);
 
       const result = await service.getAnnualReport({ year: 2026 });
 
@@ -101,9 +95,7 @@ describe('ReportsService - T-087 Annual Reports & Tracking', () => {
           status: 'INTERVIEWING',
           createdBy: { displayName: 'Head' },
           reviewedBy: { displayName: 'HR Manager' },
-          applications: [
-            { status: 'OFFER_ACCEPTED' },
-          ],
+          applications: [{ status: 'OFFER_ACCEPTED' }],
           createdAt: new Date(),
           updatedAt: new Date(),
         },

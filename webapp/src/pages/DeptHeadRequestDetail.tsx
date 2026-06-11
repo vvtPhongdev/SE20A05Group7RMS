@@ -82,7 +82,8 @@ const mockRequestDetails: Record<string, RequestDetail> = {
     due: 'Jun 28, 2026',
     owner: 'Linh Tran',
     reason: 'Backfill for API ownership and service migration support.',
-    justification: 'The API platform team has lost two backend engineers to other teams, causing a bottleneck in core service updates.',
+    justification:
+      'The API platform team has lost two backend engineers to other teams, causing a bottleneck in core service updates.',
     impact: 'Critical integration APIs for external vendors will be delayed by 2-3 months.',
     location: 'Ho Chi Minh City',
     employmentType: 'Full-time',
@@ -125,7 +126,8 @@ const mockRequestDetails: Record<string, RequestDetail> = {
     due: 'Jun 18, 2026',
     owner: 'Khoa Pham',
     reason: 'Coverage gap in release automation and on-call rotation.',
-    justification: 'The system infrastructure scale has doubled in the last six months, and on-call shifts are currently overburdened.',
+    justification:
+      'The system infrastructure scale has doubled in the last six months, and on-call shifts are currently overburdened.',
     impact: 'System reliability SLA might drop below 99.9% due to delayed incident responses.',
     location: 'Ho Chi Minh City',
     employmentType: 'Full-time',
@@ -168,7 +170,8 @@ const mockRequestDetails: Record<string, RequestDetail> = {
     due: 'Jun 30, 2026',
     owner: 'Bao Nguyen',
     reason: 'Analytics backlog for reporting and forecast quality.',
-    justification: 'Increasing BI dashboard requests from marketing and sales have created a three-week backlog.',
+    justification:
+      'Increasing BI dashboard requests from marketing and sales have created a three-week backlog.',
     impact: 'Marketing budget planning will rely on delayed conversion reports.',
     location: 'Hybrid',
     employmentType: 'Full-time',
@@ -185,7 +188,8 @@ const mockRequestDetails: Record<string, RequestDetail> = {
         approver: 'Pham Quynh Nhu',
         role: 'HR Manager',
         decision: 'REVISION_NEEDED',
-        comments: 'Needs stronger business impact and phased headcount rationale. Can we hire 1 senior analyst first instead of 3 mid-level analysts?',
+        comments:
+          'Needs stronger business impact and phased headcount rationale. Can we hire 1 senior analyst first instead of 3 mid-level analysts?',
         decidedAt: 'Jun 08, 2026',
       },
     ],
@@ -218,7 +222,8 @@ const mockRequestDetails: Record<string, RequestDetail> = {
     due: 'Jun 26, 2026',
     owner: 'Hanh Vo',
     reason: 'Reduce partner integration delivery bottlenecks.',
-    justification: 'New client onboarding has scaled, requiring dedicated engineering to build custom payment and inventory sync adapters.',
+    justification:
+      'New client onboarding has scaled, requiring dedicated engineering to build custom payment and inventory sync adapters.',
     impact: 'Client onboarding timeline will increase from 14 days to 45 days.',
     location: 'Ho Chi Minh City',
     employmentType: 'Full-time',
@@ -367,11 +372,45 @@ const mockRequestDetails: Record<string, RequestDetail> = {
 // ─── Component Helpers ───────────────────────────────────────────
 
 const milestoneOrder = [
-  { key: 'submission', label: 'Submission', statuses: [RecruitmentRequestStatus.DRAFT, RecruitmentRequestStatus.PENDING_REVIEW, RecruitmentRequestStatus.REVISION_NEEDED] },
-  { key: 'approval', label: 'Approval', statuses: [RecruitmentRequestStatus.APPROVED, RecruitmentRequestStatus.REJECTED] },
-  { key: 'planning', label: 'HR Planning', statuses: [RecruitmentRequestStatus.PLANNING, RecruitmentRequestStatus.PLAN_APPROVED] },
-  { key: 'recruiting', label: 'Recruiting', statuses: [RecruitmentRequestStatus.SCREENING, RecruitmentRequestStatus.INTERVIEWING, RecruitmentRequestStatus.INTERVIEW_COMPLETED] },
-  { key: 'closure', label: 'Closure', statuses: [RecruitmentRequestStatus.OFFER_EXTENDED, RecruitmentRequestStatus.OFFER_ACCEPTED, RecruitmentRequestStatus.OFFER_DECLINED, RecruitmentRequestStatus.CLOSED, RecruitmentRequestStatus.CANCELLED] },
+  {
+    key: 'submission',
+    label: 'Submission',
+    statuses: [
+      RecruitmentRequestStatus.DRAFT,
+      RecruitmentRequestStatus.PENDING_REVIEW,
+      RecruitmentRequestStatus.REVISION_NEEDED,
+    ],
+  },
+  {
+    key: 'approval',
+    label: 'Approval',
+    statuses: [RecruitmentRequestStatus.APPROVED, RecruitmentRequestStatus.REJECTED],
+  },
+  {
+    key: 'planning',
+    label: 'HR Planning',
+    statuses: [RecruitmentRequestStatus.PLANNING, RecruitmentRequestStatus.PLAN_APPROVED],
+  },
+  {
+    key: 'recruiting',
+    label: 'Recruiting',
+    statuses: [
+      RecruitmentRequestStatus.SCREENING,
+      RecruitmentRequestStatus.INTERVIEWING,
+      RecruitmentRequestStatus.INTERVIEW_COMPLETED,
+    ],
+  },
+  {
+    key: 'closure',
+    label: 'Closure',
+    statuses: [
+      RecruitmentRequestStatus.OFFER_EXTENDED,
+      RecruitmentRequestStatus.OFFER_ACCEPTED,
+      RecruitmentRequestStatus.OFFER_DECLINED,
+      RecruitmentRequestStatus.CLOSED,
+      RecruitmentRequestStatus.CANCELLED,
+    ],
+  },
 ];
 
 const statusStyles: Record<RecruitmentRequestStatus, string> = {
@@ -380,12 +419,14 @@ const statusStyles: Record<RecruitmentRequestStatus, string> = {
   [RecruitmentRequestStatus.APPROVED]: 'border-green-200 bg-green-50 text-approved',
   [RecruitmentRequestStatus.REJECTED]: 'border-red-200 bg-red-50 text-rejected',
   [RecruitmentRequestStatus.REVISION_NEEDED]: 'border-amber-200 bg-amber-50 text-revision',
-  [RecruitmentRequestStatus.PLANNING]: 'border-teal-command/20 bg-teal-command/10 text-teal-command',
+  [RecruitmentRequestStatus.PLANNING]:
+    'border-teal-command/20 bg-teal-command/10 text-teal-command',
   [RecruitmentRequestStatus.PLAN_APPROVED]: 'border-green-200 bg-green-50 text-approved',
   [RecruitmentRequestStatus.SCREENING]: 'border-cyan-200 bg-cyan-50 text-pending',
   [RecruitmentRequestStatus.INTERVIEWING]: 'border-amber-200 bg-amber-50 text-revision',
   [RecruitmentRequestStatus.INTERVIEW_COMPLETED]: 'border-stone-300 bg-stone-100 text-slate-ink',
-  [RecruitmentRequestStatus.OFFER_EXTENDED]: 'border-teal-command/20 bg-teal-command/10 text-teal-command',
+  [RecruitmentRequestStatus.OFFER_EXTENDED]:
+    'border-teal-command/20 bg-teal-command/10 text-teal-command',
   [RecruitmentRequestStatus.OFFER_ACCEPTED]: 'border-green-200 bg-green-50 text-approved',
   [RecruitmentRequestStatus.OFFER_DECLINED]: 'border-red-200 bg-red-50 text-rejected',
   [RecruitmentRequestStatus.CLOSED]: 'border-stone-300 bg-stone-100 text-slate-ink',
@@ -422,15 +463,23 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
   const paths: Record<string, React.ReactNode> = {
     arrowLeft: <path d="M19 12H5m6-6-6 6 6 6" />,
     check: <path d="m5 12 5 5L20 7" />,
-    calendar: <path d="M7 3v4m10-4v4M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />,
+    calendar: (
+      <path d="M7 3v4m10-4v4M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
+    ),
     clock: <path d="M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
     info: <path d="M12 16v-4m0-4h.01M22 12A10 10 0 1 1 2 12a10 10 0 0 1 20 0Z" />,
     user: <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m18-10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" />,
-    briefcase: <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2Zm-4 0V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />,
+    briefcase: (
+      <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2Zm-4 0V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+    ),
     fileText: <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6" />,
     alertCircle: <path d="M12 8v4m0 4h.01M22 12A10 10 0 1 1 2 12a10 10 0 0 1 20 0Z" />,
-    doc: <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2Z" />,
-    users: <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2m21-10a4 4 0 0 0-3-3.87m-4-1.2a4 4 0 0 1 0 7.75" />,
+    doc: (
+      <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2Z" />
+    ),
+    users: (
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2m21-10a4 4 0 0 0-3-3.87m-4-1.2a4 4 0 0 1 0 7.75" />
+    ),
     checkCircle: <path d="m9 11 3 3L22 4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
   };
 
@@ -513,9 +562,7 @@ export const DeptHeadRequestDetail: React.FC = () => {
 
   // Determine current active milestone index
   const activeMilestoneIndex = useMemo(() => {
-    return milestoneOrder.findIndex((milestone) =>
-      milestone.statuses.includes(detail.status),
-    );
+    return milestoneOrder.findIndex((milestone) => milestone.statuses.includes(detail.status));
   }, [detail.status]);
 
   return (
@@ -536,7 +583,9 @@ export const DeptHeadRequestDetail: React.FC = () => {
               {detail.position}
             </h1>
             <span className="font-mono text-sm text-slate-ink">({detail.id})</span>
-            <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-bold ${statusStyles[detail.status]}`}>
+            <span
+              className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-bold ${statusStyles[detail.status]}`}
+            >
               {formatStatus(detail.status)}
             </span>
           </div>
@@ -557,14 +606,24 @@ export const DeptHeadRequestDetail: React.FC = () => {
       </header>
 
       {/* 13-State High-Level Milestones Stepper */}
-      <section className="rounded-xl border border-border-warm bg-clean-surface p-6 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]" aria-label="Workflow progress">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-on-surface-variant mb-6">Workflow Progress</h2>
+      <section
+        className="rounded-xl border border-border-warm bg-clean-surface p-6 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]"
+        aria-label="Workflow progress"
+      >
+        <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-on-surface-variant mb-6">
+          Workflow Progress
+        </h2>
         <div className="relative flex flex-col justify-between gap-6 md:flex-row md:items-center">
           {/* Connector Line (Desktop Only) */}
-          <div className="absolute left-4 top-4 hidden h-[2px] w-[calc(100%-32px)] bg-stone-200 md:block" style={{ zIndex: 0 }}>
+          <div
+            className="absolute left-4 top-4 hidden h-[2px] w-[calc(100%-32px)] bg-stone-200 md:block"
+            style={{ zIndex: 0 }}
+          >
             <div
               className="h-full bg-teal-command transition-all duration-300"
-              style={{ width: `${(Math.max(0, activeMilestoneIndex) / (milestoneOrder.length - 1)) * 100}%` }}
+              style={{
+                width: `${(Math.max(0, activeMilestoneIndex) / (milestoneOrder.length - 1)) * 100}%`,
+              }}
             />
           </div>
 
@@ -582,21 +641,32 @@ export const DeptHeadRequestDetail: React.FC = () => {
               circleClass = 'bg-teal-command border-teal-command text-white';
               textClass = 'text-deep-charcoal font-semibold';
             } else if (isActive) {
-              if (isRejectedOrCancelled && (milestone.key === 'approval' || milestone.key === 'closure')) {
+              if (
+                isRejectedOrCancelled &&
+                (milestone.key === 'approval' || milestone.key === 'closure')
+              ) {
                 circleClass = 'bg-red-500 border-red-500 text-white';
                 textClass = 'text-rejected font-semibold';
               } else {
-                circleClass = 'border-teal-command text-teal-command ring-4 ring-teal-command/10 bg-white';
+                circleClass =
+                  'border-teal-command text-teal-command ring-4 ring-teal-command/10 bg-white';
                 textClass = 'text-teal-command font-bold';
               }
             }
 
             return (
-              <div className="relative z-10 flex items-start gap-4 md:flex-col md:items-center md:gap-2 md:text-center md:flex-1" key={milestone.key}>
-                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 text-sm font-semibold transition duration-200 ${circleClass}`}>
+              <div
+                className="relative z-10 flex items-start gap-4 md:flex-col md:items-center md:gap-2 md:text-center md:flex-1"
+                key={milestone.key}
+              >
+                <span
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 text-sm font-semibold transition duration-200 ${circleClass}`}
+                >
                   {isCompleted ? (
                     <Icon className="h-4 w-4" name="check" />
-                  ) : isRejectedOrCancelled && isActive && (milestone.key === 'approval' || milestone.key === 'closure') ? (
+                  ) : isRejectedOrCancelled &&
+                    isActive &&
+                    (milestone.key === 'approval' || milestone.key === 'closure') ? (
                     '×'
                   ) : (
                     index + 1
@@ -605,7 +675,9 @@ export const DeptHeadRequestDetail: React.FC = () => {
                 <div>
                   <p className={`text-sm tracking-tight ${textClass}`}>{milestone.label}</p>
                   {isActive && (
-                    <p className={`mt-0.5 text-xs font-semibold uppercase tracking-wider ${isRejectedOrCancelled ? 'text-rejected' : 'text-teal-command'}`}>
+                    <p
+                      className={`mt-0.5 text-xs font-semibold uppercase tracking-wider ${isRejectedOrCancelled ? 'text-rejected' : 'text-teal-command'}`}
+                    >
                       {formatStatus(detail.status)}
                     </p>
                   )}
@@ -618,10 +690,8 @@ export const DeptHeadRequestDetail: React.FC = () => {
 
       {/* Main Grid Layout */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.35fr_0.85fr]">
-        
         {/* Left Column (Details, Plans, Logs) */}
         <div className="flex flex-col gap-6">
-          
           {/* Request Metadata Card */}
           <section className="rounded-xl border border-border-warm bg-clean-surface p-6 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]">
             <h2 className="text-lg font-semibold text-deep-charcoal mb-4">Request Details</h2>
@@ -634,19 +704,33 @@ export const DeptHeadRequestDetail: React.FC = () => {
                 ['Target Date', detail.due],
                 ['Last Updated', detail.updated],
               ].map(([label, value, customClass]) => (
-                <div className="rounded-lg border border-border-warm bg-workflow-ivory/50 p-3" key={label}>
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-on-surface-variant">{label}</p>
-                  <p className={`mt-1.5 text-sm font-semibold ${customClass || 'text-deep-charcoal'}`}>{value}</p>
+                <div
+                  className="rounded-lg border border-border-warm bg-workflow-ivory/50 p-3"
+                  key={label}
+                >
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-on-surface-variant">
+                    {label}
+                  </p>
+                  <p
+                    className={`mt-1.5 text-sm font-semibold ${customClass || 'text-deep-charcoal'}`}
+                  >
+                    {value}
+                  </p>
                 </div>
               ))}
             </div>
 
             <div className="space-y-4">
               <div>
-                <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">Technical Competencies & Skills</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                  Technical Competencies & Skills
+                </h3>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {detail.skills.map((skill) => (
-                    <span className="rounded-full border border-border-warm bg-workflow-ivory px-3 py-1 text-xs font-semibold text-slate-ink" key={skill}>
+                    <span
+                      className="rounded-full border border-border-warm bg-workflow-ivory px-3 py-1 text-xs font-semibold text-slate-ink"
+                      key={skill}
+                    >
                       {skill}
                     </span>
                   ))}
@@ -654,17 +738,23 @@ export const DeptHeadRequestDetail: React.FC = () => {
               </div>
               <hr className="border-border-warm" />
               <div>
-                <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">Hiring Reason</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                  Hiring Reason
+                </h3>
                 <p className="mt-2 text-sm leading-6 text-slate-ink">{detail.reason}</p>
               </div>
               <hr className="border-border-warm" />
               <div>
-                <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">Detailed Justification</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                  Detailed Justification
+                </h3>
                 <p className="mt-2 text-sm leading-6 text-slate-ink">{detail.justification}</p>
               </div>
               <hr className="border-border-warm" />
               <div>
-                <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">Business Impact</h3>
+                <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                  Business Impact
+                </h3>
                 <p className="mt-2 text-sm leading-6 text-slate-ink">{detail.impact}</p>
               </div>
             </div>
@@ -675,7 +765,9 @@ export const DeptHeadRequestDetail: React.FC = () => {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-deep-charcoal">Recruitment Plan</h2>
-                <p className="mt-1 text-xs text-slate-ink">Sourcing campaign dates and task delegation.</p>
+                <p className="mt-1 text-xs text-slate-ink">
+                  Sourcing campaign dates and task delegation.
+                </p>
               </div>
               {detail.linkedPlan && (
                 <span className="rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-bold text-approved">
@@ -692,8 +784,12 @@ export const DeptHeadRequestDetail: React.FC = () => {
                       <Icon className="h-5 w-5" name="calendar" />
                     </span>
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Campaign Start</p>
-                      <p className="mt-0.5 text-sm font-semibold text-deep-charcoal">{detail.linkedPlan.startDate}</p>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
+                        Campaign Start
+                      </p>
+                      <p className="mt-0.5 text-sm font-semibold text-deep-charcoal">
+                        {detail.linkedPlan.startDate}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 rounded-lg border border-border-warm p-4 bg-workflow-ivory/40">
@@ -701,8 +797,12 @@ export const DeptHeadRequestDetail: React.FC = () => {
                       <Icon className="h-5 w-5" name="calendar" />
                     </span>
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">Campaign End</p>
-                      <p className="mt-0.5 text-sm font-semibold text-deep-charcoal">{detail.linkedPlan.endDate}</p>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant">
+                        Campaign End
+                      </p>
+                      <p className="mt-0.5 text-sm font-semibold text-deep-charcoal">
+                        {detail.linkedPlan.endDate}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -726,7 +826,9 @@ export const DeptHeadRequestDetail: React.FC = () => {
                           <td className="py-3 px-4 text-slate-ink">{task.assignee}</td>
                           <td className="py-3 px-4 text-slate-ink">{task.endDate}</td>
                           <td className="py-3 pl-4 text-right">
-                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${getTaskStatusBadge(task.status)}`}>
+                            <span
+                              className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${getTaskStatusBadge(task.status)}`}
+                            >
                               {task.status.replace('_', ' ')}
                             </span>
                           </td>
@@ -742,9 +844,12 @@ export const DeptHeadRequestDetail: React.FC = () => {
                   <Icon className="h-5 w-5" name="info" />
                 </span>
                 <div>
-                  <h3 className="text-sm font-semibold text-deep-charcoal">No campaign plan active</h3>
+                  <h3 className="text-sm font-semibold text-deep-charcoal">
+                    No campaign plan active
+                  </h3>
                   <p className="mt-1 max-w-[40ch] text-xs text-slate-ink leading-relaxed">
-                    Once the request is approved, the HR Manager will draft an Overall Plan detailing dates and operational tasks.
+                    Once the request is approved, the HR Manager will draft an Overall Plan
+                    detailing dates and operational tasks.
                   </p>
                 </div>
               </div>
@@ -776,15 +881,20 @@ export const DeptHeadRequestDetail: React.FC = () => {
 
         {/* Right Column (Sidebar metrics, Approvals, CV list) */}
         <div className="flex flex-col gap-6">
-
           {/* Key Metrics / Sourced Status Card */}
           <section className="rounded-xl border border-border-warm bg-clean-surface p-6 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-on-surface-variant mb-4">Sourcing Dashboard</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-on-surface-variant mb-4">
+              Sourcing Dashboard
+            </h2>
             <div className="grid grid-cols-2 gap-4">
               <div className="rounded-lg border border-border-warm bg-workflow-ivory/50 p-4 text-center">
                 <p className="text-xs font-semibold text-slate-ink">Sourced CVs</p>
-                <p className="mt-2 font-mono text-3xl font-semibold text-deep-charcoal">{detail.candidates.length}</p>
-                <p className="mt-1 text-[10px] text-on-surface-variant font-medium">In talent pool</p>
+                <p className="mt-2 font-mono text-3xl font-semibold text-deep-charcoal">
+                  {detail.candidates.length}
+                </p>
+                <p className="mt-1 text-[10px] text-on-surface-variant font-medium">
+                  In talent pool
+                </p>
               </div>
               <div className="rounded-lg border border-border-warm bg-workflow-ivory/50 p-4 text-center">
                 <p className="text-xs font-semibold text-slate-ink">Panel Interviews</p>
@@ -831,11 +941,15 @@ export const DeptHeadRequestDetail: React.FC = () => {
                           <Icon className="h-4 w-4" name={iconName} />
                         </span>
                         <div>
-                          <h3 className="text-sm font-semibold text-deep-charcoal">{record.approver}</h3>
+                          <h3 className="text-sm font-semibold text-deep-charcoal">
+                            {record.approver}
+                          </h3>
                           <p className="text-[10px] text-slate-ink">{record.role}</p>
                         </div>
                       </div>
-                      <span className="font-mono text-[10px] text-on-surface-variant font-medium">{record.decidedAt}</span>
+                      <span className="font-mono text-[10px] text-on-surface-variant font-medium">
+                        {record.decidedAt}
+                      </span>
                     </div>
                     {record.comments && (
                       <p className="mt-3 text-xs leading-5 text-slate-ink bg-white/70 p-2.5 rounded border border-border-warm/40">
@@ -850,13 +964,23 @@ export const DeptHeadRequestDetail: React.FC = () => {
 
           {/* Sourced CVs Candidates list */}
           <section className="rounded-xl border border-border-warm bg-clean-surface p-6 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]">
-            <h2 className="text-lg font-semibold text-deep-charcoal mb-4">Talent Pool / Candidates</h2>
+            <h2 className="text-lg font-semibold text-deep-charcoal mb-4">
+              Talent Pool / Candidates
+            </h2>
             {detail.candidates.length > 0 ? (
               <div className="space-y-4">
                 {detail.candidates.map((cand) => {
-                  const scoreColor = cand.matchScore >= 90 ? 'text-approved' : cand.matchScore >= 80 ? 'text-teal-command' : 'text-revision';
+                  const scoreColor =
+                    cand.matchScore >= 90
+                      ? 'text-approved'
+                      : cand.matchScore >= 80
+                        ? 'text-teal-command'
+                        : 'text-revision';
                   return (
-                    <div className="rounded-lg border border-border-warm p-4 hover:border-teal-command transition bg-workflow-ivory/20" key={cand.email}>
+                    <div
+                      className="rounded-lg border border-border-warm p-4 hover:border-teal-command transition bg-workflow-ivory/20"
+                      key={cand.email}
+                    >
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <h3 className="text-sm font-semibold text-deep-charcoal">{cand.name}</h3>
@@ -875,7 +999,10 @@ export const DeptHeadRequestDetail: React.FC = () => {
                         </span>
                         <div className="flex items-center gap-1 text-teal-command hover:underline cursor-pointer">
                           <Icon className="h-3.5 w-3.5" name="doc" />
-                          <span className="truncate max-w-[120px] font-mono text-[9px] font-medium" title={cand.cvFileName}>
+                          <span
+                            className="truncate max-w-[120px] font-mono text-[9px] font-medium"
+                            title={cand.cvFileName}
+                          >
                             {cand.cvFileName}
                           </span>
                         </div>
@@ -890,16 +1017,18 @@ export const DeptHeadRequestDetail: React.FC = () => {
                   <Icon className="h-4 w-4" name="users" />
                 </span>
                 <div>
-                  <h3 className="text-xs font-semibold text-deep-charcoal">No candidates sourced</h3>
+                  <h3 className="text-xs font-semibold text-deep-charcoal">
+                    No candidates sourced
+                  </h3>
                   <p className="mt-1 text-[11px] text-slate-ink leading-relaxed">
-                    Candidate pool and vector search indexing will unlock once campaign goes into screening state.
+                    Candidate pool and vector search indexing will unlock once campaign goes into
+                    screening state.
                   </p>
                 </div>
               </div>
             )}
           </section>
         </div>
-
       </div>
     </div>
   );

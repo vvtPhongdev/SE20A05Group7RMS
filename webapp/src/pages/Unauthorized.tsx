@@ -20,8 +20,8 @@ export const Unauthorized: React.FC = () => {
         <div className="text-6xl mb-6">🚫</div>
         <h1 className="text-2xl font-bold text-[var(--wr-error)] mt-0 mb-4">Access Denied</h1>
         <p className="text-base text-[var(--wr-text-secondary)] leading-normal mt-0 mb-8">
-          You do not have the necessary permission rules to view this resource. 
-          Please contact your administrator if you believe this is an error.
+          You do not have the necessary permission rules to view this resource. Please contact your
+          administrator if you believe this is an error.
         </p>
         <button
           onClick={() => navigate('/')}

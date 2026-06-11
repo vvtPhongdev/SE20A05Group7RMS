@@ -35,12 +35,12 @@ export class OffersController {
   @MessagePattern('recruiting.offers.respond')
   respond(
     @Payload()
-    payload: { id: string; response: OfferResponse; candidateUserId: string },
+    payload: {
+      id: string;
+      response: OfferResponse;
+      candidateUserId: string;
+    },
   ) {
-    return this.service.respond(
-      payload.id,
-      payload.response,
-      payload.candidateUserId,
-    );
+    return this.service.respond(payload.id, payload.response, payload.candidateUserId);
   }
 }

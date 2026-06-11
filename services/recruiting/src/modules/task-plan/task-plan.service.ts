@@ -24,7 +24,9 @@ export class TaskPlanService {
     const { overallPlanId, taskType, assignedToId, startDate, endDate, performedById } = payload;
 
     if (!Object.values(TaskType).includes(taskType as TaskType)) {
-      throw new BadRequestException(`taskType must be one of: ${Object.values(TaskType).join(', ')}`);
+      throw new BadRequestException(
+        `taskType must be one of: ${Object.values(TaskType).join(', ')}`,
+      );
     }
 
     const plan = await this.prisma.overallPlan.findUnique({ where: { id: overallPlanId } });
@@ -51,14 +53,16 @@ export class TaskPlanService {
       include: { assignedTo: { select: { id: true, displayName: true } } },
     });
 
-    this.auditLog.log({
-      entityType: AuditEntityType.TASK_PLAN,
-      entityId: task.id,
-      action: AuditAction.TASK_PLAN_ASSIGNED,
-      toStatus: TaskStatus.PENDING,
-      performedById: performedById ?? assignedToId,
-      metadata: { overallPlanId, taskType, assignedToId },
-    }).catch((err) => console.error('Failed to write audit log for TASK_PLAN_ASSIGNED:', err));
+    this.auditLog
+      .log({
+        entityType: AuditEntityType.TASK_PLAN,
+        entityId: task.id,
+        action: AuditAction.TASK_PLAN_ASSIGNED,
+        toStatus: TaskStatus.PENDING,
+        performedById: performedById ?? assignedToId,
+        metadata: { overallPlanId, taskType, assignedToId },
+      })
+      .catch((err) => console.error('Failed to write audit log for TASK_PLAN_ASSIGNED:', err));
 
     return task;
   }
@@ -70,7 +74,9 @@ export class TaskPlanService {
     const { id, status, performedById } = payload;
 
     if (!Object.values(TaskStatus).includes(status as TaskStatus)) {
-      throw new BadRequestException(`status must be one of: ${Object.values(TaskStatus).join(', ')}`);
+      throw new BadRequestException(
+        `status must be one of: ${Object.values(TaskStatus).join(', ')}`,
+      );
     }
 
     const task = await this.prisma.taskPlan.findUnique({ where: { id } });
@@ -82,14 +88,18 @@ export class TaskPlanService {
       include: { assignedTo: { select: { id: true, displayName: true } } },
     });
 
-    this.auditLog.log({
-      entityType: AuditEntityType.TASK_PLAN,
-      entityId: id,
-      action: AuditAction.TASK_PLAN_STATUS_CHANGED,
-      fromStatus: task.status,
-      toStatus: status,
-      performedById,
-    }).catch((err) => console.error('Failed to write audit log for TASK_PLAN_STATUS_CHANGED:', err));
+    this.auditLog
+      .log({
+        entityType: AuditEntityType.TASK_PLAN,
+        entityId: id,
+        action: AuditAction.TASK_PLAN_STATUS_CHANGED,
+        fromStatus: task.status,
+        toStatus: status,
+        performedById,
+      })
+      .catch((err) =>
+        console.error('Failed to write audit log for TASK_PLAN_STATUS_CHANGED:', err),
+      );
 
     return updated;
   }

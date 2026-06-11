@@ -34,7 +34,11 @@ describe('HiringDecisionService', () => {
     }),
   };
   const emailQueue = { add: jest.fn() };
-  const service = new HiringDecisionService(prisma as any, notificationClient as any, emailQueue as any);
+  const service = new HiringDecisionService(
+    prisma as any,
+    notificationClient as any,
+    emailQueue as any,
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();

@@ -130,17 +130,17 @@ works-reruiter/
 
 ## Critical Folders
 
-| Folder | Purpose | Entry Point |
-|--------|---------|-------------|
-| `services/gateway/` | HTTP API — only service with `@Get()`, `@Post()` | `main.ts` |
-| `services/identity/` | Auth, users, orgs, departments | `main.ts` (TCP) |
-| `services/recruiting/` | RecruitmentRequests, plans, interviews, results | `main.ts` (TCP) |
-| `services/profiles/` | Candidate profiles, CV documents, embeddings | `main.ts` (TCP) |
-| `services/review/` | **LEGACY** — being repurposed as Notification service | `main.ts` (TCP) |
-| `services/worker/` | BullMQ job processor (plain TS, NOT NestJS) | `index.ts` |
-| `packages/contracts/` | Enums + Zod schemas — single source of truth | `index.ts` |
-| `packages/database/` | Prisma schema + client | `schema.prisma` |
-| `packages/ai/` | CV parsing + vector search — NO database dependency | `index.ts` |
+| Folder                 | Purpose                                               | Entry Point     |
+| ---------------------- | ----------------------------------------------------- | --------------- |
+| `services/gateway/`    | HTTP API — only service with `@Get()`, `@Post()`      | `main.ts`       |
+| `services/identity/`   | Auth, users, orgs, departments                        | `main.ts` (TCP) |
+| `services/recruiting/` | RecruitmentRequests, plans, interviews, results       | `main.ts` (TCP) |
+| `services/profiles/`   | Candidate profiles, CV documents, embeddings          | `main.ts` (TCP) |
+| `services/review/`     | **LEGACY** — being repurposed as Notification service | `main.ts` (TCP) |
+| `services/worker/`     | BullMQ job processor (plain TS, NOT NestJS)           | `index.ts`      |
+| `packages/contracts/`  | Enums + Zod schemas — single source of truth          | `index.ts`      |
+| `packages/database/`   | Prisma schema + client                                | `schema.prisma` |
+| `packages/ai/`         | CV parsing + vector search — NO database dependency   | `index.ts`      |
 
 ## Integration Points
 

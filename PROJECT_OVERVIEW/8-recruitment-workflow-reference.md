@@ -56,6 +56,7 @@ stateDiagram-v2
 ### 2. Lưu vết và Theo dõi (Tracking)
 
 Hệ thống ghi lại toàn bộ lịch sử (Log):
+
 - Ngày tạo yêu cầu
 - Ngày duyệt
 - Người đăng bài tuyển dụng
@@ -67,6 +68,7 @@ Trưởng phòng ban có thể truy cập dashboard kiểm tra bất cứ lúc n
 ### 3. Tổ chức theo kế hoạch
 
 Hệ thống khóa chặt quy trình. Nhân viên tuyển dụng **không thể thực hiện các bước tiếp theo** nếu:
+
 - Kế hoạch triển khai chưa được phê duyệt
 - Thời gian chiến dịch nằm ngoài khung kế hoạch tổng thể
 
@@ -132,4 +134,4 @@ cd services/worker && npm install @xenova/transformers
 
 ---
 
-*Last updated: 2026-05-28*
+_Last updated: 2026-05-28_

@@ -243,7 +243,12 @@ describe('AuthService', () => {
 
       expect(redisInstance.get).toHaveBeenCalledWith(redisKey);
       expect(redisInstance.del).toHaveBeenCalledWith(redisKey);
-      expect(redisInstance.set).toHaveBeenCalledWith(expect.stringMatching(/^refresh:[a-f0-9]{64}$/), user.id, 'EX', 2592000);
+      expect(redisInstance.set).toHaveBeenCalledWith(
+        expect.stringMatching(/^refresh:[a-f0-9]{64}$/),
+        user.id,
+        'EX',
+        2592000,
+      );
       expect(mockJwtService.sign).toHaveBeenCalledWith({
         sub: user.id,
         email: user.email,
