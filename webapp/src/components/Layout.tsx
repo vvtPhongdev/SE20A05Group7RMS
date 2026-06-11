@@ -347,10 +347,11 @@ interface LayoutProps {
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
+  const [avatar, setAvatar] = useState<string | null>(null);
 
   // Get nav items matching the user's role
   const navItems = user ? NAVIGATION_BY_ROLE[user.role] || [] : [];
@@ -366,6 +367,69 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     });
     setExpandedMenus((prev) => ({ ...prev, ...initialExpanded }));
   }, [location.pathname, user?.role]);
+
+  useEffect(() => {
+    let active = true;
+    let avatarObjectUrl: string | null = null;
+
+    const clearAvatar = () => {
+      if (avatarObjectUrl) {
+        URL.revokeObjectURL(avatarObjectUrl);
+        avatarObjectUrl = null;
+      }
+      if (active) {
+        setAvatar(null);
+      }
+    };
+
+    const loadAvatar = async () => {
+      if (!user || user.role !== UserRole.CANDIDATE || !token) {
+        clearAvatar();
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/v1/candidate-profiles/me/avatar', {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        });
+
+        if (response.status === 404) {
+          clearAvatar();
+          return;
+        }
+        if (!response.ok) {
+          throw new Error(`Unable to load profile photo (${response.status})`);
+        }
+
+        const nextAvatarUrl = URL.createObjectURL(await response.blob());
+        if (!active) {
+          URL.revokeObjectURL(nextAvatarUrl);
+          return;
+        }
+
+        if (avatarObjectUrl) {
+          URL.revokeObjectURL(avatarObjectUrl);
+        }
+        avatarObjectUrl = nextAvatarUrl;
+        setAvatar(nextAvatarUrl);
+      } catch {
+        clearAvatar();
+      }
+    };
+
+    const handleAvatarUpdated = () => void loadAvatar();
+    void loadAvatar();
+
+    window.addEventListener('avatar-updated', handleAvatarUpdated);
+    return () => {
+      active = false;
+      window.removeEventListener('avatar-updated', handleAvatarUpdated);
+      if (avatarObjectUrl) {
+        URL.revokeObjectURL(avatarObjectUrl);
+      }
+    };
+  }, [token, user]);
 
   if (!user) return <>{children}</>;
 
@@ -402,8 +466,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
         {/* User Card */}
         <div className="flex items-center gap-3 p-3 bg-[var(--wr-bg-elevated)] rounded-[var(--wr-radius-md)] mb-8">
-          <div className="w-9 h-9 rounded-full bg-[var(--wr-border-strong)] flex justify-center items-center font-semibold text-[var(--wr-text-primary)]">
-            {user.displayName?.charAt(0).toUpperCase() || 'U'}
+          <div className="w-9 h-9 rounded-full bg-[var(--wr-border-strong)] flex justify-center items-center font-semibold text-[var(--wr-text-primary)] overflow-hidden shrink-0">
+            {avatar ? (
+              <img src={avatar} className="w-full h-full object-cover" alt="User avatar" />
+            ) : (
+              user.displayName?.charAt(0).toUpperCase() || 'U'
+            )}
           </div>
           <div className="flex flex-col overflow-hidden">
             <div className="font-semibold text-sm text-[var(--wr-text-primary)] whitespace-nowrap overflow-hidden text-ellipsis">

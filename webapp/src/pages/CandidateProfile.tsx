@@ -285,7 +285,10 @@ export const CandidateProfile: React.FC = () => {
       headers.set('Authorization', `Bearer ${token}`);
     }
 
-    const response = await fetch('/api/v1/candidate-profiles/me/avatar', { headers });
+    const response = await fetch('/api/v1/candidate-profiles/me/avatar', {
+      headers,
+      cache: 'no-store',
+    });
     if (response.status === 404) {
       clearAvatarPreview();
       return;
@@ -439,6 +442,7 @@ export const CandidateProfile: React.FC = () => {
         },
       );
       await loadAvatar();
+      window.dispatchEvent(new Event('avatar-updated'));
       setLastUpdated(new Date(result.updatedAt).toLocaleDateString());
     } catch (uploadError) {
       setApiError(
@@ -461,6 +465,7 @@ export const CandidateProfile: React.FC = () => {
         { method: 'DELETE' },
       );
       clearAvatarPreview();
+      window.dispatchEvent(new Event('avatar-updated'));
       setLastUpdated(new Date(result.updatedAt).toLocaleDateString());
     } catch (deleteError) {
       setApiError(
