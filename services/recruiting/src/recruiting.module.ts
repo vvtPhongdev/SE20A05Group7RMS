@@ -60,5 +60,4 @@ function getRedisConnection() {
   controllers: [RecruitmentRequestsController],
   providers: [RecruitmentRequestsService],
 })
-export class RecruitingModule { }
-
+export class RecruitingModule {}

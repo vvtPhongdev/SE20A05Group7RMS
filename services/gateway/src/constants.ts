@@ -24,4 +24,3 @@ export const SERVICE_TOKENS = {
   CV: 'CV_SERVICE',
   INTERVIEW: 'INTERVIEW_SERVICE',
 } as const;
-

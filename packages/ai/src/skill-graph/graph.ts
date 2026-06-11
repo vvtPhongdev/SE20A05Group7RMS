@@ -158,16 +158,18 @@ export class SkillGraph {
         const resolvedCandidate = this.resolve(candidate);
 
         // Exact match
-        if (resolvedCandidate && resolvedRequired &&
-          resolvedCandidate.toLowerCase() === resolvedRequired.toLowerCase()) {
+        if (
+          resolvedCandidate &&
+          resolvedRequired &&
+          resolvedCandidate.toLowerCase() === resolvedRequired.toLowerCase()
+        ) {
           bestDistance = 0;
           matchSource = 'exact';
           break;
         }
 
         // Alias match
-        if (resolvedCandidate && resolvedRequired &&
-          resolvedCandidate === resolvedRequired) {
+        if (resolvedCandidate && resolvedRequired && resolvedCandidate === resolvedRequired) {
           bestDistance = 0;
           matchSource = 'alias';
           break;
@@ -183,11 +185,16 @@ export class SkillGraph {
 
       // Convert distance to confidence (closer = higher)
       const confidence =
-        bestDistance === 0 ? 1.0
-          : bestDistance === 1 ? 0.85
-            : bestDistance === 2 ? 0.65
-              : bestDistance === 3 ? 0.45
-                : bestDistance < Infinity ? 0.25
+        bestDistance === 0
+          ? 1.0
+          : bestDistance === 1
+            ? 0.85
+            : bestDistance === 2
+              ? 0.65
+              : bestDistance === 3
+                ? 0.45
+                : bestDistance < Infinity
+                  ? 0.25
                   : 0;
 
       totalScore += confidence;

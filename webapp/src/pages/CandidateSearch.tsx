@@ -19,9 +19,13 @@ const results: SearchResult[] = [
     parsed: 'Parsed 2 days ago',
     evidence: (
       <>
-        Implemented a high-throughput <strong className="font-semibold text-teal-command">distributed system</strong> using{' '}
-        <strong className="font-semibold text-teal-command">Go</strong> and <strong className="font-semibold text-teal-command">PostgreSQL</strong> handling
-        10k req/s. Optimized caching layers with <strong className="font-semibold text-teal-command">Redis</strong> cluster for real-time leaderboards.
+        Implemented a high-throughput{' '}
+        <strong className="font-semibold text-teal-command">distributed system</strong> using{' '}
+        <strong className="font-semibold text-teal-command">Go</strong> and{' '}
+        <strong className="font-semibold text-teal-command">PostgreSQL</strong> handling 10k req/s.
+        Optimized caching layers with{' '}
+        <strong className="font-semibold text-teal-command">Redis</strong> cluster for real-time
+        leaderboards.
       </>
     ),
     skills: ['Go', 'Redis', 'PostgreSQL', 'Kubernetes', 'gRPC', 'Fintech'],
@@ -34,8 +38,11 @@ const results: SearchResult[] = [
     parsed: 'Parsed 5 hours ago',
     evidence: (
       <>
-        Architected migration from monolith to <strong className="font-semibold text-teal-command">distributed microservices</strong>. Deep experience in
-        event-driven design using RabbitMQ and <strong className="font-semibold text-teal-command">PostgreSQL</strong> relational structures.
+        Architected migration from monolith to{' '}
+        <strong className="font-semibold text-teal-command">distributed microservices</strong>. Deep
+        experience in event-driven design using RabbitMQ and{' '}
+        <strong className="font-semibold text-teal-command">PostgreSQL</strong> relational
+        structures.
       </>
     ),
     skills: ['Go', 'PostgreSQL', 'Kubernetes', 'RabbitMQ'],
@@ -48,8 +55,9 @@ const results: SearchResult[] = [
     parsed: 'Parsed yesterday',
     evidence: (
       <>
-        Led reliability work for cloud infrastructure, including <strong className="font-semibold text-teal-command">Kubernetes</strong> operators,
-        service mesh rollout, and distributed tracing for payment APIs.
+        Led reliability work for cloud infrastructure, including{' '}
+        <strong className="font-semibold text-teal-command">Kubernetes</strong> operators, service
+        mesh rollout, and distributed tracing for payment APIs.
       </>
     ),
     skills: ['Kubernetes', 'Docker', 'Observability', 'AWS'],
@@ -70,8 +78,12 @@ const iconPaths: Record<string, React.ReactNode> = {
   filter: <path d="M4 6h16M7 12h10M10 18h4" />,
   user: <path d="M20 21a8 8 0 0 0-16 0m12-13a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" />,
   history: <path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5m4-2v6l4 2" />,
-  database: <path d="M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3Zm0 0v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />,
-  warning: <path d="M12 9v4m0 4h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />,
+  database: (
+    <path d="M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3Zm0 0v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
+  ),
+  warning: (
+    <path d="M12 9v4m0 4h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+  ),
 };
 
 const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: string }) => (
@@ -91,21 +103,31 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
 
 export const CandidateSearch: React.FC = () => {
   const [campaign, setCampaign] = useState('Engineering - Senior Platform (ENG-2024-012)');
-  const [query, setQuery] = useState('backend developer with Go, PostgreSQL, Redis, and distributed systems experience in fintech');
+  const [query, setQuery] = useState(
+    'backend developer with Go, PostgreSQL, Redis, and distributed systems experience in fintech',
+  );
   const [locked, setLocked] = useState(true);
 
   const visibleResults = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return results;
-    return results.filter((result) => [result.name, result.title, ...result.skills].some((item) => item.toLowerCase().includes(normalized.split(' ')[0])));
+    return results.filter((result) =>
+      [result.name, result.title, ...result.skills].some((item) =>
+        item.toLowerCase().includes(normalized.split(' ')[0]),
+      ),
+    );
   }, [query]);
 
   return (
     <div className="mx-auto grid max-w-[1440px] gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
       <main className="min-w-0 space-y-6">
         <header>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">HR Manager Portal</p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">Candidate Search</h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">
+            HR Manager Portal
+          </p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">
+            Candidate Search
+          </h1>
           <p className="mt-1 max-w-[72ch] text-sm leading-6 text-slate-ink">
             Use semantic search evidence to find matching CVs for approved recruitment campaigns.
           </p>
@@ -114,8 +136,14 @@ export const CandidateSearch: React.FC = () => {
         {locked ? (
           <section className="flex items-center gap-3 rounded-lg border border-error/20 bg-error-container px-4 py-3 text-on-error-container">
             <Icon className="h-5 w-5" name="lock" />
-            <span className="text-sm font-semibold">Search disabled until request and overall plan are approved.</span>
-            <button className="ml-auto text-xs font-bold text-on-error-container underline" onClick={() => setLocked(false)} type="button">
+            <span className="text-sm font-semibold">
+              Search disabled until request and overall plan are approved.
+            </span>
+            <button
+              className="ml-auto text-xs font-bold text-on-error-container underline"
+              onClick={() => setLocked(false)}
+              type="button"
+            >
               Unlock preview
             </button>
           </section>
@@ -126,7 +154,9 @@ export const CandidateSearch: React.FC = () => {
           <div className="relative space-y-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <label className="flex flex-col gap-1">
-                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">Active Campaign</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
+                  Active Campaign
+                </span>
                 <select
                   className="h-10 min-w-[280px] rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
                   onChange={(event) => setCampaign(event.target.value)}
@@ -138,13 +168,17 @@ export const CandidateSearch: React.FC = () => {
                 </select>
               </label>
               <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border-warm bg-surface-container-high px-3 py-1.5 text-xs font-semibold text-slate-ink">
-                <span className={`h-2 w-2 rounded-full ${locked ? 'bg-revision' : 'bg-approved'}`} />
+                <span
+                  className={`h-2 w-2 rounded-full ${locked ? 'bg-revision' : 'bg-approved'}`}
+                />
                 {locked ? 'Plan-Locked' : 'Preview Unlocked'}
               </span>
             </div>
 
             <label className="block space-y-2">
-              <span className="text-sm font-semibold text-deep-charcoal">Natural Language Semantic Search</span>
+              <span className="text-sm font-semibold text-deep-charcoal">
+                Natural Language Semantic Search
+              </span>
               <div className="relative">
                 <textarea
                   className="w-full resize-none rounded-lg border border-border-warm bg-workflow-ivory p-4 pr-40 text-sm outline-none transition placeholder:text-slate-ink/40 focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
@@ -155,10 +189,14 @@ export const CandidateSearch: React.FC = () => {
                   value={query}
                 />
                 <div className="absolute bottom-4 right-4 flex items-center gap-3">
-                  <span className="hidden text-xs italic text-slate-ink sm:inline">Ctrl + Enter</span>
+                  <span className="hidden text-xs italic text-slate-ink sm:inline">
+                    Ctrl + Enter
+                  </span>
                   <button
                     className={`inline-flex h-10 items-center gap-2 rounded-lg px-5 text-sm font-semibold text-white transition active:scale-[0.98] ${
-                      locked ? 'cursor-not-allowed bg-teal-command/50' : 'bg-teal-command hover:bg-primary'
+                      locked
+                        ? 'cursor-not-allowed bg-teal-command/50'
+                        : 'bg-teal-command hover:bg-primary'
                     }`}
                     disabled={locked}
                     type="button"
@@ -172,10 +210,18 @@ export const CandidateSearch: React.FC = () => {
           </div>
         </section>
 
-        <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4" aria-label="Candidate search metrics">
+        <section
+          className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4"
+          aria-label="Candidate search metrics"
+        >
           {kpis.map((kpi) => (
-            <section className="rounded-lg border border-border-warm bg-clean-surface p-4 shadow-sm" key={kpi.label}>
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">{kpi.label}</p>
+            <section
+              className="rounded-lg border border-border-warm bg-clean-surface p-4 shadow-sm"
+              key={kpi.label}
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
+                {kpi.label}
+              </p>
               <div className="mt-2 flex items-baseline gap-2">
                 <span className={`font-mono text-2xl font-bold ${kpi.tone}`}>{kpi.value}</span>
                 <span className="text-xs font-semibold text-approved">{kpi.helper}</span>
@@ -186,13 +232,21 @@ export const CandidateSearch: React.FC = () => {
 
         <section className="space-y-4">
           <div className="flex flex-col gap-3 px-2 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-xl font-semibold text-deep-charcoal">Ranked Match Results ({visibleResults.length})</h2>
+            <h2 className="text-xl font-semibold text-deep-charcoal">
+              Ranked Match Results ({visibleResults.length})
+            </h2>
             <div className="flex items-center gap-4">
-              <button className="inline-flex items-center gap-2 text-sm font-semibold text-slate-ink transition hover:text-teal-command" type="button">
+              <button
+                className="inline-flex items-center gap-2 text-sm font-semibold text-slate-ink transition hover:text-teal-command"
+                type="button"
+              >
                 <Icon className="h-4 w-4" name="sort" />
                 Relevance
               </button>
-              <button className="inline-flex items-center gap-2 text-sm font-semibold text-slate-ink transition hover:text-teal-command" type="button">
+              <button
+                className="inline-flex items-center gap-2 text-sm font-semibold text-slate-ink transition hover:text-teal-command"
+                type="button"
+              >
                 <Icon className="h-4 w-4" name="filter" />
                 Filters
               </button>
@@ -200,7 +254,10 @@ export const CandidateSearch: React.FC = () => {
           </div>
 
           {visibleResults.map((result) => (
-            <article className="rounded-lg border border-border-warm bg-clean-surface p-6 transition hover:border-teal-command/30 hover:shadow-sm" key={result.id}>
+            <article
+              className="rounded-lg border border-border-warm bg-clean-surface p-6 transition hover:border-teal-command/30 hover:shadow-sm"
+              key={result.id}
+            >
               <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex gap-4">
                   <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-border-warm bg-parchment-lift text-teal-command">
@@ -219,21 +276,31 @@ export const CandidateSearch: React.FC = () => {
                     <span className="text-xl">{result.similarity}%</span>
                   </div>
                   <div className="h-1.5 w-32 overflow-hidden rounded-full bg-surface-container">
-                    <div className="h-full rounded-full bg-teal-command" style={{ width: `${result.similarity}%` }} />
+                    <div
+                      className="h-full rounded-full bg-teal-command"
+                      style={{ width: `${result.similarity}%` }}
+                    />
                   </div>
                 </div>
               </div>
 
               <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-3">
                 <div className="space-y-2 md:col-span-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">Extracted Evidence</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
+                    Extracted Evidence
+                  </p>
                   <p className="text-sm leading-6 text-on-surface-variant">{result.evidence}</p>
                 </div>
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">Skill Matching</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
+                    Skill Matching
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {result.skills.slice(0, 4).map((skill) => (
-                      <span className="rounded bg-surface-container-high px-2 py-1 font-mono text-xs font-semibold text-slate-ink" key={skill}>
+                      <span
+                        className="rounded bg-surface-container-high px-2 py-1 font-mono text-xs font-semibold text-slate-ink"
+                        key={skill}
+                      >
                         {skill}
                       </span>
                     ))}
@@ -247,13 +314,22 @@ export const CandidateSearch: React.FC = () => {
                   {result.parsed}
                 </span>
                 <div className="flex flex-col gap-3 sm:flex-row">
-                  <button className="h-9 rounded-lg border border-border-warm px-4 text-sm font-semibold transition hover:bg-workflow-ivory" type="button">
+                  <button
+                    className="h-9 rounded-lg border border-border-warm px-4 text-sm font-semibold transition hover:bg-workflow-ivory"
+                    type="button"
+                  >
                     View CV
                   </button>
-                  <button className="h-9 rounded-lg border border-teal-command px-4 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5" type="button">
+                  <button
+                    className="h-9 rounded-lg border border-teal-command px-4 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5"
+                    type="button"
+                  >
                     Shortlist
                   </button>
-                  <button className="h-9 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]" type="button">
+                  <button
+                    className="h-9 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
+                    type="button"
+                  >
                     Schedule Interview
                   </button>
                 </div>
@@ -268,23 +344,38 @@ export const CandidateSearch: React.FC = () => {
           <h2 className="mb-4 text-xl font-semibold text-deep-charcoal">Search Explanation</h2>
           <div className="space-y-5">
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">Target Campaign</p>
-              <p className="rounded-lg border border-border-warm bg-workflow-ivory p-3 text-sm">{campaign}</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
+                Target Campaign
+              </p>
+              <p className="rounded-lg border border-border-warm bg-workflow-ivory p-3 text-sm">
+                {campaign}
+              </p>
             </div>
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">Query Terms Matched</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
+                Query Terms Matched
+              </p>
               <div className="flex flex-wrap gap-2">
-                {['Backend', 'Go Lang', 'Redis', 'PostgreSQL', 'Distributed Systems'].map((term) => (
-                  <span className="rounded-lg border border-teal-command/20 bg-teal-command/10 px-2 py-1 text-xs font-semibold text-teal-command" key={term}>
-                    {term}
-                  </span>
-                ))}
+                {['Backend', 'Go Lang', 'Redis', 'PostgreSQL', 'Distributed Systems'].map(
+                  (term) => (
+                    <span
+                      className="rounded-lg border border-teal-command/20 bg-teal-command/10 px-2 py-1 text-xs font-semibold text-teal-command"
+                      key={term}
+                    >
+                      {term}
+                    </span>
+                  ),
+                )}
               </div>
             </div>
             <div className="border-t border-border-warm pt-4">
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">Embedding Index</span>
-                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-approved">Active</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
+                  Embedding Index
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-approved">
+                  Active
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <Icon className="h-4 w-4 text-teal-command" name="database" />
@@ -300,7 +391,8 @@ export const CandidateSearch: React.FC = () => {
             <span className="text-xs font-bold uppercase tracking-[0.14em]">Disclaimer</span>
           </div>
           <p className="text-sm italic leading-6 text-slate-ink">
-            Similarity is search evidence only, not an automated hiring decision. All candidates must be vetted manually.
+            Similarity is search evidence only, not an automated hiring decision. All candidates
+            must be vetted manually.
           </p>
         </section>
 
@@ -308,7 +400,11 @@ export const CandidateSearch: React.FC = () => {
           <h3 className="mb-4 text-sm font-semibold text-deep-charcoal">Related Search Tags</h3>
           <div className="flex flex-wrap gap-2">
             {['Microservices', 'Cloud Infra', 'Docker/K8s', 'Performance'].map((tag) => (
-              <button className="rounded-lg bg-surface-container px-3 py-1.5 text-xs font-semibold transition hover:bg-surface-container-high active:scale-[0.98]" key={tag} type="button">
+              <button
+                className="rounded-lg bg-surface-container px-3 py-1.5 text-xs font-semibold transition hover:bg-surface-container-high active:scale-[0.98]"
+                key={tag}
+                type="button"
+              >
                 {tag}
               </button>
             ))}
@@ -318,7 +414,8 @@ export const CandidateSearch: React.FC = () => {
         <section className="rounded-lg border border-teal-command/20 bg-teal-command/5 p-6">
           <h3 className="mb-2 text-sm font-semibold text-teal-command">AI Search Tip</h3>
           <p className="text-sm leading-6 text-teal-command/80">
-            Try adding soft skills or environmental context like "fast-paced startup" or "mentorship" to refine results.
+            Try adding soft skills or environmental context like "fast-paced startup" or
+            "mentorship" to refine results.
           </p>
         </section>
       </aside>

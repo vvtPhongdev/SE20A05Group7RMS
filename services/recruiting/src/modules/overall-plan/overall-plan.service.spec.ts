@@ -30,21 +30,27 @@ describe('OverallPlanService', () => {
     it('throws if plan does not exist', async () => {
       prisma.overallPlan.findUnique.mockResolvedValue(null);
 
-      await expect(
-        service.approve({ id: 'plan-1', approvedById: 'approver-1' }),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.approve({ id: 'plan-1', approvedById: 'approver-1' })).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('throws if plan is not PENDING_APPROVAL', async () => {
-      prisma.overallPlan.findUnique.mockResolvedValue({ id: 'plan-1', status: PlanStatus.APPROVED });
+      prisma.overallPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        status: PlanStatus.APPROVED,
+      });
 
-      await expect(
-        service.approve({ id: 'plan-1', approvedById: 'approver-1' }),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.approve({ id: 'plan-1', approvedById: 'approver-1' })).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('approves a pending plan and writes an audit log', async () => {
-      prisma.overallPlan.findUnique.mockResolvedValue({ id: 'plan-1', status: PlanStatus.PENDING_APPROVAL });
+      prisma.overallPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        status: PlanStatus.PENDING_APPROVAL,
+      });
       prisma.overallPlan.update.mockResolvedValue({ id: 'plan-1', status: PlanStatus.APPROVED });
 
       const result = await service.approve({ id: 'plan-1', approvedById: 'approver-1' });
@@ -69,7 +75,10 @@ describe('OverallPlanService', () => {
 
   describe('reject', () => {
     it('throws if revisionNotes are missing', async () => {
-      prisma.overallPlan.findUnique.mockResolvedValue({ id: 'plan-1', status: PlanStatus.PENDING_APPROVAL });
+      prisma.overallPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        status: PlanStatus.PENDING_APPROVAL,
+      });
 
       await expect(
         service.reject({ id: 'plan-1', approvedById: 'approver-1', revisionNotes: '   ' }),
@@ -77,14 +86,25 @@ describe('OverallPlanService', () => {
     });
 
     it('rejects a pending plan and writes an audit log with reason', async () => {
-      prisma.overallPlan.findUnique.mockResolvedValue({ id: 'plan-1', status: PlanStatus.PENDING_APPROVAL });
+      prisma.overallPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        status: PlanStatus.PENDING_APPROVAL,
+      });
       prisma.overallPlan.update.mockResolvedValue({ id: 'plan-1', status: PlanStatus.REJECTED });
 
-      await service.reject({ id: 'plan-1', approvedById: 'approver-1', revisionNotes: 'Needs more detail' });
+      await service.reject({
+        id: 'plan-1',
+        approvedById: 'approver-1',
+        revisionNotes: 'Needs more detail',
+      });
 
       expect(prisma.overallPlan.update).toHaveBeenCalledWith({
         where: { id: 'plan-1' },
-        data: { status: PlanStatus.REJECTED, approvedById: 'approver-1', revisionNotes: 'Needs more detail' },
+        data: {
+          status: PlanStatus.REJECTED,
+          approvedById: 'approver-1',
+          revisionNotes: 'Needs more detail',
+        },
       });
       expect(auditLog.log).toHaveBeenCalledWith(
         expect.objectContaining({

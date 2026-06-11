@@ -28,15 +28,18 @@ export class NotificationsController {
   }
 
   @MessagePattern('notification.send_to_role')
-  async sendToRole(@Payload() payload: {
-    role: string;
-    departmentId?: string;
-    title: string;
-    body: string;
-    type: string;
-    relatedEntityId?: string;
-    relatedEntityType?: string;
-  }) {
+  async sendToRole(
+    @Payload()
+    payload: {
+      role: string;
+      departmentId?: string;
+      title: string;
+      body: string;
+      type: string;
+      relatedEntityId?: string;
+      relatedEntityType?: string;
+    },
+  ) {
     return this.notificationsService.sendToRole(payload);
   }
 
@@ -46,17 +49,22 @@ export class NotificationsController {
   }
 
   @MessagePattern('notification.render_template')
-  async renderTemplate(@Payload() payload: { templateType: string; templateData: Record<string, any> }) {
+  async renderTemplate(
+    @Payload() payload: { templateType: string; templateData: Record<string, any> },
+  ) {
     return this.notificationsService.renderTemplate(payload);
   }
 
   @MessagePattern('notification.send_templated_email')
-  async sendTemplatedEmail(@Payload() payload: {
-    userId?: string;
-    toEmail: string;
-    templateType: string;
-    templateData: Record<string, any>;
-  }) {
+  async sendTemplatedEmail(
+    @Payload()
+    payload: {
+      userId?: string;
+      toEmail: string;
+      templateType: string;
+      templateData: Record<string, any>;
+    },
+  ) {
     return this.notificationsService.sendTemplatedEmail(payload);
   }
 }

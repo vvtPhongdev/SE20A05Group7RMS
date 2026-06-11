@@ -7,12 +7,12 @@
 
 ## Prerequisites
 
-| Requirement | Version | Notes |
-|------------|---------|-------|
-| **Node.js** | 22+ | Required for all packages |
-| **npm** | 10+ | Workspace-aware package manager |
-| **Docker** | Latest | For PostgreSQL + Redis |
-| **Docker Compose** | v2+ | `docker compose` (not `docker-compose`) |
+| Requirement        | Version | Notes                                   |
+| ------------------ | ------- | --------------------------------------- |
+| **Node.js**        | 22+     | Required for all packages               |
+| **npm**            | 10+     | Workspace-aware package manager         |
+| **Docker**         | Latest  | For PostgreSQL + Redis                  |
+| **Docker Compose** | v2+     | `docker compose` (not `docker-compose`) |
 
 ## Quick Start
 
@@ -40,18 +40,18 @@ npm run dev             # Turborepo parallel dev
 
 Validated at startup via `@wr/config` Zod schemas.
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `DATABASE_URL` | ✅ | — | PostgreSQL connection string |
-| `REDIS_HOST` | ✅ | — | Redis hostname |
-| `REDIS_PORT` | ✅ | — | Redis port |
-| `JWT_SECRET` | ✅ | — | Min 10 characters |
-| `API_CORS_ORIGIN` | ❌ | `http://localhost:3000` | CORS origin |
-| `GATEWAY_PORT` | ❌ | `3001` | Gateway HTTP port |
-| `IDENTITY_PORT` | ❌ | `3010` | Identity TCP port |
-| `RECRUITING_PORT` | ❌ | `3011` | Recruiting TCP port |
-| `PROFILES_PORT` | ❌ | `3012` | Profiles TCP port |
-| `REVIEW_PORT` | ❌ | `3013` | Review TCP port |
+| Variable          | Required | Default                 | Description                  |
+| ----------------- | -------- | ----------------------- | ---------------------------- |
+| `DATABASE_URL`    | ✅       | —                       | PostgreSQL connection string |
+| `REDIS_HOST`      | ✅       | —                       | Redis hostname               |
+| `REDIS_PORT`      | ✅       | —                       | Redis port                   |
+| `JWT_SECRET`      | ✅       | —                       | Min 10 characters            |
+| `API_CORS_ORIGIN` | ❌       | `http://localhost:3000` | CORS origin                  |
+| `GATEWAY_PORT`    | ❌       | `3001`                  | Gateway HTTP port            |
+| `IDENTITY_PORT`   | ❌       | `3010`                  | Identity TCP port            |
+| `RECRUITING_PORT` | ❌       | `3011`                  | Recruiting TCP port          |
+| `PROFILES_PORT`   | ❌       | `3012`                  | Profiles TCP port            |
+| `REVIEW_PORT`     | ❌       | `3013`                  | Review TCP port              |
 
 ## Development Commands
 
@@ -96,42 +96,42 @@ npm run docker:down      # Stop infrastructure
 
 ## Service Ports
 
-| Service | Port | Protocol |
-|---------|------|----------|
+| Service       | Port | Protocol         |
+| ------------- | ---- | ---------------- |
 | Webapp (Vite) | 3000 | HTTP (dev proxy) |
-| Gateway | 3001 | HTTP + Swagger |
-| Identity | 3010 | TCP |
-| Recruiting | 3011 | TCP |
-| Profiles | 3012 | TCP |
-| Review | 3013 | TCP |
-| PostgreSQL | 5432 | TCP |
-| Redis | 6379 | TCP |
+| Gateway       | 3001 | HTTP + Swagger   |
+| Identity      | 3010 | TCP              |
+| Recruiting    | 3011 | TCP              |
+| Profiles      | 3012 | TCP              |
+| Review        | 3013 | TCP              |
+| PostgreSQL    | 5432 | TCP              |
+| Redis         | 6379 | TCP              |
 
 ## Code Style & Conventions
 
 ### Prettier (Enforced)
 
 ```js
-semi: true
-singleQuote: true
-trailingComma: "all"
-printWidth: 100
-tabWidth: 2
-arrowParens: "always"
-endOfLine: "lf"
+semi: true;
+singleQuote: true;
+trailingComma: 'all';
+printWidth: 100;
+tabWidth: 2;
+arrowParens: 'always';
+endOfLine: 'lf';
 ```
 
 ### Naming Conventions
 
-| Entity | Pattern | Example |
-|--------|---------|---------|
-| Files | kebab-case | `recruitment-request.service.ts` |
-| Classes | PascalCase | `RecruitmentRequestService` |
-| Functions | camelCase | `createRequest()` |
-| Enums | PascalCase / UPPER_SNAKE | `UserRole.DEPARTMENT_HEAD` |
-| DB tables | snake_case (via `@@map`) | `recruitment_requests` |
-| Message patterns | dot.notation | `recruiting.create-request` |
-| Packages | `@wr/{name}` | `@wr/contracts` |
+| Entity           | Pattern                  | Example                          |
+| ---------------- | ------------------------ | -------------------------------- |
+| Files            | kebab-case               | `recruitment-request.service.ts` |
+| Classes          | PascalCase               | `RecruitmentRequestService`      |
+| Functions        | camelCase                | `createRequest()`                |
+| Enums            | PascalCase / UPPER_SNAKE | `UserRole.DEPARTMENT_HEAD`       |
+| DB tables        | snake_case (via `@@map`) | `recruitment_requests`           |
+| Message patterns | dot.notation             | `recruiting.create-request`      |
+| Packages         | `@wr/{name}`             | `@wr/contracts`                  |
 
 ### TypeScript Rules
 

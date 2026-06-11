@@ -19,27 +19,12 @@ import { AdminAnnualReport } from './pages/AdminAnnualReport';
 import { AdminDeptStats } from './pages/AdminDeptStats';
 import { DeptHeadCreateRequest } from './pages/DeptHeadCreateRequest';
 import { DeptHeadDashboard } from './pages/DeptHeadDashboard';
-import { DeptHeadInterviews } from './pages/DeptHeadInterviews';
 import { DeptHeadRequests } from './pages/DeptHeadRequests';
 import { DeptHeadRequestDetail } from './pages/DeptHeadRequestDetail';
-import { DeptHeadSettings } from './pages/DeptHeadSettings';
 import { HRDashBoard } from './pages/HRDashBoard';
-import { HRCampaigns } from './pages/HRCampaigns';
-import { HRCampaignDetail } from './pages/HRCampaignDetail';
-import { HRRequestQueue } from './pages/HRRequestQueue';
-import { TaskPlanner } from './pages/TaskPlanner';
-import { TalentPool } from './pages/TalentPool';
-import { CandidateSearch } from './pages/CandidateSearch';
-import { HRInterviewSchedule } from './pages/HRInterviewSchedule';
-import { HRPipelineReports } from './pages/HRPipelineReports';
-import { HRInterviewResults } from './pages/HRInterviewResults';
-import { HRSystemNotifications } from './pages/HRSystemNotifications';
 import { CandidateDashboard } from './pages/CandidateDashboard';
-import { CandidateProfile } from './pages/CandidateProfile';
-import { CandidateNotifications } from './pages/CandidateNotifications';
-import { CandidateUploadCv } from './pages/CandidateUploadCv';
-import { CandidateInterviewDetails } from './pages/CandidateInterviewDetails';
 import { UserRole } from '@wr/contracts';
+import { PlaceholderPage } from './pages/PlaceholderPage';
 
 // Redirects user to their role-specific landing dashboard
 function HomeRedirect() {
@@ -98,6 +83,7 @@ export function App() {
           />
 
           {/* Admin routes */}
+          <Route path="/admin/dashboard" element={<Navigate to="/admin" replace />} />
           <Route
             path="/admin"
             element={
@@ -133,10 +119,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Interview Results"
-                    description="Strategic review of interview performance data and overall hiring outcomes."
-                  />
+                  <AdminInterviewResults />
                 </Layout>
               </ProtectedRoute>
             }
@@ -162,27 +145,29 @@ export function App() {
             }
           />
           <Route
-            path="/admin/reports/annual"
+            path="/admin/reports"
             element={
               <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Annual Recruitment Report"
-                    description="Summary of staffing efficiency, time-to-hire, and annual budgets."
-                  />
+                  <AdminAnnualReport />
                 </Layout>
               </ProtectedRoute>
             }
           />
           <Route
+            path="/admin/reports/annual"
+            element={<Navigate to="/admin/reports" replace />}
+          />
+          <Route
             path="/admin/reports/dept-stats"
+            element={<Navigate to="/admin/dept-stats" replace />}
+          />
+          <Route
+            path="/admin/dept-stats"
             element={
               <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Department Stats"
-                    description="Interactive dashboard showing department-wise recruitment performance."
-                  />
+                  <AdminDeptStats />
                 </Layout>
               </ProtectedRoute>
             }

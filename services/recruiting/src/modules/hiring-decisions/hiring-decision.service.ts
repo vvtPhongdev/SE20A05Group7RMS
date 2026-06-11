@@ -22,12 +22,7 @@ export class HiringDecisionService {
     @InjectQueue(QUEUE_NAMES.EMAIL_SEND) private readonly emailQueue: Queue,
   ) {}
 
-  async decide(
-    requestId: string,
-    decision: HiringDecision,
-    notes: string,
-    adminId: string,
-  ) {
+  async decide(requestId: string, decision: HiringDecision, notes: string, adminId: string) {
     if (!Object.values(HiringDecision).includes(decision)) {
       throw new RpcException({
         status: HttpStatus.BAD_REQUEST,
@@ -85,8 +80,7 @@ export class HiringDecisionService {
 
     const incompleteInterviews = request.interviews.filter(
       (interview) =>
-        interview.status !== InterviewStatus.COMPLETED ||
-        interview.results.length === 0,
+        interview.status !== InterviewStatus.COMPLETED || interview.results.length === 0,
     );
     if (incompleteInterviews.length > 0) {
       throw new RpcException({
@@ -217,11 +211,7 @@ export class HiringDecisionService {
     // Find and queue all the created EmailLog records
     const emailLogs = results.filter(
       (res: any) =>
-        res &&
-        typeof res === 'object' &&
-        'toEmail' in res &&
-        'subject' in res &&
-        'id' in res,
+        res && typeof res === 'object' && 'toEmail' in res && 'subject' in res && 'id' in res,
     );
 
     for (const log of emailLogs) {
@@ -243,11 +233,8 @@ export class HiringDecisionService {
     // Trigger candidate notifications and request status change notifications
     for (const application of request.applications) {
       const hired =
-        decision === HiringDecision.HIRE &&
-        selectedCandidateIds.includes(application.candidateId);
-      const communicationType = hired
-        ? NotificationType.OFFER
-        : NotificationType.REJECTION;
+        decision === HiringDecision.HIRE && selectedCandidateIds.includes(application.candidateId);
+      const communicationType = hired ? NotificationType.OFFER : NotificationType.REJECTION;
       const subject = hired
         ? `Hiring decision for ${request.position}`
         : `Application update for ${request.position}`;
@@ -255,39 +242,45 @@ export class HiringDecisionService {
         ? `You have been selected for ${request.position}. The formal offer workflow has started.`
         : `Your application for ${request.position} was not selected.`;
 
-      this.notificationClient.send('notification.create_notification', {
-        userId: application.candidate.userId,
-        type: communicationType,
-        title: subject,
-        body,
-        relatedEntityId: requestId,
-        relatedEntityType: 'RecruitmentRequest',
-      }).subscribe({
-        error: (err) => console.error('Failed to send candidate decision notification:', err),
-      });
+      this.notificationClient
+        .send('notification.create_notification', {
+          userId: application.candidate.userId,
+          type: communicationType,
+          title: subject,
+          body,
+          relatedEntityId: requestId,
+          relatedEntityType: 'RecruitmentRequest',
+        })
+        .subscribe({
+          error: (err) => console.error('Failed to send candidate decision notification:', err),
+        });
     }
 
-    this.notificationClient.send('notification.create_notification', {
-      userId: request.createdById,
-      type: NotificationType.REQUEST_UPDATE,
-      title: `Request status update: ${targetStatus === RecruitmentRequestStatus.OFFER_EXTENDED ? 'Offer Extended' : 'Rejected'}`,
-      body: `Recruitment request for ${request.position} has transitioned to ${targetStatus === RecruitmentRequestStatus.OFFER_EXTENDED ? 'Offer Extended' : 'Rejected'}.`,
-      relatedEntityId: requestId,
-      relatedEntityType: 'RecruitmentRequest',
-    }).subscribe({
-      error: (err) => console.error('Failed to send dept head decision notification:', err),
-    });
+    this.notificationClient
+      .send('notification.create_notification', {
+        userId: request.createdById,
+        type: NotificationType.REQUEST_UPDATE,
+        title: `Request status update: ${targetStatus === RecruitmentRequestStatus.OFFER_EXTENDED ? 'Offer Extended' : 'Rejected'}`,
+        body: `Recruitment request for ${request.position} has transitioned to ${targetStatus === RecruitmentRequestStatus.OFFER_EXTENDED ? 'Offer Extended' : 'Rejected'}.`,
+        relatedEntityId: requestId,
+        relatedEntityType: 'RecruitmentRequest',
+      })
+      .subscribe({
+        error: (err) => console.error('Failed to send dept head decision notification:', err),
+      });
 
-    this.notificationClient.send('notification.send_to_role', {
-      role: 'HR_MANAGER',
-      type: NotificationType.REQUEST_UPDATE,
-      title: `Request status update: ${targetStatus === RecruitmentRequestStatus.OFFER_EXTENDED ? 'Offer Extended' : 'Rejected'}`,
-      body: `Recruitment request for ${request.position} has transitioned to ${targetStatus === RecruitmentRequestStatus.OFFER_EXTENDED ? 'Offer Extended' : 'Rejected'}.`,
-      relatedEntityId: requestId,
-      relatedEntityType: 'RecruitmentRequest',
-    }).subscribe({
-      error: (err) => console.error('Failed to send HR decision notification:', err),
-    });
+    this.notificationClient
+      .send('notification.send_to_role', {
+        role: 'HR_MANAGER',
+        type: NotificationType.REQUEST_UPDATE,
+        title: `Request status update: ${targetStatus === RecruitmentRequestStatus.OFFER_EXTENDED ? 'Offer Extended' : 'Rejected'}`,
+        body: `Recruitment request for ${request.position} has transitioned to ${targetStatus === RecruitmentRequestStatus.OFFER_EXTENDED ? 'Offer Extended' : 'Rejected'}.`,
+        relatedEntityId: requestId,
+        relatedEntityType: 'RecruitmentRequest',
+      })
+      .subscribe({
+        error: (err) => console.error('Failed to send HR decision notification:', err),
+      });
 
     return {
       request: updatedRequest,

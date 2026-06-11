@@ -33,10 +33,7 @@ describe('UsersService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        UsersService,
-        { provide: PrismaService, useValue: mockPrismaService },
-      ],
+      providers: [UsersService, { provide: PrismaService, useValue: mockPrismaService }],
     }).compile();
 
     service = module.get<UsersService>(UsersService);
@@ -136,7 +133,7 @@ describe('UsersService', () => {
       mockPrismaService.user.findUnique.mockResolvedValue(null); // uniqueness check passes
       mockPrismaService.organization.findUnique.mockResolvedValue({ id: mockOrgId });
       mockPrismaService.department.findUnique.mockResolvedValue({ id: mockDeptId });
-      
+
       const createdUser = {
         id: '22222222-2222-2222-2222-222222222222',
         email: createUserDto.email,
@@ -299,7 +296,10 @@ describe('UsersService', () => {
 
   describe('updateRole', () => {
     it('should successfully update role if valid UserRole is provided', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'user-uuid', role: UserRole.CANDIDATE });
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'user-uuid',
+        role: UserRole.CANDIDATE,
+      });
       mockPrismaService.user.update.mockResolvedValue({ id: 'user-uuid', role: UserRole.ADMIN });
 
       const result = await service.updateRole({ id: 'user-uuid', role: UserRole.ADMIN });
@@ -318,7 +318,8 @@ describe('UsersService', () => {
       await expect(service.updateRole({ id: 'user-uuid', role: 'INVALID_ROLE' })).rejects.toThrow(
         new RpcException({
           status: HttpStatus.BAD_REQUEST,
-          message: 'Invalid role: INVALID_ROLE. Must be one of ADMIN, DEPARTMENT_HEAD, HR_MANAGER, CANDIDATE',
+          message:
+            'Invalid role: INVALID_ROLE. Must be one of ADMIN, DEPARTMENT_HEAD, HR_MANAGER, CANDIDATE',
         }),
       );
     });

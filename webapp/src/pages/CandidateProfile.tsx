@@ -4,42 +4,110 @@ import React, { useState } from 'react';
 const Icons = {
   verified: () => (
     <svg className="w-4 h-4 text-emerald-600 fill-current" viewBox="0 0 20 20">
-      <path fillRule="evenodd" d="M6.267 3.455a.75.75 0 0 0-.708-.523H4.5a2.5 2.5 0 0 0-2.5 2.5v1.059a.75.75 0 0 0 .523.708 3.502 3.502 0 0 1 2.477 2.477.75.75 0 0 0 .708.523h1.059a2.5 2.5 0 0 0 2.5-2.5V6.657a.75.75 0 0 0-.523-.708 3.502 3.502 0 0 1-2.477-2.477Zm8.223.708a.75.75 0 0 0-.708-.523h-1.059a2.5 2.5 0 0 0-2.5 2.5v1.059a.75.75 0 0 0 .523.708 3.502 3.502 0 0 1 2.477 2.477.75.75 0 0 0 .708.523h1.059a2.5 2.5 0 0 0 2.5-2.5V6.657a.75.75 0 0 0-.523-.708 3.502 3.502 0 0 1-2.477-2.477ZM3.455 13.733a.75.75 0 0 0-.523-.708H1.873a.75.75 0 0 0-.523.708 2.5 2.5 0 0 0 2.5 2.5h1.059a.75.75 0 0 0 .708-.523 3.502 3.502 0 0 1 2.477-2.477.75.75 0 0 0 .523-.708V11.43a2.5 2.5 0 0 0-2.5-2.5H2.382a.75.75 0 0 0-.708.523 3.502 3.502 0 0 1-2.477 2.477.75.75 0 0 0-.523.708v1.059a2.5 2.5 0 0 0 2.5 2.5h1.059a.75.75 0 0 0 .708-.523 3.502 3.502 0 0 1 2.477-2.477Z" clipRule="evenodd" />
-      <path d="m7.25 9.75 2 2 4.5-4.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path
+        fillRule="evenodd"
+        d="M6.267 3.455a.75.75 0 0 0-.708-.523H4.5a2.5 2.5 0 0 0-2.5 2.5v1.059a.75.75 0 0 0 .523.708 3.502 3.502 0 0 1 2.477 2.477.75.75 0 0 0 .708.523h1.059a2.5 2.5 0 0 0 2.5-2.5V6.657a.75.75 0 0 0-.523-.708 3.502 3.502 0 0 1-2.477-2.477Zm8.223.708a.75.75 0 0 0-.708-.523h-1.059a2.5 2.5 0 0 0-2.5 2.5v1.059a.75.75 0 0 0 .523.708 3.502 3.502 0 0 1 2.477 2.477.75.75 0 0 0 .708.523h1.059a2.5 2.5 0 0 0 2.5-2.5V6.657a.75.75 0 0 0-.523-.708 3.502 3.502 0 0 1-2.477-2.477ZM3.455 13.733a.75.75 0 0 0-.523-.708H1.873a.75.75 0 0 0-.523.708 2.5 2.5 0 0 0 2.5 2.5h1.059a.75.75 0 0 0 .708-.523 3.502 3.502 0 0 1 2.477-2.477.75.75 0 0 0 .523-.708V11.43a2.5 2.5 0 0 0-2.5-2.5H2.382a.75.75 0 0 0-.708.523 3.502 3.502 0 0 1-2.477 2.477.75.75 0 0 0-.523.708v1.059a2.5 2.5 0 0 0 2.5 2.5h1.059a.75.75 0 0 0 .708-.523 3.502 3.502 0 0 1 2.477-2.477Z"
+        clipRule="evenodd"
+      />
+      <path
+        d="m7.25 9.75 2 2 4.5-4.5"
+        stroke="white"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
     </svg>
   ),
   camera: () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-on-surface-variant group-hover:text-teal-command">
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="shrink-0 text-on-surface-variant group-hover:text-teal-command"
+    >
       <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
       <circle cx="12" cy="13" r="4" />
     </svg>
   ),
   checkCircle: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-600">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="text-emerald-600"
+    >
       <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
       <polyline points="22 4 12 14.01 9 11.01" />
     </svg>
   ),
   add: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <line x1="12" y1="5" x2="12" y2="19" />
       <line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   ),
   edit: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M12 20h9" />
       <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
     </svg>
   ),
   delete: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <polyline points="3 6 5 6 21 6" />
       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
     </svg>
   ),
   apartment: () => (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-on-surface-variant">
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="text-on-surface-variant"
+    >
       <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
       <line x1="9" y1="22" x2="9" y2="16" />
       <line x1="15" y1="22" x2="15" y2="16" />
@@ -48,20 +116,50 @@ const Icons = {
     </svg>
   ),
   visibility: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-on-surface-variant">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="text-on-surface-variant"
+    >
       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
       <circle cx="12" cy="12" r="3" />
     </svg>
   ),
   info: () => (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-cyan-600">
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="text-cyan-600"
+    >
       <circle cx="12" cy="12" r="10" />
       <line x1="12" y1="16" x2="12" y2="12" />
       <line x1="12" y1="8" x2="12.01" y2="8" />
     </svg>
   ),
   download: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-teal-command">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="text-teal-command"
+    >
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
       <polyline points="7 10 12 15 17 10" />
       <line x1="12" y1="15" x2="12" y2="3" />
@@ -70,14 +168,28 @@ const Icons = {
   spinner: () => (
     <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+      />
     </svg>
   ),
   check: () => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="text-white"
+    >
       <polyline points="20 6 9 17 5 12" />
     </svg>
-  )
+  ),
 };
 
 interface WorkExperience {
@@ -115,15 +227,17 @@ export const CandidateProfile: React.FC = () => {
       title: 'Lead UX Designer',
       company: 'Starlight Systems',
       duration: 'Jan 2023 — Present',
-      description: 'Spearheaded the redesign of the core enterprise dashboard, resulting in a 40% increase in user efficiency. Managed a team of 4 junior designers and collaborated directly with engineering leads for seamless implementation.'
+      description:
+        'Spearheaded the redesign of the core enterprise dashboard, resulting in a 40% increase in user efficiency. Managed a team of 4 junior designers and collaborated directly with engineering leads for seamless implementation.',
     },
     {
       id: 'exp-2',
       title: 'Product Designer',
       company: 'NexaFlow Dynamics',
       duration: 'May 2019 — Dec 2022',
-      description: 'Developed high-fidelity prototypes and design systems for modular web applications. Conducted over 50 user research sessions to validate core feature sets for the Q3 release cycle.'
-    }
+      description:
+        'Developed high-fidelity prototypes and design systems for modular web applications. Conducted over 50 user research sessions to validate core feature sets for the Q3 release cycle.',
+    },
   ]);
 
   // Education State
@@ -132,14 +246,14 @@ export const CandidateProfile: React.FC = () => {
       id: 'edu-1',
       degree: 'MA Digital Design',
       school: 'Royal College of Art',
-      year: '2018'
+      year: '2018',
     },
     {
       id: 'edu-2',
       degree: 'BA Fine Arts',
       school: 'University of Manchester',
-      year: '2016'
-    }
+      year: '2016',
+    },
   ]);
 
   // Skills State
@@ -150,7 +264,7 @@ export const CandidateProfile: React.FC = () => {
     'React Basics',
     'Stakeholder Management',
     'Design Systems',
-    'User Research'
+    'User Research',
   ]);
 
   // Helper States for adding/editing items
@@ -160,7 +274,7 @@ export const CandidateProfile: React.FC = () => {
     title: '',
     company: '',
     duration: '',
-    description: ''
+    description: '',
   });
 
   const [isAddingEducation, setIsAddingEducation] = useState(false);
@@ -168,7 +282,7 @@ export const CandidateProfile: React.FC = () => {
   const [eduForm, setEduForm] = useState<Omit<Education, 'id'>>({
     degree: '',
     school: '',
-    year: ''
+    year: '',
   });
 
   const [newSkill, setNewSkill] = useState('');
@@ -208,8 +322,8 @@ export const CandidateProfile: React.FC = () => {
       ...experience,
       {
         ...expForm,
-        id: `exp-${Date.now()}`
-      }
+        id: `exp-${Date.now()}`,
+      },
     ]);
     setExpForm({ title: '', company: '', duration: '', description: '' });
     setIsAddingExperience(false);
@@ -221,19 +335,23 @@ export const CandidateProfile: React.FC = () => {
       title: exp.title,
       company: exp.company,
       duration: exp.duration,
-      description: exp.description
+      description: exp.description,
     });
   };
 
   const handleUpdateExperience = () => {
     if (!editingExperienceId) return;
-    setExperience(experience.map(exp => exp.id === editingExperienceId ? { ...expForm, id: editingExperienceId } : exp));
+    setExperience(
+      experience.map((exp) =>
+        exp.id === editingExperienceId ? { ...expForm, id: editingExperienceId } : exp,
+      ),
+    );
     setEditingExperienceId(null);
     setExpForm({ title: '', company: '', duration: '', description: '' });
   };
 
   const handleDeleteExperience = (id: string) => {
-    setExperience(experience.filter(exp => exp.id !== id));
+    setExperience(experience.filter((exp) => exp.id !== id));
   };
 
   // Education Handlers
@@ -243,8 +361,8 @@ export const CandidateProfile: React.FC = () => {
       ...education,
       {
         ...eduForm,
-        id: `edu-${Date.now()}`
-      }
+        id: `edu-${Date.now()}`,
+      },
     ]);
     setEduForm({ degree: '', school: '', year: '' });
     setIsAddingEducation(false);
@@ -255,19 +373,23 @@ export const CandidateProfile: React.FC = () => {
     setEduForm({
       degree: edu.degree,
       school: edu.school,
-      year: edu.year
+      year: edu.year,
     });
   };
 
   const handleUpdateEducation = () => {
     if (!editingEducationId) return;
-    setEducation(education.map(edu => edu.id === editingEducationId ? { ...eduForm, id: editingEducationId } : edu));
+    setEducation(
+      education.map((edu) =>
+        edu.id === editingEducationId ? { ...eduForm, id: editingEducationId } : edu,
+      ),
+    );
     setEditingEducationId(null);
     setEduForm({ degree: '', school: '', year: '' });
   };
 
   const handleDeleteEducation = (id: string) => {
-    setEducation(education.filter(edu => edu.id !== id));
+    setEducation(education.filter((edu) => edu.id !== id));
   };
 
   // Skill Handlers
@@ -279,32 +401,41 @@ export const CandidateProfile: React.FC = () => {
   };
 
   const handleDeleteSkill = (skillToDelete: string) => {
-    setSkills(skills.filter(s => s !== skillToDelete));
+    setSkills(skills.filter((s) => s !== skillToDelete));
   };
 
   return (
     <div className="mx-auto max-w-[1440px]">
       {/* Header */}
       <header className="mb-8">
-        <h1 className="text-3xl font-semibold tracking-tight text-deep-charcoal mb-2">My Profile - Candidate</h1>
-        <p className="text-base text-slate-ink">Keep contact details and career information current for active applications.</p>
+        <h1 className="text-3xl font-semibold tracking-tight text-deep-charcoal mb-2">
+          My Profile - Candidate
+        </h1>
+        <p className="text-base text-slate-ink">
+          Keep contact details and career information current for active applications.
+        </p>
       </header>
 
       <div className="grid grid-cols-12 gap-6 items-start pb-20">
         {/* Left & Middle: Main Profile Data */}
         <div className="col-span-12 lg:col-span-8 space-y-6">
-          
           {/* Profile Completeness Card */}
           <section className="bg-white border border-border-warm p-6 shadow-sm rounded-lg">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
                 <h2 className="text-lg font-semibold text-deep-charcoal">Profile Completeness</h2>
-                <span className={`flex items-center px-2.5 py-0.5 text-xs font-semibold rounded-full ${
-                  completeness === 100 ? 'bg-emerald-50 text-emerald-700' : 'bg-cyan-50 text-cyan-700'
-                }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
-                    completeness === 100 ? 'bg-emerald-600' : 'bg-cyan-600'
-                  }`}></span>
+                <span
+                  className={`flex items-center px-2.5 py-0.5 text-xs font-semibold rounded-full ${
+                    completeness === 100
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'bg-cyan-50 text-cyan-700'
+                  }`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
+                      completeness === 100 ? 'bg-emerald-600' : 'bg-cyan-600'
+                    }`}
+                  ></span>
                   {completeness === 100 ? 'Complete' : 'Almost there'}
                 </span>
               </div>
@@ -314,15 +445,15 @@ export const CandidateProfile: React.FC = () => {
               </div>
             </div>
             <div className="relative w-full h-3 bg-surface-container-low rounded-full overflow-hidden">
-              <div 
-                className="absolute top-0 left-0 h-full bg-teal-command transition-all duration-500 rounded-full" 
+              <div
+                className="absolute top-0 left-0 h-full bg-teal-command transition-all duration-500 rounded-full"
                 style={{ width: `${completeness}%` }}
               ></div>
             </div>
             <div className="flex justify-between items-center mt-3 text-xs text-on-surface-variant font-medium">
               <span>
-                {completeness === 100 
-                  ? 'Your profile is fully complete! Thank you.' 
+                {completeness === 100
+                  ? 'Your profile is fully complete! Thank you.'
                   : `${completeness}% complete — Add your LinkedIn URL to reach 100%`}
               </span>
               <span>Last updated: May 29, 2026</span>
@@ -332,12 +463,16 @@ export const CandidateProfile: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Personal Information Card */}
             <section className="bg-white border border-border-warm p-6 shadow-sm rounded-lg">
-              <h3 className="text-lg font-semibold text-deep-charcoal mb-6 border-b border-border-warm pb-2">Personal Information</h3>
+              <h3 className="text-lg font-semibold text-deep-charcoal mb-6 border-b border-border-warm pb-2">
+                Personal Information
+              </h3>
               <div className="space-y-6">
                 <div className="flex items-center space-x-6">
                   <div className="w-20 h-20 bg-workflow-ivory border-2 border-dashed border-border-warm rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-surface-container-low transition-colors group">
                     <Icons.camera />
-                    <span className="text-[10px] mt-1 font-semibold text-on-surface-variant">Upload</span>
+                    <span className="text-[10px] mt-1 font-semibold text-on-surface-variant">
+                      Upload
+                    </span>
                   </div>
                   <div className="flex-1">
                     <p className="text-xs font-semibold mb-1 text-deep-charcoal">Profile Photo</p>
@@ -346,19 +481,23 @@ export const CandidateProfile: React.FC = () => {
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-semibold text-deep-charcoal mb-2">Full Name</label>
-                    <input 
-                      className="w-full text-sm border border-border-warm rounded-lg p-2.5 focus:ring-2 focus:ring-teal-command focus:border-transparent bg-white outline-none" 
-                      type="text" 
+                    <label className="block text-xs font-semibold text-deep-charcoal mb-2">
+                      Full Name
+                    </label>
+                    <input
+                      className="w-full text-sm border border-border-warm rounded-lg p-2.5 focus:ring-2 focus:ring-teal-command focus:border-transparent bg-white outline-none"
+                      type="text"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-deep-charcoal mb-2">Current Role</label>
-                    <input 
-                      className="w-full text-sm border border-border-warm rounded-lg p-2.5 focus:ring-2 focus:ring-teal-command focus:border-transparent bg-white outline-none" 
-                      type="text" 
+                    <label className="block text-xs font-semibold text-deep-charcoal mb-2">
+                      Current Role
+                    </label>
+                    <input
+                      className="w-full text-sm border border-border-warm rounded-lg p-2.5 focus:ring-2 focus:ring-teal-command focus:border-transparent bg-white outline-none"
+                      type="text"
                       value={currentRole}
                       onChange={(e) => setCurrentRole(e.target.value)}
                     />
@@ -369,14 +508,18 @@ export const CandidateProfile: React.FC = () => {
 
             {/* Contact Details Card */}
             <section className="bg-white border border-border-warm p-6 shadow-sm rounded-lg">
-              <h3 className="text-lg font-semibold text-deep-charcoal mb-6 border-b border-border-warm pb-2">Contact Details</h3>
+              <h3 className="text-lg font-semibold text-deep-charcoal mb-6 border-b border-border-warm pb-2">
+                Contact Details
+              </h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-deep-charcoal mb-2">Email Address</label>
+                  <label className="block text-xs font-semibold text-deep-charcoal mb-2">
+                    Email Address
+                  </label>
                   <div className="relative">
-                    <input 
-                      className="w-full text-sm border border-border-warm rounded-lg p-2.5 pr-10 focus:ring-2 focus:ring-teal-command focus:border-transparent bg-white outline-none" 
-                      type="email" 
+                    <input
+                      className="w-full text-sm border border-border-warm rounded-lg p-2.5 pr-10 focus:ring-2 focus:ring-teal-command focus:border-transparent bg-white outline-none"
+                      type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                     />
@@ -386,29 +529,35 @@ export const CandidateProfile: React.FC = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-deep-charcoal mb-2">Phone Number</label>
-                  <input 
-                    className="w-full text-sm border border-border-warm rounded-lg p-2.5 focus:ring-2 focus:ring-teal-command focus:border-transparent bg-white outline-none" 
-                    type="tel" 
+                  <label className="block text-xs font-semibold text-deep-charcoal mb-2">
+                    Phone Number
+                  </label>
+                  <input
+                    className="w-full text-sm border border-border-warm rounded-lg p-2.5 focus:ring-2 focus:ring-teal-command focus:border-transparent bg-white outline-none"
+                    type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-deep-charcoal mb-2">Location</label>
-                    <input 
-                      className="w-full text-sm border border-border-warm rounded-lg p-2.5 focus:ring-2 focus:ring-teal-command focus:border-transparent bg-white outline-none" 
-                      type="text" 
+                    <label className="block text-xs font-semibold text-deep-charcoal mb-2">
+                      Location
+                    </label>
+                    <input
+                      className="w-full text-sm border border-border-warm rounded-lg p-2.5 focus:ring-2 focus:ring-teal-command focus:border-transparent bg-white outline-none"
+                      type="text"
                       value={location}
                       onChange={(e) => setLocation(e.target.value)}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-deep-charcoal mb-2">LinkedIn URL</label>
-                    <input 
-                      className="w-full text-sm border border-border-warm rounded-lg p-2.5 focus:ring-2 focus:ring-teal-command focus:border-transparent bg-white outline-none" 
-                      placeholder="linkedin.com/in/user" 
+                    <label className="block text-xs font-semibold text-deep-charcoal mb-2">
+                      LinkedIn URL
+                    </label>
+                    <input
+                      className="w-full text-sm border border-border-warm rounded-lg p-2.5 focus:ring-2 focus:ring-teal-command focus:border-transparent bg-white outline-none"
+                      placeholder="linkedin.com/in/user"
                       type="url"
                       value={linkedinUrl}
                       onChange={(e) => setLinkedinUrl(e.target.value)}
@@ -424,7 +573,7 @@ export const CandidateProfile: React.FC = () => {
             <div className="flex justify-between items-center mb-6 border-b border-border-warm pb-2">
               <h3 className="text-lg font-semibold text-deep-charcoal">Work Experience</h3>
               {!isAddingExperience && editingExperienceId === null && (
-                <button 
+                <button
                   onClick={() => setIsAddingExperience(true)}
                   className="text-teal-command font-semibold text-sm flex items-center hover:underline gap-1"
                 >
@@ -442,8 +591,10 @@ export const CandidateProfile: React.FC = () => {
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-ink mb-1">Job Title</label>
-                      <input 
+                      <label className="block text-xs font-semibold text-slate-ink mb-1">
+                        Job Title
+                      </label>
+                      <input
                         type="text"
                         className="w-full text-sm border border-border-warm rounded bg-white p-2 outline-none focus:ring-1 focus:ring-teal-command"
                         placeholder="e.g. Lead Designer"
@@ -452,8 +603,10 @@ export const CandidateProfile: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-ink mb-1">Company / Organization</label>
-                      <input 
+                      <label className="block text-xs font-semibold text-slate-ink mb-1">
+                        Company / Organization
+                      </label>
+                      <input
                         type="text"
                         className="w-full text-sm border border-border-warm rounded bg-white p-2 outline-none focus:ring-1 focus:ring-teal-command"
                         placeholder="e.g. Acme Corp"
@@ -462,8 +615,10 @@ export const CandidateProfile: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-ink mb-1">Duration</label>
-                      <input 
+                      <label className="block text-xs font-semibold text-slate-ink mb-1">
+                        Duration
+                      </label>
+                      <input
                         type="text"
                         className="w-full text-sm border border-border-warm rounded bg-white p-2 outline-none focus:ring-1 focus:ring-teal-command"
                         placeholder="e.g. Jan 2023 — Present"
@@ -473,8 +628,10 @@ export const CandidateProfile: React.FC = () => {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-ink mb-1">Description</label>
-                    <textarea 
+                    <label className="block text-xs font-semibold text-slate-ink mb-1">
+                      Description
+                    </label>
+                    <textarea
                       className="w-full text-sm border border-border-warm rounded bg-white p-2 outline-none focus:ring-1 focus:ring-teal-command h-24"
                       placeholder="Describe your responsibilities and achievements..."
                       value={expForm.description}
@@ -482,7 +639,7 @@ export const CandidateProfile: React.FC = () => {
                     />
                   </div>
                   <div className="flex justify-end space-x-3 pt-2">
-                    <button 
+                    <button
                       onClick={() => {
                         setIsAddingExperience(false);
                         setEditingExperienceId(null);
@@ -492,7 +649,7 @@ export const CandidateProfile: React.FC = () => {
                     >
                       Cancel
                     </button>
-                    <button 
+                    <button
                       onClick={editingExperienceId ? handleUpdateExperience : handleAddExperience}
                       className="px-4 py-2 bg-teal-command text-white rounded text-sm hover:bg-primary transition"
                     >
@@ -512,20 +669,24 @@ export const CandidateProfile: React.FC = () => {
                   </div>
                   <div className="pb-6 flex-1 pr-12">
                     <h4 className="text-base font-semibold text-deep-charcoal">{exp.title}</h4>
-                    <p className="text-sm font-semibold text-teal-command mb-2">{exp.company} • {exp.duration}</p>
-                    <p className="text-sm text-on-surface-variant leading-relaxed">{exp.description}</p>
+                    <p className="text-sm font-semibold text-teal-command mb-2">
+                      {exp.company} • {exp.duration}
+                    </p>
+                    <p className="text-sm text-on-surface-variant leading-relaxed">
+                      {exp.description}
+                    </p>
                   </div>
-                  
+
                   {/* Actions (visible on hover) */}
                   <div className="opacity-0 group-hover:opacity-100 absolute right-0 top-0 flex space-x-2 transition-opacity">
-                    <button 
+                    <button
                       onClick={() => handleEditExperience(exp)}
                       className="text-on-surface-variant hover:text-teal-command p-1 rounded hover:bg-surface-container-low"
                       title="Edit"
                     >
                       <Icons.edit />
                     </button>
-                    <button 
+                    <button
                       onClick={() => handleDeleteExperience(exp.id)}
                       className="text-on-surface-variant hover:text-red-600 p-1 rounded hover:bg-red-50"
                       title="Delete"
@@ -540,13 +701,12 @@ export const CandidateProfile: React.FC = () => {
 
           {/* Education & Skills Side-by-Side */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
             {/* Education Card */}
             <section className="bg-white border border-border-warm p-6 shadow-sm rounded-lg">
               <div className="flex justify-between items-center mb-6 border-b border-border-warm pb-2">
                 <h3 className="text-lg font-semibold text-deep-charcoal">Education</h3>
                 {!isAddingEducation && editingEducationId === null && (
-                  <button 
+                  <button
                     onClick={() => setIsAddingEducation(true)}
                     className="text-teal-command font-semibold text-sm flex items-center hover:underline"
                   >
@@ -559,9 +719,11 @@ export const CandidateProfile: React.FC = () => {
                 {(isAddingEducation || editingEducationId !== null) && (
                   <div className="bg-workflow-ivory p-3 rounded border border-border-warm space-y-3 mb-2">
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-ink mb-1">Degree / Certificate</label>
-                      <input 
-                        type="text" 
+                      <label className="block text-[11px] font-semibold text-slate-ink mb-1">
+                        Degree / Certificate
+                      </label>
+                      <input
+                        type="text"
                         className="w-full text-xs border border-border-warm rounded bg-white p-2 outline-none"
                         placeholder="e.g. MA Digital Design"
                         value={eduForm.degree}
@@ -569,9 +731,11 @@ export const CandidateProfile: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-ink mb-1">School / University</label>
-                      <input 
-                        type="text" 
+                      <label className="block text-[11px] font-semibold text-slate-ink mb-1">
+                        School / University
+                      </label>
+                      <input
+                        type="text"
                         className="w-full text-xs border border-border-warm rounded bg-white p-2 outline-none"
                         placeholder="e.g. Royal College of Art"
                         value={eduForm.school}
@@ -579,9 +743,11 @@ export const CandidateProfile: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-ink mb-1">Graduation Year</label>
-                      <input 
-                        type="text" 
+                      <label className="block text-[11px] font-semibold text-slate-ink mb-1">
+                        Graduation Year
+                      </label>
+                      <input
+                        type="text"
                         className="w-full text-xs border border-border-warm rounded bg-white p-2 outline-none"
                         placeholder="e.g. 2018"
                         value={eduForm.year}
@@ -589,7 +755,7 @@ export const CandidateProfile: React.FC = () => {
                       />
                     </div>
                     <div className="flex justify-end space-x-2 pt-1">
-                      <button 
+                      <button
                         onClick={() => {
                           setIsAddingEducation(false);
                           setEditingEducationId(null);
@@ -599,7 +765,7 @@ export const CandidateProfile: React.FC = () => {
                       >
                         Cancel
                       </button>
-                      <button 
+                      <button
                         onClick={editingEducationId ? handleUpdateEducation : handleAddEducation}
                         className="px-2.5 py-1 bg-teal-command text-white rounded text-xs hover:bg-primary"
                       >
@@ -610,20 +776,25 @@ export const CandidateProfile: React.FC = () => {
                 )}
 
                 {education.map((edu) => (
-                  <div className="flex justify-between items-start group relative pr-8" key={edu.id}>
+                  <div
+                    className="flex justify-between items-start group relative pr-8"
+                    key={edu.id}
+                  >
                     <div>
                       <h4 className="text-sm font-semibold text-deep-charcoal">{edu.degree}</h4>
-                      <p className="text-xs text-on-surface-variant font-medium mt-0.5">{edu.school}, {edu.year}</p>
+                      <p className="text-xs text-on-surface-variant font-medium mt-0.5">
+                        {edu.school}, {edu.year}
+                      </p>
                     </div>
-                    
+
                     <div className="opacity-0 group-hover:opacity-100 absolute right-0 top-1/2 -translate-y-1/2 flex space-x-1 transition-opacity">
-                      <button 
+                      <button
                         onClick={() => handleEditEducation(edu)}
                         className="text-on-surface-variant hover:text-teal-command p-1 rounded hover:bg-surface-container-low"
                       >
                         <Icons.edit />
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDeleteEducation(edu.id)}
                         className="text-on-surface-variant hover:text-red-600 p-1 rounded hover:bg-red-50"
                       >
@@ -639,7 +810,7 @@ export const CandidateProfile: React.FC = () => {
             <section className="bg-white border border-border-warm p-6 shadow-sm rounded-lg">
               <div className="flex justify-between items-center mb-6 border-b border-border-warm pb-2">
                 <h3 className="text-lg font-semibold text-deep-charcoal">Skills</h3>
-                <button 
+                <button
                   onClick={() => setIsEditingSkills(!isEditingSkills)}
                   className="text-teal-command font-semibold text-sm flex items-center hover:underline"
                 >
@@ -649,14 +820,14 @@ export const CandidateProfile: React.FC = () => {
 
               {isEditingSkills && (
                 <form onSubmit={handleAddSkill} className="flex gap-2 mb-4">
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     className="flex-1 text-xs border border-border-warm rounded bg-white p-2 outline-none focus:ring-1 focus:ring-teal-command"
                     placeholder="Type new skill and hit enter"
                     value={newSkill}
                     onChange={(e) => setNewSkill(e.target.value)}
                   />
-                  <button 
+                  <button
                     type="submit"
                     className="px-3 py-1 bg-teal-command text-white rounded text-xs hover:bg-primary font-semibold"
                   >
@@ -667,13 +838,13 @@ export const CandidateProfile: React.FC = () => {
 
               <div className="flex flex-wrap gap-2">
                 {skills.map((skill) => (
-                  <span 
-                    key={skill} 
+                  <span
+                    key={skill}
                     className="inline-flex items-center gap-1 px-3 py-1 bg-surface-container-low border border-border-warm rounded-lg text-xs font-semibold text-on-surface-variant"
                   >
                     {skill}
                     {isEditingSkills && (
-                      <button 
+                      <button
                         type="button"
                         onClick={() => handleDeleteSkill(skill)}
                         className="text-slate-ink hover:text-red-600 ml-1 rounded-full flex items-center justify-center hover:bg-surface-container-high w-4 h-4 text-[9px]"
@@ -685,13 +856,11 @@ export const CandidateProfile: React.FC = () => {
                 ))}
               </div>
             </section>
-
           </div>
         </div>
 
         {/* Right: Utility Panel */}
         <aside className="col-span-12 lg:col-span-4 space-y-6">
-          
           {/* Application Visibility Settings */}
           <section className="bg-white border border-border-warm p-6 shadow-sm rounded-lg">
             <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-6 flex items-center">
@@ -702,14 +871,16 @@ export const CandidateProfile: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-deep-charcoal">Visible to Recruiters</p>
-                  <p className="text-xs text-on-surface-variant font-medium">Allow HR teams to find your profile</p>
+                  <p className="text-xs text-on-surface-variant font-medium">
+                    Allow HR teams to find your profile
+                  </p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    checked={visibleToRecruiters} 
+                  <input
+                    type="checkbox"
+                    checked={visibleToRecruiters}
                     onChange={(e) => setVisibleToRecruiters(e.target.checked)}
-                    className="sr-only peer" 
+                    className="sr-only peer"
                   />
                   <div className="w-11 h-6 bg-surface-container-high peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-command"></div>
                 </label>
@@ -717,15 +888,19 @@ export const CandidateProfile: React.FC = () => {
 
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-deep-charcoal">Open to New Opportunities</p>
-                  <p className="text-xs text-on-surface-variant font-medium">Signals active interest in new roles</p>
+                  <p className="text-sm font-semibold text-deep-charcoal">
+                    Open to New Opportunities
+                  </p>
+                  <p className="text-xs text-on-surface-variant font-medium">
+                    Signals active interest in new roles
+                  </p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    checked={openToNewOpportunities} 
+                  <input
+                    type="checkbox"
+                    checked={openToNewOpportunities}
                     onChange={(e) => setOpenToNewOpportunities(e.target.checked)}
-                    className="sr-only peer" 
+                    className="sr-only peer"
                   />
                   <div className="w-11 h-6 bg-surface-container-high peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-command"></div>
                 </label>
@@ -741,46 +916,57 @@ export const CandidateProfile: React.FC = () => {
             <div>
               <p className="text-xs font-bold text-deep-charcoal">Privacy Note</p>
               <p className="text-xs text-on-surface-variant font-medium mt-1 leading-relaxed">
-                Internal HR notes and screening criteria are never visible to candidates. Your private data is encrypted and secure.
+                Internal HR notes and screening criteria are never visible to candidates. Your
+                private data is encrypted and secure.
               </p>
             </div>
           </div>
 
           {/* Profile Audit Summary */}
           <section className="bg-white border border-border-warm p-6 shadow-sm rounded-lg">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-4">Profile Audit</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-4">
+              Profile Audit
+            </h3>
             <div className="space-y-4">
               <div className="flex items-start space-x-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-teal-command mt-2 shrink-0"></div>
                 <div>
                   <p className="text-xs text-deep-charcoal font-medium">Work experience updated</p>
-                  <p className="text-[10px] text-on-surface-variant uppercase font-semibold">May 29, 2026 • 14:22</p>
+                  <p className="text-[10px] text-on-surface-variant uppercase font-semibold">
+                    May 29, 2026 • 14:22
+                  </p>
                 </div>
               </div>
               <div className="flex items-start space-x-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-border-warm mt-2 shrink-0"></div>
                 <div>
                   <p className="text-xs text-deep-charcoal font-medium">Skills tags modified</p>
-                  <p className="text-[10px] text-on-surface-variant uppercase font-semibold">May 24, 2026 • 09:10</p>
+                  <p className="text-[10px] text-on-surface-variant uppercase font-semibold">
+                    May 24, 2026 • 09:10
+                  </p>
                 </div>
               </div>
               <div className="flex items-start space-x-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-border-warm mt-2 shrink-0"></div>
                 <div>
                   <p className="text-xs text-deep-charcoal font-medium">Phone number verified</p>
-                  <p className="text-[10px] text-on-surface-variant uppercase font-semibold">May 20, 2026 • 16:45</p>
+                  <p className="text-[10px] text-on-surface-variant uppercase font-semibold">
+                    May 20, 2026 • 16:45
+                  </p>
                 </div>
               </div>
             </div>
           </section>
-
         </aside>
       </div>
 
       {/* Bottom Actions Bar */}
       <div className="fixed bottom-0 left-[260px] right-0 p-4 bg-workflow-ivory/80 backdrop-blur-sm border-t border-border-warm flex items-center justify-between px-8 z-30">
         <div className="flex items-center space-x-6">
-          <a className="text-teal-command font-semibold text-xs hover:underline flex items-center gap-1.5" href="#export">
+          <a
+            className="text-teal-command font-semibold text-xs hover:underline flex items-center gap-1.5"
+            href="#export"
+          >
             <Icons.download />
             Request Data Export
           </a>
@@ -789,8 +975,8 @@ export const CandidateProfile: React.FC = () => {
           <button className="px-5 py-2 text-xs font-semibold bg-surface-container-high text-on-surface-variant rounded-lg hover:bg-surface-container-highest transition-colors active:scale-[0.98]">
             Preview Profile
           </button>
-          
-          <button 
+
+          <button
             onClick={handleSave}
             disabled={saveStatus === 'saving'}
             className="inline-flex items-center justify-center min-w-36 h-9 px-6 bg-teal-command text-white rounded-lg font-semibold text-xs hover:bg-primary shadow-lg shadow-teal-command/10 transition-all active:scale-[0.98]"

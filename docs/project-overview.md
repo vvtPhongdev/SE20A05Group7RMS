@@ -21,21 +21,21 @@ The system supports a 4-actor enterprise hierarchy — Department Head, HR Manag
 
 ## Technology Stack
 
-| Layer | Technology | Version |
-|-------|-----------|---------| 
-| **Runtime** | Node.js | 22+ |
-| **Language** | TypeScript | ^5.8.3 (strict) |
-| **Orchestrator** | Turborepo | latest |
-| **Backend** | NestJS | ^11.1.0 |
-| **Database** | PostgreSQL 16 | pgvector/pgvector:pg16 |
-| **ORM** | Prisma | ^6.8.2 |
-| **Vector Search** | pgvector | vector(384), ivfflat |
-| **Queue** | BullMQ + Redis 7 | ^5.52.0 |
-| **Frontend** | React 19 + Vite 6 | SPA, no SSR |
-| **UI Primitives** | Radix UI | latest |
-| **Design System** | CSS Variables | Design system tokens |
-| **Validation** | Zod (contracts) + class-validator (gateway DTOs) | ^3.25.1 |
-| **AI/Embeddings** | @xenova/transformers (all-MiniLM-L6-v2) | Self-hosted, local inference only |
+| Layer             | Technology                                       | Version                           |
+| ----------------- | ------------------------------------------------ | --------------------------------- |
+| **Runtime**       | Node.js                                          | 22+                               |
+| **Language**      | TypeScript                                       | ^5.8.3 (strict)                   |
+| **Orchestrator**  | Turborepo                                        | latest                            |
+| **Backend**       | NestJS                                           | ^11.1.0                           |
+| **Database**      | PostgreSQL 16                                    | pgvector/pgvector:pg16            |
+| **ORM**           | Prisma                                           | ^6.8.2                            |
+| **Vector Search** | pgvector                                         | vector(384), ivfflat              |
+| **Queue**         | BullMQ + Redis 7                                 | ^5.52.0                           |
+| **Frontend**      | React 19 + Vite 6                                | SPA, no SSR                       |
+| **UI Primitives** | Radix UI                                         | latest                            |
+| **Design System** | CSS Variables                                    | Design system tokens              |
+| **Validation**    | Zod (contracts) + class-validator (gateway DTOs) | ^3.25.1                           |
+| **AI/Embeddings** | @xenova/transformers (all-MiniLM-L6-v2)          | Self-hosted, local inference only |
 
 ## Repository Structure
 
@@ -81,12 +81,12 @@ webapp → gateway (HTTP :3001) → microservice (TCP via @nestjs/microservices)
 
 ## 4-Actor Model
 
-| Actor | Role Enum | Primary Responsibility |
-|-------|-----------|----------------------|
-| Trưởng Phòng Ban | `DEPARTMENT_HEAD` | Creates recruitment requests, tracks progress, participates in interviews |
-| Phòng Tuyển Dụng / Trưởng Phòng NS | `HR_MANAGER` | Reviews requests, creates campaign plans, manages interviews, screens CVs |
-| Admin / Boss (Sếp) | `ADMIN` | Final approval authority, strategic reporting, system configuration |
-| Ứng Viên | `CANDIDATE` | Submits CV, receives interview invitations, views results |
+| Actor                              | Role Enum         | Primary Responsibility                                                    |
+| ---------------------------------- | ----------------- | ------------------------------------------------------------------------- |
+| Trưởng Phòng Ban                   | `DEPARTMENT_HEAD` | Creates recruitment requests, tracks progress, participates in interviews |
+| Phòng Tuyển Dụng / Trưởng Phòng NS | `HR_MANAGER`      | Reviews requests, creates campaign plans, manages interviews, screens CVs |
+| Admin / Boss (Sếp)                 | `ADMIN`           | Final approval authority, strategic reporting, system configuration       |
+| Ứng Viên                           | `CANDIDATE`       | Submits CV, receives interview invitations, views results                 |
 
 ## Links to Detailed Documentation
 

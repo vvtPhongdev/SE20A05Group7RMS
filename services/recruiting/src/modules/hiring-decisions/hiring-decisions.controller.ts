@@ -17,11 +17,6 @@ export class HiringDecisionsController {
       adminId: string;
     },
   ) {
-    return this.service.decide(
-      payload.requestId,
-      payload.decision,
-      payload.notes,
-      payload.adminId,
-    );
+    return this.service.decide(payload.requestId, payload.decision, payload.notes, payload.adminId);
   }
 }

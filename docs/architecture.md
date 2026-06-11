@@ -36,14 +36,14 @@
 
 ## Service Responsibilities
 
-| Service | Port | Responsibilities |
-|---------|------|-----------------|
-| **Gateway** | `:3001` | HTTP entry, CORS, Swagger, JWT validation, request routing to TCP services |
-| **Identity** | `:3010` (TCP) | User registration/login, JWT + refresh tokens, organizations, departments, role management |
-| **Recruiting** | `:3011` (TCP) | Recruitment requests, approval workflow, plans (overall + task), interviews, results |
-| **Profiles** | `:3012` (TCP) | Candidate profiles, CV storage, structured data, vector embeddings, semantic search |
+| Service          | Port          | Responsibilities                                                                           |
+| ---------------- | ------------- | ------------------------------------------------------------------------------------------ |
+| **Gateway**      | `:3001`       | HTTP entry, CORS, Swagger, JWT validation, request routing to TCP services                 |
+| **Identity**     | `:3010` (TCP) | User registration/login, JWT + refresh tokens, organizations, departments, role management |
+| **Recruiting**   | `:3011` (TCP) | Recruitment requests, approval workflow, plans (overall + task), interviews, results       |
+| **Profiles**     | `:3012` (TCP) | Candidate profiles, CV storage, structured data, vector embeddings, semantic search        |
 | **Notification** | `:3013` (TCP) | Email dispatch (interview invites, offer letters, rejection letters), in-app notifications |
-| **Worker** | — (BullMQ) | Async CV parsing (PDF/DOCX → text), embedding generation (text → vector) |
+| **Worker**       | — (BullMQ)    | Async CV parsing (PDF/DOCX → text), embedding generation (text → vector)                   |
 
 ## Communication Rules
 
@@ -56,12 +56,12 @@
 
 **Shared PostgreSQL instance** with Prisma ORM + raw SQL for pgvector operations.
 
-| Schema Area | Tables | Managed By |
-|------------|--------|-----------|
-| Identity | `users`, `organizations`, `departments`, `refresh_tokens` | Identity Service |
-| Recruiting | `recruitment_requests`, `overall_plans`, `task_plans`, `interviews`, `interview_results`, `request_logs` | Recruiting Service |
-| Profiles | `candidate_profiles`, `cv_documents`, `cv_embeddings`, `cv_structured_data` | Profiles Service |
-| Notification | `notifications`, `email_logs` | Notification Service |
+| Schema Area  | Tables                                                                                                   | Managed By           |
+| ------------ | -------------------------------------------------------------------------------------------------------- | -------------------- |
+| Identity     | `users`, `organizations`, `departments`, `refresh_tokens`                                                | Identity Service     |
+| Recruiting   | `recruitment_requests`, `overall_plans`, `task_plans`, `interviews`, `interview_results`, `request_logs` | Recruiting Service   |
+| Profiles     | `candidate_profiles`, `cv_documents`, `cv_embeddings`, `cv_structured_data`                              | Profiles Service     |
+| Notification | `notifications`, `email_logs`                                                                            | Notification Service |
 
 > **ADR-006**: Shared DB for MVP. DB-per-service migration planned for post-MVP when team grows.
 
@@ -84,7 +84,7 @@ Protected routes:
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    ports: ["5432:5432"]
+    ports: ['5432:5432']
     environment:
       POSTGRES_DB: recruitment_rms
       POSTGRES_USER: rms_user
@@ -92,10 +92,10 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
-    ports: ["6379:6379"]
+    command: ['redis-server', '--appendonly', 'yes', '--maxmemory-policy', 'noeviction']
+    ports: ['6379:6379']
 ```
 
 ---
 
-*Last updated: 2026-05-28*
+_Last updated: 2026-05-28_

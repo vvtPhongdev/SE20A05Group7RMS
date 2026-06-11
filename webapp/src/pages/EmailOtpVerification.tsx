@@ -6,12 +6,16 @@ const INITIAL_SECONDS = 272;
 
 const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: string }) => {
   const paths: Record<string, React.ReactNode> = {
-    hub: <path d="M12 3v6m0 6v6M5.6 7.2l5.2 3m2.4 1.4 5.2 3M18.4 7.2l-5.2 3m-2.4 1.4-5.2 3M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" />,
+    hub: (
+      <path d="M12 3v6m0 6v6M5.6 7.2l5.2 3m2.4 1.4 5.2 3M18.4 7.2l-5.2 3m-2.4 1.4-5.2 3M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" />
+    ),
     clock: <path d="M12 8v5l3 2m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
     lock: <path d="M8 11V8a4 4 0 0 1 8 0v3m-9 0h10v9H7v-9Z" />,
     arrowLeft: <path d="M19 12H5m6-6-6 6 6 6" />,
     check: <path d="M20 6 9 17l-5-5" />,
-    help: <path d="M9.2 9a3 3 0 1 1 5.3 1.9c-1.4.9-2.5 1.7-2.5 3.1m0 3h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
+    help: (
+      <path d="M9.2 9a3 3 0 1 1 5.3 1.9c-1.4.9-2.5 1.7-2.5 3.1m0 3h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+    ),
   };
 
   return (
@@ -88,7 +92,11 @@ export const EmailOtpVerification: React.FC = () => {
 
   const handlePaste = (event: React.ClipboardEvent<HTMLInputElement>) => {
     event.preventDefault();
-    const pastedDigits = event.clipboardData.getData('text').replace(/\D/g, '').slice(0, OTP_LENGTH).split('');
+    const pastedDigits = event.clipboardData
+      .getData('text')
+      .replace(/\D/g, '')
+      .slice(0, OTP_LENGTH)
+      .split('');
     if (!pastedDigits.length) return;
 
     setError(null);
@@ -180,7 +188,9 @@ export const EmailOtpVerification: React.FC = () => {
 
       <main className="w-full max-w-[480px] overflow-hidden rounded-2xl border border-border-warm bg-clean-surface shadow-[0_8px_30px_rgba(28,25,23,0.05)]">
         <div className="h-1 w-full bg-parchment-lift">
-          <div className={`h-full bg-teal-command transition-all duration-700 ${verified ? 'w-full' : isComplete ? 'w-5/6' : 'w-2/3'}`} />
+          <div
+            className={`h-full bg-teal-command transition-all duration-700 ${verified ? 'w-full' : isComplete ? 'w-5/6' : 'w-2/3'}`}
+          />
         </div>
 
         <div className="flex flex-col items-center px-6 pb-10 pt-10 sm:px-10 sm:pt-12">
@@ -196,9 +206,12 @@ export const EmailOtpVerification: React.FC = () => {
               <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--wr-success-bg)] text-[var(--wr-success-text)]">
                 <Icon className="h-8 w-8" name="check" />
               </div>
-              <h1 className="mb-3 text-2xl font-bold tracking-tight text-deep-charcoal">Email verified</h1>
+              <h1 className="mb-3 text-2xl font-bold tracking-tight text-deep-charcoal">
+                Email verified
+              </h1>
               <p className="mx-auto max-w-sm text-sm leading-6 text-slate-ink">
-                Your email address has been confirmed. Continue to sign in or return to your account setup flow.
+                Your email address has been confirmed. Continue to sign in or return to your account
+                setup flow.
               </p>
               <button
                 className="mt-8 flex h-12 w-full items-center justify-center rounded-xl bg-teal-command px-4 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-[1px] hover:bg-[#00685f] active:translate-y-0 active:scale-[0.98]"
@@ -211,9 +224,12 @@ export const EmailOtpVerification: React.FC = () => {
           ) : (
             <>
               <div className="mb-9 text-center">
-                <h1 className="mb-3 text-2xl font-bold tracking-tight text-deep-charcoal">Verify your email</h1>
+                <h1 className="mb-3 text-2xl font-bold tracking-tight text-deep-charcoal">
+                  Verify your email
+                </h1>
                 <p className="text-base leading-7 text-slate-ink">
-                  We sent a 6-digit code to <span className="font-semibold text-teal-command">{maskedEmail}</span>
+                  We sent a 6-digit code to{' '}
+                  <span className="font-semibold text-teal-command">{maskedEmail}</span>
                 </p>
               </div>
 
@@ -255,7 +271,9 @@ export const EmailOtpVerification: React.FC = () => {
                     <Icon className="h-4 w-4" name="clock" />
                     <span className="font-mono text-sm">
                       Code expires in{' '}
-                      <span className={`font-semibold ${secondsLeft === 0 ? 'text-[var(--wr-error)]' : 'text-deep-charcoal'}`}>
+                      <span
+                        className={`font-semibold ${secondsLeft === 0 ? 'text-[var(--wr-error)]' : 'text-deep-charcoal'}`}
+                      >
                         {formatTime(secondsLeft)}
                       </span>
                     </span>
@@ -270,7 +288,8 @@ export const EmailOtpVerification: React.FC = () => {
                     type="button"
                     onClick={handleResend}
                   >
-                    Did not receive a code? <span className="font-semibold text-teal-command">Resend code</span>
+                    Did not receive a code?{' '}
+                    <span className="font-semibold text-teal-command">Resend code</span>
                   </button>
                 </div>
 
@@ -280,7 +299,10 @@ export const EmailOtpVerification: React.FC = () => {
                   type="submit"
                 >
                   {loading ? (
-                    <span className="flex w-28 items-center justify-center gap-1.5" aria-label="Verifying email">
+                    <span
+                      className="flex w-28 items-center justify-center gap-1.5"
+                      aria-label="Verifying email"
+                    >
                       <span className="h-1.5 w-6 rounded-full bg-white/45 animate-pulse" />
                       <span className="h-1.5 w-10 rounded-full bg-white/70 animate-pulse [animation-delay:120ms]" />
                       <span className="h-1.5 w-4 rounded-full bg-white/45 animate-pulse [animation-delay:240ms]" />
@@ -292,14 +314,20 @@ export const EmailOtpVerification: React.FC = () => {
               </form>
 
               <div className="mt-8 flex w-full flex-col items-center gap-4 border-t border-border-warm pt-8">
-                <Link className="flex items-center gap-1 text-sm font-medium text-teal-command hover:underline" to="/signup">
+                <Link
+                  className="flex items-center gap-1 text-sm font-medium text-teal-command hover:underline"
+                  to="/signup"
+                >
                   <Icon className="h-4 w-4" name="arrowLeft" />
                   Wrong email? Go back
                 </Link>
                 <p className="flex items-center gap-1.5 text-xs text-slate-ink">
                   <Icon className="h-4 w-4" name="help" />
                   Having trouble?{' '}
-                  <a className="font-semibold text-teal-command hover:underline" href="mailto:support@rms.local">
+                  <a
+                    className="font-semibold text-teal-command hover:underline"
+                    href="mailto:support@rms.local"
+                  >
                     Contact support
                   </a>
                 </p>
@@ -310,7 +338,9 @@ export const EmailOtpVerification: React.FC = () => {
 
         <div className="flex items-center justify-center gap-2 border-t border-border-warm bg-parchment-lift px-6 py-4">
           <Icon className="h-4 w-4 text-slate-ink" name="lock" />
-          <span className="text-xs font-medium text-slate-ink">This code is valid for 10 minutes</span>
+          <span className="text-xs font-medium text-slate-ink">
+            This code is valid for 10 minutes
+          </span>
         </div>
       </main>
     </div>

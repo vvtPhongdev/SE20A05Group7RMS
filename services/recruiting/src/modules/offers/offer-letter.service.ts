@@ -27,11 +27,7 @@ export class OfferLetterService {
     @Inject('NOTIFICATION_SERVICE') private readonly notificationClient: ClientProxy,
   ) {}
 
-  async generate(
-    requestId: string,
-    offerDetails: OfferDetails,
-    generatedById: string,
-  ) {
+  async generate(requestId: string, offerDetails: OfferDetails, generatedById: string) {
     const compensation = offerDetails.compensation?.trim();
     const startDate = new Date(offerDetails.startDate);
 
@@ -77,10 +73,7 @@ export class OfferLetterService {
     }
 
     const application = request.applications[0];
-    if (
-      !application ||
-      application.status !== RecruitmentRequestStatus.OFFER_EXTENDED
-    ) {
+    if (!application || application.status !== RecruitmentRequestStatus.OFFER_EXTENDED) {
       throw new RpcException({
         status: HttpStatus.PRECONDITION_FAILED,
         message: 'The candidate was not selected by the final hiring decision',
@@ -174,8 +167,11 @@ export class OfferLetterService {
             candidateName: offer.candidate.fullName,
             position: offer.positionTitle,
             offerContent: offer.content,
-            nextSteps: 'Please review the offer details and accept or decline the offer on our portal by the response deadline.',
-            responseDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB'),
+            nextSteps:
+              'Please review the offer details and accept or decline the offer on our portal by the response deadline.',
+            responseDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString(
+              'en-GB',
+            ),
           },
         }),
       );
@@ -249,37 +245,37 @@ export class OfferLetterService {
     );
 
     // Send in-app notification to candidate
-    this.notificationClient.send('notification.create_notification', {
-      userId: offer.candidate.userId,
-      type: NotificationType.OFFER,
-      title: 'Offer Letter Received',
-      body: `An offer letter for the position of ${offer.positionTitle} has been sent to you. Please review and respond.`,
-      relatedEntityId: offer.id,
-      relatedEntityType: 'OfferLetter',
-    }).subscribe({
-      error: (err) => console.error('Failed to send candidate offer letter notification:', err),
-    });
+    this.notificationClient
+      .send('notification.create_notification', {
+        userId: offer.candidate.userId,
+        type: NotificationType.OFFER,
+        title: 'Offer Letter Received',
+        body: `An offer letter for the position of ${offer.positionTitle} has been sent to you. Please review and respond.`,
+        relatedEntityId: offer.id,
+        relatedEntityType: 'OfferLetter',
+      })
+      .subscribe({
+        error: (err) => console.error('Failed to send candidate offer letter notification:', err),
+      });
 
     // Send in-app status update notification to Department Head
-    this.notificationClient.send('notification.create_notification', {
-      userId: offer.request.createdById,
-      type: NotificationType.REQUEST_UPDATE,
-      title: `Offer letter sent for ${offer.positionTitle}`,
-      body: `An offer letter has been sent to the candidate for ${offer.positionTitle}.`,
-      relatedEntityId: offer.requestId,
-      relatedEntityType: 'RecruitmentRequest',
-    }).subscribe({
-      error: (err) => console.error('Failed to send dept head offer letter notification:', err),
-    });
+    this.notificationClient
+      .send('notification.create_notification', {
+        userId: offer.request.createdById,
+        type: NotificationType.REQUEST_UPDATE,
+        title: `Offer letter sent for ${offer.positionTitle}`,
+        body: `An offer letter has been sent to the candidate for ${offer.positionTitle}.`,
+        relatedEntityId: offer.requestId,
+        relatedEntityType: 'RecruitmentRequest',
+      })
+      .subscribe({
+        error: (err) => console.error('Failed to send dept head offer letter notification:', err),
+      });
 
     return { ...updatedOffer, emailLogId: emailLog.id };
   }
 
-  async respond(
-    id: string,
-    response: OfferResponse,
-    candidateUserId: string,
-  ) {
+  async respond(id: string, response: OfferResponse, candidateUserId: string) {
     if (!Object.values(OfferResponse).includes(response)) {
       throw new RpcException({
         status: HttpStatus.BAD_REQUEST,
@@ -342,40 +338,46 @@ export class OfferLetterService {
     ]);
 
     // Send in-app status change notification to Department Head
-    this.notificationClient.send('notification.create_notification', {
-      userId: offer.request.createdById,
-      type: NotificationType.REQUEST_UPDATE,
-      title: `Offer ${accepted ? 'Accepted' : 'Declined'}`,
-      body: `The offer for ${offer.positionTitle} was ${accepted ? 'accepted' : 'declined'} by the candidate.`,
-      relatedEntityId: offer.requestId,
-      relatedEntityType: 'RecruitmentRequest',
-    }).subscribe({
-      error: (err) => console.error('Failed to send dept head offer response notification:', err),
-    });
+    this.notificationClient
+      .send('notification.create_notification', {
+        userId: offer.request.createdById,
+        type: NotificationType.REQUEST_UPDATE,
+        title: `Offer ${accepted ? 'Accepted' : 'Declined'}`,
+        body: `The offer for ${offer.positionTitle} was ${accepted ? 'accepted' : 'declined'} by the candidate.`,
+        relatedEntityId: offer.requestId,
+        relatedEntityType: 'RecruitmentRequest',
+      })
+      .subscribe({
+        error: (err) => console.error('Failed to send dept head offer response notification:', err),
+      });
 
     // Send in-app status change notification to HR Manager role
-    this.notificationClient.send('notification.send_to_role', {
-      role: 'HR_MANAGER',
-      type: NotificationType.REQUEST_UPDATE,
-      title: `Offer ${accepted ? 'Accepted' : 'Declined'}`,
-      body: `The offer for ${offer.positionTitle} was ${accepted ? 'accepted' : 'declined'} by the candidate.`,
-      relatedEntityId: offer.requestId,
-      relatedEntityType: 'RecruitmentRequest',
-    }).subscribe({
-      error: (err) => console.error('Failed to send HR offer response notification:', err),
-    });
+    this.notificationClient
+      .send('notification.send_to_role', {
+        role: 'HR_MANAGER',
+        type: NotificationType.REQUEST_UPDATE,
+        title: `Offer ${accepted ? 'Accepted' : 'Declined'}`,
+        body: `The offer for ${offer.positionTitle} was ${accepted ? 'accepted' : 'declined'} by the candidate.`,
+        relatedEntityId: offer.requestId,
+        relatedEntityType: 'RecruitmentRequest',
+      })
+      .subscribe({
+        error: (err) => console.error('Failed to send HR offer response notification:', err),
+      });
 
     // Send in-app status change notification to ADMIN role
-    this.notificationClient.send('notification.send_to_role', {
-      role: 'ADMIN',
-      type: NotificationType.REQUEST_UPDATE,
-      title: `Offer ${accepted ? 'Accepted' : 'Declined'}`,
-      body: `The offer for ${offer.positionTitle} was ${accepted ? 'accepted' : 'declined'} by the candidate.`,
-      relatedEntityId: offer.requestId,
-      relatedEntityType: 'RecruitmentRequest',
-    }).subscribe({
-      error: (err) => console.error('Failed to send Admin offer response notification:', err),
-    });
+    this.notificationClient
+      .send('notification.send_to_role', {
+        role: 'ADMIN',
+        type: NotificationType.REQUEST_UPDATE,
+        title: `Offer ${accepted ? 'Accepted' : 'Declined'}`,
+        body: `The offer for ${offer.positionTitle} was ${accepted ? 'accepted' : 'declined'} by the candidate.`,
+        relatedEntityId: offer.requestId,
+        relatedEntityType: 'RecruitmentRequest',
+      })
+      .subscribe({
+        error: (err) => console.error('Failed to send Admin offer response notification:', err),
+      });
 
     return updatedOffer;
   }

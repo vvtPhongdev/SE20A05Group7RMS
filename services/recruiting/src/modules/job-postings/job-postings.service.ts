@@ -124,10 +124,7 @@ export class JobPostingsService {
         where.OR = [
           { request: { departmentId: userDeptId } },
           {
-            AND: [
-              { status: JobPostingStatus.PUBLISHED },
-              { visibility: JobVisibility.PUBLIC },
-            ],
+            AND: [{ status: JobPostingStatus.PUBLISHED }, { visibility: JobVisibility.PUBLIC }],
           },
         ];
       } else {

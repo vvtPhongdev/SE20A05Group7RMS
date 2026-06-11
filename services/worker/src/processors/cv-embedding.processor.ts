@@ -55,12 +55,14 @@ export async function processCvEmbeddingJob(payload: EmbeddingGenerateJobPayload
     record.id,
   );
 
-  await auditLog.log({
-    entityType: AuditEntityType.CV_EMBEDDING,
-    entityId: record.id,
-    action: AuditAction.CV_EMBEDDING_GENERATED,
-    toStatus: 'GENERATED',
-    performedById: 'SYSTEM',
-    metadata: { cvDocumentId },
-  }).catch((err) => console.error('Failed to write audit log for CV_EMBEDDING_GENERATED:', err));
+  await auditLog
+    .log({
+      entityType: AuditEntityType.CV_EMBEDDING,
+      entityId: record.id,
+      action: AuditAction.CV_EMBEDDING_GENERATED,
+      toStatus: 'GENERATED',
+      performedById: 'SYSTEM',
+      metadata: { cvDocumentId },
+    })
+    .catch((err) => console.error('Failed to write audit log for CV_EMBEDDING_GENERATED:', err));
 }

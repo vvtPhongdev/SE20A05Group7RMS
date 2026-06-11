@@ -11,15 +11,15 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 @ApiBearerAuth()
 @Controller('interviews')
 export class InterviewController {
-  constructor(
-    @Inject(SERVICE_TOKENS.INTERVIEW) private readonly interviewClient: ClientProxy,
-  ) {}
+  constructor(@Inject(SERVICE_TOKENS.INTERVIEW) private readonly interviewClient: ClientProxy) {}
 
   // ─── Schedules ────────────────────────────────────────────────────
 
   @Post('schedules')
   @Roles(UserRole.HR_MANAGER)
-  @ApiOperation({ summary: 'FR-12 + FR-07: Create interview schedule (plan-locked, conflict-checked)' })
+  @ApiOperation({
+    summary: 'FR-12 + FR-07: Create interview schedule (plan-locked, conflict-checked)',
+  })
   createSchedule(
     @Body()
     body: {
@@ -69,14 +69,11 @@ export class InterviewController {
 
   @Patch('schedules/:id/cancel')
   @Roles(UserRole.HR_MANAGER, UserRole.ADMIN)
-  @ApiOperation({ summary: 'T-052: Cancel interview with reason — notifies parties, logs to request timeline' })
-  cancelSchedule(
-    @Param('id') id: string,
-    @Body() body: { cancelledBy: string; reason: string },
-  ) {
-    return firstValueFrom(
-      this.interviewClient.send('interview.cancel_schedule', { id, ...body }),
-    );
+  @ApiOperation({
+    summary: 'T-052: Cancel interview with reason — notifies parties, logs to request timeline',
+  })
+  cancelSchedule(@Param('id') id: string, @Body() body: { cancelledBy: string; reason: string }) {
+    return firstValueFrom(this.interviewClient.send('interview.cancel_schedule', { id, ...body }));
   }
 
   // ─── Invitations (FR-13) ──────────────────────────────────────────
@@ -100,9 +97,7 @@ export class InterviewController {
   @Roles(UserRole.HR_MANAGER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Get invitation email delivery logs for an interview' })
   getEmailLogs(@Param('id') interviewId: string) {
-    return firstValueFrom(
-      this.interviewClient.send('interview.get_email_logs', { interviewId }),
-    );
+    return firstValueFrom(this.interviewClient.send('interview.get_email_logs', { interviewId }));
   }
 
   // ─── Results (FR-14) ──────────────────────────────────────────────

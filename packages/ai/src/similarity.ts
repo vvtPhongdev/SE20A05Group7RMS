@@ -9,11 +9,11 @@
  */
 export function cosineSimilarity(
   vecA: Float32Array | number[],
-  vecB: Float32Array | number[]
+  vecB: Float32Array | number[],
 ): number {
   if (vecA.length !== vecB.length) {
     throw new Error(
-      `Vector length mismatch: vector A is ${vecA.length} dims, vector B is ${vecB.length} dims.`
+      `Vector length mismatch: vector A is ${vecA.length} dims, vector B is ${vecB.length} dims.`,
     );
   }
 

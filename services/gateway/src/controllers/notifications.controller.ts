@@ -32,16 +32,12 @@ export class NotificationsController {
   @Patch(':id/read')
   @ApiOperation({ summary: 'Mark a notification as read' })
   markRead(@Param('id') id: string, @CurrentUser('sub') userId: string) {
-    return firstValueFrom(
-      this.notificationClient.send('notification.mark_read', { id, userId }),
-    );
+    return firstValueFrom(this.notificationClient.send('notification.mark_read', { id, userId }));
   }
 
   @Post('mark-all-read')
   @ApiOperation({ summary: 'Mark all user notifications as read' })
   markAllRead(@CurrentUser('sub') userId: string) {
-    return firstValueFrom(
-      this.notificationClient.send('notification.mark_all_read', { userId }),
-    );
+    return firstValueFrom(this.notificationClient.send('notification.mark_all_read', { userId }));
   }
 }

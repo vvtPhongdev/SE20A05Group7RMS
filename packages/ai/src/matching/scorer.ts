@@ -7,7 +7,7 @@ import { SkillMatch } from '../skill-graph/types';
 import { MatchResult, GapInfo, ReadinessLabelType } from './types';
 
 /** Scoring weights — deterministic, no ML involved */
-const VECTOR_WEIGHT = 0.40;
+const VECTOR_WEIGHT = 0.4;
 const GRAPH_WEIGHT = 0.35;
 const COVERAGE_WEIGHT = 0.25;
 
@@ -93,7 +93,9 @@ export class MatchScorer {
       }
 
       // Check if there's a weak match (distance > 3 but not infinite)
-      const weakMatch = matches.find((m) => m.skill === skill && m.confidence > 0 && m.confidence < 0.45);
+      const weakMatch = matches.find(
+        (m) => m.skill === skill && m.confidence > 0 && m.confidence < 0.45,
+      );
       if (weakMatch) {
         severity = 'MINOR'; // downgrade if there's a related skill
       }
@@ -113,13 +115,13 @@ export class MatchScorer {
     const criticalGaps = gaps.filter((g) => g.severity === 'CRITICAL').length;
     const moderateGaps = gaps.filter((g) => g.severity === 'MODERATE').length;
 
-    if (overallScore >= 0.80 && criticalGaps === 0 && coverageScore >= 0.85) {
+    if (overallScore >= 0.8 && criticalGaps === 0 && coverageScore >= 0.85) {
       return 'READY_NOW';
     }
     if (overallScore >= 0.65 && criticalGaps === 0 && coverageScore >= 0.65) {
       return 'READY_WITH_SHORT_RAMP_UP';
     }
-    if (overallScore >= 0.50 && moderateGaps <= 2) {
+    if (overallScore >= 0.5 && moderateGaps <= 2) {
       return 'DOMAIN_SPECIALIST_WITH_TECH_GAP';
     }
     if (overallScore >= 0.35) {

@@ -7,20 +7,30 @@ const demoAccounts = [
   { label: 'Admin', email: 'admin@acme.com', accent: 'bg-[#1c5566]' },
   { label: 'Dept Head', email: 'depthead@acme.com', accent: 'bg-[#b5830a]' },
   { label: 'HR Manager', email: 'hr@acme.com', accent: 'bg-[#1a7a5c]' },
-  { label: 'Candidate', email: 'candidate@acme.com', accent: 'bg-[#3b6fb5]' }
+  { label: 'Candidate', email: 'candidate@acme.com', accent: 'bg-[#3b6fb5]' },
 ];
 
 const pipelineStages = [
   { label: 'Approved', value: '93.4%', width: '93.4%', tone: 'bg-[var(--wr-success)]' },
   { label: 'Sourcing', value: '76.8%', width: '76.8%', tone: 'bg-[var(--wr-accent-primary)]' },
   { label: 'Interview', value: '48.6%', width: '48.6%', tone: 'bg-[#3b6fb5]' },
-  { label: 'Offer', value: '21.7%', width: '21.7%', tone: 'bg-[var(--wr-warning)]' }
+  { label: 'Offer', value: '21.7%', width: '21.7%', tone: 'bg-[var(--wr-warning)]' },
 ];
 
 const activityItems = [
-  { team: 'Platform engineering', status: 'Panel feedback due', meta: '2 candidates', priority: 'High' },
-  { team: 'Finance operations', status: 'Campaign draft ready', meta: '5 tasks', priority: 'Ready' },
-  { team: 'Customer success', status: 'Headcount approval', meta: '1 request', priority: 'Review' }
+  {
+    team: 'Platform engineering',
+    status: 'Panel feedback due',
+    meta: '2 candidates',
+    priority: 'High',
+  },
+  {
+    team: 'Finance operations',
+    status: 'Campaign draft ready',
+    meta: '5 tasks',
+    priority: 'Ready',
+  },
+  { team: 'Customer success', status: 'Headcount approval', meta: '1 request', priority: 'Review' },
 ];
 
 const EyeIcon = ({ hidden }: { hidden: boolean }) => (
@@ -108,7 +118,9 @@ export const Login: React.FC = () => {
             </div>
             <div>
               <p className="text-sm font-semibold">Works Recruiter</p>
-              <p className="text-xs text-[var(--wr-text-secondary)]">Recruitment workflow management</p>
+              <p className="text-xs text-[var(--wr-text-secondary)]">
+                Recruitment workflow management
+              </p>
             </div>
           </div>
 
@@ -121,14 +133,15 @@ export const Login: React.FC = () => {
                 Control every approval, campaign, and interview from one workspace.
               </h1>
               <p className="mt-6 max-w-lg text-base leading-7 text-[var(--wr-text-secondary)]">
-                A focused login surface for teams that need auditable hiring requests, clear ownership, and reliable candidate movement.
+                A focused login surface for teams that need auditable hiring requests, clear
+                ownership, and reliable candidate movement.
               </p>
 
               <div className="mt-10 max-w-lg divide-y divide-[var(--wr-border-subtle)] border-y border-[var(--wr-border-subtle)]">
                 {[
                   ['23', 'active staffing requests'],
                   ['47.2%', 'screening work completed'],
-                  ['6.8d', 'median review cycle']
+                  ['6.8d', 'median review cycle'],
                 ].map(([value, label]) => (
                   <div key={label} className="grid grid-cols-[112px_1fr] items-baseline gap-6 py-4">
                     <span className="font-mono text-3xl font-semibold tracking-tight text-[var(--wr-text-primary)]">
@@ -144,7 +157,9 @@ export const Login: React.FC = () => {
               <div className="mb-4 flex items-center justify-between border-b border-[var(--wr-border-subtle)] pb-4">
                 <div>
                   <p className="text-sm font-semibold">Hiring control board</p>
-                  <p className="mt-1 text-xs text-[var(--wr-text-secondary)]">June operating view</p>
+                  <p className="mt-1 text-xs text-[var(--wr-text-secondary)]">
+                    June operating view
+                  </p>
                 </div>
                 <div className="flex items-center gap-2 rounded-[var(--wr-radius-full)] border border-[var(--wr-success-border)] bg-[var(--wr-success-bg)] px-3 py-1 text-xs font-semibold text-[var(--wr-success-text)]">
                   <span className="h-1.5 w-1.5 rounded-full bg-[var(--wr-success)] animate-pulse" />
@@ -173,7 +188,7 @@ export const Login: React.FC = () => {
                     {[
                       ['Need review', '8'],
                       ['Due today', '5'],
-                      ['Blocked', '2']
+                      ['Blocked', '2'],
                     ].map(([label, value]) => (
                       <div key={label} className="border-l border-[var(--wr-border-subtle)] pl-3">
                         <p className="font-mono text-xl font-semibold leading-none">{value}</p>
@@ -190,12 +205,20 @@ export const Login: React.FC = () => {
                         style={{ animationDelay: `${index * 90}ms` }}
                       >
                         <div>
-                          <p className="text-xs font-semibold text-[var(--wr-text-primary)]">{item.team}</p>
-                          <p className="mt-1 text-xs text-[var(--wr-text-secondary)]">{item.status}</p>
+                          <p className="text-xs font-semibold text-[var(--wr-text-primary)]">
+                            {item.team}
+                          </p>
+                          <p className="mt-1 text-xs text-[var(--wr-text-secondary)]">
+                            {item.status}
+                          </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs font-semibold text-[var(--wr-accent-primary)]">{item.priority}</p>
-                          <p className="mt-1 text-[11px] text-[var(--wr-text-secondary)]">{item.meta}</p>
+                          <p className="text-xs font-semibold text-[var(--wr-accent-primary)]">
+                            {item.priority}
+                          </p>
+                          <p className="mt-1 text-[11px] text-[var(--wr-text-secondary)]">
+                            {item.meta}
+                          </p>
                         </div>
                       </div>
                     ))}
@@ -209,7 +232,9 @@ export const Login: React.FC = () => {
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold">Pipeline health</p>
-                <p className="text-xs text-[var(--wr-text-secondary)]">Live request movement across teams</p>
+                <p className="text-xs text-[var(--wr-text-secondary)]">
+                  Live request movement across teams
+                </p>
               </div>
               <span className="rounded-[var(--wr-radius-full)] bg-[var(--wr-success-bg)] px-3 py-1 text-xs font-semibold text-[var(--wr-success-text)]">
                 On track
@@ -223,7 +248,10 @@ export const Login: React.FC = () => {
                     <span className="font-mono font-semibold">{stage.value}</span>
                   </div>
                   <div className="h-2 rounded-[var(--wr-radius-full)] bg-[var(--wr-bg-elevated)]">
-                    <div className={`h-full rounded-[var(--wr-radius-full)] ${stage.tone}`} style={{ width: stage.width }} />
+                    <div
+                      className={`h-full rounded-[var(--wr-radius-full)] ${stage.tone}`}
+                      style={{ width: stage.width }}
+                    />
                   </div>
                 </div>
               ))}
@@ -240,7 +268,9 @@ export const Login: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm font-semibold">Works Recruiter</p>
-                  <p className="text-xs text-[var(--wr-text-secondary)]">Recruitment workflow management</p>
+                  <p className="text-xs text-[var(--wr-text-secondary)]">
+                    Recruitment workflow management
+                  </p>
                 </div>
               </div>
             </div>
@@ -248,7 +278,9 @@ export const Login: React.FC = () => {
             <div className="rounded-[18px] border border-[var(--wr-border-default)] bg-white p-6 shadow-[0_26px_70px_-54px_rgba(28,28,40,0.65)] sm:p-8">
               <div className="mb-8 flex items-start justify-between gap-6">
                 <div>
-                  <p className="mb-2 text-sm font-semibold text-[var(--wr-accent-primary)]">Secure workspace</p>
+                  <p className="mb-2 text-sm font-semibold text-[var(--wr-accent-primary)]">
+                    Secure workspace
+                  </p>
                   <h2 className="text-3xl font-semibold leading-tight tracking-tight text-[var(--wr-text-primary)]">
                     Sign in
                   </h2>
@@ -269,7 +301,10 @@ export const Login: React.FC = () => {
 
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-[var(--wr-text-primary)]" htmlFor="email">
+                  <label
+                    className="block text-sm font-medium text-[var(--wr-text-primary)]"
+                    htmlFor="email"
+                  >
                     Email address
                   </label>
                   <input
@@ -281,11 +316,16 @@ export const Login: React.FC = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
-                  <p className="text-xs text-[var(--wr-text-muted)]">Use the email assigned to your workspace.</p>
+                  <p className="text-xs text-[var(--wr-text-muted)]">
+                    Use the email assigned to your workspace.
+                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-[var(--wr-text-primary)]" htmlFor="password">
+                  <label
+                    className="block text-sm font-medium text-[var(--wr-text-primary)]"
+                    htmlFor="password"
+                  >
                     Password
                   </label>
                   <div className="relative">
@@ -307,7 +347,9 @@ export const Login: React.FC = () => {
                       <EyeIcon hidden={showPassword} />
                     </button>
                   </div>
-                  <p className="text-xs text-[var(--wr-text-muted)]">Keep your session private on shared devices.</p>
+                  <p className="text-xs text-[var(--wr-text-muted)]">
+                    Keep your session private on shared devices.
+                  </p>
                 </div>
 
                 <div className="flex items-center justify-between gap-4">
@@ -320,7 +362,10 @@ export const Login: React.FC = () => {
                     />
                     Remember me
                   </label>
-                  <Link className="text-sm font-semibold text-[var(--wr-accent-primary)] hover:underline" to="/forgot-password">
+                  <Link
+                    className="text-sm font-semibold text-[var(--wr-accent-primary)] hover:underline"
+                    to="/forgot-password"
+                  >
                     Forgot password?
                   </Link>
                 </div>
@@ -331,7 +376,10 @@ export const Login: React.FC = () => {
                   type="submit"
                 >
                   {loading ? (
-                    <span className="flex w-28 items-center justify-center gap-1.5" aria-label="Signing in">
+                    <span
+                      className="flex w-28 items-center justify-center gap-1.5"
+                      aria-label="Signing in"
+                    >
                       <span className="h-1.5 w-6 rounded-full bg-white/45 animate-pulse" />
                       <span className="h-1.5 w-10 rounded-full bg-white/70 animate-pulse [animation-delay:120ms]" />
                       <span className="h-1.5 w-4 rounded-full bg-white/45 animate-pulse [animation-delay:240ms]" />
@@ -344,7 +392,9 @@ export const Login: React.FC = () => {
 
               <div className="my-6 flex items-center gap-4">
                 <div className="h-px flex-1 bg-[var(--wr-border-subtle)]" />
-                <span className="text-xs font-semibold uppercase text-[var(--wr-text-muted)]">Demo access</span>
+                <span className="text-xs font-semibold uppercase text-[var(--wr-text-muted)]">
+                  Demo access
+                </span>
                 <div className="h-px flex-1 bg-[var(--wr-border-subtle)]" />
               </div>
 

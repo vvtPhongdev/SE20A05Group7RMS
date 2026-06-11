@@ -1,6 +1,11 @@
 import React, { useState, useMemo } from 'react';
 
-type DecisionStatus = 'Awaiting Decision' | 'Approved' | 'Rejected' | 'Request Info' | 'Decision Made';
+type DecisionStatus =
+  | 'Awaiting Decision'
+  | 'Approved'
+  | 'Rejected'
+  | 'Request Info'
+  | 'Decision Made';
 
 interface PanelistFeedback {
   name: string;
@@ -45,36 +50,38 @@ const initialCandidates: CandidateResult[] = [
     interviewDate: 'May 28, 2026',
     requestId: '#RR-042',
     status: 'Awaiting Decision',
-    photoUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBC8L-4Ejb-mG_TsVkES7LKKEAtcXSmyoxeL5-5uQ7wyjMwhLWYYPVu_fxOpo3pRnlUhK13VrsASCrs71WdUopnDQiQK8Ur6NQ2TLZTq3lCvWcU6gnQEhvjPAwk0aDiX-QtTCL6VzrH2OhlZAVq0GJfYDQYz5dZLhBmmzmgvCKoRDFpe0YpgxVxLFrNUpn_VyQzsqDMlhdlWEAWYtUPBEpc00ic_tf2pBYQUO1rW7gxWa9TtmgMFKUxfz9COCXbxxLobLutxhcTaxI',
+    photoUrl:
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuBC8L-4Ejb-mG_TsVkES7LKKEAtcXSmyoxeL5-5uQ7wyjMwhLWYYPVu_fxOpo3pRnlUhK13VrsASCrs71WdUopnDQiQK8Ur6NQ2TLZTq3lCvWcU6gnQEhvjPAwk0aDiX-QtTCL6VzrH2OhlZAVq0GJfYDQYz5dZLhBmmzmgvCKoRDFpe0YpgxVxLFrNUpn_VyQzsqDMlhdlWEAWYtUPBEpc00ic_tf2pBYQUO1rW7gxWa9TtmgMFKUxfz9COCXbxxLobLutxhcTaxI',
     passCount: 2,
     failCount: 1,
     pendingCount: 0,
     scores: { tech: 7.6, comm: 7.0, fit: 8.0 },
     recommendation: 'Hire',
-    assessmentSummary: 'Candidate demonstrates top-tier backend proficiency and aligns with core values. Minority failure on cloud specifics is addressable via onboarding. Overall sentiment from panel is high-conviction.',
+    assessmentSummary:
+      'Candidate demonstrates top-tier backend proficiency and aligns with core values. Minority failure on cloud specifics is addressable via onboarding. Overall sentiment from panel is high-conviction.',
     feedbacks: [
       {
         name: 'Sarah Miller',
         role: 'Technical Recruiter',
         status: 'PASS',
         ratings: { tech: 8, comm: 7, fit: 9 },
-        comment: 'Strong technical fundamentals, very good cultural alignment.'
+        comment: 'Strong technical fundamentals, very good cultural alignment.',
       },
       {
         name: 'David Park',
         role: 'Hiring Manager',
         status: 'PASS',
         ratings: { tech: 9, comm: 8, fit: 8 },
-        comment: 'Excellent problem solver, depth in backend architecture is impressive.'
+        comment: 'Excellent problem solver, depth in backend architecture is impressive.',
       },
       {
         name: 'Elena Rodriguez',
         role: 'Senior Developer',
         status: 'FAIL',
         ratings: { tech: 6, comm: 6, fit: 7 },
-        comment: 'Felt some gaps in cloud infrastructure knowledge, but strong overall developer.'
-      }
-    ]
+        comment: 'Felt some gaps in cloud infrastructure knowledge, but strong overall developer.',
+      },
+    ],
   },
   {
     id: 'c2',
@@ -84,29 +91,31 @@ const initialCandidates: CandidateResult[] = [
     interviewDate: 'May 27, 2026',
     requestId: '#RR-039',
     status: 'Awaiting Decision',
-    photoUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBuXLKq_TwnRe7fkio29zX9u4qKBVj3ob2hkRC30mR9ekFlh8ZFcyVW-D32BZoyl753H35x2GdMbMum6cE1NxFNQ0vscAs5GyiU_lN8hgJdj08BQHcveN9net_AZhq6OPFCnbdHeeYNmmk_srla8KuCQkiR_dssvKpHFQqCqgRmg1uOOz4FrwxQqQIAWfh_5kZ0OkS0WRSI7_TlDUBXPCHXYLfud_G9jmLhHueW_yd8bkVOc1DFSh5XgGt6nCJsro5uBm0FGx65tgU',
+    photoUrl:
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuBuXLKq_TwnRe7fkio29zX9u4qKBVj3ob2hkRC30mR9ekFlh8ZFcyVW-D32BZoyl753H35x2GdMbMum6cE1NxFNQ0vscAs5GyiU_lN8hgJdj08BQHcveN9net_AZhq6OPFCnbdHeeYNmmk_srla8KuCQkiR_dssvKpHFQqCqgRmg1uOOz4FrwxQqQIAWfh_5kZ0OkS0WRSI7_TlDUBXPCHXYLfud_G9jmLhHueW_yd8bkVOc1DFSh5XgGt6nCJsro5uBm0FGx65tgU',
     passCount: 3,
     failCount: 0,
     pendingCount: 0,
     scores: { tech: 8.5, comm: 9.0, fit: 9.0 },
     recommendation: 'Hire',
-    assessmentSummary: 'Outstanding candidate with high marks in leadership and communication. A solid addition to the marketing leadership team.',
+    assessmentSummary:
+      'Outstanding candidate with high marks in leadership and communication. A solid addition to the marketing leadership team.',
     feedbacks: [
       {
         name: 'Sarah Miller',
         role: 'Technical Recruiter',
         status: 'PASS',
         ratings: { tech: 8, comm: 9, fit: 9 },
-        comment: 'Superb communication skills, clear vision for marketing strategy.'
+        comment: 'Superb communication skills, clear vision for marketing strategy.',
       },
       {
         name: 'David Park',
         role: 'Hiring Manager',
         status: 'PASS',
         ratings: { tech: 9, comm: 9, fit: 9 },
-        comment: 'Excellent leadership profile. Confident in driving growth campaigns.'
-      }
-    ]
+        comment: 'Excellent leadership profile. Confident in driving growth campaigns.',
+      },
+    ],
   },
   {
     id: 'c3',
@@ -116,36 +125,38 @@ const initialCandidates: CandidateResult[] = [
     interviewDate: 'May 26, 2026',
     requestId: '#RR-035',
     status: 'Decision Made',
-    photoUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBC8L-4Ejb-mG_TsVkES7LKKEAtcXSmyoxeL5-5uQ7wyjMwhLWYYPVu_fxOpo3pRnlUhK13VrsASCrs71WdUopnDQiQK8Ur6NQ2TLZTq3lCvWcU6gnQEhvjPAwk0aDiX-QtTCL6VzrH2OhlZAVq0GJfYDQYz5dZLhBmmzmgvCKoRDFpe0YpgxVxLFrNUpn_VyQzsqDMlhdlWEAWYtUPBEpc00ic_tf2pBYQUO1rW7gxWa9TtmgMFKUxfz9COCXbxxLobLutxhcTaxI',
+    photoUrl:
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuBC8L-4Ejb-mG_TsVkES7LKKEAtcXSmyoxeL5-5uQ7wyjMwhLWYYPVu_fxOpo3pRnlUhK13VrsASCrs71WdUopnDQiQK8Ur6NQ2TLZTq3lCvWcU6gnQEhvjPAwk0aDiX-QtTCL6VzrH2OhlZAVq0GJfYDQYz5dZLhBmmzmgvCKoRDFpe0YpgxVxLFrNUpn_VyQzsqDMlhdlWEAWYtUPBEpc00ic_tf2pBYQUO1rW7gxWa9TtmgMFKUxfz9COCXbxxLobLutxhcTaxI',
     passCount: 1,
     failCount: 2,
     pendingCount: 0,
     scores: { tech: 6.0, comm: 6.3, fit: 7.3 },
     recommendation: 'Reject',
-    assessmentSummary: 'Candidate does not meet the technical seniority threshold for this opening. Panel recommends rejecting or considering for a mid-level role in the future.',
+    assessmentSummary:
+      'Candidate does not meet the technical seniority threshold for this opening. Panel recommends rejecting or considering for a mid-level role in the future.',
     feedbacks: [
       {
         name: 'Elena Rodriguez',
         role: 'Senior Developer',
         status: 'FAIL',
         ratings: { tech: 5, comm: 6, fit: 7 },
-        comment: 'Gaps in product thinking and design execution details.'
+        comment: 'Gaps in product thinking and design execution details.',
       },
       {
         name: 'Sarah Miller',
         role: 'Technical Recruiter',
         status: 'PASS',
         ratings: { tech: 7, comm: 7, fit: 8 },
-        comment: 'Friendly candidate with nice visual style, but lacks senior experience.'
+        comment: 'Friendly candidate with nice visual style, but lacks senior experience.',
       },
       {
         name: 'David Park',
         role: 'Hiring Manager',
         status: 'FAIL',
         ratings: { tech: 6, comm: 6, fit: 7 },
-        comment: 'Portfolio lacks depth in research synthesis.'
-      }
-    ]
+        comment: 'Portfolio lacks depth in research synthesis.',
+      },
+    ],
   },
   {
     id: 'c4',
@@ -155,35 +166,37 @@ const initialCandidates: CandidateResult[] = [
     interviewDate: 'May 25, 2026',
     requestId: '#RR-040',
     status: 'Awaiting Decision',
-    photoUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBC8L-4Ejb-mG_TsVkES7LKKEAtcXSmyoxeL5-5uQ7wyjMwhLWYYPVu_fxOpo3pRnlUhK13VrsASCrs71WdUopnDQiQK8Ur6NQ2TLZTq3lCvWcU6gnQEhvjPAwk0aDiX-QtTCL6VzrH2OhlZAVq0GJfYDQYz5dZLhBmmzmgvCKoRDFpe0YpgxVxLFrNUpn_VyQzsqDMlhdlWEAWYtUPBEpc00ic_tf2pBYQUO1rW7gxWa9TtmgMFKUxfz9COCXbxxLobLutxhcTaxI',
+    photoUrl:
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuBC8L-4Ejb-mG_TsVkES7LKKEAtcXSmyoxeL5-5uQ7wyjMwhLWYYPVu_fxOpo3pRnlUhK13VrsASCrs71WdUopnDQiQK8Ur6NQ2TLZTq3lCvWcU6gnQEhvjPAwk0aDiX-QtTCL6VzrH2OhlZAVq0GJfYDQYz5dZLhBmmzmgvCKoRDFpe0YpgxVxLFrNUpn_VyQzsqDMlhdlWEAWYtUPBEpc00ic_tf2pBYQUO1rW7gxWa9TtmgMFKUxfz9COCXbxxLobLutxhcTaxI',
     passCount: 2,
     failCount: 0,
     pendingCount: 1,
     scores: { tech: 8.0, comm: 7.5, fit: 8.0 },
     recommendation: 'Hire',
-    assessmentSummary: 'Strong DevOps fundamentals. Recommend hire pending the final reference checks.',
+    assessmentSummary:
+      'Strong DevOps fundamentals. Recommend hire pending the final reference checks.',
     feedbacks: [
       {
         name: 'Elena Rodriguez',
         role: 'Senior Developer',
         status: 'PASS',
         ratings: { tech: 8, comm: 7, fit: 8 },
-        comment: 'Solid containerization and CI/CD script writing skills.'
+        comment: 'Solid containerization and CI/CD script writing skills.',
       },
       {
         name: 'Marcus Johnson',
         role: 'Hiring Manager',
         status: 'PASS',
         ratings: { tech: 8, comm: 8, fit: 8 },
-        comment: 'Pragmatic developer, ready to optimize deployment latency.'
+        comment: 'Pragmatic developer, ready to optimize deployment latency.',
       },
       {
         name: 'Sarah Miller',
         role: 'Technical Recruiter',
         status: 'PENDING',
-        comment: 'Interview scheduled for reference verification.'
-      }
-    ]
+        comment: 'Interview scheduled for reference verification.',
+      },
+    ],
   },
   {
     id: 'c5',
@@ -193,29 +206,31 @@ const initialCandidates: CandidateResult[] = [
     interviewDate: 'May 25, 2026',
     requestId: '#RR-041',
     status: 'Awaiting Decision',
-    photoUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBuXLKq_TwnRe7fkio29zX9u4qKBVj3ob2hkRC30mR9ekFlh8ZFcyVW-D32BZoyl753H35x2GdMbMum6cE1NxFNQ0vscAs5GyiU_lN8hgJdj08BQHcveN9net_AZhq6OPFCnbdHeeYNmmk_srla8KuCQkiR_dssvKpHFQqCqgRmg1uOOz4FrwxQqQIAWfh_5kZ0OkS0WRSI7_TlDUBXPCHXYLfud_G9jmLhHueW_yd8bkVOc1DFSh5XgGt6nCJsro5uBm0FGx65tgU',
+    photoUrl:
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuBuXLKq_TwnRe7fkio29zX9u4qKBVj3ob2hkRC30mR9ekFlh8ZFcyVW-D32BZoyl753H35x2GdMbMum6cE1NxFNQ0vscAs5GyiU_lN8hgJdj08BQHcveN9net_AZhq6OPFCnbdHeeYNmmk_srla8KuCQkiR_dssvKpHFQqCqgRmg1uOOz4FrwxQqQIAWfh_5kZ0OkS0WRSI7_TlDUBXPCHXYLfud_G9jmLhHueW_yd8bkVOc1DFSh5XgGt6nCJsro5uBm0FGx65tgU',
     passCount: 2,
     failCount: 0,
     pendingCount: 0,
     scores: { tech: 8.5, comm: 9.0, fit: 8.5 },
     recommendation: 'Hire',
-    assessmentSummary: 'Exceptional candidate. Strong user empathy and execution focus. High-conviction PASS from the interview panel.',
+    assessmentSummary:
+      'Exceptional candidate. Strong user empathy and execution focus. High-conviction PASS from the interview panel.',
     feedbacks: [
       {
         name: 'Sarah Miller',
         role: 'Technical Recruiter',
         status: 'PASS',
         ratings: { tech: 8, comm: 9, fit: 9 },
-        comment: 'High alignment with user centric product frameworks.'
+        comment: 'High alignment with user centric product frameworks.',
       },
       {
         name: 'David Park',
         role: 'Hiring Manager',
         status: 'PASS',
         ratings: { tech: 9, comm: 9, fit: 8 },
-        comment: 'Great roadmap strategic vision and backlog grooming clarity.'
-      }
-    ]
+        comment: 'Great roadmap strategic vision and backlog grooming clarity.',
+      },
+    ],
   },
   {
     id: 'c6',
@@ -225,35 +240,37 @@ const initialCandidates: CandidateResult[] = [
     interviewDate: 'May 24, 2026',
     requestId: '#RR-037',
     status: 'Awaiting Decision',
-    photoUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBC8L-4Ejb-mG_TsVkES7LKKEAtcXSmyoxeL5-5uQ7wyjMwhLWYYPVu_fxOpo3pRnlUhK13VrsASCrs71WdUopnDQiQK8Ur6NQ2TLZTq3lCvWcU6gnQEhvjPAwk0aDiX-QtTCL6VzrH2OhlZAVq0GJfYDQYz5dZLhBmmzmgvCKoRDFpe0YpgxVxLFrNUpn_VyQzsqDMlhdlWEAWYtUPBEpc00ic_tf2pBYQUO1rW7gxWa9TtmgMFKUxfz9COCXbxxLobLutxhcTaxI',
+    photoUrl:
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuBC8L-4Ejb-mG_TsVkES7LKKEAtcXSmyoxeL5-5uQ7wyjMwhLWYYPVu_fxOpo3pRnlUhK13VrsASCrs71WdUopnDQiQK8Ur6NQ2TLZTq3lCvWcU6gnQEhvjPAwk0aDiX-QtTCL6VzrH2OhlZAVq0GJfYDQYz5dZLhBmmzmgvCKoRDFpe0YpgxVxLFrNUpn_VyQzsqDMlhdlWEAWYtUPBEpc00ic_tf2pBYQUO1rW7gxWa9TtmgMFKUxfz9COCXbxxLobLutxhcTaxI',
     passCount: 0,
     failCount: 1,
     pendingCount: 2,
     scores: { tech: 5.0, comm: 6.0, fit: 6.0 },
     recommendation: 'Reject',
-    assessmentSummary: 'QA automation scripting skills do not meet the minimum proficiency requirement. Limited experience in script execution.',
+    assessmentSummary:
+      'QA automation scripting skills do not meet the minimum proficiency requirement. Limited experience in script execution.',
     feedbacks: [
       {
         name: 'Elena Rodriguez',
         role: 'Senior Developer',
         status: 'FAIL',
         ratings: { tech: 5, comm: 6, fit: 6 },
-        comment: 'Limited scripting experience in Playwright or Cypress.'
+        comment: 'Limited scripting experience in Playwright or Cypress.',
       },
       {
         name: 'Sarah Miller',
         role: 'Technical Recruiter',
         status: 'PENDING',
-        comment: 'Scheduled final follow up panel.'
+        comment: 'Scheduled final follow up panel.',
       },
       {
         name: 'David Park',
         role: 'Hiring Manager',
         status: 'PENDING',
-        comment: 'Reviewing homework assignment submission.'
-      }
-    ]
-  }
+        comment: 'Reviewing homework assignment submission.',
+      },
+    ],
+  },
 ];
 
 type FilterType = 'All Pending Decisions' | 'All Decisions' | 'Decision Made';
@@ -276,7 +293,12 @@ export const AdminInterviewResults: React.FC = () => {
         return c.status === 'Awaiting Decision';
       }
       if (filterType === 'Decision Made') {
-        return c.status === 'Decision Made' || c.status === 'Approved' || c.status === 'Rejected' || c.status === 'Request Info';
+        return (
+          c.status === 'Decision Made' ||
+          c.status === 'Approved' ||
+          c.status === 'Rejected' ||
+          c.status === 'Request Info'
+        );
       }
       return true; // 'All Decisions'
     });
@@ -291,14 +313,19 @@ export const AdminInterviewResults: React.FC = () => {
     setCandidates((prev) =>
       prev.map((c) => {
         if (c.id === id) {
-          const finalStatus: DecisionStatus = action === 'Approved' ? 'Approved' : action === 'Rejected' ? 'Rejected' : 'Request Info';
+          const finalStatus: DecisionStatus =
+            action === 'Approved'
+              ? 'Approved'
+              : action === 'Rejected'
+                ? 'Rejected'
+                : 'Request Info';
           return {
             ...c,
-            status: finalStatus
+            status: finalStatus,
           };
         }
         return c;
-      })
+      }),
     );
     alert(`Decision registered: ${action} for candidate ${activeCandidate.name}.`);
   };
@@ -308,8 +335,12 @@ export const AdminInterviewResults: React.FC = () => {
       {/* Header Section */}
       <div className="flex justify-between items-end bg-workflow-ivory shrink-0 border-b border-border-warm/30 pb-4">
         <div>
-          <h2 className="font-headline-lg text-headline-lg text-deep-charcoal font-bold">Interview Results Review</h2>
-          <p className="font-body-md text-slate-ink mt-1">Review panel feedback and make hiring decisions</p>
+          <h2 className="font-headline-lg text-headline-lg text-deep-charcoal font-bold">
+            Interview Results Review
+          </h2>
+          <p className="font-body-md text-slate-ink mt-1">
+            Review panel feedback and make hiring decisions
+          </p>
         </div>
 
         {/* Filter Selector Button */}
@@ -324,8 +355,8 @@ export const AdminInterviewResults: React.FC = () => {
               {filterType === 'All Pending Decisions'
                 ? `All Pending Decisions (${pendingCount})`
                 : filterType === 'Decision Made'
-                ? `Decision Made (${candidates.length - pendingCount})`
-                : `All Decisions (${candidates.length})`}
+                  ? `Decision Made (${candidates.length - pendingCount})`
+                  : `All Decisions (${candidates.length})`}
             </span>
             <span className="material-symbols-outlined text-[18px]">expand_more</span>
           </button>
@@ -344,8 +375,8 @@ export const AdminInterviewResults: React.FC = () => {
                   {opt === 'All Pending Decisions'
                     ? `All Pending Decisions (${pendingCount})`
                     : opt === 'Decision Made'
-                    ? `Decision Made (${candidates.length - pendingCount})`
-                    : `All Decisions (${candidates.length})`}
+                      ? `Decision Made (${candidates.length - pendingCount})`
+                      : `All Decisions (${candidates.length})`}
                 </button>
               ))}
             </div>
@@ -384,14 +415,20 @@ export const AdminInterviewResults: React.FC = () => {
                       <h4 className="font-headline-md text-headline-md text-deep-charcoal group-hover:text-teal-command font-semibold text-lg leading-tight transition-colors">
                         {candidate.name}
                       </h4>
-                      <p className="text-body-sm text-slate-ink font-medium mt-0.5">{candidate.role}</p>
+                      <p className="text-body-sm text-slate-ink font-medium mt-0.5">
+                        {candidate.role}
+                      </p>
                     </div>
                     <span
                       className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-tighter ${
-                        isAwaiting ? 'bg-secondary-fixed text-revision' : 'bg-teal-command/10 text-teal-command border border-teal-command/20'
+                        isAwaiting
+                          ? 'bg-secondary-fixed text-revision'
+                          : 'bg-teal-command/10 text-teal-command border border-teal-command/20'
                       }`}
                     >
-                      {candidate.status === 'Awaiting Decision' ? 'Awaiting Decision' : candidate.status}
+                      {candidate.status === 'Awaiting Decision'
+                        ? 'Awaiting Decision'
+                        : candidate.status}
                     </span>
                   </div>
 
@@ -457,8 +494,12 @@ export const AdminInterviewResults: React.FC = () => {
                     src={activeCandidate.photoUrl}
                   />
                   <div>
-                    <h2 className="font-headline-xl text-headline-xl text-deep-charcoal font-semibold">{activeCandidate.name}</h2>
-                    <p className="text-body-lg text-slate-ink font-medium">{activeCandidate.role}</p>
+                    <h2 className="font-headline-xl text-headline-xl text-deep-charcoal font-semibold">
+                      {activeCandidate.name}
+                    </h2>
+                    <p className="text-body-lg text-slate-ink font-medium">
+                      {activeCandidate.role}
+                    </p>
                   </div>
                 </div>
 
@@ -491,19 +532,25 @@ export const AdminInterviewResults: React.FC = () => {
                   >
                     <div>
                       <p className="font-bold text-deep-charcoal text-sm">{fb.name}</p>
-                      <p className="text-label-sm text-slate-ink text-xs mt-0.5 font-medium">{fb.role}</p>
+                      <p className="text-label-sm text-slate-ink text-xs mt-0.5 font-medium">
+                        {fb.role}
+                      </p>
                       <div
                         className={`mt-4 inline-flex items-center gap-1.5 px-2.5 py-0.5 border rounded font-bold text-[10px] uppercase tracking-wider ${
                           fb.status === 'PASS'
                             ? 'bg-approved/10 text-approved border-approved/20'
                             : fb.status === 'FAIL'
-                            ? 'bg-rejected/10 text-rejected border-rejected/20'
-                            : 'bg-pending/10 text-pending border-pending/20'
+                              ? 'bg-rejected/10 text-rejected border-rejected/20'
+                              : 'bg-pending/10 text-pending border-pending/20'
                         }`}
                       >
                         <span
                           className={`w-1.5 h-1.5 rounded-full ${
-                            fb.status === 'PASS' ? 'bg-approved' : fb.status === 'FAIL' ? 'bg-rejected' : 'bg-pending'
+                            fb.status === 'PASS'
+                              ? 'bg-approved'
+                              : fb.status === 'FAIL'
+                                ? 'bg-rejected'
+                                : 'bg-pending'
                           }`}
                         />
                         {fb.status}
@@ -543,7 +590,10 @@ export const AdminInterviewResults: React.FC = () => {
                       <span className="font-bold">{activeCandidate.scores.tech} / 10</span>
                     </div>
                     <div className="w-full h-2 bg-parchment-lift rounded-full overflow-hidden border border-border-warm">
-                      <div className="h-full bg-teal-command" style={{ width: `${activeCandidate.scores.tech * 10}%` }} />
+                      <div
+                        className="h-full bg-teal-command"
+                        style={{ width: `${activeCandidate.scores.tech * 10}%` }}
+                      />
                     </div>
                   </div>
                   <div>
@@ -552,7 +602,10 @@ export const AdminInterviewResults: React.FC = () => {
                       <span className="font-bold">{activeCandidate.scores.comm} / 10</span>
                     </div>
                     <div className="w-full h-2 bg-parchment-lift rounded-full overflow-hidden border border-border-warm">
-                      <div className="h-full bg-teal-command" style={{ width: `${activeCandidate.scores.comm * 10}%` }} />
+                      <div
+                        className="h-full bg-teal-command"
+                        style={{ width: `${activeCandidate.scores.comm * 10}%` }}
+                      />
                     </div>
                   </div>
                   <div>
@@ -561,7 +614,10 @@ export const AdminInterviewResults: React.FC = () => {
                       <span className="font-bold">{activeCandidate.scores.fit} / 10</span>
                     </div>
                     <div className="w-full h-2 bg-parchment-lift rounded-full overflow-hidden border border-border-warm">
-                      <div className="h-full bg-teal-command" style={{ width: `${activeCandidate.scores.fit * 10}%` }} />
+                      <div
+                        className="h-full bg-teal-command"
+                        style={{ width: `${activeCandidate.scores.fit * 10}%` }}
+                      />
                     </div>
                   </div>
                 </div>
@@ -569,7 +625,9 @@ export const AdminInterviewResults: React.FC = () => {
                 {/* Recommendation details */}
                 <div className="p-4 bg-teal-command/5 border border-teal-command/20 rounded-lg shadow-sm">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="material-symbols-outlined text-teal-command text-[24px]">recommend</span>
+                    <span className="material-symbols-outlined text-teal-command text-[24px]">
+                      recommend
+                    </span>
                     <span className="font-headline-md text-headline-md text-teal-command font-bold">
                       Recommendation: {activeCandidate.recommendation}
                     </span>

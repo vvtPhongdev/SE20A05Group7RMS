@@ -47,14 +47,18 @@ export class CvScreeningService {
       data: { screeningStatus: status },
     });
 
-    this.auditLog.log({
-      entityType: AuditEntityType.CV,
-      entityId: cvId,
-      action: AuditAction.CV_SCREENING_STATUS_CHANGED,
-      fromStatus: cv.screeningStatus,
-      toStatus: status,
-      performedById: performedById || 'SYSTEM',
-    }).catch((err) => console.error('Failed to write audit log for CV_SCREENING_STATUS_CHANGED:', err));
+    this.auditLog
+      .log({
+        entityType: AuditEntityType.CV,
+        entityId: cvId,
+        action: AuditAction.CV_SCREENING_STATUS_CHANGED,
+        fromStatus: cv.screeningStatus,
+        toStatus: status,
+        performedById: performedById || 'SYSTEM',
+      })
+      .catch((err) =>
+        console.error('Failed to write audit log for CV_SCREENING_STATUS_CHANGED:', err),
+      );
 
     return updated;
   }
@@ -91,14 +95,18 @@ export class CvScreeningService {
     });
 
     for (const cv of existing) {
-      this.auditLog.log({
-        entityType: AuditEntityType.CV,
-        entityId: cv.id,
-        action: AuditAction.CV_SCREENING_STATUS_CHANGED,
-        fromStatus: cv.screeningStatus,
-        toStatus: status,
-        performedById: performedById || 'SYSTEM',
-      }).catch((err) => console.error('Failed to write audit log for CV_SCREENING_STATUS_CHANGED:', err));
+      this.auditLog
+        .log({
+          entityType: AuditEntityType.CV,
+          entityId: cv.id,
+          action: AuditAction.CV_SCREENING_STATUS_CHANGED,
+          fromStatus: cv.screeningStatus,
+          toStatus: status,
+          performedById: performedById || 'SYSTEM',
+        })
+        .catch((err) =>
+          console.error('Failed to write audit log for CV_SCREENING_STATUS_CHANGED:', err),
+        );
     }
 
     return result;

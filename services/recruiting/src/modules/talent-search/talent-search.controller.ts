@@ -12,7 +12,14 @@ export class TalentSearchController {
   @MessagePattern('talent.search')
   @UseGuards(PlanLockedGuard)
   @PlanLocked(TaskType.CV_SCREENING)
-  search(@Payload() payload: { query: string; filters?: Record<string, unknown>; pagination?: { page: number; pageSize: number } }) {
+  search(
+    @Payload()
+    payload: {
+      query: string;
+      filters?: Record<string, unknown>;
+      pagination?: { page: number; pageSize: number };
+    },
+  ) {
     return this.service.search(payload);
   }
 

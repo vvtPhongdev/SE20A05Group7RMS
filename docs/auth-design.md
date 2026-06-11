@@ -14,6 +14,7 @@
 **Decision:** Use short-lived JWTs (1h) for access + long-lived refresh tokens (30d) stored in Redis.
 
 **Rationale:**
+
 - Microservice architecture requires stateless auth → JWT access tokens
 - Refresh token rotation provides security without UX friction
 - Redis enables instant token revocation (logout, password change)
@@ -92,28 +93,28 @@ services/identity/src/
 
 class AuthService {
   // Register: hash password, create user, issue tokens
-  async register(dto: RegisterUserInput): Promise<AuthTokenResponse>
+  async register(dto: RegisterUserInput): Promise<AuthTokenResponse>;
 
   // Login: verify email+password, issue tokens
-  async login(dto: LoginInput): Promise<AuthTokenResponse>
+  async login(dto: LoginInput): Promise<AuthTokenResponse>;
 
   // Refresh: validate refresh token in Redis, rotate, issue new pair
-  async refresh(refreshToken: string): Promise<AuthTokenResponse>
+  async refresh(refreshToken: string): Promise<AuthTokenResponse>;
 
   // Forgot password: generate 6-digit code, store in Redis (15min TTL), send email
-  async forgotPassword(email: string): Promise<void>
+  async forgotPassword(email: string): Promise<void>;
 
   // Reset password: validate code, hash new password, clear all refresh tokens
-  async resetPassword(dto: ResetPasswordInput): Promise<void>
+  async resetPassword(dto: ResetPasswordInput): Promise<void>;
 
   // Logout: clear refresh token from Redis
-  async logout(userId: string, refreshToken: string): Promise<void>
+  async logout(userId: string, refreshToken: string): Promise<void>;
 
   // Internal helpers
-  private hashPassword(password: string): Promise<string>  // bcrypt, 12 rounds
-  private verifyPassword(plain: string, hash: string): Promise<boolean>
-  private issueTokenPair(user: User): Promise<AuthTokenResponse>
-  private storeRefreshToken(userId: string, token: string): Promise<void>
+  private hashPassword(password: string): Promise<string>; // bcrypt, 12 rounds
+  private verifyPassword(plain: string, hash: string): Promise<boolean>;
+  private issueTokenPair(user: User): Promise<AuthTokenResponse>;
+  private storeRefreshToken(userId: string, token: string): Promise<void>;
 }
 ```
 
@@ -134,24 +135,24 @@ class AuthService {
 
 ### 4. NestJS Dependencies Required
 
-| Package | Purpose |
-|---------|---------|
-| `@nestjs/jwt` | JWT signing/verification |
-| `@nestjs/passport` | Guard integration |
-| `passport-jwt` | JWT extraction strategy |
-| `bcrypt` | Password hashing (12 rounds) |
-| `crypto` | Refresh token generation |
+| Package            | Purpose                      |
+| ------------------ | ---------------------------- |
+| `@nestjs/jwt`      | JWT signing/verification     |
+| `@nestjs/passport` | Guard integration            |
+| `passport-jwt`     | JWT extraction strategy      |
+| `bcrypt`           | Password hashing (12 rounds) |
+| `crypto`           | Refresh token generation     |
 
 ## Password Security
 
-| Parameter | Value | Rationale |
-|-----------|-------|-----------|
-| Hash algorithm | bcrypt | Industry standard, adaptive |
-| Salt rounds | 12 | Balance security/performance |
-| Min length | 8 | `RegisterUserSchema` validation |
-| Max length | 128 | Prevent bcrypt DoS |
-| Reset code | 6 digits | Simple, time-limited (15 min) |
-| Rate limit | 5 attempts / 15 min | Brute force prevention |
+| Parameter      | Value               | Rationale                       |
+| -------------- | ------------------- | ------------------------------- |
+| Hash algorithm | bcrypt              | Industry standard, adaptive     |
+| Salt rounds    | 12                  | Balance security/performance    |
+| Min length     | 8                   | `RegisterUserSchema` validation |
+| Max length     | 128                 | Prevent bcrypt DoS              |
+| Reset code     | 6 digits            | Simple, time-limited (15 min)   |
+| Rate limit     | 5 attempts / 15 min | Brute force prevention          |
 
 ## Environment Variables
 
@@ -211,6 +212,7 @@ login(@Body() dto) { ... }
 ## Flow Diagrams
 
 ### Registration Flow
+
 ```
 Client → POST /auth/register { email, displayName, password, role }
   → Gateway validates via RegisterUserSchema
@@ -221,6 +223,7 @@ Client → POST /auth/register { email, displayName, password, role }
 ```
 
 ### Login Flow
+
 ```
 Client → POST /auth/login { email, password }
   → Gateway validates via LoginSchema
@@ -233,6 +236,7 @@ Client → POST /auth/login { email, password }
 ```
 
 ### Forgot Password Flow
+
 ```
 Client → POST /auth/forgot-password { email }
   → Identity generates 6-digit code

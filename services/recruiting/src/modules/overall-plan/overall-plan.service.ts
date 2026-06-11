@@ -1,4 +1,10 @@
-import { Injectable, Inject, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  Inject,
+  BadRequestException,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { AuditLogService } from '@wr/database';
 import { AuditAction, AuditEntityType, NotificationType, PlanStatus } from '@wr/contracts';
@@ -16,7 +22,7 @@ export class OverallPlanService {
     hiringRequestId: string;
     createdById: string;
     startDate: string; // ISO date string
-    endDate: string;   // ISO date string
+    endDate: string; // ISO date string
   }) {
     const { hiringRequestId, createdById, startDate, endDate } = payload;
 
@@ -46,7 +52,9 @@ export class OverallPlanService {
       where: { requestId: hiringRequestId },
     });
     if (existing) {
-      throw new ConflictException(`An OverallPlan already exists for RecruitmentRequest ${hiringRequestId}`);
+      throw new ConflictException(
+        `An OverallPlan already exists for RecruitmentRequest ${hiringRequestId}`,
+      );
     }
 
     const [plan] = await this.prisma.$transaction([
@@ -69,36 +77,42 @@ export class OverallPlanService {
       }),
     ]);
 
-    this.notificationClient.send('notification.create_notification', {
-      userId: plan.request.createdById,
-      type: NotificationType.REQUEST_UPDATE,
-      title: 'Request status update: Planning',
-      body: `Recruitment request for ${plan.request.position} has transitioned to Planning.`,
-      relatedEntityId: hiringRequestId,
-      relatedEntityType: 'RecruitmentRequest',
-    }).subscribe({
-      error: (err) => console.error('Failed to send dept head planning notification:', err),
-    });
+    this.notificationClient
+      .send('notification.create_notification', {
+        userId: plan.request.createdById,
+        type: NotificationType.REQUEST_UPDATE,
+        title: 'Request status update: Planning',
+        body: `Recruitment request for ${plan.request.position} has transitioned to Planning.`,
+        relatedEntityId: hiringRequestId,
+        relatedEntityType: 'RecruitmentRequest',
+      })
+      .subscribe({
+        error: (err) => console.error('Failed to send dept head planning notification:', err),
+      });
 
-    this.notificationClient.send('notification.send_to_role', {
-      role: 'HR_MANAGER',
-      type: NotificationType.REQUEST_UPDATE,
-      title: 'Request status update: Planning',
-      body: `Recruitment request for ${plan.request.position} has transitioned to Planning.`,
-      relatedEntityId: hiringRequestId,
-      relatedEntityType: 'RecruitmentRequest',
-    }).subscribe({
-      error: (err) => console.error('Failed to send HR planning notification:', err),
-    });
+    this.notificationClient
+      .send('notification.send_to_role', {
+        role: 'HR_MANAGER',
+        type: NotificationType.REQUEST_UPDATE,
+        title: 'Request status update: Planning',
+        body: `Recruitment request for ${plan.request.position} has transitioned to Planning.`,
+        relatedEntityId: hiringRequestId,
+        relatedEntityType: 'RecruitmentRequest',
+      })
+      .subscribe({
+        error: (err) => console.error('Failed to send HR planning notification:', err),
+      });
 
-    this.auditLog.log({
-      entityType: AuditEntityType.PLAN,
-      entityId: plan.id,
-      action: AuditAction.PLAN_CREATED,
-      toStatus: PlanStatus.PENDING_APPROVAL,
-      performedById: createdById,
-      metadata: { requestId: hiringRequestId },
-    }).catch((err) => console.error('Failed to write audit log for PLAN_CREATED:', err));
+    this.auditLog
+      .log({
+        entityType: AuditEntityType.PLAN,
+        entityId: plan.id,
+        action: AuditAction.PLAN_CREATED,
+        toStatus: PlanStatus.PENDING_APPROVAL,
+        performedById: createdById,
+        metadata: { requestId: hiringRequestId },
+      })
+      .catch((err) => console.error('Failed to write audit log for PLAN_CREATED:', err));
 
     return plan;
   }
@@ -122,14 +136,16 @@ export class OverallPlanService {
       data: { status: PlanStatus.APPROVED, approvedById },
     });
 
-    this.auditLog.log({
-      entityType: AuditEntityType.PLAN,
-      entityId: id,
-      action: AuditAction.PLAN_APPROVED,
-      fromStatus: PlanStatus.PENDING_APPROVAL,
-      toStatus: PlanStatus.APPROVED,
-      performedById: approvedById,
-    }).catch((err) => console.error('Failed to write audit log for PLAN_APPROVED:', err));
+    this.auditLog
+      .log({
+        entityType: AuditEntityType.PLAN,
+        entityId: id,
+        action: AuditAction.PLAN_APPROVED,
+        fromStatus: PlanStatus.PENDING_APPROVAL,
+        toStatus: PlanStatus.APPROVED,
+        performedById: approvedById,
+      })
+      .catch((err) => console.error('Failed to write audit log for PLAN_APPROVED:', err));
 
     return updated;
   }
@@ -156,15 +172,17 @@ export class OverallPlanService {
       data: { status: PlanStatus.REJECTED, approvedById, revisionNotes: revisionNotes.trim() },
     });
 
-    this.auditLog.log({
-      entityType: AuditEntityType.PLAN,
-      entityId: id,
-      action: AuditAction.PLAN_REJECTED,
-      fromStatus: PlanStatus.PENDING_APPROVAL,
-      toStatus: PlanStatus.REJECTED,
-      performedById: approvedById,
-      reason: revisionNotes.trim(),
-    }).catch((err) => console.error('Failed to write audit log for PLAN_REJECTED:', err));
+    this.auditLog
+      .log({
+        entityType: AuditEntityType.PLAN,
+        entityId: id,
+        action: AuditAction.PLAN_REJECTED,
+        fromStatus: PlanStatus.PENDING_APPROVAL,
+        toStatus: PlanStatus.REJECTED,
+        performedById: approvedById,
+        reason: revisionNotes.trim(),
+      })
+      .catch((err) => console.error('Failed to write audit log for PLAN_REJECTED:', err));
 
     return updated;
   }
@@ -198,7 +216,8 @@ export class OverallPlanService {
         },
       },
     });
-    if (!plan) throw new NotFoundException(`No OverallPlan found for RecruitmentRequest ${hiringRequestId}`);
+    if (!plan)
+      throw new NotFoundException(`No OverallPlan found for RecruitmentRequest ${hiringRequestId}`);
     return plan;
   }
 }

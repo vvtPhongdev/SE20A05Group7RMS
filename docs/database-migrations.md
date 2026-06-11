@@ -51,14 +51,14 @@ Examples:
 
 ### Target Model Inventory (RMS)
 
-| Domain | Models | Status |
-|--------|--------|--------|
-| Identity | User, Organization, Department | ✅ Core |
-| Workflow | RecruitmentRequest, RequestLog | 🎯 Target |
-| Planning | OverallPlan, TaskPlan | 🎯 Target |
-| Interview | Interview, InterviewResult | 🎯 Target |
-| Profiles | CandidateProfile, CvDocument, CvEmbedding | 🎯 Target |
-| Notification | Notification, EmailLog | 🎯 Target |
+| Domain       | Models                                    | Status    |
+| ------------ | ----------------------------------------- | --------- |
+| Identity     | User, Organization, Department            | ✅ Core   |
+| Workflow     | RecruitmentRequest, RequestLog            | 🎯 Target |
+| Planning     | OverallPlan, TaskPlan                     | 🎯 Target |
+| Interview    | Interview, InterviewResult                | 🎯 Target |
+| Profiles     | CandidateProfile, CvDocument, CvEmbedding | 🎯 Target |
+| Notification | Notification, EmailLog                    | 🎯 Target |
 
 > **Note:** All models above are part of the current RMS schema. See `architecture/project-structure-boundaries.md` for the full domain-to-service mapping.
 
@@ -67,6 +67,7 @@ Examples:
 These are NOT managed by Prisma and must be applied separately.
 
 ### File Location
+
 ```
 packages/database/migrations/sql/
 ├── 001_enable_pgvector.sql
@@ -75,12 +76,14 @@ packages/database/migrations/sql/
 ```
 
 ### Migration 001: Enable pgvector Extension
+
 ```sql
 -- 001_enable_pgvector.sql
 CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
 ### Migration 002: CV Embeddings Table
+
 ```sql
 -- 002_create_cv_embeddings.sql
 CREATE TABLE IF NOT EXISTS cv_embeddings (
@@ -96,6 +99,7 @@ CREATE TABLE IF NOT EXISTS cv_embeddings (
 ```
 
 ### Migration 003: IVFFlat Index
+
 ```sql
 -- 003_create_ivfflat_index.sql
 -- Create after >1000 rows for optimal clustering
@@ -106,6 +110,7 @@ CREATE INDEX IF NOT EXISTS idx_cv_embeddings_vector
 ```
 
 ### Applying Raw SQL Migrations
+
 ```bash
 # Via psql
 PGPASSWORD=postgres psql -h localhost -U postgres -d works_reruiter \
@@ -127,16 +132,16 @@ Seed file: `packages/database/prisma/seed.ts`
 
 ### Recommended Seed Data
 
-| Entity | Count | Purpose |
-|--------|-------|---------|
-| Organizations | 1 | "Acme Corp" |
-| Departments | 3 | Engineering, Product, Design |
-| Users (ADMIN) | 1 | admin@acme.com |
-| Users (DEPARTMENT_HEAD) | 3 | One per department |
-| Users (HR_MANAGER) | 2 | HR team |
-| Users (CANDIDATE) | 5 | Test candidates |
-| RecruitmentRequests | 3 | DRAFT, PENDING_HR_REVIEW, APPROVED |
-| OverallPlans | 1 | Linked to an approved request |
+| Entity                  | Count | Purpose                            |
+| ----------------------- | ----- | ---------------------------------- |
+| Organizations           | 1     | "Acme Corp"                        |
+| Departments             | 3     | Engineering, Product, Design       |
+| Users (ADMIN)           | 1     | admin@acme.com                     |
+| Users (DEPARTMENT_HEAD) | 3     | One per department                 |
+| Users (HR_MANAGER)      | 2     | HR team                            |
+| Users (CANDIDATE)       | 5     | Test candidates                    |
+| RecruitmentRequests     | 3     | DRAFT, PENDING_HR_REVIEW, APPROVED |
+| OverallPlans            | 1     | Linked to an approved request      |
 
 ## Environment Variables
 

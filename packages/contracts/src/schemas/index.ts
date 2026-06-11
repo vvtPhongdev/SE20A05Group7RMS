@@ -118,7 +118,9 @@ export const CreateDepartmentSchema = z.object({
   parentId: z.string().uuid().optional().nullable(),
 });
 
-export const UpdateDepartmentSchema = CreateDepartmentSchema.partial().omit({ organizationId: true });
+export const UpdateDepartmentSchema = CreateDepartmentSchema.partial().omit({
+  organizationId: true,
+});
 
 export type CreateDepartmentInput = z.infer<typeof CreateDepartmentSchema>;
 export type UpdateDepartmentInput = z.infer<typeof UpdateDepartmentSchema>;
@@ -199,7 +201,9 @@ export const CreateCandidateProfileSchema = z.object({
   structuredData: z.record(z.unknown()).optional().nullable(),
 });
 
-export const UpdateCandidateProfileSchema = CreateCandidateProfileSchema.partial().omit({ userId: true });
+export const UpdateCandidateProfileSchema = CreateCandidateProfileSchema.partial().omit({
+  userId: true,
+});
 
 export const CreateCandidateCVSchema = z.object({
   candidateId: z.string().uuid(),
@@ -240,7 +244,9 @@ export const CreateInterviewResultSchema = z.object({
   evaluatorId: z.string().uuid().optional().nullable(),
 });
 
-export const UpdateInterviewResultSchema = CreateInterviewResultSchema.partial().omit({ interviewId: true });
+export const UpdateInterviewResultSchema = CreateInterviewResultSchema.partial().omit({
+  interviewId: true,
+});
 
 export type CreateInterviewScheduleInput = z.infer<typeof CreateInterviewScheduleSchema>;
 export type UpdateInterviewScheduleInput = z.infer<typeof UpdateInterviewScheduleSchema>;

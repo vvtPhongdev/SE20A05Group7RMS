@@ -42,7 +42,11 @@ describe('InterviewResultService', () => {
     log: jest.fn().mockResolvedValue(undefined),
   };
 
-  const service = new InterviewResultService(prisma as any, auditLog as any, notificationClient as any);
+  const service = new InterviewResultService(
+    prisma as any,
+    auditLog as any,
+    notificationClient as any,
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -101,7 +105,12 @@ describe('InterviewResultService', () => {
       requestId: 'request-1',
       status: InterviewStatus.SCHEDULED,
       candidate: { fullName: 'John Doe', email: 'john@example.com', userId: 'user-1' },
-      request: { id: 'request-1', position: 'Software Engineer', status: 'ACTIVE', createdById: 'dept-head-1' },
+      request: {
+        id: 'request-1',
+        position: 'Software Engineer',
+        status: 'ACTIVE',
+        createdById: 'dept-head-1',
+      },
     });
 
     prisma.application.findUnique.mockResolvedValue({
@@ -142,7 +151,12 @@ describe('InterviewResultService', () => {
       requestId: 'request-1',
       status: InterviewStatus.SCHEDULED,
       candidate: { fullName: 'John Doe', email: 'john@example.com', userId: 'user-1' },
-      request: { id: 'request-1', position: 'Software Engineer', status: 'ACTIVE', createdById: 'dept-head-1' },
+      request: {
+        id: 'request-1',
+        position: 'Software Engineer',
+        status: 'ACTIVE',
+        createdById: 'dept-head-1',
+      },
     });
 
     prisma.application.findUnique.mockResolvedValue({
