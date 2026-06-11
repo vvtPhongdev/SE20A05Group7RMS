@@ -1,7 +1,7 @@
 import { Controller } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { OrganizationsService } from './organizations.service';
-import { CreateOrganizationInput } from '@wr/contracts';
+import { CreateOrganizationInput, UpdateOrganizationInput } from '@wr/contracts';
 
 @Controller()
 export class OrganizationsController {
@@ -20,5 +20,10 @@ export class OrganizationsController {
   @MessagePattern('identity.get_organization')
   async get(@Payload() data: { id: string }) {
     return this.organizationsService.get(data);
+  }
+
+  @MessagePattern('identity.update_organization')
+  async update(@Payload() data: { id: string } & UpdateOrganizationInput) {
+    return this.organizationsService.update(data);
   }
 }

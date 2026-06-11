@@ -58,6 +58,7 @@ model Organization {
   id        String   @id @default(uuid())
   name      String
   slug      String   @unique(map: "uq_organizations_slug")
+  settings  Json     @default("{}")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

@@ -1,4 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../lib/api';
 
 type RequestStatus =
   | 'Draft'
@@ -374,6 +376,8 @@ const generateAllMockRequests = (): RecruitmentRequest[] => {
   return base.sort((a, b) => b.id.localeCompare(a.id));
 };
 
+void generateAllMockRequests;
+
 type SortField =
   | 'id'
   | 'position'
@@ -385,7 +389,11 @@ type SortField =
 type SortDirection = 'asc' | 'desc' | 'none';
 
 export const AdminAllRequests: React.FC = () => {
+  const { token } = useAuth();
   const [requestsList, setRequestsList] = useState<RecruitmentRequest[]>([]);
+  const [hrManagers, setHrManagers] = useState<Array<{ id: string; name: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
   const [statusFilter, setStatusFilter] = useState<RequestStatus | 'All'>('All');
   const [deptFilter, setDeptFilter] = useState('All');
   const [priorityFilter, setPriorityFilter] = useState('All');
@@ -400,10 +408,110 @@ export const AdminAllRequests: React.FC = () => {
   const [sortField, setSortField] = useState<SortField>('id');
   const [sortDir, setSortDir] = useState<SortDirection>('desc');
 
-  // Load all mock requests
+  const mapStatus = (status: string): RequestStatus => {
+    const statuses: Record<string, RequestStatus> = {
+      DRAFT: 'Draft',
+      PENDING_REVIEW: 'Pending',
+      APPROVED: 'Approved',
+      REVISION_NEEDED: 'Revision Needed',
+      PLANNING: 'Planning',
+      PLAN_APPROVED: 'Active',
+      SCREENING: 'Screening',
+      INTERVIEWING: 'Interviewing',
+      OFFER_EXTENDED: 'Active',
+      OFFER_ACCEPTED: 'Completed',
+      CLOSED: 'Completed',
+      CANCELLED: 'Rejected',
+      REJECTED: 'Rejected',
+    };
+    return statuses[status] ?? 'Draft';
+  };
+
+  const mapUrgency = (urgency: string): Urgency => {
+    const normalized = urgency.toLowerCase();
+    if (normalized === 'critical') return 'Critical';
+    if (normalized === 'high') return 'High';
+    if (normalized === 'low') return 'Low';
+    return 'Medium';
+  };
+
+  const loadRequests = async () => {
+    const response = await apiRequest<{
+      data: Array<{
+        id: string;
+        position: string;
+        department: { name: string; code: string };
+        requester: { displayName: string };
+        owner?: { displayName: string } | null;
+        status: string;
+        urgency: string;
+        headcount: number;
+        skillRequirements?: Record<string, unknown> | string[];
+        justification: string;
+        createdAt: string;
+        updatedAt: string;
+      }>;
+    }>('/recruitment-requests?limit=100', token);
+
+    setRequestsList(
+      response.data.map((request) => {
+        const owner = request.owner?.displayName ?? 'Not Assigned';
+        const skills = Array.isArray(request.skillRequirements)
+          ? request.skillRequirements.map(String)
+          : Object.keys(request.skillRequirements ?? {});
+
+        return {
+          id: request.id,
+          position: request.position,
+          department: request.department.name,
+          requester: request.requester.displayName,
+          owner,
+          status: mapStatus(request.status),
+          urgency: mapUrgency(request.urgency),
+          submittedDate: request.createdAt,
+          targetDate: '',
+          headcount: request.headcount,
+          budget: '-',
+          location: '-',
+          skills,
+          notes: request.justification,
+          lastActivity: `Updated ${new Date(request.updatedAt).toLocaleString()}`,
+          assignColor: request.owner ? 'bg-primary-fixed-dim' : 'bg-surface-container-highest',
+          initials:
+            owner === 'Not Assigned'
+              ? 'NA'
+              : owner
+                  .split(' ')
+                  .map((name) => name[0])
+                  .slice(0, 2)
+                  .join('')
+                  .toUpperCase(),
+        };
+      }),
+    );
+  };
+
   useEffect(() => {
-    setRequestsList(generateAllMockRequests());
-  }, []);
+    const loadPage = async () => {
+      setLoading(true);
+      setApiError('');
+      try {
+        const managers = await apiRequest<{
+          data: Array<{ id: string; displayName: string }>;
+        }>('/users?role=HR_MANAGER&limit=100', token);
+        setHrManagers(
+          managers.data.map((manager) => ({ id: manager.id, name: manager.displayName })),
+        );
+        await loadRequests();
+      } catch (loadError) {
+        setApiError(loadError instanceof Error ? loadError.message : 'Unable to load requests');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadPage();
+  }, [token]);
 
   // Reset page when filtering or searching
   useEffect(() => {
@@ -416,7 +524,9 @@ export const AdminAllRequests: React.FC = () => {
       All: requestsList.length,
       Pending: requestsList.filter((r) => r.status === 'Pending').length,
       Approved: requestsList.filter((r) => r.status === 'Approved').length,
-      Active: requestsList.filter((r) => r.status === 'Active').length,
+      Active: requestsList.filter((r) =>
+        ['Active', 'Planning', 'Screening', 'Interviewing'].includes(r.status),
+      ).length,
       Completed: requestsList.filter((r) => r.status === 'Completed').length,
       Rejected: requestsList.filter((r) => r.status === 'Rejected').length,
     };
@@ -430,7 +540,11 @@ export const AdminAllRequests: React.FC = () => {
     const normalizedQuery = query.trim().toLowerCase();
 
     const result = requestsList.filter((request) => {
-      const matchesStatus = statusFilter === 'All' || request.status === statusFilter;
+      const matchesStatus =
+        statusFilter === 'All' ||
+        request.status === statusFilter ||
+        (statusFilter === 'Active' &&
+          ['Planning', 'Screening', 'Interviewing'].includes(request.status));
       const matchesDept = deptFilter === 'All' || request.department === deptFilter;
       const matchesPriority = priorityFilter === 'All' || request.urgency === priorityFilter;
       const matchesQuery =
@@ -505,32 +619,74 @@ export const AdminAllRequests: React.FC = () => {
     }
   };
 
+  const downloadCsv = (requests: RecruitmentRequest[], fileName: string) => {
+    const escape = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
+    const rows = [
+      [
+        'ID',
+        'Position',
+        'Department',
+        'Requester',
+        'Assigned HR',
+        'Status',
+        'Priority',
+        'Headcount',
+      ],
+      ...requests.map((request) => [
+        request.id,
+        request.position,
+        request.department,
+        request.requester,
+        request.owner,
+        request.status,
+        request.urgency,
+        request.headcount,
+      ]),
+    ];
+    const blob = new Blob([rows.map((row) => row.map(escape).join(',')).join('\n')], {
+      type: 'text/csv;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleExportSelected = () => {
-    alert(`Exporting ${selectedIds.length} requests as CSV...`);
+    downloadCsv(
+      requestsList.filter((request) => selectedIds.includes(request.id)),
+      'recruitment-requests-selected.csv',
+    );
     clearSelection();
   };
 
-  const handleAssignToHR = () => {
-    const name = prompt('Enter HR Manager Name to assign:');
-    if (name) {
-      setRequestsList((prev) =>
-        prev.map((r) =>
-          selectedIds.includes(r.id)
-            ? {
-                ...r,
-                owner: name,
-                initials: name
-                  .split(' ')
-                  .map((n) => n[0])
-                  .join('')
-                  .toUpperCase(),
-                assignColor: 'bg-primary-fixed-dim',
-              }
-            : r,
+  const handleAssignToHR = async () => {
+    const available = hrManagers.map((manager) => manager.name).join(', ');
+    const name = prompt(`Enter an HR manager name (${available}):`);
+    const manager = hrManagers.find(
+      (item) => item.name.toLowerCase() === name?.trim().toLowerCase(),
+    );
+    if (!manager) {
+      if (name) setApiError('Please enter the exact name of an active HR manager.');
+      return;
+    }
+
+    setApiError('');
+    try {
+      await Promise.all(
+        selectedIds.map((id) =>
+          apiRequest(`/recruitment-requests/${id}/assign`, token, {
+            method: 'PATCH',
+            body: JSON.stringify({ hrManagerId: manager.id }),
+          }),
         ),
       );
-      alert(`Assigned ${selectedIds.length} requests to ${name}.`);
+      await loadRequests();
       clearSelection();
+    } catch (assignError) {
+      setApiError(assignError instanceof Error ? assignError.message : 'Unable to assign requests');
     }
   };
 
@@ -633,12 +789,19 @@ export const AdminAllRequests: React.FC = () => {
           </div>
           <button
             className="flex items-center gap-2 px-4 py-1.5 border border-teal-command text-teal-command rounded-lg hover:bg-teal-command/5 transition-colors font-semibold text-sm"
-            onClick={() => alert('Exporting all data as CSV...')}
+            onClick={() => downloadCsv(filteredRequests, 'recruitment-requests.csv')}
           >
             <span className="material-symbols-outlined text-[18px]">download</span> Export CSV
           </button>
         </div>
       </header>
+
+      {apiError ? (
+        <div className="rounded-lg border border-error/20 bg-error-container p-4 text-sm text-on-error-container">
+          {apiError}
+        </div>
+      ) : null}
+      {loading ? <p className="text-sm text-on-surface-variant">Loading requests...</p> : null}
 
       {/* Filter Bar Section */}
       <div className="space-y-4 mb-4">
@@ -710,7 +873,7 @@ export const AdminAllRequests: React.FC = () => {
                 className="bg-clean-surface border border-border-warm rounded-lg pl-10 pr-4 py-2 text-body-sm focus:ring-2 focus:ring-teal-command w-64 text-sm font-medium"
                 readOnly
                 type="text"
-                value="Oct 01, 2023 - Oct 31, 2023"
+                value="All available dates"
               />
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant">
                 calendar_today
@@ -888,7 +1051,7 @@ export const AdminAllRequests: React.FC = () => {
                       />
                     </td>
                     <td className="px-4 py-4 font-data-mono text-teal-command font-semibold">
-                      {request.id}
+                      RMS-{request.id.slice(0, 8).toUpperCase()}
                     </td>
                     <td className="px-4 py-4 font-medium text-on-surface">{request.position}</td>
                     <td className="px-4 py-4 text-on-surface-variant">{request.department}</td>

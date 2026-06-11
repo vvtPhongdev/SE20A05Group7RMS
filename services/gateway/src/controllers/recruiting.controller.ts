@@ -120,6 +120,12 @@ export class OfferResponseDto {
   response!: OfferResponse;
 }
 
+export class AssignRecruitmentRequestDto {
+  @ApiProperty({ example: 'uuid-of-hr-manager' })
+  @IsUUID()
+  hrManagerId!: string;
+}
+
 /**
  * Thin proxy controller for Recruiting service (roles, applications, invites, evaluations).
  */
@@ -128,6 +134,37 @@ export class OfferResponseDto {
 @Controller()
 export class RecruitingController {
   constructor(@Inject(SERVICE_TOKENS.RECRUITING) private readonly recruitingClient: ClientProxy) {}
+
+  @Get('recruitment-requests')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'List recruitment requests for admin oversight' })
+  listRecruitmentRequests(@Query() query: any) {
+    return firstValueFrom(this.recruitingClient.send('recruitment-requests.admin.list', query));
+  }
+
+  @Patch('recruitment-requests/:id/assign')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Assign a recruitment request to an HR manager' })
+  assignRecruitmentRequest(
+    @Param('id') id: string,
+    @Body() body: AssignRecruitmentRequestDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruitment-requests.admin.assign', {
+        id,
+        hrManagerId: body.hrManagerId,
+        assignedById: userId,
+      }),
+    );
+  }
+
+  @Get('reports/admin-dashboard')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get admin dashboard overview' })
+  getAdminDashboard() {
+    return firstValueFrom(this.recruitingClient.send('recruiting.admin_dashboard', {}));
+  }
 
   // ─── Roles ───────────────────────────────────────────────────────
 

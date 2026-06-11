@@ -24,6 +24,13 @@ export class UsersService {
       departmentId: true,
       phone: true,
       isActive: true,
+      department: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+        },
+      },
       createdAt: true,
       updatedAt: true,
     };

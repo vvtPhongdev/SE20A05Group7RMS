@@ -97,6 +97,7 @@ export const CreateOrganizationSchema = z.object({
     .min(2)
     .max(63)
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric and hyphens'),
+  settings: z.record(z.unknown()).optional(),
 });
 
 export const UpdateOrganizationSchema = CreateOrganizationSchema.partial();

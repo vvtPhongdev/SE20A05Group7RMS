@@ -113,6 +113,18 @@ export class DepartmentsService {
             role: true,
           },
         },
+        _count: {
+          select: {
+            users: true,
+            requests: {
+              where: {
+                status: {
+                  notIn: ['CLOSED', 'CANCELLED', 'REJECTED'],
+                },
+              },
+            },
+          },
+        },
       },
     });
   }
