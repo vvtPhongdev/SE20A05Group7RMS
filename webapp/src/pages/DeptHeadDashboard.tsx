@@ -322,7 +322,7 @@ export const DeptHeadDashboard: React.FC = () => {
                   <tr
                     className="cursor-pointer transition-colors hover:bg-workflow-ivory"
                     key={role.id}
-                    onClick={() => navigate(`/dept-head/requests/${role.id}`)}
+                    onClick={() => navigate('/dept-head/requests')}
                   >
                     <td className="px-2 py-4">
                       <p className="text-sm font-semibold text-on-surface">{role.role}</p>

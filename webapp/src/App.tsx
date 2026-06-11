@@ -21,7 +21,6 @@ import { DeptHeadCreateRequest } from './pages/DeptHeadCreateRequest';
 import { DeptHeadDashboard } from './pages/DeptHeadDashboard';
 import { DeptHeadInterviews } from './pages/DeptHeadInterviews';
 import { DeptHeadRequests } from './pages/DeptHeadRequests';
-import { DeptHeadRequestDetail } from './pages/DeptHeadRequestDetail';
 import { DeptHeadSettings } from './pages/DeptHeadSettings';
 import { HRDashBoard } from './pages/HRDashBoard';
 import { HRRequestQueue } from './pages/HRRequestQueue';
@@ -215,16 +214,6 @@ export function App() {
               <ProtectedRoute allowedRoles={[UserRole.DEPARTMENT_HEAD]}>
                 <Layout>
                   <DeptHeadRequests />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/dept-head/requests/:id"
-            element={
-              <ProtectedRoute allowedRoles={[UserRole.DEPARTMENT_HEAD]}>
-                <Layout>
-                  <DeptHeadRequestDetail />
                 </Layout>
               </ProtectedRoute>
             }
