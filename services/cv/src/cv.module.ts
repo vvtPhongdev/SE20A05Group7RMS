@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { DatabaseModule } from './common/database/database.module';
 import { CvFeatureModule } from './modules/cv/cv.module';
+import { HealthModule } from './modules/health/health.module';
 
 function getRedisOptions() {
   const redisUrl = process.env.REDIS_URL;
@@ -32,6 +33,7 @@ function getRedisOptions() {
       connection: getRedisOptions(),
     }),
     CvFeatureModule,
+    HealthModule,
   ],
 })
 export class CvModule {}
