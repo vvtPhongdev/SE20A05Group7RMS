@@ -2,7 +2,6 @@ import { RpcException } from '@nestjs/microservices';
 import { of } from 'rxjs';
 import {
   InterviewStatus,
-  InterviewResult,
   RecruitmentRequestStatus,
   UserRole,
 } from '@wr/contracts';
@@ -30,6 +29,8 @@ describe('InterviewResultService', () => {
     },
     interviewResult: {
       create: jest.fn(),
+      update: jest.fn(),
+      findMany: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -48,7 +49,8 @@ describe('InterviewResultService', () => {
     jest.clearAllMocks();
     prisma.$transaction.mockImplementation(async (txs) => txs);
     prisma.user.findUnique.mockResolvedValue({ id: 'evaluator-1', displayName: 'Evaluator' });
-    prisma.interviewResult.create.mockReturnValue({ id: 'interview-result-1' });
+    prisma.interviewResult.findMany.mockResolvedValue([]);
+    prisma.interviewResult.create.mockReturnValue({ id: 'interview-result-1', result: 'PASS' });
     auditLog.log.mockResolvedValue(undefined);
   });
 
@@ -58,8 +60,8 @@ describe('InterviewResultService', () => {
     await expect(
       service.recordResult({
         interviewId: 'interview-1',
-        result: InterviewResult.PASS,
-        notes: 'Great performance',
+        feedbacks: [{ evaluatorId: 'evaluator-1', decision: 'PASS', technical: 8, communication: 8, culture: 8, notes: 'Great' }],
+        finalRecommendation: 'Recommend Hire',
       }),
     ).rejects.toThrow(RpcException);
   });
@@ -73,13 +75,13 @@ describe('InterviewResultService', () => {
     await expect(
       service.recordResult({
         interviewId: 'interview-1',
-        result: InterviewResult.PASS,
-        notes: 'Great performance',
+        feedbacks: [{ evaluatorId: 'evaluator-1', decision: 'PASS', technical: 8, communication: 8, culture: 8, notes: 'Great' }],
+        finalRecommendation: 'Recommend Hire',
       }),
     ).rejects.toThrow(RpcException);
   });
 
-  it('fails if notes are missing', async () => {
+  it('fails if finalRecommendation is invalid', async () => {
     prisma.interviewSchedule.findUnique.mockResolvedValue({
       id: 'interview-1',
       status: InterviewStatus.SCHEDULED,
@@ -88,13 +90,13 @@ describe('InterviewResultService', () => {
     await expect(
       service.recordResult({
         interviewId: 'interview-1',
-        result: InterviewResult.PASS,
-        notes: '   ',
+        feedbacks: [{ evaluatorId: 'evaluator-1', decision: 'PASS', technical: 8, communication: 8, culture: 8, notes: 'Great' }],
+        finalRecommendation: 'INVALID_RECOMMENDATION',
       }),
     ).rejects.toThrow(RpcException);
   });
 
-  it('records result and updates pipeline status for PASS', async () => {
+  it('records result and updates pipeline status for Recommend Hire', async () => {
     prisma.interviewSchedule.findUnique.mockResolvedValue({
       id: 'interview-1',
       candidateId: 'candidate-1',
@@ -112,17 +114,20 @@ describe('InterviewResultService', () => {
 
     await service.recordResult({
       interviewId: 'interview-1',
-      result: InterviewResult.PASS,
-      notes: 'Strong PASS',
+      feedbacks: [{ evaluatorId: 'evaluator-1', decision: 'PASS', technical: 8, communication: 8, culture: 8, notes: 'Strong PASS' }],
+      finalRecommendation: 'Recommend Hire',
       evaluatorId: 'evaluator-1',
     });
 
     expect(prisma.interviewResult.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          result: InterviewResult.PASS,
+          result: 'PASS',
           notes: 'Strong PASS',
           evaluatorId: 'evaluator-1',
+          technical: 8,
+          communication: 8,
+          culture: 8,
         }),
       }),
     );
@@ -135,7 +140,7 @@ describe('InterviewResultService', () => {
     );
   });
 
-  it('updates request status and notifies admin when last interview completes', async () => {
+  it('updates request status and notifies admin when last interview completes and candidate recommended for hire', async () => {
     prisma.interviewSchedule.findUnique.mockResolvedValue({
       id: 'interview-1',
       candidateId: 'candidate-1',
@@ -153,8 +158,8 @@ describe('InterviewResultService', () => {
 
     await service.recordResult({
       interviewId: 'interview-1',
-      result: InterviewResult.PASS,
-      notes: 'Final interview PASS',
+      feedbacks: [{ evaluatorId: 'evaluator-1', decision: 'PASS', technical: 8, communication: 8, culture: 8, notes: 'Final interview PASS' }],
+      finalRecommendation: 'Recommend Hire',
       evaluatorId: 'evaluator-1',
     });
 

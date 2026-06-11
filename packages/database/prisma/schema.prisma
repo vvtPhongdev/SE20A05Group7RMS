@@ -312,16 +312,20 @@ model CvEmbedding {
 // ═══════════════════════════════════════════════════════════════════
 
 model InterviewSchedule {
-  id           String   @id @default(uuid())
-  requestId    String   @map("request_id")
-  candidateId  String   @map("candidate_id")
-  scheduledAt  DateTime @map("scheduled_at")
-  duration     Int // Duration in minutes
-  location     String // Interview meeting room or URL
-  interviewers String[] // User IDs (interviewers)
-  status       String   @default("SCHEDULED") // InterviewStatus enum
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id                  String            @id @default(uuid())
+  requestId           String            @map("request_id")
+  candidateId         String            @map("candidate_id")
+  scheduledAt         DateTime          @map("scheduled_at")
+  duration            Int // Duration in minutes
+  location            String // Interview meeting room or URL
+  interviewers        String[] // User IDs (interviewers)
+  status              String            @default("SCHEDULED") // InterviewStatus enum
+  /// Khuyến nghị tuyển dụng cuối cùng từ hội đồng/HR Manager (Recommend Hire, Recommend Reject, Hold for Further)
+  finalRecommendation String?           @map("final_recommendation")
+  /// Ý kiến tóm tắt/nhận xét tổng quan của HR Manager
+  summaryNotes        String?           @map("summary_notes") @db.Text
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
 
   request   RecruitmentRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
   candidate CandidateProfile   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
@@ -333,13 +337,19 @@ model InterviewSchedule {
 }
 
 model InterviewResult {
-  id          String   @id @default(uuid())
-  interviewId String   @map("interview_id")
-  result      String // InterviewResult enum: PASS, FAIL
-  notes       String?  @db.Text
-  evaluatorId String?  @map("evaluator_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id            String            @id @default(uuid())
+  interviewId   String            @map("interview_id")
+  result        String // InterviewResult enum: PASS, FAIL
+  notes         String?           @db.Text
+  evaluatorId   String?           @map("evaluator_id")
+  /// Điểm đánh giá kỹ thuật (thang điểm 10) từ thành viên hội đồng
+  technical     Int?              @map("technical")
+  /// Điểm đánh giá kỹ năng giao tiếp (thang điểm 10) từ thành viên hội đồng
+  communication Int?              @map("communication")
+  /// Điểm đánh giá độ phù hợp văn hóa (thang điểm 10) từ thành viên hội đồng
+  culture       Int?              @map("culture")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
 
   interview InterviewSchedule @relation(fields: [interviewId], references: [id], onDelete: Cascade)
   evaluator User?             @relation(fields: [evaluatorId], references: [id], onDelete: SetNull)
