@@ -26,6 +26,16 @@ export async function processCvEmbeddingJob(payload: EmbeddingGenerateJobPayload
     throw new Error(`CV document ${cvDocumentId} not found`);
   }
 
+  // Idempotency check: check if embedding already exists for cvDocumentId
+  const existingEmbedding = await prisma.cvEmbedding.findFirst({
+    where: { cvDocumentId }
+  });
+
+  if (existingEmbedding) {
+    console.log(`[Idempotency] CvEmbedding for CV document ${cvDocumentId} already exists. Skipping job.`);
+    return;
+  }
+
   // Load transformer model lazily
   const { pipeline } = await import('@xenova/transformers' as string);
   const extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');

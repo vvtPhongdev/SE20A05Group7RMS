@@ -192,6 +192,7 @@ export class NotificationsService {
         body: emailLog.body,
       },
       {
+        jobId: `email-${emailLog.id}`,
         attempts: 3,
         backoff: { type: 'exponential', delay: 1000 },
       },

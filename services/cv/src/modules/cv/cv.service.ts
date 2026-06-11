@@ -69,6 +69,7 @@ export class CvService {
         filePath: cvRecord.filePath,
       },
       {
+        jobId: `cv-parse-${cvRecord.id}`,
         attempts: 3,
         backoff: {
           type: 'exponential',

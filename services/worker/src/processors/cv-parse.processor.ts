@@ -20,25 +20,30 @@ const auditLog = new AuditLogService(prisma);
 export async function processCvParseJob(payload: CvParseJobPayload): Promise<void> {
   const { cvDocumentId, filePath } = payload;
 
-  await auditLog
-    .log({
-      entityType: AuditEntityType.CV,
-      entityId: cvDocumentId,
-      action: AuditAction.CV_PARSE_STARTED,
-      toStatus: 'PARSING',
-      performedById: 'SYSTEM',
-    })
-    .catch((err) => console.error('Failed to write audit log for CV_PARSE_STARTED:', err));
+  // 1️⃣ Retrieve the CV record
+  const cvRecord = await prisma.candidateCV.findUnique({
+    where: { id: cvDocumentId },
+  });
+
+  if (!cvRecord) {
+    throw new Error(`CandidateCV with id ${cvDocumentId} not found`);
+  }
+
+  // Idempotency check: If rawText already exists or parsedAt is set, log and skip (exit cleanly)
+  if (cvRecord.parsedAt || cvRecord.rawText) {
+    console.log(`[Idempotency] CandidateCV ${cvDocumentId} has already been parsed. Skipping job.`);
+    return;
+  }
+
+  await auditLog.log({
+    entityType: AuditEntityType.CV,
+    entityId: cvDocumentId,
+    action: AuditAction.CV_PARSE_STARTED,
+    toStatus: 'PARSING',
+    performedById: 'SYSTEM',
+  }).catch((err) => console.error('Failed to write audit log for CV_PARSE_STARTED:', err));
 
   try {
-    // 1️⃣ Retrieve the CV record
-    const cvRecord = await prisma.candidateCV.findUnique({
-      where: { id: cvDocumentId },
-    });
-
-    if (!cvRecord) {
-      throw new Error(`CandidateCV with id ${cvDocumentId} not found`);
-    }
 
     // 2️⃣ Determine file type from extension (fallback to PDF)
     const ext = filePath.split('.').pop()?.toUpperCase();

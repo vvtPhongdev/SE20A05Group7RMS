@@ -15,14 +15,14 @@ import { AdminAllRequests } from './pages/AdminAllRequests';
 import { AdminInterviewResults } from './pages/AdminInterviewResults';
 import { AdminSettings } from './pages/AdminSettings';
 import { AdminUsers } from './pages/AdminUsers';
-import { AdminAnnualReport } from './pages/AdminAnnualReport';
-import { AdminDeptStats } from './pages/AdminDeptStats';
+// import { AdminAnnualReport } from './pages/AdminAnnualReport';
+// import { AdminDeptStats } from './pages/AdminDeptStats';
 import { DeptHeadCreateRequest } from './pages/DeptHeadCreateRequest';
 import { DeptHeadDashboard } from './pages/DeptHeadDashboard';
-import { DeptHeadInterviews } from './pages/DeptHeadInterviews';
+// import { DeptHeadInterviews } from './pages/DeptHeadInterviews';
 import { DeptHeadRequests } from './pages/DeptHeadRequests';
 import { DeptHeadRequestDetail } from './pages/DeptHeadRequestDetail';
-import { DeptHeadSettings } from './pages/DeptHeadSettings';
+// import { DeptHeadSettings } from './pages/DeptHeadSettings';
 import { HRDashBoard } from './pages/HRDashBoard';
 import { HRRequestQueue } from './pages/HRRequestQueue';
 import { HRCampaigns } from './pages/HRCampaigns';
@@ -39,6 +39,7 @@ import { CandidateProfile } from './pages/CandidateProfile';
 import { CandidateUploadCv } from './pages/CandidateUploadCv';
 import { CandidateNotifications } from './pages/CandidateNotifications';
 import { CandidateInterviewDetails } from './pages/CandidateInterviewDetails';
+import { PlaceholderPage } from './pages/PlaceholderPage';
 import { UserRole } from '@wr/contracts';
 
 // Redirects user to their role-specific landing dashboard
