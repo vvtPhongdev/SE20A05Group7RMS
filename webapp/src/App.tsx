@@ -15,6 +15,7 @@ import { AdminInterviewResults } from './pages/AdminInterviewResults';
 import { AdminSettings } from './pages/AdminSettings';
 import { AdminUsers } from './pages/AdminUsers';
 import { AdminAnnualReport } from './pages/AdminAnnualReport';
+import { AdminDeptStats } from './pages/AdminDeptStats';
 import { DeptHeadCreateRequest } from './pages/DeptHeadCreateRequest';
 import { DeptHeadDashboard } from './pages/DeptHeadDashboard';
 import { DeptHeadInterviews } from './pages/DeptHeadInterviews';
@@ -37,7 +38,6 @@ import { CandidateProfile } from './pages/CandidateProfile';
 import { CandidateNotifications } from './pages/CandidateNotifications';
 import { CandidateUploadCv } from './pages/CandidateUploadCv';
 import { CandidateInterviewDetails } from './pages/CandidateInterviewDetails';
-import { PlaceholderPage } from './pages/PlaceholderPage';
 import { UserRole } from '@wr/contracts';
 
 // Redirects user to their role-specific landing dashboard
@@ -171,10 +171,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Department Stats"
-                    description="Interactive dashboard showing department-wise recruitment performance."
-                  />
+                  <AdminDeptStats />
                 </Layout>
               </ProtectedRoute>
             }
