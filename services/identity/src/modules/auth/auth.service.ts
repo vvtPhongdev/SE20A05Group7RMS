@@ -1,6 +1,7 @@
 import { Injectable, HttpStatus, OnModuleDestroy } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { JwtService } from '@nestjs/jwt';
+import { config } from '../../config';
 import { PrismaService } from '../../common/database/prisma.service';
 import {
   RegisterUserSchema,
@@ -95,15 +96,15 @@ export class AuthService implements OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
   ) {
-    const redisUrl = process.env.REDIS_URL;
+    const redisUrl = config.REDIS_URL;
     if (redisUrl && redisUrl !== 'localhost') {
       this.redis = new IORedis(redisUrl, {
         maxRetriesPerRequest: null,
       });
     } else {
       this.redis = new IORedis({
-        host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT || '6379', 10),
+        host: config.REDIS_HOST,
+        port: config.REDIS_PORT,
         maxRetriesPerRequest: null,
       });
     }
@@ -180,11 +181,11 @@ export class AuthService implements OnModuleDestroy {
     await this.redis.set(redisKey, code, 'EX', 900);
 
     // 7. Send verification code via SMTP (nodemailer)
-    const host = process.env.SMTP_HOST || 'localhost';
-    const port = parseInt(process.env.SMTP_PORT || '1025', 10);
-    const userAuth = process.env.SMTP_USER || '';
-    const passAuth = process.env.SMTP_PASS || '';
-    const from = process.env.SMTP_FROM || '"Works Recruiter" <noreply@worksrecruiter.com>';
+    const host = config.SMTP_HOST;
+    const port = config.SMTP_PORT;
+    const userAuth = config.SMTP_USER;
+    const passAuth = config.SMTP_PASS;
+    const from = config.SMTP_FROM;
 
     const transporter = nodemailer.createTransport({
       host,
@@ -229,7 +230,7 @@ export class AuthService implements OnModuleDestroy {
       await transporter.sendMail(mailOptions);
     } catch (err: any) {
       console.error(`Failed to send email to ${email}:`, err.message);
-      if (process.env.NODE_ENV === 'development' || host === 'localhost') {
+      if (config.NODE_ENV === 'development' || host === 'localhost') {
         console.warn(
           `⚠️ [DEVELOPMENT ONLY] Bypassing SMTP mail failure. You can use the OTP code printed above.`,
         );
@@ -417,11 +418,11 @@ export class AuthService implements OnModuleDestroy {
     await this.redis.set(redisKey, token, 'EX', 900);
 
     // 6. Send verification link via SMTP (nodemailer)
-    const host = process.env.SMTP_HOST || 'localhost';
-    const port = parseInt(process.env.SMTP_PORT || '1025', 10);
-    const userAuth = process.env.SMTP_USER || '';
-    const passAuth = process.env.SMTP_PASS || '';
-    const from = process.env.SMTP_FROM || '"Works Recruiter" <noreply@worksrecruiter.com>';
+    const host = config.SMTP_HOST;
+    const port = config.SMTP_PORT;
+    const userAuth = config.SMTP_USER;
+    const passAuth = config.SMTP_PASS;
+    const from = config.SMTP_FROM;
 
     const transporter = nodemailer.createTransport({
       host,
@@ -430,7 +431,7 @@ export class AuthService implements OnModuleDestroy {
       auth: userAuth && passAuth ? { user: userAuth, pass: passAuth } : undefined,
     });
 
-    const webappUrl = process.env.API_CORS_ORIGIN || 'http://localhost:3000';
+    const webappUrl = config.API_CORS_ORIGIN;
     const resetLink = `${webappUrl}/reset-password?email=${encodeURIComponent(email)}&token=${token}`;
 
     const logoPath = getLogoPath();
@@ -509,7 +510,7 @@ export class AuthService implements OnModuleDestroy {
     if (!user) {
       throw new RpcException({
         status: HttpStatus.BAD_REQUEST,
-        message: 'Invalid or expired reset code',
+        message: 'Invalid or expired reset link',
       });
     }
 
@@ -644,11 +645,11 @@ export class AuthService implements OnModuleDestroy {
     await this.redis.set(redisKey, code, 'EX', 900);
 
     // Send email
-    const host = process.env.SMTP_HOST || 'localhost';
-    const port = parseInt(process.env.SMTP_PORT || '1025', 10);
-    const userAuth = process.env.SMTP_USER || '';
-    const passAuth = process.env.SMTP_PASS || '';
-    const from = process.env.SMTP_FROM || '"Works Recruiter" <noreply@worksrecruiter.com>';
+    const host = config.SMTP_HOST;
+    const port = config.SMTP_PORT;
+    const userAuth = config.SMTP_USER;
+    const passAuth = config.SMTP_PASS;
+    const from = config.SMTP_FROM;
 
     const transporter = nodemailer.createTransport({
       host,
@@ -693,7 +694,7 @@ export class AuthService implements OnModuleDestroy {
       await transporter.sendMail(mailOptions);
     } catch (err: any) {
       console.error(`Failed to send email to ${email}:`, err.message);
-      if (process.env.NODE_ENV === 'development' || host === 'localhost') {
+      if (config.NODE_ENV === 'development' || host === 'localhost') {
         console.warn(
           `⚠️ [DEVELOPMENT ONLY] Bypassing SMTP mail failure. You can use the OTP code printed above.`,
         );

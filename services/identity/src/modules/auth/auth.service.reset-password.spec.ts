@@ -265,7 +265,7 @@ describe('AuthService - resetPassword', () => {
       await expect(service.resetPassword(mockResetPayload)).rejects.toThrow(
         new RpcException({
           status: HttpStatus.BAD_REQUEST,
-          message: 'Invalid or expired reset code',
+          message: 'Invalid or expired reset link',
         })
       );
     });
@@ -276,7 +276,7 @@ describe('AuthService - resetPassword', () => {
       await expect(service.resetPassword(mockResetPayload)).rejects.toThrow(
         new RpcException({
           status: HttpStatus.BAD_REQUEST,
-          message: 'Invalid or expired reset code',
+          message: 'Invalid or expired reset link',
         })
       );
     });
@@ -287,7 +287,7 @@ describe('AuthService - resetPassword', () => {
       await expect(service.resetPassword(mockResetPayload)).rejects.toThrow(
         new RpcException({
           status: HttpStatus.BAD_REQUEST,
-          message: 'Invalid or expired reset code',
+          message: 'Invalid or expired reset link',
         })
       );
     });
@@ -299,7 +299,7 @@ describe('AuthService - resetPassword', () => {
       await expect(service.resetPassword(mockResetPayload)).rejects.toThrow(
         new RpcException({
           status: HttpStatus.BAD_REQUEST,
-          message: 'Invalid or expired reset code',
+          message: 'Invalid or expired reset link',
         })
       );
     });
@@ -454,7 +454,7 @@ describe('AuthService - resetPassword', () => {
       await expect(service.resetPassword(mockResetPayload)).rejects.toThrow(
         new RpcException({
           status: HttpStatus.BAD_REQUEST,
-          message: 'Invalid or expired reset code',
+          message: 'Invalid or expired reset link',
         })
       );
 

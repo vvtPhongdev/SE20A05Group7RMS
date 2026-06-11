@@ -5,8 +5,9 @@ config({ path: resolve(__dirname, '../../../.env') });
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { NotificationModule } from './notification.module';
+import { config as appConfig } from './config';
 
-const PORT = parseInt(process.env.NOTIFICATION_PORT || '3013', 10);
+const PORT = appConfig.NOTIFICATION_PORT;
 
 async function bootstrap() {
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(NotificationModule, {

@@ -15,10 +15,11 @@ import { TaskPlanModule } from './modules/task-plan/task-plan.module';
 import { CvScreeningModule } from './modules/cv-screening/cv-screening.module';
 import { RecruitmentRequestsController } from './modules/recruitment-requests/recruitment-requests.controller';
 import { RecruitmentRequestsService } from './modules/recruitment-requests/recruitment-requests.service';
+import { config } from './config';
 
 function getRedisConnection() {
-  const redisUrl = process.env.REDIS_URL;
-  if (redisUrl) {
+  const redisUrl = config.REDIS_URL;
+  if (redisUrl && redisUrl !== 'localhost') {
     const parsed = new URL(redisUrl);
     return {
       host: parsed.hostname,
@@ -30,8 +31,8 @@ function getRedisConnection() {
   }
 
   return {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: parseInt(process.env.REDIS_PORT || '6379', 10),
+    host: config.REDIS_HOST,
+    port: config.REDIS_PORT,
   };
 }
 

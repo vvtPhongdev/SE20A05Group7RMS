@@ -1,14 +1,16 @@
+import { config } from './config';
+
 /**
  * Service transport ports — centralized constants for TCP microservice addresses.
  */
 export const SERVICE_PORTS = {
-  GATEWAY: parseInt(process.env.GATEWAY_PORT || '3001', 10),
-  IDENTITY: parseInt(process.env.IDENTITY_PORT || '3010', 10),
-  RECRUITING: parseInt(process.env.RECRUITING_PORT || '3011', 10),
-  PROFILES: parseInt(process.env.PROFILES_PORT || '3012', 10),
-  NOTIFICATION: parseInt(process.env.NOTIFICATION_PORT || '3013', 10),
-  CV: parseInt(process.env.CV_PORT || '3014', 10),
-  INTERVIEW: parseInt(process.env.INTERVIEW_PORT || '3015', 10),
+  GATEWAY: config.GATEWAY_PORT,
+  IDENTITY: config.IDENTITY_PORT,
+  RECRUITING: config.RECRUITING_PORT,
+  PROFILES: config.PROFILES_PORT,
+  NOTIFICATION: config.NOTIFICATION_PORT,
+  CV: config.CV_PORT,
+  INTERVIEW: config.INTERVIEW_PORT,
 } as const;
 
 /**
