@@ -14,6 +14,7 @@ import { AdminAllRequests } from './pages/AdminAllRequests';
 import { AdminInterviewResults } from './pages/AdminInterviewResults';
 import { AdminSettings } from './pages/AdminSettings';
 import { AdminUsers } from './pages/AdminUsers';
+import { AdminAnnualReport } from './pages/AdminAnnualReport';
 import { DeptHeadCreateRequest } from './pages/DeptHeadCreateRequest';
 import { DeptHeadDashboard } from './pages/DeptHeadDashboard';
 import { DeptHeadInterviews } from './pages/DeptHeadInterviews';
@@ -160,10 +161,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Annual Recruitment Report"
-                    description="Summary of staffing efficiency, time-to-hire, and annual budgets."
-                  />
+                  <AdminAnnualReport />
                 </Layout>
               </ProtectedRoute>
             }
