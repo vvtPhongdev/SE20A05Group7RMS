@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { DatabaseModule } from './common/database/database.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { HealthModule } from './modules/health/health.module';
 
 import { config } from './config';
 
@@ -31,6 +32,7 @@ function getRedisConnection() {
       connection: getRedisConnection(),
     }),
     NotificationsModule,
+    HealthModule,
   ],
 })
 export class NotificationModule {}

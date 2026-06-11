@@ -15,6 +15,7 @@ import { TaskPlanModule } from './modules/task-plan/task-plan.module';
 import { CvScreeningModule } from './modules/cv-screening/cv-screening.module';
 import { RecruitmentRequestsController } from './modules/recruitment-requests/recruitment-requests.controller';
 import { RecruitmentRequestsService } from './modules/recruitment-requests/recruitment-requests.service';
+import { HealthModule } from './modules/health/health.module';
 import { config } from './config';
 
 function getRedisConnection() {
@@ -54,6 +55,7 @@ function getRedisConnection() {
     OverallPlanModule,
     TaskPlanModule,
     CvScreeningModule,
+    HealthModule,
   ],
   controllers: [RecruitmentRequestsController],
   providers: [RecruitmentRequestsService],
