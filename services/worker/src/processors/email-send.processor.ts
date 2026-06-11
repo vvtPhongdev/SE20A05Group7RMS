@@ -411,6 +411,20 @@ function buildHtmlTemplate(subject: string, body: string, hasLogo: boolean): str
 export async function processEmailSendJob(payload: EmailSendJobPayload): Promise<void> {
   const { emailLogId, to, subject, body } = payload;
 
+  const emailLog = await prisma.emailLog.findUnique({
+    where: { id: emailLogId },
+  });
+
+  if (!emailLog) {
+    throw new Error(`EmailLog with id ${emailLogId} not found`);
+  }
+
+  // Idempotency check: if email is already marked as SENT, skip sending it again
+  if (emailLog.status === EmailStatus.SENT) {
+    console.log(`[Idempotency] Email ${emailLogId} has already been sent. Skipping job.`);
+    return;
+  }
+
   const logoPath = getLogoPath();
   const html = buildHtmlTemplate(subject, body, !!logoPath);
 
