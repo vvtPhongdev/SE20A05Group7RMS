@@ -8,12 +8,13 @@ import Redis from 'ioredis';
 import { processCvParseJob as cvParseProcessor } from './processors/cv-parse.processor';
 import { processCvEmbeddingJob as embeddingProcessor } from './processors/cv-embedding.processor';
 import { processEmailSendJob as emailProcessor } from './processors/email-send.processor';
+import { config as appConfig } from './config';
 
 /**
  * Worker bootstrap — starts BullMQ workers for each queue.
  */
 async function bootstrap() {
-  const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+  const redisUrl = appConfig.REDIS_URL;
   const client = new Redis(redisUrl, {
     maxRetriesPerRequest: null, // Required by BullMQ for blocking operations
   });

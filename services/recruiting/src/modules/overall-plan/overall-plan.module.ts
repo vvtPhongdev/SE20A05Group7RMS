@@ -4,6 +4,7 @@ import { OverallPlanController } from './overall-plan.controller';
 import { OverallPlanService } from './overall-plan.service';
 import { DatabaseModule } from '../../common/database/database.module';
 import { AuditLogModule } from '../../common/audit-log/audit-log.module';
+import { config } from '../../config';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { AuditLogModule } from '../../common/audit-log/audit-log.module';
         transport: Transport.TCP,
         options: {
           host: '127.0.0.1',
-          port: parseInt(process.env.NOTIFICATION_PORT || '3013', 10),
+          port: config.NOTIFICATION_PORT,
         },
       },
     ]),

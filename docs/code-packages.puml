@@ -1,0 +1,350 @@
+@startuml
+title RMS - Code Packages Diagram
+
+left to right direction
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundCorner 10
+skinparam defaultFontName Arial
+skinparam packageStyle rectangle
+
+skinparam package {
+  BackgroundColor #F8FAFC
+  BorderColor #475569
+  FontColor #0F172A
+}
+
+skinparam component {
+  BackgroundColor #EEF2FF
+  BorderColor #4338CA
+  FontColor #1E1B4B
+}
+
+skinparam database {
+  BackgroundColor #ECFDF5
+  BorderColor #047857
+  FontColor #064E3B
+}
+
+skinparam queue {
+  BackgroundColor #FFF7ED
+  BorderColor #C2410C
+  FontColor #7C2D12
+}
+
+skinparam note {
+  BackgroundColor #F1F5F9
+  BorderColor #94A3B8
+  FontColor #334155
+}
+
+actor "Browser User" as User
+
+package "webapp/" as WebApp {
+  [main.tsx] as WebMain
+  [App.tsx\nReact Router] as ReactApp
+  package "pages/" as WebPages {
+    [Admin Pages] as AdminPages
+    [Department Head Pages] as DeptPages
+    [HR Manager Pages] as HrPages
+    [Candidate Pages] as CandidatePages
+    [Auth Pages] as AuthPages
+  }
+  package "components/" as WebComponents {
+    [Layout] as Layout
+    [ProtectedRoute] as ProtectedRoute
+  }
+  package "context/" as WebContext {
+    [AuthContext] as AuthContext
+  }
+}
+
+package "services/gateway/" as Gateway {
+  [GatewayModule] as GatewayModule
+  package "controllers/" as GatewayControllers {
+    [HealthController] as HealthController
+    [IdentityController] as IdentityController
+    [RecruitingController] as RecruitingController
+    [ProfilesController] as ProfilesController
+    [CvController] as CvController
+    [InterviewController] as InterviewController
+    [NotificationsController] as NotificationsController
+    [ReviewController] as ReviewController
+  }
+  package "auth/" as GatewayAuth {
+    [JwtStrategy] as JwtStrategy
+    [JwtAuthGuard] as JwtAuthGuard
+    [RolesGuard] as RolesGuard
+    [CurrentUser Decorator] as CurrentUserDecorator
+    [Public / Roles Decorators] as AuthDecorators
+  }
+  package "common/" as GatewayCommon {
+    [AllExceptionsFilter] as AllExceptionsFilter
+  }
+}
+
+package "services/identity/" as Identity {
+  [Identity AppModule] as IdentityApp
+  package "modules/auth/" as AuthModule {
+    [AuthController] as AuthController
+    [AuthService] as AuthService
+  }
+  package "modules/users/" as UsersModule {
+    [UsersController] as UsersController
+    [UsersService] as UsersService
+  }
+  package "modules/organizations/" as OrganizationsModule {
+    [OrganizationsController] as OrganizationsController
+    [OrganizationsService] as OrganizationsService
+  }
+  package "modules/departments/" as DepartmentsModule {
+    [DepartmentsController] as DepartmentsController
+    [DepartmentsService] as DepartmentsService
+  }
+}
+
+package "services/recruiting/" as Recruiting {
+  [Recruiting AppModule] as RecruitingApp
+  package "modules/roles/" as RolesModule {
+    [RolesController] as RolesController
+    [RolesService] as RolesService
+  }
+  package "modules/job-postings/" as JobPostingsModule {
+    [JobPostingsController] as JobPostingsController
+    [JobPostingsService] as JobPostingsService
+  }
+  package "modules/applications/" as ApplicationsModule {
+    [ApplicationsController] as ApplicationsController
+    [ApplicationsService] as ApplicationsService
+  }
+  package "modules/invites/" as InvitesModule {
+    [InvitesController] as InvitesController
+    [InvitesService] as InvitesService
+  }
+  package "modules/evaluations/" as EvaluationsModule {
+    [EvaluationsController] as EvaluationsController
+    [EvaluationsService] as EvaluationsService
+  }
+  package "modules/talent-search/" as TalentSearchModule {
+    [TalentSearchController] as TalentSearchController
+    [TalentSearchService] as TalentSearchService
+  }
+  package "modules/offers/" as OffersModule {
+    [OfferLetterService] as OfferLetterService
+  }
+  package "modules/reports/" as ReportsModule {
+    [ReportsController] as ReportsController
+    [ReportsService] as ReportsService
+  }
+}
+
+package "services/profiles/" as Profiles {
+  [Profiles AppModule] as ProfilesApp
+  package "modules/candidate-profiles/" as CandidateProfilesModule {
+    [CandidateProfilesController] as CandidateProfilesController
+    [CandidateProfilesService] as CandidateProfilesService
+  }
+  package "modules/documents/" as DocumentsModule {
+    [DocumentsController] as DocumentsController
+    [DocumentsService] as DocumentsService
+  }
+  package "modules/evidence/" as EvidenceModule {
+    [EvidenceController] as EvidenceController
+    [EvidenceService] as EvidenceService
+  }
+}
+
+package "services/cv/" as CvService {
+  [CV AppModule] as CvApp
+  package "modules/cv/" as CvModule {
+    [CvController] as CvServiceController
+    [CvService] as CvDomainService
+  }
+}
+
+package "services/interview/" as Interview {
+  [Interview AppModule] as InterviewApp
+  package "modules/schedules/" as SchedulesModule {
+    [SchedulesController] as SchedulesController
+    [SchedulesService] as SchedulesService
+  }
+  package "modules/invitations/" as InvitationsModule {
+    [InvitationsController] as InvitationsController
+    [InvitationsService] as InvitationsService
+  }
+}
+
+package "services/review/" as ReviewNotification {
+  [Review / Notification AppModule] as ReviewApp
+  note right of ReviewNotification
+    Current codebase keeps services/review/.
+    Gateway also defines NOTIFICATION_SERVICE
+    on the same default port 3013.
+  end note
+}
+
+package "services/worker/" as Worker {
+  [index.ts\nBullMQ worker entry] as WorkerEntry
+  package "processors/" as WorkerProcessors {
+    [embedding.processor.ts] as EmbeddingProcessor
+  }
+}
+
+package "packages/" as SharedPackages {
+  package "@wr/contracts" as Contracts {
+    [Domain Enums] as DomainEnums
+    [Zod Schemas] as ZodSchemas
+    [API Types] as ApiTypes
+  }
+  package "@wr/config" as Config {
+    [Environment Schemas] as EnvSchemas
+  }
+  package "@wr/database" as DatabasePackage {
+    [Prisma Schema] as PrismaSchema
+    [Prisma Client] as PrismaClient
+    [Migrations / Seed] as Migrations
+  }
+  package "@wr/queue" as QueuePackage {
+    [Queue Names] as QueueNames
+    [Job Definitions] as JobDefinitions
+  }
+  package "@wr/ai" as AiPackage {
+    [CV Parsing Utilities] as CvParsingUtils
+    [Embedding Utilities] as EmbeddingUtils
+  }
+  package "@wr/ui" as UiPackage {
+    [Radix UI Primitives] as UiPrimitives
+    [Design Tokens] as DesignTokens
+  }
+  package "@wr/typescript-config" as TsConfigPackage {
+    [Shared tsconfig] as SharedTsConfig
+  }
+}
+
+database "PostgreSQL 16\npgvector" as Postgres
+queue "Redis 7\nBullMQ" as Redis
+cloud "SMTP / Email Provider" as EmailProvider
+
+' Main runtime communication
+User --> WebApp : uses SPA
+WebApp --> Gateway : HTTP REST\n/api/v1
+Gateway --> Identity : NestJS TCP\nIDENTITY_SERVICE :3010
+Gateway --> Recruiting : NestJS TCP\nRECRUITING_SERVICE :3011
+Gateway --> Profiles : NestJS TCP\nPROFILES_SERVICE :3012
+Gateway --> ReviewNotification : NestJS TCP\nREVIEW/NOTIFICATION :3013
+Gateway --> CvService : NestJS TCP\nCV_SERVICE :3014
+Gateway --> Interview : NestJS TCP\nINTERVIEW_SERVICE :3015
+
+' Internal package dependencies
+ReactApp --> ProtectedRoute
+ProtectedRoute --> AuthContext
+ReactApp --> WebPages
+WebPages --> Layout
+WebApp ..> UiPackage : imports shared UI
+WebApp ..> Contracts : imports UserRole/types
+
+GatewayModule --> GatewayControllers
+GatewayModule --> GatewayAuth
+JwtAuthGuard --> JwtStrategy
+RolesGuard --> DomainEnums
+IdentityController --> Identity
+RecruitingController --> Recruiting
+ProfilesController --> Profiles
+CvController --> CvService
+InterviewController --> Interview
+NotificationsController --> ReviewNotification
+ReviewController --> ReviewNotification
+
+IdentityApp --> AuthModule
+IdentityApp --> UsersModule
+IdentityApp --> OrganizationsModule
+IdentityApp --> DepartmentsModule
+AuthService --> Redis : refresh tokens / OTP
+AuthService --> Postgres : users
+UsersService --> Postgres
+OrganizationsService --> Postgres
+DepartmentsService --> Postgres
+
+RecruitingApp --> RolesModule
+RecruitingApp --> JobPostingsModule
+RecruitingApp --> ApplicationsModule
+RecruitingApp --> InvitesModule
+RecruitingApp --> EvaluationsModule
+RecruitingApp --> TalentSearchModule
+RecruitingApp --> OffersModule
+RecruitingApp --> ReportsModule
+Recruiting ..> Redis : dispatch async jobs/events
+Recruiting --> Postgres
+
+ProfilesApp --> CandidateProfilesModule
+ProfilesApp --> DocumentsModule
+ProfilesApp --> EvidenceModule
+Profiles --> Postgres
+Profiles ..> Redis : enqueue CV parse/embedding jobs
+
+CvApp --> CvModule
+CvService --> Postgres
+CvService ..> Redis : CV processing jobs
+
+InterviewApp --> SchedulesModule
+InterviewApp --> InvitationsModule
+Interview --> Postgres
+Interview --> EmailProvider : interview invitations
+
+ReviewNotification --> Postgres
+ReviewNotification --> EmailProvider : notifications/email logs
+
+WorkerEntry --> WorkerProcessors
+Worker --> Redis : consumes jobs
+Worker --> Postgres : stores parsed text/embeddings
+
+' Shared package usage
+Gateway ..> Contracts
+Gateway ..> Config
+Identity ..> Contracts
+Identity ..> DatabasePackage
+Identity ..> Config
+Recruiting ..> Contracts
+Recruiting ..> DatabasePackage
+Recruiting ..> QueuePackage
+Recruiting ..> AiPackage
+Profiles ..> Contracts
+Profiles ..> DatabasePackage
+Profiles ..> QueuePackage
+Profiles ..> AiPackage
+CvService ..> Contracts
+CvService ..> DatabasePackage
+CvService ..> AiPackage
+Interview ..> Contracts
+Interview ..> DatabasePackage
+ReviewNotification ..> Contracts
+ReviewNotification ..> DatabasePackage
+Worker ..> DatabasePackage
+Worker ..> QueuePackage
+Worker ..> AiPackage
+
+DatabasePackage --> Postgres
+QueuePackage --> Redis
+
+note bottom of SharedPackages
+  Naming conventions:
+  - Packages: kebab-case folders, scoped imports as @wr/<package>.
+  - Nest modules: PascalCase + Module, e.g. AuthModule.
+  - Controllers: PascalCase + Controller, e.g. IdentityController.
+  - Services: PascalCase + Service, e.g. UsersService.
+  - DTOs/Schemas: PascalCase + Dto/Schema.
+  - Enums: PascalCase enum names, UPPER_SNAKE_CASE values.
+  - DB tables: snake_case through Prisma @@map.
+end note
+
+legend bottom
+  |= Element |= Meaning |
+  | Package | Folder/package/sub-system in the codebase |
+  | Component | Main class/file/module inside a package |
+  | Database | PostgreSQL/pgvector persistence |
+  | Queue | Redis/BullMQ async transport |
+  | Solid arrow | Runtime communication or direct module relation |
+  | Dotted arrow | Compile-time dependency/import |
+endlegend
+
+@enduml

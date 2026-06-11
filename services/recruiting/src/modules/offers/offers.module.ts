@@ -5,6 +5,7 @@ import { QUEUE_NAMES } from '@wr/queue';
 import { DatabaseModule } from '../../common/database/database.module';
 import { OffersController } from './offers.controller';
 import { OfferLetterService } from './offer-letter.service';
+import { config } from '../../config';
 
 @Module({
   imports: [
@@ -18,7 +19,7 @@ import { OfferLetterService } from './offer-letter.service';
         transport: Transport.TCP,
         options: {
           host: '127.0.0.1',
-          port: parseInt(process.env.NOTIFICATION_PORT || '3013', 10),
+          port: config.NOTIFICATION_PORT,
         },
       },
     ]),

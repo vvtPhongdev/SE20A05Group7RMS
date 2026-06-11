@@ -3,6 +3,8 @@ import Redis from 'ioredis';
 import { Subject, Observable } from 'rxjs';
 import { filter, map } from 'rxjs/operators';
 
+import { config } from '../config';
+
 @Injectable()
 export class SseNotificationService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SseNotificationService.name);
@@ -10,7 +12,7 @@ export class SseNotificationService implements OnModuleInit, OnModuleDestroy {
   private readonly notificationSubject = new Subject<any>();
 
   onModuleInit() {
-    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+    const redisUrl = config.REDIS_URL;
     this.logger.log(`Subscribing to Redis at ${redisUrl}`);
     this.subClient = new Redis(redisUrl);
 

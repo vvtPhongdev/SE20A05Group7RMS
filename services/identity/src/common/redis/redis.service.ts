@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import Redis from 'ioredis';
+import { config } from '../../config';
 
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
@@ -9,7 +10,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   constructor() {}
 
   async onModuleInit() {
-    this.client = new Redis(process.env.REDIS_URL??"");
+    this.client = new Redis(config.REDIS_URL);
 
     this.client.on('connect', () => {
       this.logger.log('Redis connected');

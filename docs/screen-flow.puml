@@ -1,0 +1,183 @@
+@startuml
+title RMS - Screens Flow Diagram
+
+left to right direction
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundCorner 10
+skinparam defaultFontName Arial
+
+skinparam rectangle {
+  BackgroundColor #F8FAFC
+  BorderColor #475569
+  FontColor #0F172A
+}
+
+skinparam usecase {
+  BackgroundColor #FEF3C7
+  BorderColor #D97706
+  FontColor #78350F
+}
+
+skinparam package {
+  BorderColor #64748B
+  FontColor #0F172A
+}
+
+skinparam note {
+  BackgroundColor #F1F5F9
+  BorderColor #94A3B8
+  FontColor #334155
+}
+
+' Public screens
+rectangle "Landing Page\n/" as Landing
+rectangle "Login\n/login" as Login
+rectangle "Sign Up\n/signup" as SignUp
+rectangle "Forgot Password\n/forgot-password" as ForgotPassword
+rectangle "Unauthorized\n/unauthorized" as Unauthorized
+rectangle "Role Redirect\n/dashboard" as RoleRedirect
+
+' Popup / modal-like screens
+usecase "Email OTP Verification\n/verify-email" as VerifyEmail <<popup>>
+usecase "Reset Password OTP" as ResetPasswordOtp <<popup>>
+usecase "Access Denied Notice" as AccessDenied <<popup>>
+usecase "Confirm Logout" as ConfirmLogout <<popup>>
+usecase "Approve / Reject Dialog" as ApprovalDialog <<popup>>
+usecase "Plan Revision Dialog" as PlanRevisionDialog <<popup>>
+usecase "Interview Invite Dialog" as InviteDialog <<popup>>
+usecase "Offer Response Dialog" as OfferDialog <<popup>>
+
+package "Admin Screens (ADMIN)" {
+  rectangle "Admin Dashboard\n/admin" as AdminDashboard
+  rectangle "Approval Queue\n/admin/approval-queue" as AdminApprovalQueue
+  rectangle "All Requests\n/admin/requests" as AdminRequests <<tabbed>>
+  rectangle "Interview Results\n/admin/interview-results" as AdminInterviewResults
+  rectangle "User Management\n/admin/users" as AdminUsers <<tabbed>>
+  rectangle "System Settings\n/admin/settings" as AdminSettings <<tabbed>>
+  rectangle "Annual Recruitment Report\n/admin/reports/annual" as AdminAnnualReport
+  rectangle "Department Stats Report\n/admin/reports/dept-stats" as AdminDeptStats
+}
+
+package "Department Head Screens (DEPARTMENT_HEAD)" {
+  rectangle "Department Dashboard\n/dept-head" as DeptDashboard
+  rectangle "Create Recruitment Request\n/dept-head/create-request" as DeptCreateRequest
+  rectangle "My Requests\n/dept-head/requests" as DeptRequests <<tabbed>>
+  rectangle "Interviews & Assessment\n/dept-head/interviews" as DeptInterviews
+}
+
+package "HR Manager Screens (HR_MANAGER)" {
+  rectangle "HR Dashboard\n/hr" as HrDashboard
+  rectangle "Request Queue\n/hr/requests" as HrRequests
+  rectangle "Recruitment Campaigns\n/hr/campaigns" as HrCampaigns <<tabbed>>
+  rectangle "Task Planner\n/hr/tasks" as HrTasks
+  rectangle "Talent Pool\n/hr/candidates" as HrCandidates <<tabbed>>
+  rectangle "Candidate Search\n/hr/search" as HrSearch
+  rectangle "Interview Schedule\n/hr/interviews" as HrInterviews
+  rectangle "Interview Results\n/hr/results" as HrResults
+  rectangle "Pipeline Reports\n/hr/reports" as HrReports
+  rectangle "System Notifications\n/hr/notifications" as HrNotifications
+}
+
+package "Candidate Screens (CANDIDATE)" {
+  rectangle "Candidate Dashboard\n/candidate" as CandidateDashboard
+  rectangle "My Profile\n/candidate/profile" as CandidateProfile <<tabbed>>
+  rectangle "Upload CV\n/candidate/upload-cv" as CandidateUploadCv
+  rectangle "Inbox Alerts\n/candidate/notifications" as CandidateNotifications
+}
+
+' Public and auth flow
+Landing --> Login : Sign in
+Landing --> SignUp : Create account
+Login --> RoleRedirect : Valid credentials
+Login --> ForgotPassword : Forgot password
+Login --> Unauthorized : Invalid role / blocked
+SignUp --> VerifyEmail : Submit registration
+VerifyEmail --> RoleRedirect : OTP verified
+ForgotPassword --> ResetPasswordOtp : Submit email
+ResetPasswordOtp --> Login : Password reset
+RoleRedirect --> AdminDashboard : role = ADMIN
+RoleRedirect --> DeptDashboard : role = DEPARTMENT_HEAD
+RoleRedirect --> HrDashboard : role = HR_MANAGER
+RoleRedirect --> CandidateDashboard : role = CANDIDATE
+RoleRedirect --> Unauthorized : unknown role
+
+' Shared guarded-route behavior
+AdminDashboard ..> AccessDenied : wrong role
+DeptDashboard ..> AccessDenied : wrong role
+HrDashboard ..> AccessDenied : wrong role
+CandidateDashboard ..> AccessDenied : wrong role
+AccessDenied --> Unauthorized
+
+' Admin screen flow
+AdminDashboard --> AdminApprovalQueue : Review pending approvals
+AdminDashboard --> AdminRequests : View all requests
+AdminDashboard --> AdminAnnualReport : View annual metrics
+AdminDashboard --> AdminDeptStats : View department metrics
+AdminDashboard --> AdminUsers : Manage users
+AdminDashboard --> AdminSettings : Configure system
+AdminApprovalQueue --> ApprovalDialog : Approve / reject request
+AdminApprovalQueue --> PlanRevisionDialog : Request plan revision
+AdminApprovalQueue --> AdminRequests : Open request detail
+AdminRequests --> AdminInterviewResults : View interview outcome
+AdminInterviewResults --> ApprovalDialog : Final hiring decision
+AdminUsers --> AdminSettings : Update role defaults
+AdminAnnualReport --> AdminDeptStats : Drill down by department
+
+' Department Head screen flow
+DeptDashboard --> DeptCreateRequest : Create new request
+DeptDashboard --> DeptRequests : Track submitted requests
+DeptDashboard --> DeptInterviews : View interview schedule
+DeptCreateRequest --> DeptRequests : Submit request
+DeptRequests --> DeptCreateRequest : Edit draft / revise
+DeptRequests --> DeptInterviews : Open related interview
+DeptInterviews --> DeptRequests : Return to request tracking
+
+' HR Manager screen flow
+HrDashboard --> HrRequests : Review incoming requests
+HrDashboard --> HrCampaigns : Manage campaigns
+HrDashboard --> HrTasks : Manage task plan
+HrDashboard --> HrCandidates : Browse candidates
+HrDashboard --> HrSearch : Search candidate CVs
+HrDashboard --> HrInterviews : Schedule interviews
+HrDashboard --> HrResults : Record interview results
+HrDashboard --> HrReports : View pipeline reports
+HrDashboard --> HrNotifications : Manage notifications
+HrRequests --> HrCampaigns : Create plan after approval
+HrCampaigns --> HrTasks : Break plan into tasks
+HrTasks --> HrCandidates : Start CV collection
+HrCandidates --> HrSearch : Semantic search
+HrSearch --> HrInterviews : Select candidates
+HrInterviews --> InviteDialog : Send interview invite
+HrInterviews --> HrResults : Interview completed
+HrResults --> AdminInterviewResults : Forward result to Admin
+HrResults --> OfferDialog : Prepare offer / rejection
+HrReports --> HrRequests : Investigate pipeline item
+HrNotifications --> InviteDialog : Manage email dispatch
+
+' Candidate screen flow
+CandidateDashboard --> CandidateProfile : Update profile
+CandidateDashboard --> CandidateUploadCv : Upload CV
+CandidateDashboard --> CandidateNotifications : Read alerts
+CandidateProfile --> CandidateUploadCv : Attach CV
+CandidateUploadCv --> CandidateDashboard : CV indexed
+CandidateNotifications --> OfferDialog : Accept / decline offer
+CandidateNotifications --> CandidateProfile : Update missing info
+
+' Logout flow available after login
+AdminDashboard ..> ConfirmLogout
+DeptDashboard ..> ConfirmLogout
+HrDashboard ..> ConfirmLogout
+CandidateDashboard ..> ConfirmLogout
+ConfirmLogout --> Login
+
+legend bottom
+  |= Notation |= Meaning |
+  | Rectangle | Normal screen / page |
+  | Oval | Popup, modal, or short verification step |
+  | <<tabbed>> | Screen containing multiple tabs or detail sections |
+  | Solid arrow | Main navigation or workflow transition |
+  | Dotted arrow | Conditional/system-triggered screen |
+endlegend
+
+@enduml

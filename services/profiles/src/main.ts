@@ -5,8 +5,9 @@ config({ path: resolve(__dirname, '../../../.env') });
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { ProfilesModule } from './profiles.module';
+import { config as appConfig } from './config';
 
-const PORT = parseInt(process.env.PROFILES_PORT || '3012', 10);
+const PORT = appConfig.PROFILES_PORT;
 
 async function bootstrap() {
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(ProfilesModule, {

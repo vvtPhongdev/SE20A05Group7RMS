@@ -224,20 +224,21 @@ import { EmailSendJobPayload, EmailStatus } from '@wr/contracts';
 import * as nodemailer from 'nodemailer';
 import * as path from 'path';
 import * as fs from 'fs';
+import { config } from '../config';
 
 const prisma = new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['query', 'warn', 'error'] : ['warn', 'error'],
+  log: config.NODE_ENV === 'development' ? ['query', 'warn', 'error'] : ['warn', 'error'],
 });
 
 // 1. TỐI ƯU HIỆU NĂNG: Khởi tạo transporter một lần ở global scope
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'localhost',
-  port: parseInt(process.env.SMTP_PORT || '1025', 10),
-  secure: process.env.SMTP_PORT === '465',
-  auth: process.env.SMTP_USER
+  host: config.SMTP_HOST,
+  port: config.SMTP_PORT,
+  secure: config.SMTP_PORT === 465,
+  auth: config.SMTP_USER
     ? {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
+        user: config.SMTP_USER,
+        pass: config.SMTP_PASS,
       }
     : undefined,
 });
@@ -416,7 +417,7 @@ export async function processEmailSendJob(payload: EmailSendJobPayload): Promise
   try {
     await transporter.sendMail({
       // 3. SỬA LỖI CHÍNH TẢ: Thay thế 'Works Reruiter' thành 'Works Recruiter' đúng chính tả
-      from: process.env.SMTP_FROM || 'Works Recruiter <noreply@worksrecruiter.com>',
+      from: config.SMTP_FROM,
       to,
       subject,
       text: body,
