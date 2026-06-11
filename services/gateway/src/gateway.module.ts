@@ -2,6 +2,8 @@ import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ClientsModule } from '@nestjs/microservices';
 import { PassportModule } from '@nestjs/passport';
 import { TerminusModule } from '@nestjs/terminus';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { SERVICE_TOKENS, SERVICE_PORTS } from './constants';
 import { JwtStrategy } from './auth/strategies/jwt.strategy';
 import { HealthController } from './controllers/health.controller';
@@ -12,11 +14,19 @@ import { NotificationsController } from './controllers/notifications.controller'
 import { InterviewController } from './controllers/interview.controller';
 import { SseNotificationService } from './services/sse-notification.service';
 import { CorrelationClientTCP, CorrelationIdMiddleware } from '@wr/logger';
+import { config as appConfig } from './config';
 
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
     TerminusModule,
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: appConfig.RATE_LIMIT_TTL,
+        limit: appConfig.RATE_LIMIT_LIMIT,
+      },
+    ]),
     ClientsModule.register([
       {
         name: SERVICE_TOKENS.IDENTITY,
@@ -50,7 +60,14 @@ import { CorrelationClientTCP, CorrelationIdMiddleware } from '@wr/logger';
       },
     ]),
   ],
-  providers: [JwtStrategy, SseNotificationService],
+  providers: [
+    JwtStrategy,
+    SseNotificationService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
   controllers: [
     HealthController,
     IdentityController,

@@ -12,18 +12,26 @@ import { RolesGuard } from './auth/decorators/guard/roles.guard';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { config as appConfig } from './config';
 import { PinoLogger } from '@wr/logger';
+import helmet from 'helmet';
 
 async function bootstrap() {
   const app = await NestFactory.create(GatewayModule, {
     logger: new PinoLogger('gateway', appConfig.LOG_LEVEL),
   });
 
+  // Apply security headers via Helmet
+  app.use(helmet());
+
   // Global prefix
   app.setGlobalPrefix('api/v1');
 
-  // CORS
+  // CORS - Whitelist webapp origins
+  const allowedOrigins = appConfig.API_CORS_ORIGIN
+    ? appConfig.API_CORS_ORIGIN.split(',').map((o) => o.trim())
+    : [];
+
   app.enableCors({
-    origin: appConfig.API_CORS_ORIGIN,
+    origin: allowedOrigins.length === 1 ? allowedOrigins[0] : allowedOrigins,
     credentials: true,
   });
 
