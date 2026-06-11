@@ -1,10 +1,20 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../lib/api';
 
-const panelMembers = [
-  { name: 'Dr. Nguyen Van B', role: 'IT Department Head', initials: 'NB' },
-  { name: 'Le Thi Hang', role: 'HR Manager', initials: 'LH' },
-  { name: 'Vo Minh Tu', role: 'Director', initials: 'VT' },
-];
+type CandidateInterview = {
+  id: string;
+  scheduledAt: string;
+  duration: number;
+  location: string;
+  interviewers: string[];
+  panel?: Array<{ id: string; displayName: string; role: string }>;
+  status: string;
+  request: {
+    position: string;
+    department?: { name: string };
+  };
+};
 
 const preparationItems = [
   { label: 'Review the job description', done: true },
@@ -49,26 +59,107 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
 );
 
 export const CandidateInterviewDetails: React.FC = () => {
+  const { token } = useAuth();
   const [copied, setCopied] = useState(false);
+  const [interview, setInterview] = useState<CandidateInterview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
+  const [actionError, setActionError] = useState('');
 
-  const handleCopy = () => {
+  useEffect(() => {
+    const loadInterview = async () => {
+      try {
+        const profile = await apiRequest<{ interviews: CandidateInterview[] }>(
+          '/candidate-profiles/me',
+          token,
+        );
+        const requestedId = new URLSearchParams(window.location.search).get('id');
+        const selected =
+          profile.interviews.find((item) => item.id === requestedId) ??
+          profile.interviews.find((item) => item.status === 'SCHEDULED') ??
+          profile.interviews[0] ??
+          null;
+        setInterview(selected);
+      } catch (loadError) {
+        setApiError(loadError instanceof Error ? loadError.message : 'Unable to load interview');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadInterview();
+  }, [token]);
+
+  const handleCopy = async () => {
+    if (!interview) return;
+    await navigator.clipboard.writeText(interview.location).catch(() => undefined);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
   };
 
+  if (loading) {
+    return <p className="mx-auto max-w-[900px] text-sm text-secondary">Loading interview...</p>;
+  }
+
+  if (apiError) {
+    return (
+      <p className="mx-auto max-w-[900px] rounded-lg border border-error/20 bg-error-container p-4 text-sm text-on-error-container">
+        {apiError}
+      </p>
+    );
+  }
+
+  if (!interview) {
+    return (
+      <p className="mx-auto max-w-[900px] rounded-lg border border-border-warm bg-clean-surface p-6 text-sm text-secondary">
+        No interview has been scheduled for your applications.
+      </p>
+    );
+  }
+
+  const startsAt = new Date(interview.scheduledAt);
+  const endsAt = new Date(startsAt.getTime() + interview.duration * 60_000);
+  const isMeetingLink = /^https?:\/\//i.test(interview.location);
+  const panelMembers = (
+    interview.panel?.length
+      ? interview.panel
+      : interview.interviewers.map((id) => ({
+          id,
+          displayName: 'Interviewer',
+          role: 'Panel member',
+        }))
+  ).map((member, index) => ({
+    name: member.displayName,
+    role: member.role.replaceAll('_', ' '),
+    initials:
+      member.displayName
+        .split(' ')
+        .map((part) => part[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase() || `I${index + 1}`,
+  }));
+
   return (
     <div className="mx-auto flex max-w-[900px] flex-col items-center">
+      {actionError ? (
+        <p className="mb-4 w-full rounded-lg border border-error/20 bg-error-container p-4 text-sm text-on-error-container">
+          {actionError}
+        </p>
+      ) : null}
       <section className="w-full overflow-hidden rounded-lg border border-border-warm bg-clean-surface shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05),0_2px_10px_-2px_rgba(0,0,0,0.03)]">
         <header className="bg-[linear-gradient(135deg,#0D9488_0%,#00685f_100%)] p-8 text-white">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <h1 className="mb-1 text-3xl font-semibold tracking-tight">
-                Senior Backend Developer
+                {interview.request.position}
               </h1>
-              <p className="text-lg text-white/90">FPT Software - IT Department</p>
+              <p className="text-lg text-white/90">
+                {interview.request.department?.name ?? 'Department not available'}
+              </p>
             </div>
             <span className="w-fit rounded-lg border border-white/30 bg-white/20 px-4 py-2 text-sm font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]">
-              Round 1: Technical Assessment
+              {interview.status}
             </span>
           </div>
         </header>
@@ -82,13 +173,21 @@ export const CandidateInterviewDetails: React.FC = () => {
               <div className="flex items-start gap-3">
                 <Icon className="mt-1 h-6 w-6 shrink-0 text-teal-command" name="calendar" />
                 <div>
-                  <p className="text-xl font-semibold text-deep-charcoal">Thursday, May 29, 2026</p>
+                  <p className="text-xl font-semibold text-deep-charcoal">
+                    {startsAt.toLocaleDateString(undefined, {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
+                  </p>
                   <p className="mt-1 font-mono text-sm font-medium text-primary">
-                    14:00 - 15:00 (GMT+7)
+                    {startsAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -{' '}
+                    {endsAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                   <p className="mt-1 flex items-center gap-1 text-sm text-secondary">
                     <Icon className="h-4 w-4" name="clock" />
-                    Duration: 1 hour
+                    Duration: {interview.duration} minutes
                   </p>
                 </div>
               </div>
@@ -103,20 +202,20 @@ export const CandidateInterviewDetails: React.FC = () => {
                 <div className="w-full">
                   <a
                     className="flex items-center gap-1 text-sm font-semibold text-teal-command hover:underline"
-                    href="#"
-                    onClick={(event) => event.preventDefault()}
+                    href={isMeetingLink ? interview.location : undefined}
+                    onClick={isMeetingLink ? undefined : (event) => event.preventDefault()}
+                    rel="noreferrer"
+                    target={isMeetingLink ? '_blank' : undefined}
                   >
-                    Zoom Meeting Link
+                    {isMeetingLink ? 'Open Meeting Link' : 'Interview Location'}
                     <Icon className="h-4 w-4" name="external" />
                   </a>
-                  <p className="mt-1 text-sm text-on-surface">Room 301, 3rd Floor, Building A</p>
+                  <p className="mt-1 text-sm text-on-surface">{interview.location}</p>
                   <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-border-warm bg-surface-container-low px-3 py-2">
-                    <span className="font-mono text-xs text-slate-ink">
-                      Meeting ID: 123 456 7890
-                    </span>
+                    <span className="font-mono text-xs text-slate-ink">{interview.location}</span>
                     <button
                       className={`inline-flex items-center gap-1 text-xs font-bold transition active:scale-[0.98] ${copied ? 'text-approved' : 'text-teal-command hover:text-primary'}`}
-                      onClick={handleCopy}
+                      onClick={() => void handleCopy()}
                       type="button"
                     >
                       <Icon className="h-4 w-4" name={copied ? 'check' : 'copy'} />
@@ -178,16 +277,12 @@ export const CandidateInterviewDetails: React.FC = () => {
               </h2>
               <div className="space-y-3 text-sm leading-6 text-slate-ink">
                 <p>
-                  This technical assessment will focus on architectural design patterns, scalability
-                  challenges, and live coding. Our panel will evaluate both your technical
-                  proficiency and problem-solving approach.
+                  Review the job description and prepare examples that demonstrate your experience.
+                  The interview panel may ask both role-specific and behavioral questions.
                 </p>
                 <p className="italic text-secondary">
-                  Contact HR at{' '}
-                  <a className="text-teal-command underline" href="mailto:hr@fpt.vn">
-                    hr@fpt.vn
-                  </a>{' '}
-                  if you need to reschedule or have technical difficulties before the session.
+                  Contact the recruitment team if you need to reschedule or have technical
+                  difficulties before the session.
                 </p>
               </div>
             </div>
@@ -197,12 +292,16 @@ export const CandidateInterviewDetails: React.FC = () => {
             <div className="flex flex-col gap-3 sm:flex-row">
               <button
                 className="rounded-lg bg-teal-command px-8 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-primary active:scale-[0.98]"
+                onClick={() =>
+                  setActionError('Interview attendance confirmation API is not available')
+                }
                 type="button"
               >
                 Confirm Attendance
               </button>
               <button
                 className="rounded-lg border-2 border-teal-command px-6 py-3 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98]"
+                onClick={() => setActionError('Candidate reschedule request API is not available')}
                 type="button"
               >
                 Request Reschedule

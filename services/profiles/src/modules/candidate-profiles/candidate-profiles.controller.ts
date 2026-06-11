@@ -16,4 +16,19 @@ export class CandidateProfilesController {
     const { id, ...data } = payload;
     return this.service.updateProfile(id, data);
   }
+
+  @MessagePattern('profiles.avatar.get')
+  getAvatar(@Payload() payload: { id: string }) {
+    return this.service.getAvatar(payload.id);
+  }
+
+  @MessagePattern('profiles.avatar.set')
+  setAvatar(@Payload() payload: { id: string; avatar: Record<string, string> }) {
+    return this.service.setAvatar(payload.id, payload.avatar);
+  }
+
+  @MessagePattern('profiles.avatar.remove')
+  removeAvatar(@Payload() payload: { id: string }) {
+    return this.service.removeAvatar(payload.id);
+  }
 }

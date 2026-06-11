@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../lib/api';
 
 // SVG Icons definition to match high-fidelity design without depending on external fonts
 const Icons = {
@@ -208,64 +210,30 @@ interface Education {
 }
 
 export const CandidateProfile: React.FC = () => {
+  const { token } = useAuth();
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const avatarObjectUrlRef = useRef<string | null>(null);
   // Core Profile Info State
-  const [fullName, setFullName] = useState('Alexander Thorne');
-  const [currentRole, setCurrentRole] = useState('Senior Product Designer');
-  const [email, setEmail] = useState('alex.thorne@recruitflow.com');
-  const [phone, setPhone] = useState('+1 (555) 234-5678');
-  const [location, setLocation] = useState('London, UK');
+  const [fullName, setFullName] = useState('');
+  const [currentRole, setCurrentRole] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [location, setLocation] = useState('');
   const [linkedinUrl, setLinkedinUrl] = useState('');
+  const [summary, setSummary] = useState('');
 
   // Visibility States
   const [visibleToRecruiters, setVisibleToRecruiters] = useState(true);
   const [openToNewOpportunities, setOpenToNewOpportunities] = useState(true);
 
   // Work Experience State
-  const [experience, setExperience] = useState<WorkExperience[]>([
-    {
-      id: 'exp-1',
-      title: 'Lead UX Designer',
-      company: 'Starlight Systems',
-      duration: 'Jan 2023 — Present',
-      description:
-        'Spearheaded the redesign of the core enterprise dashboard, resulting in a 40% increase in user efficiency. Managed a team of 4 junior designers and collaborated directly with engineering leads for seamless implementation.',
-    },
-    {
-      id: 'exp-2',
-      title: 'Product Designer',
-      company: 'NexaFlow Dynamics',
-      duration: 'May 2019 — Dec 2022',
-      description:
-        'Developed high-fidelity prototypes and design systems for modular web applications. Conducted over 50 user research sessions to validate core feature sets for the Q3 release cycle.',
-    },
-  ]);
+  const [experience, setExperience] = useState<WorkExperience[]>([]);
 
   // Education State
-  const [education, setEducation] = useState<Education[]>([
-    {
-      id: 'edu-1',
-      degree: 'MA Digital Design',
-      school: 'Royal College of Art',
-      year: '2018',
-    },
-    {
-      id: 'edu-2',
-      degree: 'BA Fine Arts',
-      school: 'University of Manchester',
-      year: '2016',
-    },
-  ]);
+  const [education, setEducation] = useState<Education[]>([]);
 
   // Skills State
-  const [skills, setSkills] = useState<string[]>([
-    'Figma',
-    'UI/UX Design',
-    'Prototyping',
-    'React Basics',
-    'Stakeholder Management',
-    'Design Systems',
-    'User Research',
-  ]);
+  const [skills, setSkills] = useState<string[]>([]);
 
   // Helper States for adding/editing items
   const [isAddingExperience, setIsAddingExperience] = useState(false);
@@ -290,6 +258,109 @@ export const CandidateProfile: React.FC = () => {
 
   // Profile Save State
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
+  const [lastUpdated, setLastUpdated] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
+  const [avatarUploading, setAvatarUploading] = useState(false);
+
+  const clearAvatarPreview = () => {
+    if (avatarObjectUrlRef.current) {
+      URL.revokeObjectURL(avatarObjectUrlRef.current);
+      avatarObjectUrlRef.current = null;
+    }
+    setAvatarUrl('');
+  };
+
+  const showAvatarPreview = (blob: Blob) => {
+    clearAvatarPreview();
+    const objectUrl = URL.createObjectURL(blob);
+    avatarObjectUrlRef.current = objectUrl;
+    setAvatarUrl(objectUrl);
+  };
+
+  const loadAvatar = async () => {
+    const headers = new Headers();
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    const response = await fetch('/api/v1/candidate-profiles/me/avatar', { headers });
+    if (response.status === 404) {
+      clearAvatarPreview();
+      return;
+    }
+    if (!response.ok) {
+      throw new Error(`Unable to load profile photo (${response.status})`);
+    }
+
+    showAvatarPreview(await response.blob());
+  };
+
+  useEffect(() => {
+    type ProfileResponse = {
+      fullName: string;
+      email: string;
+      phone?: string | null;
+      summary?: string | null;
+      structuredData?: {
+        currentRole?: string;
+        location?: string;
+        linkedinUrl?: string;
+        visibility?: string;
+        openToNewOpportunities?: boolean;
+        experience?: WorkExperience[];
+        education?: Education[];
+        skills?: string[];
+        avatar?: {
+          fileName: string;
+          mimeType: string;
+          updatedAt: string;
+        };
+      } | null;
+      updatedAt: string;
+    };
+
+    const loadProfile = async () => {
+      try {
+        const profile = await apiRequest<ProfileResponse>('/candidate-profiles/me', token);
+        const data = profile.structuredData ?? {};
+        setFullName(profile.fullName);
+        setEmail(profile.email);
+        setPhone(profile.phone ?? '');
+        setSummary(profile.summary ?? '');
+        setCurrentRole(data.currentRole ?? '');
+        setLocation(data.location ?? '');
+        setLinkedinUrl(data.linkedinUrl ?? '');
+        setVisibleToRecruiters(data.visibility !== 'PRIVATE');
+        setOpenToNewOpportunities(data.openToNewOpportunities ?? true);
+        setExperience(data.experience ?? []);
+        setEducation(data.education ?? []);
+        setSkills(data.skills ?? []);
+        setLastUpdated(new Date(profile.updatedAt).toLocaleDateString());
+        if (data.avatar) {
+          await loadAvatar();
+        } else {
+          clearAvatarPreview();
+        }
+      } catch (loadError) {
+        setApiError(loadError instanceof Error ? loadError.message : 'Unable to load profile');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadProfile();
+  }, [token]);
+
+  useEffect(
+    () => () => {
+      if (avatarObjectUrlRef.current) {
+        URL.revokeObjectURL(avatarObjectUrlRef.current);
+      }
+    },
+    [],
+  );
 
   // Calculates profile completeness dynamically
   const calculateCompleteness = () => {
@@ -305,14 +376,99 @@ export const CandidateProfile: React.FC = () => {
   const completeness = calculateCompleteness();
 
   // Handle Save Action
-  const handleSave = () => {
+  const handleSave = async () => {
     setSaveStatus('saving');
-    setTimeout(() => {
+    setApiError('');
+    try {
+      const updated = await apiRequest<{ updatedAt: string }>('/candidate-profiles/me', token, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          fullName,
+          email,
+          phone,
+          summary,
+          structuredData: {
+            currentRole,
+            location,
+            linkedinUrl,
+            visibility: visibleToRecruiters ? 'REGISTERED_ONLY' : 'PRIVATE',
+            openToNewOpportunities,
+            experience,
+            education,
+            skills,
+          },
+        }),
+      });
       setSaveStatus('saved');
-      setTimeout(() => {
-        setSaveStatus('idle');
-      }, 2000);
-    }, 800);
+      setLastUpdated(new Date(updated.updatedAt).toLocaleDateString());
+      window.setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (saveError) {
+      setSaveStatus('idle');
+      setApiError(saveError instanceof Error ? saveError.message : 'Unable to save profile');
+    }
+  };
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const supportedTypes = ['image/jpeg', 'image/png', 'image/gif'];
+    if (!supportedTypes.includes(file.type)) {
+      setApiError('Please choose a JPG, PNG, or GIF image.');
+      event.target.value = '';
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setApiError('Profile photo must be 5 MB or smaller.');
+      event.target.value = '';
+      return;
+    }
+
+    setAvatarUploading(true);
+    setApiError('');
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const result = await apiRequest<{ updatedAt: string }>(
+        '/candidate-profiles/me/avatar',
+        token,
+        {
+          method: 'POST',
+          body: formData,
+        },
+      );
+      await loadAvatar();
+      setLastUpdated(new Date(result.updatedAt).toLocaleDateString());
+    } catch (uploadError) {
+      setApiError(
+        uploadError instanceof Error ? uploadError.message : 'Unable to upload profile photo',
+      );
+    } finally {
+      setAvatarUploading(false);
+      event.target.value = '';
+    }
+  };
+
+  const handleAvatarDelete = async () => {
+    setAvatarUploading(true);
+    setApiError('');
+
+    try {
+      const result = await apiRequest<{ updatedAt: string }>(
+        '/candidate-profiles/me/avatar',
+        token,
+        { method: 'DELETE' },
+      );
+      clearAvatarPreview();
+      setLastUpdated(new Date(result.updatedAt).toLocaleDateString());
+    } catch (deleteError) {
+      setApiError(
+        deleteError instanceof Error ? deleteError.message : 'Unable to remove profile photo',
+      );
+    } finally {
+      setAvatarUploading(false);
+    }
   };
 
   // Experience Handlers
@@ -416,6 +572,13 @@ export const CandidateProfile: React.FC = () => {
         </p>
       </header>
 
+      {loading ? <p className="mb-6 text-sm text-slate-ink">Loading profile...</p> : null}
+      {apiError ? (
+        <p className="mb-6 rounded-lg border border-error/20 bg-error-container p-4 text-sm text-on-error-container">
+          {apiError}
+        </p>
+      ) : null}
+
       <div className="grid grid-cols-12 gap-6 items-start pb-20">
         {/* Left & Middle: Main Profile Data */}
         <div className="col-span-12 lg:col-span-8 space-y-6">
@@ -456,7 +619,7 @@ export const CandidateProfile: React.FC = () => {
                   ? 'Your profile is fully complete! Thank you.'
                   : `${completeness}% complete — Add your LinkedIn URL to reach 100%`}
               </span>
-              <span>Last updated: May 29, 2026</span>
+              <span>Last updated: {lastUpdated || 'Not available'}</span>
             </div>
           </section>
 
@@ -468,15 +631,63 @@ export const CandidateProfile: React.FC = () => {
               </h3>
               <div className="space-y-6">
                 <div className="flex items-center space-x-6">
-                  <div className="w-20 h-20 bg-workflow-ivory border-2 border-dashed border-border-warm rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-surface-container-low transition-colors group">
-                    <Icons.camera />
-                    <span className="text-[10px] mt-1 font-semibold text-on-surface-variant">
-                      Upload
-                    </span>
-                  </div>
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif"
+                    className="hidden"
+                    onChange={(event) => void handleAvatarUpload(event)}
+                  />
+                  <button
+                    type="button"
+                    disabled={avatarUploading}
+                    onClick={() => avatarInputRef.current?.click()}
+                    className="relative w-20 h-20 overflow-hidden bg-workflow-ivory border-2 border-dashed border-border-warm rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-surface-container-low transition-colors group disabled:cursor-wait"
+                    aria-label={avatarUrl ? 'Change profile photo' : 'Upload profile photo'}
+                  >
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt={`${fullName || 'Candidate'} profile`}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <>
+                        <Icons.camera />
+                        <span className="text-[10px] mt-1 font-semibold text-on-surface-variant">
+                          Upload
+                        </span>
+                      </>
+                    )}
+                    {avatarUploading ? (
+                      <span className="absolute inset-0 flex items-center justify-center bg-deep-charcoal/60">
+                        <Icons.spinner />
+                      </span>
+                    ) : null}
+                  </button>
                   <div className="flex-1">
                     <p className="text-xs font-semibold mb-1 text-deep-charcoal">Profile Photo</p>
                     <p className="text-xs text-on-surface-variant">JPG, PNG or GIF. Max 5MB.</p>
+                    <div className="mt-2 flex items-center gap-3">
+                      <button
+                        type="button"
+                        disabled={avatarUploading}
+                        onClick={() => avatarInputRef.current?.click()}
+                        className="text-xs font-semibold text-teal-command hover:underline disabled:opacity-50"
+                      >
+                        {avatarUrl ? 'Change photo' : 'Choose photo'}
+                      </button>
+                      {avatarUrl ? (
+                        <button
+                          type="button"
+                          disabled={avatarUploading}
+                          onClick={() => void handleAvatarDelete()}
+                          className="text-xs font-semibold text-error hover:underline disabled:opacity-50"
+                        >
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
                 <div className="space-y-4">
@@ -500,6 +711,17 @@ export const CandidateProfile: React.FC = () => {
                       type="text"
                       value={currentRole}
                       onChange={(e) => setCurrentRole(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-deep-charcoal mb-2">
+                      Professional Summary
+                    </label>
+                    <textarea
+                      className="w-full min-h-24 resize-y text-sm border border-border-warm rounded-lg p-2.5 focus:ring-2 focus:ring-teal-command focus:border-transparent bg-white outline-none"
+                      value={summary}
+                      onChange={(e) => setSummary(e.target.value)}
+                      placeholder="Briefly describe your experience and career goals"
                     />
                   </div>
                 </div>
@@ -977,8 +1199,8 @@ export const CandidateProfile: React.FC = () => {
           </button>
 
           <button
-            onClick={handleSave}
-            disabled={saveStatus === 'saving'}
+            disabled={loading || saveStatus === 'saving'}
+            onClick={() => void handleSave()}
             className="inline-flex items-center justify-center min-w-36 h-9 px-6 bg-teal-command text-white rounded-lg font-semibold text-xs hover:bg-primary shadow-lg shadow-teal-command/10 transition-all active:scale-[0.98]"
             id="save-changes-btn"
           >

@@ -1,4 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../lib/api';
 
 // SVG Icons definition to match high-fidelity design without depending on external fonts
 const Icons = {
@@ -187,65 +189,70 @@ interface AlertItem {
 }
 
 export const CandidateNotifications: React.FC = () => {
+  const { token } = useAuth();
   // Alert Data State
-  const [alerts, setAlerts] = useState<AlertItem[]>([
-    {
-      id: 'alert-1',
-      type: 'Interview',
-      title: 'Interview Invitation: TechCorp VN',
-      sender: 'TechCorp VN',
-      senderInitials: 'TC',
-      content: `Dear Tran Ngoc Mai,\n\nThank you for taking the time to apply for the Senior Frontend Developer position at TechCorp VN. We were impressed by your background and would like to invite you to an initial technical interview with our engineering team.\n\nThis session will focus on your experience with React, state management patterns, and system design for enterprise web applications.`,
-      receivedText: '2 hours ago',
-      unread: true,
-      date: 'Oct 28, 2023',
-      time: '10:00 AM (ICT)',
-      format: 'Google Meet (Link will be provided upon confirmation)',
-      relatedJob: 'Senior Frontend Developer',
-      attendanceConfirmed: false,
-    },
-    {
-      id: 'alert-2',
-      type: 'Application',
-      title: 'Application Under Review: FinTech Solutions',
-      sender: 'FinTech Solutions',
-      senderInitials: 'FS',
-      content: `Hi Tran Ngoc Mai,\n\nYour application for the Senior Frontend Developer role at FinTech Solutions has been received and is currently under review by our recruitment team.\n\nWe will update you as soon as we complete the initial screening process. Thank you for your patience.`,
-      receivedText: 'Yesterday',
-      unread: false,
-      relatedJob: 'Senior Frontend Developer',
-    },
-    {
-      id: 'alert-3',
-      type: 'Application',
-      title: 'Status Update: Global E-commerce',
-      sender: 'Global E-commerce',
-      senderInitials: 'GE',
-      content: `Hello Tran Ngoc Mai,\n\nCongratulations! We are pleased to inform you that you have successfully passed the CV screening phase for the Frontend Developer role at Global E-commerce.\n\nYou have moved to the next stage of the evaluation process. Our HR coordinator will contact you shortly to arrange a scheduling slot.`,
-      receivedText: 'Oct 26',
-      unread: true,
-      relatedJob: 'Frontend Developer',
-    },
-    {
-      id: 'alert-4',
-      type: 'System',
-      title: 'Maintenance Notice',
-      sender: 'System Admin',
-      senderInitials: 'SA',
-      content: `Dear Candidates,\n\nPlease note that the Candidate Portal will undergo scheduled maintenance on Sunday, November 1st, from 02:00 AM to 04:00 AM (ICT).\n\nDuring this window, some features, including CV uploads, may be temporarily unavailable. We apologize for any inconvenience caused.`,
-      receivedText: 'Oct 20',
-      unread: false,
-    },
-  ]);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
 
   // Selected Alert ID State
-  const [selectedAlertId, setSelectedAlertId] = useState<string>('alert-1');
+  const [selectedAlertId, setSelectedAlertId] = useState<string>('');
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<
     'All' | 'Unread' | 'Interviews' | 'Applications' | 'System'
   >('All');
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
+
+  useEffect(() => {
+    type NotificationResponse = {
+      id: string;
+      type: string;
+      title: string;
+      body: string;
+      isRead: boolean;
+      createdAt: string;
+    };
+
+    const loadNotifications = async () => {
+      try {
+        const response = await apiRequest<NotificationResponse[]>('/notifications', token);
+        const mapped = response.map((notification): AlertItem => {
+          const type: AlertItem['type'] =
+            notification.type === 'INTERVIEW_INVITE'
+              ? 'Interview'
+              : notification.type === 'SYSTEM'
+                ? 'System'
+                : 'Application';
+          const sender = type === 'System' ? 'System Admin' : 'Recruitment Team';
+          return {
+            id: notification.id,
+            type,
+            title: notification.title,
+            sender,
+            senderInitials: sender
+              .split(' ')
+              .map((part) => part[0])
+              .join('')
+              .slice(0, 2),
+            content: notification.body,
+            receivedText: new Date(notification.createdAt).toLocaleString(),
+            unread: !notification.isRead,
+          };
+        });
+        setAlerts(mapped);
+        setSelectedAlertId(mapped[0]?.id ?? '');
+      } catch (loadError) {
+        setApiError(
+          loadError instanceof Error ? loadError.message : 'Unable to load notifications',
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadNotifications();
+  }, [token]);
 
   // Active Selected Alert Object
   const selectedAlert = useMemo(() => {
@@ -255,38 +262,48 @@ export const CandidateNotifications: React.FC = () => {
   // Handle selecting an alert
   const handleSelectAlert = (id: string) => {
     setSelectedAlertId(id);
+    const selected = alerts.find((alert) => alert.id === id);
+    if (!selected?.unread) return;
     // Auto-mark as read when clicked
     setAlerts((prevAlerts) =>
       prevAlerts.map((alert) => (alert.id === id ? { ...alert, unread: false } : alert)),
     );
+    void apiRequest(`/notifications/${id}/read`, token, { method: 'PATCH' }).catch((readError) => {
+      setAlerts((prevAlerts) =>
+        prevAlerts.map((alert) => (alert.id === id ? { ...alert, unread: true } : alert)),
+      );
+      setApiError(readError instanceof Error ? readError.message : 'Unable to mark notification');
+    });
   };
 
   // Toggle Read/Unread Status
   const handleToggleRead = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    const selected = alerts.find((alert) => alert.id === id);
+    if (!selected?.unread) {
+      setApiError('Mark as unread API is not available');
+      return;
+    }
     setAlerts((prevAlerts) =>
-      prevAlerts.map((alert) => (alert.id === id ? { ...alert, unread: !alert.unread } : alert)),
+      prevAlerts.map((alert) => (alert.id === id ? { ...alert, unread: false } : alert)),
     );
+    void apiRequest(`/notifications/${id}/read`, token, { method: 'PATCH' }).catch((readError) => {
+      setAlerts((prevAlerts) =>
+        prevAlerts.map((alert) => (alert.id === id ? { ...alert, unread: true } : alert)),
+      );
+      setApiError(readError instanceof Error ? readError.message : 'Unable to mark notification');
+    });
   };
 
   // Archive (Delete) Alert
   const handleArchive = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const updatedAlerts = alerts.filter((alert) => alert.id !== id);
-    setAlerts(updatedAlerts);
-    // If the archived alert was selected, select the next available one
-    if (selectedAlertId === id && updatedAlerts.length > 0) {
-      setSelectedAlertId(updatedAlerts[0].id);
-    }
+    setApiError(`Archive notification API is not available for ${id}`);
   };
 
   // Confirm Attendance
   const handleConfirmAttendance = (id: string) => {
-    setAlerts((prevAlerts) =>
-      prevAlerts.map((alert) =>
-        alert.id === id ? { ...alert, attendanceConfirmed: true } : alert,
-      ),
-    );
+    setApiError(`Interview attendance confirmation API is not available for ${id}`);
   };
 
   // Dynamic Metrics based on alert state
@@ -345,6 +362,13 @@ export const CandidateNotifications: React.FC = () => {
           </span>
         </div>
       </header>
+
+      {loading ? <p className="mb-4 text-sm text-slate-ink">Loading notifications...</p> : null}
+      {apiError ? (
+        <p className="mb-4 rounded-lg border border-error/20 bg-error-container p-3 text-sm text-on-error-container">
+          {apiError}
+        </p>
+      ) : null}
 
       {/* Summary Header Cards */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" aria-label="Inbox Summary">
