@@ -1,6 +1,7 @@
 import { processCvParseJob } from './cv-parse.processor';
 import { PrismaClient } from '@prisma/client';
 import { extractText } from '@wr/ai';
+import { logger } from '../logger';
 
 jest.mock('@prisma/client', () => {
   const mockPrisma = {
@@ -45,7 +46,7 @@ describe('processCvParseJob', () => {
       parsedAt: new Date(),
     });
 
-    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+    const consoleSpy = jest.spyOn(logger, 'log').mockImplementation();
 
     await processCvParseJob({ cvDocumentId: 'cv-1', filePath: 'cv-1.pdf' });
 

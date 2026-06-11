@@ -1,18 +1,26 @@
-import { config } from 'dotenv';
+import { config as dotenvConfig } from 'dotenv';
 import { resolve } from 'path';
-config({ path: resolve(__dirname, '../../../.env') });
+dotenvConfig({ path: resolve(__dirname, '../../../.env') });
 
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { InterviewModule } from './interview.module';
+import { config as appConfig } from './config';
+import { PinoLogger, MicroserviceCorrelationInterceptor, patchBullMQ } from '@wr/logger';
 
-const PORT = parseInt(process.env.INTERVIEW_PORT || '3015', 10);
+// Patch BullMQ globally if queue package is loaded
+patchBullMQ();
+
+const PORT = appConfig.INTERVIEW_PORT;
 
 async function bootstrap() {
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(InterviewModule, {
     transport: Transport.TCP,
     options: { host: '127.0.0.1', port: PORT },
+    logger: new PinoLogger('interview', appConfig.LOG_LEVEL),
   });
+
+  app.useGlobalInterceptors(new MicroserviceCorrelationInterceptor());
 
   await app.listen();
   console.log(`🗓️  Interview service listening on TCP :${PORT}`);

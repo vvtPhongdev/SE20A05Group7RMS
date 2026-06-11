@@ -23,7 +23,8 @@
     "@wr/contracts": "*",
     "@wr/config": "*",
     "@wr/database": "*",
-    "@wr/queue": "*"
+    "@wr/queue": "*",
+    "@wr/logger": "*"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",

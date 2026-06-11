@@ -19,7 +19,8 @@
     "@wr/config": "*",
     "@wr/database": "*",
     "@wr/queue": "*",
-    "@wr/ai": "*"
+    "@wr/ai": "*",
+    "@wr/logger": "*"
   },
   "devDependencies": {
     "@types/nodemailer": "^8.0.0",

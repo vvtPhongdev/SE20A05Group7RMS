@@ -1,6 +1,7 @@
 import { processEmailSendJob } from './email-send.processor';
 import { PrismaClient } from '@prisma/client';
 import * as nodemailer from 'nodemailer';
+import { logger } from '../logger';
 
 jest.mock('@prisma/client', () => {
   const mockPrisma = {
@@ -39,7 +40,7 @@ describe('processEmailSendJob', () => {
       status: 'SENT',
     });
 
-    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+    const consoleSpy = jest.spyOn(logger, 'log').mockImplementation();
 
     await processEmailSendJob({
       emailLogId: 'email-1',

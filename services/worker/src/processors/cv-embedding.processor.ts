@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { AuditLogService } from '@wr/database';
 import { AuditAction, AuditEntityType, EmbeddingGenerateJobPayload } from '@wr/contracts';
 import { config } from '../config';
+import { logger } from '../logger';
 
 // Singleton Prisma client (same pattern as other services)
 const prisma = new PrismaClient({
@@ -32,7 +33,7 @@ export async function processCvEmbeddingJob(payload: EmbeddingGenerateJobPayload
   });
 
   if (existingEmbedding) {
-    console.log(`[Idempotency] CvEmbedding for CV document ${cvDocumentId} already exists. Skipping job.`);
+    logger.log(`[Idempotency] CvEmbedding for CV document ${cvDocumentId} already exists. Skipping job.`);
     return;
   }
 
@@ -74,5 +75,5 @@ export async function processCvEmbeddingJob(payload: EmbeddingGenerateJobPayload
       performedById: 'SYSTEM',
       metadata: { cvDocumentId },
     })
-    .catch((err) => console.error('Failed to write audit log for CV_EMBEDDING_GENERATED:', err));
+    .catch((err) => logger.error('Failed to write audit log for CV_EMBEDDING_GENERATED:', err));
 }

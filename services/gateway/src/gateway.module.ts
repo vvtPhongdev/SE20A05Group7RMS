@@ -1,5 +1,5 @@
-import { Module } from '@nestjs/common';
-import { ClientsModule, Transport } from '@nestjs/microservices';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
+import { ClientsModule } from '@nestjs/microservices';
 import { PassportModule } from '@nestjs/passport';
 import { TerminusModule } from '@nestjs/terminus';
 import { SERVICE_TOKENS, SERVICE_PORTS } from './constants';
@@ -11,6 +11,7 @@ import { ProfilesController } from './controllers/profiles.controller';
 import { NotificationsController } from './controllers/notifications.controller';
 import { InterviewController } from './controllers/interview.controller';
 import { SseNotificationService } from './services/sse-notification.service';
+import { CorrelationClientTCP, CorrelationIdMiddleware } from '@wr/logger';
 
 @Module({
   imports: [
@@ -19,32 +20,32 @@ import { SseNotificationService } from './services/sse-notification.service';
     ClientsModule.register([
       {
         name: SERVICE_TOKENS.IDENTITY,
-        transport: Transport.TCP,
+        customClass: CorrelationClientTCP as any,
         options: { host: '127.0.0.1', port: SERVICE_PORTS.IDENTITY },
       },
       {
         name: SERVICE_TOKENS.RECRUITING,
-        transport: Transport.TCP,
+        customClass: CorrelationClientTCP as any,
         options: { host: '127.0.0.1', port: SERVICE_PORTS.RECRUITING },
       },
       {
         name: SERVICE_TOKENS.PROFILES,
-        transport: Transport.TCP,
+        customClass: CorrelationClientTCP as any,
         options: { host: '127.0.0.1', port: SERVICE_PORTS.PROFILES },
       },
       {
         name: SERVICE_TOKENS.NOTIFICATION,
-        transport: Transport.TCP,
+        customClass: CorrelationClientTCP as any,
         options: { host: '127.0.0.1', port: SERVICE_PORTS.NOTIFICATION },
       },
       {
         name: SERVICE_TOKENS.CV,
-        transport: Transport.TCP,
+        customClass: CorrelationClientTCP as any,
         options: { host: '127.0.0.1', port: SERVICE_PORTS.CV },
       },
       {
         name: SERVICE_TOKENS.INTERVIEW,
-        transport: Transport.TCP,
+        customClass: CorrelationClientTCP as any,
         options: { host: '127.0.0.1', port: SERVICE_PORTS.INTERVIEW },
       },
     ]),
@@ -59,4 +60,8 @@ import { SseNotificationService } from './services/sse-notification.service';
     InterviewController,
   ],
 })
-export class GatewayModule {}
+export class GatewayModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(CorrelationIdMiddleware).forRoutes('*');
+  }
+}
