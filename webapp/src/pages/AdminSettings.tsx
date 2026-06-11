@@ -1,8 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../lib/api';
 
 interface Department {
+  id?: string;
   name: string;
+  code: string;
   head: string;
+  headUserId?: string;
   headcount: number;
   activeRequests: number;
 }
@@ -13,11 +18,37 @@ interface PipelineStage {
 }
 
 const defaultDepartments: Department[] = [
-  { name: 'IT & Engineering', head: 'Nguyen Van A', headcount: 15, activeRequests: 3 },
-  { name: 'Marketing', head: 'Tran Thi B', headcount: 8, activeRequests: 0 },
-  { name: 'Human Resources', head: 'Le Van C', headcount: 5, activeRequests: 1 },
-  { name: 'Finance', head: 'Pham Van D', headcount: 10, activeRequests: 0 },
+  {
+    name: 'IT & Engineering',
+    code: 'ENG',
+    head: 'Nguyen Van A',
+    headcount: 15,
+    activeRequests: 3,
+  },
+  {
+    name: 'Marketing',
+    code: 'MARKETING',
+    head: 'Tran Thi B',
+    headcount: 8,
+    activeRequests: 0,
+  },
+  {
+    name: 'Human Resources',
+    code: 'HR',
+    head: 'Le Van C',
+    headcount: 5,
+    activeRequests: 1,
+  },
+  {
+    name: 'Finance',
+    code: 'FINANCE',
+    head: 'Pham Van D',
+    headcount: 10,
+    activeRequests: 0,
+  },
 ];
+
+void defaultDepartments;
 
 const defaultStages: PipelineStage[] = [
   { name: 'Application Received', color: 'bg-blue-500' },
@@ -27,21 +58,29 @@ const defaultStages: PipelineStage[] = [
 ];
 
 export const AdminSettings: React.FC = () => {
+  const { token } = useAuth();
   // Organization States
-  const [orgName, setOrgName] = useState('ABC Technology Corporation');
-  const [orgCode] = useState('ORG-ABC-2026');
+  const [organizationId, setOrganizationId] = useState('');
+  const [orgName, setOrgName] = useState('');
+  const [orgCode, setOrgCode] = useState('');
   const [industry, setIndustry] = useState('Information Technology');
   const [orgSize, setOrgSize] = useState('201-500 employees');
-  const [logoUrl] = useState(
+  const [logoUrl, setLogoUrl] = useState(
     'https://lh3.googleusercontent.com/aida-public/AB6AXBKIWziYFI2f30JGLWZLz7T_wVjimcKWVHMmtsvMkfoHEldDaGfgCfgVZJXmzebuiG6fPfWhkykmBw6Ylcam_o1bphMSdQrNH0F1GlVFFCHTmnnAmz2nQg_ANkCMisECS19Eq-ki0nYqBoo8t8AEkXneZbpguANpUA8g7M-cpzcwpsQ5N82H_T9-d5gQbtf5pg9lDyd0B6VGPK_E1DZcQ2_70N6Je3mWOkrR-NdyZ_zo1Emx9PxT7JNOyzNOnj7zscbs0LwRouLzP8',
   );
+  const [storedSettings, setStoredSettings] = useState<Record<string, unknown>>({});
+  const [departmentHeads, setDepartmentHeads] = useState<Array<{ id: string; name: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [apiError, setApiError] = useState('');
 
   // Department Management
-  const [departments, setDepartments] = useState<Department[]>(defaultDepartments);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [deptModalOpen, setDeptModalOpen] = useState(false);
   const [editingDeptIdx, setEditingDeptIdx] = useState<number | null>(null);
   const [deptForm, setDeptForm] = useState<Department>({
     name: '',
+    code: '',
     head: '',
     headcount: 0,
     activeRequests: 0,
@@ -61,39 +100,169 @@ export const AdminSettings: React.FC = () => {
   // Page level alerts & notifications
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  type OrganizationResponse = {
+    id: string;
+    name: string;
+    slug: string;
+    settings?: {
+      industry?: string;
+      orgSize?: string;
+      logoUrl?: string;
+      approvalWorkflow?: {
+        budgetJustification?: boolean;
+        autoApproveLow?: boolean;
+        requireVpExecutive?: boolean;
+        enableMultiLevel?: boolean;
+      };
+      pipelineStages?: PipelineStage[];
+    };
+  };
+
+  type DepartmentResponse = {
+    id: string;
+    name: string;
+    code: string;
+    headUserId?: string | null;
+    headUser?: { displayName: string } | null;
+    _count?: { users: number; requests: number };
+  };
+
+  const loadDepartments = async (orgId: string) => {
+    const response = await apiRequest<DepartmentResponse[]>(
+      `/departments?organizationId=${encodeURIComponent(orgId)}`,
+      token,
+    );
+    setDepartments(
+      response.map((department) => ({
+        id: department.id,
+        name: department.name,
+        code: department.code,
+        head: department.headUser?.displayName ?? 'Not assigned',
+        headUserId: department.headUserId ?? undefined,
+        headcount: department._count?.users ?? 0,
+        activeRequests: department._count?.requests ?? 0,
+      })),
+    );
+  };
+
+  const loadSettings = async () => {
+    setLoading(true);
+    setApiError('');
+    try {
+      const organizations = await apiRequest<OrganizationResponse[]>('/organizations', token);
+      const organization = organizations[0];
+      if (!organization) {
+        throw new Error('No organization is available');
+      }
+
+      const [heads] = await Promise.all([
+        apiRequest<{
+          data: Array<{ id: string; displayName: string }>;
+        }>('/users?role=DEPARTMENT_HEAD&limit=100', token),
+        loadDepartments(organization.id),
+      ]);
+
+      const workflow = organization.settings?.approvalWorkflow ?? {};
+      setOrganizationId(organization.id);
+      setStoredSettings(organization.settings ?? {});
+      setOrgName(organization.name);
+      setOrgCode(organization.slug);
+      setIndustry(organization.settings?.industry ?? 'Information Technology');
+      setOrgSize(organization.settings?.orgSize ?? '201-500 employees');
+      setLogoUrl(organization.settings?.logoUrl ?? '');
+      setBudgetJustification(workflow.budgetJustification ?? true);
+      setAutoApproveLow(workflow.autoApproveLow ?? false);
+      setRequireVpExecutive(workflow.requireVpExecutive ?? true);
+      setEnableMultiLevel(workflow.enableMultiLevel ?? false);
+      setPipelineStages(organization.settings?.pipelineStages ?? defaultStages);
+      setDepartmentHeads(heads.data.map((head) => ({ id: head.id, name: head.displayName })));
+    } catch (loadError) {
+      setApiError(loadError instanceof Error ? loadError.message : 'Unable to load settings');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadSettings();
+  }, [token]);
+
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  const saveOrganizationSettings = async () => {
+    if (!organizationId) {
+      throw new Error('No organization is available');
+    }
+
+    await apiRequest(`/organizations/${organizationId}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        name: orgName,
+        settings: {
+          ...storedSettings,
+          industry,
+          orgSize,
+          logoUrl,
+          approvalWorkflow: {
+            budgetJustification,
+            autoApproveLow,
+            requireVpExecutive,
+            enableMultiLevel,
+          },
+          pipelineStages,
+        },
+      }),
+    });
+  };
+
   // Profile Save
-  const handleSaveProfile = () => {
-    triggerToast('Organization profile changes saved successfully.');
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    setApiError('');
+    try {
+      await saveOrganizationSettings();
+      triggerToast('Organization profile changes saved successfully.');
+    } catch (saveError) {
+      setApiError(saveError instanceof Error ? saveError.message : 'Unable to save organization');
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Save All settings
-  const handleSaveAllSettings = () => {
-    triggerToast('All system configurations saved successfully.');
+  const handleSaveAllSettings = async () => {
+    setSaving(true);
+    setApiError('');
+    try {
+      await saveOrganizationSettings();
+      triggerToast('All system configurations saved successfully.');
+    } catch (saveError) {
+      setApiError(saveError instanceof Error ? saveError.message : 'Unable to save settings');
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Discard draft settings
-  const handleDiscardChanges = () => {
-    setOrgName('ABC Technology Corporation');
-    setIndustry('Information Technology');
-    setOrgSize('201-500 employees');
-    setDepartments(defaultDepartments);
-    setBudgetJustification(true);
-    setAutoApproveLow(false);
-    setRequireVpExecutive(true);
-    setEnableMultiLevel(false);
-    setPipelineStages(defaultStages);
+  const handleDiscardChanges = async () => {
+    await loadSettings();
     triggerToast('Draft configuration settings discarded.');
   };
 
   // Department CRUD
   const openAddDeptModal = () => {
     setEditingDeptIdx(null);
-    setDeptForm({ name: '', head: '', headcount: 0, activeRequests: 0 });
+    setDeptForm({
+      name: '',
+      code: '',
+      head: '',
+      headUserId: undefined,
+      headcount: 0,
+      activeRequests: 0,
+    });
     setDeptModalOpen(true);
   };
 
@@ -103,24 +272,55 @@ export const AdminSettings: React.FC = () => {
     setDeptModalOpen(true);
   };
 
-  const handleSaveDept = (e: React.FormEvent) => {
+  const handleSaveDept = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!deptForm.name.trim() || !deptForm.head.trim()) return;
+    if (!deptForm.name.trim() || !deptForm.code.trim() || !organizationId) return;
 
-    if (editingDeptIdx !== null) {
-      setDepartments((prev) => prev.map((d, i) => (i === editingDeptIdx ? { ...deptForm } : d)));
-      triggerToast(`Department "${deptForm.name}" updated.`);
-    } else {
-      setDepartments((prev) => [...prev, { ...deptForm }]);
-      triggerToast(`Department "${deptForm.name}" added.`);
+    setApiError('');
+    try {
+      if (editingDeptIdx !== null && deptForm.id) {
+        await apiRequest(`/departments/${deptForm.id}`, token, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            name: deptForm.name,
+            code: deptForm.code.toUpperCase(),
+            headUserId: deptForm.headUserId ?? null,
+          }),
+        });
+        triggerToast(`Department "${deptForm.name}" updated.`);
+      } else {
+        await apiRequest('/departments', token, {
+          method: 'POST',
+          body: JSON.stringify({
+            organizationId,
+            name: deptForm.name,
+            code: deptForm.code.toUpperCase(),
+            headUserId: deptForm.headUserId,
+          }),
+        });
+        triggerToast(`Department "${deptForm.name}" added.`);
+      }
+      await loadDepartments(organizationId);
+      setDeptModalOpen(false);
+    } catch (saveError) {
+      setApiError(saveError instanceof Error ? saveError.message : 'Unable to save department');
     }
-    setDeptModalOpen(false);
   };
 
-  const handleDeleteDept = (idx: number) => {
-    const name = departments[idx].name;
-    setDepartments((prev) => prev.filter((_, i) => i !== idx));
-    triggerToast(`Department "${name}" deleted.`);
+  const handleDeleteDept = async (idx: number) => {
+    const department = departments[idx];
+    if (!department?.id || !organizationId) return;
+
+    setApiError('');
+    try {
+      await apiRequest(`/departments/${department.id}`, token, { method: 'DELETE' });
+      await loadDepartments(organizationId);
+      triggerToast(`Department "${department.name}" deleted.`);
+    } catch (deleteError) {
+      setApiError(
+        deleteError instanceof Error ? deleteError.message : 'Unable to delete department',
+      );
+    }
   };
 
   // Pipeline Stage CRUD
@@ -161,6 +361,12 @@ export const AdminSettings: React.FC = () => {
           <span className="text-sm font-semibold">{toastMessage}</span>
         </div>
       )}
+      {apiError ? (
+        <div className="rounded-lg border border-error/20 bg-error-container p-4 text-sm text-on-error-container">
+          {apiError}
+        </div>
+      ) : null}
+      {loading ? <p className="text-sm text-secondary">Loading organization settings...</p> : null}
 
       {/* Sub Header / Action Header */}
       <div className="flex justify-between items-center mb-margin-lg">
@@ -178,11 +384,12 @@ export const AdminSettings: React.FC = () => {
           </p>
         </div>
         <button
-          onClick={handleSaveAllSettings}
+          disabled={loading || saving}
+          onClick={() => void handleSaveAllSettings()}
           className="bg-teal-command text-white px-6 py-2.5 rounded-lg font-label-md text-label-md hover:opacity-90 transition-all active:opacity-80 flex items-center gap-2"
         >
           <span className="material-symbols-outlined text-lg">save</span>
-          Save Changes
+          {saving ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
 
@@ -269,13 +476,26 @@ export const AdminSettings: React.FC = () => {
                 </select>
               </div>
             </div>
+            <div>
+              <label className="block font-label-md text-label-md text-on-surface-variant mb-1.5">
+                Organization Logo URL
+              </label>
+              <input
+                className="w-full px-4 py-2.5 bg-white border border-border-warm rounded-lg text-body-md focus:ring-2 focus:ring-teal-command focus:border-teal-command outline-none text-on-surface"
+                type="url"
+                value={logoUrl}
+                onChange={(e) => setLogoUrl(e.target.value)}
+                placeholder="https://example.com/logo.png"
+              />
+            </div>
           </div>
           <div className="mt-8 pt-6 border-t border-border-warm flex justify-end">
             <button
-              onClick={handleSaveProfile}
+              disabled={loading || saving}
+              onClick={() => void handleSaveProfile()}
               className="bg-teal-command text-white px-6 py-2.5 rounded-lg font-label-md text-label-md hover:opacity-90 transition-colors shadow-sm"
             >
-              Save Profile Changes
+              {saving ? 'Saving...' : 'Save Profile Changes'}
             </button>
           </div>
         </section>
@@ -506,17 +726,19 @@ export const AdminSettings: React.FC = () => {
         </div>
         <div className="flex items-center gap-4">
           <button
-            onClick={handleDiscardChanges}
+            disabled={loading || saving}
+            onClick={() => void handleDiscardChanges()}
             className="px-6 py-2.5 rounded-lg font-label-md text-label-md text-secondary hover:bg-surface-variant transition-colors"
           >
             Discard Draft
           </button>
           <button
-            onClick={handleSaveAllSettings}
+            disabled={loading || saving}
+            onClick={() => void handleSaveAllSettings()}
             className="bg-teal-command text-white px-10 py-2.5 rounded-lg font-semibold text-label-md hover:opacity-90 transition-all shadow-md flex items-center gap-2 active:scale-95"
           >
             <span className="material-symbols-outlined">save</span>
-            Save All Settings
+            {saving ? 'Saving...' : 'Save All Settings'}
           </button>
         </div>
       </footer>
@@ -547,37 +769,51 @@ export const AdminSettings: React.FC = () => {
                 />
               </label>
               <label className="block space-y-1.5">
-                <span className="text-sm font-semibold text-deep-charcoal">Department Head</span>
+                <span className="text-sm font-semibold text-deep-charcoal">Department Code</span>
                 <input
                   required
                   className="w-full px-3 py-2 bg-workflow-ivory border border-border-warm rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-command/20"
-                  value={deptForm.head}
-                  onChange={(e) => setDeptForm({ ...deptForm, head: e.target.value })}
+                  value={deptForm.code}
+                  onChange={(e) => setDeptForm({ ...deptForm, code: e.target.value.toUpperCase() })}
                 />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-sm font-semibold text-deep-charcoal">Department Head</span>
+                <select
+                  className="w-full px-3 py-2 bg-workflow-ivory border border-border-warm rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-command/20"
+                  value={deptForm.headUserId ?? ''}
+                  onChange={(e) => {
+                    const selected = departmentHeads.find((head) => head.id === e.target.value);
+                    setDeptForm({
+                      ...deptForm,
+                      headUserId: selected?.id,
+                      head: selected?.name ?? '',
+                    });
+                  }}
+                >
+                  <option value="">Not assigned</option>
+                  {departmentHeads.map((head) => (
+                    <option key={head.id} value={head.id}>
+                      {head.name}
+                    </option>
+                  ))}
+                </select>
               </label>
               <div className="grid grid-cols-2 gap-4">
                 <label className="block space-y-1.5">
-                  <span className="text-sm font-semibold text-deep-charcoal">Headcount</span>
+                  <span className="text-sm font-semibold text-deep-charcoal">Current Users</span>
                   <input
-                    type="number"
-                    min="0"
-                    className="w-full px-3 py-2 bg-workflow-ivory border border-border-warm rounded-lg text-sm outline-none"
+                    readOnly
+                    className="w-full px-3 py-2 bg-surface-container-low border border-border-warm rounded-lg text-sm outline-none"
                     value={deptForm.headcount}
-                    onChange={(e) =>
-                      setDeptForm({ ...deptForm, headcount: parseInt(e.target.value) || 0 })
-                    }
                   />
                 </label>
                 <label className="block space-y-1.5">
                   <span className="text-sm font-semibold text-deep-charcoal">Active Requests</span>
                   <input
-                    type="number"
-                    min="0"
-                    className="w-full px-3 py-2 bg-workflow-ivory border border-border-warm rounded-lg text-sm outline-none"
+                    readOnly
+                    className="w-full px-3 py-2 bg-surface-container-low border border-border-warm rounded-lg text-sm outline-none"
                     value={deptForm.activeRequests}
-                    onChange={(e) =>
-                      setDeptForm({ ...deptForm, activeRequests: parseInt(e.target.value) || 0 })
-                    }
                   />
                 </label>
               </div>

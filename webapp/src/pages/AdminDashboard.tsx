@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../lib/api';
 
 const kpis = [
   {
@@ -120,6 +122,8 @@ const activityFeed = [
   },
 ];
 
+void [kpis, approvalQueue, pipelineStages, departmentActivity, activityFeed];
+
 const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: string }) => {
   const paths: Record<string, React.ReactNode> = {
     briefcase: (
@@ -134,10 +138,10 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
     trend: <path d="m3 17 6-6 4 4 7-8m0 0h-5m5 0v5" />,
     review: <path d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
     search: <path d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" />,
-    bell: (
-      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8Zm-4 11a2 2 0 0 1-4 0" />
+    bell: <path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8Zm-4 11a2 2 0 0 1-4 0" />,
+    help: (
+      <path d="M9.1 9a3 3 0 1 1 5.8 1c-.7 1.5-2.4 1.7-2.8 3m-.1 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
     ),
-    help: <path d="M9.1 9a3 3 0 1 1 5.8 1c-.7 1.5-2.4 1.7-2.8 3m-.1 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
   };
 
   return (
@@ -172,6 +176,129 @@ const DashboardCard = ({
 
 export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { token, user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
+  const [dashboard, setDashboard] = useState<{
+    generatedAt: string;
+    kpis: {
+      activeRequests: number;
+      pendingApproval: number;
+      interviewsThisWeek: number;
+      positionsFilled: number;
+      targetHeadcount: number;
+    };
+    approvalQueue: Array<{
+      id: string;
+      position: string;
+      department: string;
+      priority: string;
+      submittedAt: string;
+    }>;
+    pipeline: Array<{ label: string; value: number }>;
+    departmentActivity: Array<{ id: string; label: string; value: number }>;
+    recentActivity: Array<{
+      id: string;
+      requestId: string;
+      position: string;
+      action: string;
+      actor: string;
+      toStatus?: string | null;
+      createdAt: string;
+    }>;
+  } | null>(null);
+
+  useEffect(() => {
+    const loadDashboard = async () => {
+      setLoading(true);
+      setApiError('');
+      try {
+        setDashboard(await apiRequest('/reports/admin-dashboard', token));
+      } catch (loadError) {
+        setApiError(loadError instanceof Error ? loadError.message : 'Unable to load dashboard');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadDashboard();
+  }, [token]);
+
+  const kpis = [
+    {
+      label: 'Active Requests',
+      value: String(dashboard?.kpis.activeRequests ?? 0),
+      meta: 'Currently in progress',
+      valueClass: 'text-teal-command',
+      metaClass: 'text-approved',
+      icon: 'briefcase',
+    },
+    {
+      label: 'Pending Your Approval',
+      value: String(dashboard?.kpis.pendingApproval ?? 0),
+      meta: 'Requiring review',
+      valueClass: 'text-revision',
+      metaClass: 'text-slate-ink',
+      icon: 'alert',
+    },
+    {
+      label: 'Interviews This Week',
+      value: String(dashboard?.kpis.interviewsThisWeek ?? 0),
+      meta: 'Scheduled this week',
+      valueClass: 'text-on-surface',
+      metaClass: 'text-slate-ink',
+      icon: 'calendar',
+    },
+  ];
+
+  const approvalQueue = (dashboard?.approvalQueue ?? []).map((request) => ({
+    id: `RMS-${request.id.slice(0, 8).toUpperCase()}`,
+    position: request.position,
+    department: request.department,
+    priority: request.priority,
+    submitted: new Date(request.submittedAt).toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric',
+    }),
+    tone:
+      request.priority.toUpperCase() === 'HIGH' || request.priority.toUpperCase() === 'CRITICAL'
+        ? 'bg-rejected/10 text-rejected'
+        : 'bg-pending/10 text-pending',
+  }));
+
+  const maxPipeline = Math.max(1, ...(dashboard?.pipeline ?? []).map((item) => item.value));
+  const pipelineStages = (dashboard?.pipeline ?? []).map((stage, index) => ({
+    ...stage,
+    width: `${Math.round((stage.value / maxPipeline) * 100)}%`,
+    tone: `bg-teal-command/${Math.min(100, 20 + index * 20)}`,
+  }));
+
+  const maxDepartment = Math.max(
+    1,
+    ...(dashboard?.departmentActivity ?? []).map((item) => item.value),
+  );
+  const departmentActivity = (dashboard?.departmentActivity ?? []).map((department, index) => ({
+    ...department,
+    width: `${Math.round((department.value / maxDepartment) * 100)}%`,
+    tone: index === 0 ? 'bg-teal-command' : 'bg-teal-command/60',
+  }));
+
+  const activityFeed = (dashboard?.recentActivity ?? []).map((event) => ({
+    text: `${event.action.replace(/_/g, ' ').toLowerCase()} by ${event.actor}`,
+    subject: `RMS-${event.requestId.slice(0, 8).toUpperCase()}`,
+    time: new Date(event.createdAt).toLocaleString(),
+    tone:
+      event.toStatus === 'REJECTED'
+        ? 'border-rejected'
+        : event.toStatus === 'APPROVED'
+          ? 'border-approved'
+          : 'border-teal-command',
+  }));
+
+  const positionsFilled = dashboard?.kpis.positionsFilled ?? 0;
+  const targetHeadcount = dashboard?.kpis.targetHeadcount ?? 0;
+  const fillPercentage =
+    targetHeadcount > 0 ? Math.min(100, Math.round((positionsFilled / targetHeadcount) * 100)) : 0;
 
   return (
     <div className="mx-auto flex max-w-[1440px] flex-col gap-6">
@@ -215,6 +342,13 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </section>
 
+      {apiError ? (
+        <div className="rounded-lg border border-error/20 bg-error-container p-4 text-sm text-on-error-container">
+          {apiError}
+        </div>
+      ) : null}
+      {loading ? <p className="text-sm text-slate-ink">Loading dashboard...</p> : null}
+
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">
@@ -223,10 +357,14 @@ export const AdminDashboard: React.FC = () => {
           <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">
             Director Dashboard - Director
           </h1>
-          <p className="mt-1 text-sm text-slate-ink">Good morning, Mr. Tu</p>
+          <p className="mt-1 text-sm text-slate-ink">Welcome, {user?.displayName ?? 'Admin'}</p>
         </div>
         <div className="w-fit rounded-lg bg-surface-container px-3 py-1.5 font-mono text-sm text-slate-ink">
-          May 29, 2026
+          {new Date(dashboard?.generatedAt ?? Date.now()).toLocaleDateString(undefined, {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric',
+          })}
         </div>
       </header>
 
@@ -258,8 +396,10 @@ export const AdminDashboard: React.FC = () => {
               Positions Filled (YTD)
             </span>
             <div className="mt-5 flex items-baseline gap-1">
-              <span className="text-[30px] font-bold leading-none text-on-surface">34</span>
-              <span className="text-sm text-outline">/ 52</span>
+              <span className="text-[30px] font-bold leading-none text-on-surface">
+                {positionsFilled}
+              </span>
+              <span className="text-sm text-outline">/ {targetHeadcount}</span>
             </div>
           </div>
           <div className="relative h-16 w-16">
@@ -281,13 +421,13 @@ export const AdminDashboard: React.FC = () => {
                 r="25"
                 stroke="currentColor"
                 strokeDasharray="157"
-                strokeDashoffset="55"
+                strokeDashoffset={157 - (157 * fillPercentage) / 100}
                 strokeLinecap="round"
                 strokeWidth="7"
               />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-on-surface">
-              65%
+              {fillPercentage}%
             </div>
           </div>
         </DashboardCard>
@@ -362,7 +502,9 @@ export const AdminDashboard: React.FC = () => {
           </div>
           <div className="mt-6 flex items-center gap-2 border-t border-border-warm pt-4 text-revision">
             <Icon className="h-5 w-5" name="review" />
-            <span className="text-sm font-semibold">3 decisions pending your review</span>
+            <span className="text-sm font-semibold">
+              {dashboard?.kpis.pendingApproval ?? 0} decisions pending your review
+            </span>
           </div>
         </DashboardCard>
       </div>

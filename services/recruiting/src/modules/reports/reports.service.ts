@@ -331,6 +331,122 @@ export class ReportsService {
     });
   }
 
+  async getAdminDashboard() {
+    const now = new Date();
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const startOfWeek = new Date(now);
+    const day = startOfWeek.getDay();
+    startOfWeek.setDate(startOfWeek.getDate() - (day === 0 ? 6 : day - 1));
+    startOfWeek.setHours(0, 0, 0, 0);
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(endOfWeek.getDate() + 7);
+
+    const terminalStatuses = ['CLOSED', 'CANCELLED', 'REJECTED'];
+    const [requests, interviewsThisWeek, applicationGroups, recentLogs, acceptedApplications] =
+      await Promise.all([
+        this.prisma.recruitmentRequest.findMany({
+          include: {
+            department: {
+              select: { id: true, name: true, code: true },
+            },
+            createdBy: {
+              select: { displayName: true },
+            },
+            reviewedBy: {
+              select: { displayName: true },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.interviewSchedule.count({
+          where: {
+            scheduledAt: {
+              gte: startOfWeek,
+              lt: endOfWeek,
+            },
+          },
+        }),
+        this.prisma.application.groupBy({
+          by: ['status'],
+          _count: { _all: true },
+        }),
+        this.prisma.requestLog.findMany({
+          take: 5,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            request: {
+              select: { id: true, position: true },
+            },
+            performedBy: {
+              select: { displayName: true },
+            },
+          },
+        }),
+        this.prisma.application.count({
+          where: {
+            status: 'OFFER_ACCEPTED',
+            updatedAt: { gte: startOfYear },
+          },
+        }),
+      ]);
+
+    const activeRequests = requests.filter((request) => !terminalStatuses.includes(request.status));
+    const pendingRequests = requests.filter((request) => request.status === 'PENDING_REVIEW');
+    const yearlyRequests = requests.filter((request) => request.createdAt >= startOfYear);
+    const targetHeadcount = yearlyRequests.reduce((sum, request) => sum + request.headcount, 0);
+
+    const departmentMap = new Map<string, { id: string; label: string; value: number }>();
+    for (const request of activeRequests) {
+      const current = departmentMap.get(request.department.id) ?? {
+        id: request.department.id,
+        label: request.department.code || request.department.name,
+        value: 0,
+      };
+      current.value += 1;
+      departmentMap.set(request.department.id, current);
+    }
+
+    const applicationBreakdown = Object.fromEntries(
+      applicationGroups.map((group) => [group.status, group._count._all]),
+    );
+
+    return {
+      generatedAt: now,
+      kpis: {
+        activeRequests: activeRequests.length,
+        pendingApproval: pendingRequests.length,
+        interviewsThisWeek,
+        positionsFilled: acceptedApplications,
+        targetHeadcount,
+      },
+      approvalQueue: pendingRequests.slice(0, 5).map((request) => ({
+        id: request.id,
+        position: request.position,
+        department: request.department.code || request.department.name,
+        priority: request.urgency,
+        submittedAt: request.createdAt,
+      })),
+      pipeline: [
+        { label: 'Applied', value: applicationBreakdown.SUBMITTED ?? 0 },
+        { label: 'Screening', value: applicationBreakdown.SCREENING ?? 0 },
+        { label: 'Interview', value: applicationBreakdown.INTERVIEWING ?? 0 },
+        { label: 'Offer', value: applicationBreakdown.OFFER_EXTENDED ?? 0 },
+        { label: 'Hired', value: applicationBreakdown.OFFER_ACCEPTED ?? 0 },
+      ],
+      departmentActivity: Array.from(departmentMap.values()).sort((a, b) => b.value - a.value),
+      recentActivity: recentLogs.map((log) => ({
+        id: log.id,
+        requestId: log.request.id,
+        position: log.request.position,
+        action: log.action,
+        actor: log.performedBy.displayName,
+        fromStatus: log.fromStatus,
+        toStatus: log.toStatus,
+        createdAt: log.createdAt,
+      })),
+    };
+  }
+
   async getDepartmentReport(payload: { id: string; userId: string; role: string }) {
     const { id: departmentId, userId, role } = payload;
 

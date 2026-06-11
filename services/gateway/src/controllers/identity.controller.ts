@@ -32,6 +32,7 @@ import {
   Min,
   Max,
   IsBoolean,
+  IsObject,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -127,6 +128,25 @@ export class CreateOrganizationDto {
   @IsString()
   @IsNotEmpty()
   slug!: string;
+}
+
+export class UpdateOrganizationDto {
+  @ApiProperty({ example: 'Acme Corporation', required: false })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  name?: string;
+
+  @ApiProperty({ example: 'acme-corp', required: false })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  slug?: string;
+
+  @ApiProperty({ required: false, description: 'Organization-specific UI and workflow settings' })
+  @IsOptional()
+  @IsObject()
+  settings?: Record<string, unknown>;
 }
 
 export class CreateDepartmentDto {
@@ -467,6 +487,16 @@ export class IdentityController {
   @ApiOperation({ summary: 'Get organization by ID' })
   getOrganization(@Param('id') id: string) {
     return firstValueFrom(this.identityClient.send('identity.get_organization', { id }));
+  }
+
+  @Patch('organizations/:id')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update organization profile and settings' })
+  updateOrganization(@Param('id') id: string, @Body() body: UpdateOrganizationDto) {
+    return firstValueFrom(
+      this.identityClient.send('identity.update_organization', { id, ...body }),
+    );
   }
 
   // ─── Departments ─────────────────────────────────────────────────

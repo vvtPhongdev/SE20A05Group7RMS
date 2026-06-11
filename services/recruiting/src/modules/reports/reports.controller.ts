@@ -34,4 +34,9 @@ export class ReportsController {
   async getRealtimeTracking(@Payload() payload: { userId: string; role: string }) {
     return this.reportsService.getRealtimeTracking(payload);
   }
+
+  @MessagePattern('recruiting.admin_dashboard')
+  async getAdminDashboard() {
+    return this.reportsService.getAdminDashboard();
+  }
 }

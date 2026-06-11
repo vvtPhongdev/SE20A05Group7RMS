@@ -1,4 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../lib/api';
 
 type RoleKey = 'Admin' | 'Department Head' | 'HR Manager' | 'Candidate';
 type UserStatus = 'Active' | 'Inactive' | 'Pending';
@@ -169,12 +171,14 @@ const getInitialUsers = (): ManagedUser[] => {
   return list;
 };
 
+void getInitialUsers;
+
 const emptyForm: UserForm = {
   name: '',
   email: '',
   role: 'Candidate',
-  department: '',
-  status: 'Pending',
+  department: '-',
+  status: 'Active',
 };
 
 const roles: Array<RoleKey | 'All'> = [
@@ -184,10 +188,16 @@ const roles: Array<RoleKey | 'All'> = [
   'HR Manager',
   'Candidate',
 ];
-const statuses: Array<UserStatus | 'All'> = ['All', 'Active', 'Inactive', 'Pending'];
+const statuses: Array<UserStatus | 'All'> = ['All', 'Active', 'Inactive'];
 
 export const AdminUsers: React.FC = () => {
-  const [users, setUsers] = useState<ManagedUser[]>(() => getInitialUsers());
+  const { token } = useAuth();
+  const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [organizationId, setOrganizationId] = useState('');
+  const [departmentOptions, setDepartmentOptions] = useState<Array<{ id: string; name: string }>>(
+    [],
+  );
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<RoleKey | 'All'>('All');
   const [statusFilter, setStatusFilter] = useState<UserStatus | 'All'>('All');
@@ -201,10 +211,73 @@ export const AdminUsers: React.FC = () => {
   const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState<UserForm>(emptyForm);
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   // Dropdown Menu State
   const [activeMenuUserId, setActiveMenuUserId] = useState<string | null>(null);
+
+  type ApiUser = {
+    id: string;
+    email: string;
+    displayName: string;
+    role: string;
+    isActive: boolean;
+    updatedAt: string;
+    department?: { id: string; name: string } | null;
+  };
+
+  const mapRole = (role: string): RoleKey => {
+    if (role === 'ADMIN') return 'Admin';
+    if (role === 'DEPARTMENT_HEAD') return 'Department Head';
+    if (role === 'HR_MANAGER') return 'HR Manager';
+    return 'Candidate';
+  };
+
+  const apiRole = (role: RoleKey) =>
+    ({
+      Admin: 'ADMIN',
+      'Department Head': 'DEPARTMENT_HEAD',
+      'HR Manager': 'HR_MANAGER',
+      Candidate: 'CANDIDATE',
+    })[role];
+
+  const mapUser = (user: ApiUser): ManagedUser => ({
+    id: user.id,
+    name: user.displayName,
+    email: user.email,
+    role: mapRole(user.role),
+    department: user.department?.name ?? '-',
+    status: user.isActive ? 'Active' : 'Inactive',
+    lastLogin: new Date(user.updatedAt).toLocaleString(),
+  });
+
+  const loadUsers = async () => {
+    const response = await apiRequest<{ data: ApiUser[] }>('/users?limit=100', token);
+    setUsers(response.data.map(mapUser));
+  };
+
+  useEffect(() => {
+    const loadPage = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const [organizations, departments] = await Promise.all([
+          apiRequest<Array<{ id: string }>>('/organizations', token),
+          apiRequest<Array<{ id: string; name: string }>>('/departments', token),
+        ]);
+        setOrganizationId(organizations[0]?.id ?? '');
+        setDepartmentOptions(departments);
+        await loadUsers();
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : 'Unable to load users');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadPage();
+  }, [token]);
 
   // Get unique departments for filter dropdown dynamically
   const uniqueDepartments = useMemo(() => {
@@ -278,6 +351,7 @@ export const AdminUsers: React.FC = () => {
   const openCreateModal = () => {
     setEditingUser(null);
     setForm(emptyForm);
+    setPassword('');
     setError(null);
     setModalOpen(true);
   };
@@ -291,6 +365,7 @@ export const AdminUsers: React.FC = () => {
       department: user.department,
       status: user.status,
     });
+    setPassword('');
     setError(null);
     setModalOpen(true);
   };
@@ -301,25 +376,28 @@ export const AdminUsers: React.FC = () => {
     setError(null);
   };
 
-  const toggleStatus = (id: string) => {
-    setUsers((current) =>
-      current.map((user) =>
-        user.id === id
-          ? {
-              ...user,
-              status: user.status === 'Active' ? 'Inactive' : 'Active',
-            }
-          : user,
-      ),
-    );
+  const toggleStatus = async (id: string) => {
+    const user = users.find((item) => item.id === id);
+    if (!user) return;
+
+    setError(null);
+    try {
+      const updated = await apiRequest<ApiUser>(`/users/${id}/status`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive: user.status !== 'Active' }),
+      });
+      setUsers((current) => current.map((item) => (item.id === id ? mapUser(updated) : item)));
+    } catch (statusError) {
+      setError(statusError instanceof Error ? statusError.message : 'Unable to update user status');
+    }
   };
 
-  const saveUser = (event: React.FormEvent) => {
+  const saveUser = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
 
-    if (!form.name.trim() || !form.email.trim() || !form.department.trim()) {
-      setError('Name, email, and department are required.');
+    if (!form.name.trim() || !form.email.trim()) {
+      setError('Name and email are required.');
       return;
     }
 
@@ -328,30 +406,58 @@ export const AdminUsers: React.FC = () => {
       return;
     }
 
-    if (editingUser) {
-      setUsers((current) =>
-        current.map((user) =>
-          user.id === editingUser.id
-            ? {
-                ...user,
-                ...form,
-              }
-            : user,
-        ),
-      );
-    } else {
-      const nextId = `USR-${String(users.length + 1).padStart(3, '0')}`;
-      setUsers((current) => [
-        {
-          id: nextId,
-          ...form,
-          lastLogin: 'Never',
-        },
-        ...current,
-      ]);
-    }
+    const departmentId =
+      form.department === '-'
+        ? undefined
+        : departmentOptions.find((department) => department.name === form.department)?.id;
 
-    closeModal();
+    try {
+      if (editingUser) {
+        await apiRequest(`/users/${editingUser.id}`, token, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            displayName: form.name,
+            departmentId: departmentId ?? null,
+          }),
+        });
+        if (editingUser.role !== form.role) {
+          await apiRequest(`/users/${editingUser.id}/role`, token, {
+            method: 'PATCH',
+            body: JSON.stringify({ role: apiRole(form.role) }),
+          });
+        }
+        if ((editingUser.status === 'Active') !== (form.status === 'Active')) {
+          await apiRequest(`/users/${editingUser.id}/status`, token, {
+            method: 'PATCH',
+            body: JSON.stringify({ isActive: form.status === 'Active' }),
+          });
+        }
+      } else {
+        if (!organizationId) {
+          throw new Error('No organization is available for the new user');
+        }
+        if (!password || password.length < 8) {
+          setError('A password of at least 8 characters is required.');
+          return;
+        }
+        await apiRequest('/users', token, {
+          method: 'POST',
+          body: JSON.stringify({
+            email: form.email,
+            displayName: form.name,
+            role: apiRole(form.role),
+            organizationId,
+            departmentId,
+            password,
+          }),
+        });
+      }
+
+      await loadUsers();
+      closeModal();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save user');
+    }
   };
 
   // Render pagination numbers
@@ -508,6 +614,13 @@ export const AdminUsers: React.FC = () => {
         </button>
       </div>
 
+      {error && !modalOpen ? (
+        <div className="mb-4 rounded-lg border border-rejected/30 bg-rejected/5 px-4 py-3 text-sm font-medium text-rejected">
+          {error}
+        </div>
+      ) : null}
+      {loading ? <p className="mb-4 text-sm text-slate-ink">Loading users...</p> : null}
+
       {/* Summary Stats Pill Counters */}
       <div className="flex flex-wrap gap-3 mb-margin-lg">
         <div className="flex items-center px-4 py-2 bg-clean-surface border border-border-warm rounded-full gap-2">
@@ -565,7 +678,6 @@ export const AdminUsers: React.FC = () => {
           <option value="All">Status</option>
           <option value="Active">Active</option>
           <option value="Inactive">Inactive</option>
-          <option value="Pending">Pending</option>
         </select>
         <select
           className="bg-clean-surface border border-border-warm rounded-lg px-4 py-2 text-on-surface font-body-sm focus:ring-2 focus:ring-teal-command outline-none min-w-[160px]"
@@ -817,6 +929,7 @@ export const AdminUsers: React.FC = () => {
                   <span className="text-sm font-medium text-deep-charcoal">Email</span>
                   <input
                     className="h-11 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:bg-white focus:ring-2 focus:ring-teal-command/15"
+                    disabled={Boolean(editingUser)}
                     type="email"
                     value={form.email}
                     onChange={(event) =>
@@ -824,6 +937,19 @@ export const AdminUsers: React.FC = () => {
                     }
                   />
                 </label>
+                {!editingUser ? (
+                  <label className="space-y-2 block sm:col-span-2">
+                    <span className="text-sm font-medium text-deep-charcoal">Initial password</span>
+                    <input
+                      className="h-11 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:bg-white focus:ring-2 focus:ring-teal-command/15"
+                      minLength={8}
+                      required
+                      type="password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                    />
+                  </label>
+                ) : null}
                 <label className="space-y-2 block">
                   <span className="text-sm font-medium text-deep-charcoal">Role</span>
                   <select
@@ -844,13 +970,20 @@ export const AdminUsers: React.FC = () => {
                 </label>
                 <label className="space-y-2 block">
                   <span className="text-sm font-medium text-deep-charcoal">Department</span>
-                  <input
+                  <select
                     className="h-11 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:bg-white focus:ring-2 focus:ring-teal-command/15"
                     value={form.department}
                     onChange={(event) =>
                       setForm((current) => ({ ...current, department: event.target.value }))
                     }
-                  />
+                  >
+                    <option value="-">No department</option>
+                    {departmentOptions.map((department) => (
+                      <option key={department.id} value={department.name}>
+                        {department.name}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label className="space-y-2 sm:col-span-2 block">
                   <span className="text-sm font-medium text-deep-charcoal">Status</span>
