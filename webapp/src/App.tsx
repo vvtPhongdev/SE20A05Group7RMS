@@ -19,12 +19,27 @@ import { AdminAnnualReport } from './pages/AdminAnnualReport';
 import { AdminDeptStats } from './pages/AdminDeptStats';
 import { DeptHeadCreateRequest } from './pages/DeptHeadCreateRequest';
 import { DeptHeadDashboard } from './pages/DeptHeadDashboard';
+import { DeptHeadInterviews } from './pages/DeptHeadInterviews';
 import { DeptHeadRequests } from './pages/DeptHeadRequests';
 import { DeptHeadRequestDetail } from './pages/DeptHeadRequestDetail';
+import { DeptHeadSettings } from './pages/DeptHeadSettings';
 import { HRDashBoard } from './pages/HRDashBoard';
+import { HRRequestQueue } from './pages/HRRequestQueue';
+import { HRCampaigns } from './pages/HRCampaigns';
+import { HRCampaignDetail } from './pages/HRCampaignDetail';
+import { TaskPlanner } from './pages/TaskPlanner';
+import { HRTalentPool } from './pages/HRTalentPool';
+import { CandidateSearch } from './pages/CandidateSearch';
+import { HRInterviewSchedule } from './pages/HRInterviewSchedule';
+import { HRInterviewResults } from './pages/HRInterviewResults';
+import { HRPipelineReports } from './pages/HRPipelineReports';
+import { HRSystemNotifications } from './pages/HRSystemNotifications';
 import { CandidateDashboard } from './pages/CandidateDashboard';
+import { CandidateProfile } from './pages/CandidateProfile';
+import { CandidateUploadCv } from './pages/CandidateUploadCv';
+import { CandidateNotifications } from './pages/CandidateNotifications';
+import { CandidateInterviewDetails } from './pages/CandidateInterviewDetails';
 import { UserRole } from '@wr/contracts';
-import { PlaceholderPage } from './pages/PlaceholderPage';
 
 // Redirects user to their role-specific landing dashboard
 function HomeRedirect() {
@@ -219,10 +234,17 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.DEPARTMENT_HEAD]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Interviews & Assessment"
-                    description="Review interview invitations, schedules, and prepare technical candidate evaluations."
-                  />
+                  <DeptHeadInterviews />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dept-head/settings"
+            element={
+              <ProtectedRoute allowedRoles={[UserRole.DEPARTMENT_HEAD]}>
+                <Layout>
+                  <DeptHeadSettings />
                 </Layout>
               </ProtectedRoute>
             }
@@ -244,10 +266,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Request Queue"
-                    description="Monitor and review incoming staffing requests submitted by Department Heads."
-                  />
+                  <HRRequestQueue />
                 </Layout>
               </ProtectedRoute>
             }
@@ -257,10 +276,17 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Recruitment Campaigns"
-                    description="Build, update, and submit recruitment plans linked to approved staffing requests."
-                  />
+                  <HRCampaigns />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/hr/campaigns/:id"
+            element={
+              <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
+                <Layout>
+                  <HRCampaignDetail />
                 </Layout>
               </ProtectedRoute>
             }
@@ -270,10 +296,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Task Planner"
-                    description="Assign and check recruitment tasks (Job Posting, CV Collection, CV Screening)."
-                  />
+                  <TaskPlanner />
                 </Layout>
               </ProtectedRoute>
             }
@@ -283,10 +306,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Talent Pool"
-                    description="Browse and manage the full catalog of candidate profiles."
-                  />
+                  <HRTalentPool />
                 </Layout>
               </ProtectedRoute>
             }
@@ -296,10 +316,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Candidate Search"
-                    description="Utilize semantic vector search to find and screen matching CV documents."
-                  />
+                  <CandidateSearch />
                 </Layout>
               </ProtectedRoute>
             }
@@ -309,10 +326,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Interview Schedule"
-                    description="Coordinate and schedule candidate interviews with department panel members."
-                  />
+                  <HRInterviewSchedule />
                 </Layout>
               </ProtectedRoute>
             }
@@ -322,10 +336,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Interview Results"
-                    description="Log interview feedback, pass/fail status, and progress candidates."
-                  />
+                  <HRInterviewResults />
                 </Layout>
               </ProtectedRoute>
             }
@@ -335,10 +346,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Pipeline Reports"
-                    description="Overview of pipeline flow and time-to-hire statistics."
-                  />
+                  <HRPipelineReports />
                 </Layout>
               </ProtectedRoute>
             }
@@ -348,10 +356,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="System Notifications"
-                    description="Manage email templates, dispatch queue logs, and active alerts."
-                  />
+                  <HRSystemNotifications />
                 </Layout>
               </ProtectedRoute>
             }
@@ -373,10 +378,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.CANDIDATE]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="My Profile"
-                    description="Update personal contact information, experience details, and skill tags."
-                  />
+                  <CandidateProfile />
                 </Layout>
               </ProtectedRoute>
             }
@@ -386,10 +388,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.CANDIDATE]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Upload CV"
-                    description="Submit your PDF or DOCX CV for parsing and vector embedding indexing."
-                  />
+                  <CandidateUploadCv />
                 </Layout>
               </ProtectedRoute>
             }
@@ -399,10 +398,17 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.CANDIDATE]}>
                 <Layout>
-                  <PlaceholderPage
-                    title="Inbox Alerts"
-                    description="Check incoming notifications, interview invitations, and status updates."
-                  />
+                  <CandidateNotifications />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/candidate/interviews"
+            element={
+              <ProtectedRoute allowedRoles={[UserRole.CANDIDATE]}>
+                <Layout>
+                  <CandidateInterviewDetails />
                 </Layout>
               </ProtectedRoute>
             }
