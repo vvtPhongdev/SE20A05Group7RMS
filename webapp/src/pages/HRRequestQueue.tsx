@@ -362,6 +362,7 @@ export const HRRequestQueue: React.FC = () => {
                 name="search"
               />
               <input
+                aria-label="Search requests"
                 className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface pl-10 pr-3 text-sm text-deep-charcoal outline-none transition placeholder:text-on-surface-variant focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search requests..."
@@ -426,7 +427,16 @@ export const HRRequestQueue: React.FC = () => {
               <article
                 className="group relative cursor-pointer overflow-hidden rounded-lg border border-border-warm bg-clean-surface p-6 shadow-sm transition duration-200 hover:-translate-y-[2px] hover:border-teal-command/40"
                 key={request.id}
+                tabIndex={0}
+                role="button"
+                aria-label={`Review request for ${request.position} in ${request.department}`}
                 onClick={() => openReview(request)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openReview(request);
+                  }
+                }}
               >
                 <div className={`absolute bottom-0 left-0 top-0 w-1.5 ${urgency.rail}`} />
                 <div className="grid gap-4 lg:grid-cols-[1fr_auto]">

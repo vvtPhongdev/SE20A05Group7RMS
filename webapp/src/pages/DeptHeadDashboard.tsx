@@ -218,6 +218,7 @@ export const DeptHeadDashboard: React.FC = () => {
         <div className="relative w-full lg:w-80">
           <Icon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-outline" name="search" />
           <input
+            aria-label="Search requests, candidates"
             className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface pl-10 pr-4 text-sm outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
             placeholder="Search requests, candidates..."
             type="search"
@@ -300,35 +301,44 @@ export const DeptHeadDashboard: React.FC = () => {
           </div>
 
           <div className="mt-6 overflow-x-auto">
-            <table className="w-full min-w-[680px] text-left">
-              <thead className="border-b border-border-warm">
-                <tr>
-                  <th className="px-2 py-3 text-xs font-semibold uppercase tracking-wider text-outline">
+            <table role="table" className="w-full min-w-[680px] text-left">
+              <thead role="rowgroup" className="border-b border-border-warm">
+                <tr role="row">
+                  <th role="columnheader" scope="col" className="px-2 py-3 text-xs font-semibold uppercase tracking-wider text-outline">
                     Role Name
                   </th>
-                  <th className="px-2 py-3 text-xs font-semibold uppercase tracking-wider text-outline">
+                  <th role="columnheader" scope="col" className="px-2 py-3 text-xs font-semibold uppercase tracking-wider text-outline">
                     Applicants
                   </th>
-                  <th className="px-2 py-3 text-xs font-semibold uppercase tracking-wider text-outline">
+                  <th role="columnheader" scope="col" className="px-2 py-3 text-xs font-semibold uppercase tracking-wider text-outline">
                     Status
                   </th>
-                  <th className="px-2 py-3 text-xs font-semibold uppercase tracking-wider text-outline">
+                  <th role="columnheader" scope="col" className="px-2 py-3 text-xs font-semibold uppercase tracking-wider text-outline">
                     Hiring Manager
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border-warm/30">
+              <tbody role="rowgroup" className="divide-y divide-border-warm/30">
                 {roles.map((role) => (
                   <tr
+                    role="row"
+                    tabIndex={0}
+                    aria-label={`Role ${role.role}, ID ${role.id}, status is ${role.status}`}
                     className="cursor-pointer transition-colors hover:bg-workflow-ivory"
                     key={role.id}
                     onClick={() => navigate('/dept-head/requests')}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        navigate('/dept-head/requests');
+                      }
+                    }}
                   >
-                    <td className="px-2 py-4">
+                    <td role="cell" className="px-2 py-4">
                       <p className="text-sm font-semibold text-on-surface">{role.role}</p>
                       <p className="text-sm text-outline">{role.id}</p>
                     </td>
-                    <td className="px-2 py-4">
+                    <td role="cell" className="px-2 py-4">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-on-surface">{role.applicants}</span>
                         {role.delta && (
@@ -338,7 +348,7 @@ export const DeptHeadDashboard: React.FC = () => {
                         )}
                       </div>
                     </td>
-                    <td className="px-2 py-4">
+                    <td role="cell" className="px-2 py-4">
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${role.statusClass}`}
                       >
@@ -346,7 +356,7 @@ export const DeptHeadDashboard: React.FC = () => {
                         {role.status}
                       </span>
                     </td>
-                    <td className="px-2 py-4">
+                    <td role="cell" className="px-2 py-4">
                       <div className="flex items-center gap-2">
                         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-container-high text-[10px] font-bold text-teal-command">
                           {role.initials}

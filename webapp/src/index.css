@@ -243,3 +243,9 @@
 .wr-sidebar-subitem.active svg {
   stroke: var(--wr-accent-primary);
 }
+
+/* Accessibility: High-contrast focus rings for keyboard navigation users */
+:focus-visible {
+  outline: 2px solid var(--color-teal-command) !important;
+  outline-offset: 2px !important;
+}

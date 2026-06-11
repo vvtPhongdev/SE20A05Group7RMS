@@ -207,6 +207,7 @@ export const DeptHeadRequests: React.FC = () => {
             <span className="sr-only">Search requests</span>
             <Icon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-outline" name="search" />
             <input
+              aria-label="Search requests"
               className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface pl-9 pr-3 text-sm text-deep-charcoal shadow-sm outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 md:w-56"
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search requests..."
@@ -316,6 +317,7 @@ export const DeptHeadRequests: React.FC = () => {
               <Icon className="h-4 w-4" name="sort" />
               <span>Sort</span>
               <select
+                aria-label="Sort requests"
                 className="max-w-[130px] border-none bg-transparent p-0 text-xs font-semibold text-deep-charcoal outline-none focus:ring-0"
                 onChange={(event) => setSortKey(event.target.value as SortKey)}
                 value={sortKey}
@@ -331,34 +333,35 @@ export const DeptHeadRequests: React.FC = () => {
 
         <div className="overflow-hidden rounded-xl border border-border-warm bg-clean-surface shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left">
-              <thead>
-                <tr className="border-b border-border-warm bg-parchment-lift text-sm text-on-surface-variant">
-                  <th className="px-6 py-4 font-semibold">ID</th>
-                  <th className="px-6 py-4 font-semibold">Position</th>
-                  <th className="px-6 py-4 font-semibold">Qty</th>
-                  <th className="px-6 py-4 font-semibold">Priority</th>
-                  <th className="px-6 py-4 font-semibold">Submitted</th>
-                  <th className="px-6 py-4 font-semibold">Status</th>
-                  <th className="px-6 py-4 text-right font-semibold">Actions</th>
+            <table role="table" className="w-full min-w-[900px] text-left">
+              <thead role="rowgroup">
+                <tr role="row" className="border-b border-border-warm bg-parchment-lift text-sm text-on-surface-variant">
+                  <th role="columnheader" scope="col" className="px-6 py-4 font-semibold">ID</th>
+                  <th role="columnheader" scope="col" className="px-6 py-4 font-semibold">Position</th>
+                  <th role="columnheader" scope="col" className="px-6 py-4 font-semibold">Qty</th>
+                  <th role="columnheader" scope="col" className="px-6 py-4 font-semibold">Priority</th>
+                  <th role="columnheader" scope="col" className="px-6 py-4 font-semibold">Submitted</th>
+                  <th role="columnheader" scope="col" className="px-6 py-4 font-semibold">Status</th>
+                  <th role="columnheader" scope="col" className="px-6 py-4 text-right font-semibold">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border-warm">
+              <tbody role="rowgroup" className="divide-y divide-border-warm">
                 {visibleRequests.map((request, index) => (
                   <tr
+                    role="row"
                     className={`transition hover:bg-teal-command/5 ${
                       index % 2 === 1 ? 'bg-workflow-ivory/60' : 'bg-clean-surface'
                     }`}
                     key={request.id}
                   >
-                    <td className="px-6 py-4 font-mono text-sm text-teal-command">{request.id}</td>
-                    <td className="px-6 py-4 text-sm font-semibold text-deep-charcoal">
+                    <td role="cell" className="px-6 py-4 font-mono text-sm text-teal-command">{request.id}</td>
+                    <td role="cell" className="px-6 py-4 text-sm font-semibold text-deep-charcoal">
                       {request.position}
                     </td>
-                    <td className="px-6 py-4 font-mono text-sm text-deep-charcoal">
+                    <td role="cell" className="px-6 py-4 font-mono text-sm text-deep-charcoal">
                       {request.quantity}
                     </td>
-                    <td className="px-6 py-4">
+                    <td role="cell" className="px-6 py-4">
                       <span
                         className={`inline-flex items-center gap-1.5 text-xs font-bold uppercase ${priorityStyles[request.priority]}`}
                       >
@@ -366,15 +369,15 @@ export const DeptHeadRequests: React.FC = () => {
                         {request.priority}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-on-surface-variant">{request.submitted}</td>
-                    <td className="px-6 py-4">
+                    <td role="cell" className="px-6 py-4 text-sm text-on-surface-variant">{request.submitted}</td>
+                    <td role="cell" className="px-6 py-4">
                       <span
                         className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${statusStyles[request.status]}`}
                       >
                         {request.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td role="cell" className="px-6 py-4">
                       <div className="flex justify-end gap-3">
                         {request.status === 'Draft' && (
                           <>

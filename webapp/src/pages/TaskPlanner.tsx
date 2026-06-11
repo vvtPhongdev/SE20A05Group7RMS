@@ -246,9 +246,10 @@ export const TaskPlanner: React.FC = () => {
 
         <section className="rounded-lg border border-border-warm bg-clean-surface p-5 shadow-sm">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto] xl:items-end">
-            <label className="flex flex-col gap-1">
+             <label className="flex flex-col gap-1">
               <span className="text-xs font-semibold text-on-surface-variant">Campaign</span>
               <select
+                aria-label="Filter by campaign"
                 className="h-10 rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
                 onChange={(event) => setCampaign(event.target.value)}
                 value={campaign}
@@ -264,6 +265,7 @@ export const TaskPlanner: React.FC = () => {
             <label className="flex flex-col gap-1">
               <span className="text-xs font-semibold text-on-surface-variant">Task Type</span>
               <select
+                aria-label="Filter by task type"
                 className="h-10 rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
                 onChange={(event) => setType(event.target.value as TaskType | 'All Types')}
                 value={type}
@@ -279,6 +281,7 @@ export const TaskPlanner: React.FC = () => {
             <label className="flex flex-col gap-1">
               <span className="text-xs font-semibold text-on-surface-variant">Assignee</span>
               <select
+                aria-label="Filter by assignee"
                 className="h-10 rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
                 onChange={(event) => setAssignee(event.target.value)}
                 value={assignee}
@@ -292,6 +295,7 @@ export const TaskPlanner: React.FC = () => {
             <label className="flex flex-col gap-1">
               <span className="text-xs font-semibold text-on-surface-variant">Status</span>
               <select
+                aria-label="Filter by status"
                 className="h-10 rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
                 onChange={(event) => setStatus(event.target.value as TaskStatus | 'Any Status')}
                 value={status}
@@ -316,9 +320,9 @@ export const TaskPlanner: React.FC = () => {
 
         <section className="overflow-hidden rounded-lg border border-border-warm bg-clean-surface shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] border-collapse text-left">
-              <thead className="bg-parchment-lift text-xs uppercase tracking-[0.14em] text-secondary">
-                <tr>
+            <table role="table" className="w-full min-w-[980px] border-collapse text-left">
+              <thead role="rowgroup" className="bg-parchment-lift text-xs uppercase tracking-[0.14em] text-secondary">
+                <tr role="row">
                   {[
                     'Task Type',
                     'Campaign',
@@ -330,6 +334,8 @@ export const TaskPlanner: React.FC = () => {
                     'Actions',
                   ].map((column) => (
                     <th
+                      role="columnheader"
+                      scope="col"
                       className={`px-5 py-4 font-semibold ${column === 'Actions' ? 'text-right' : ''}`}
                       key={column}
                     >
@@ -338,18 +344,27 @@ export const TaskPlanner: React.FC = () => {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border-warm">
+              <tbody role="rowgroup" className="divide-y divide-border-warm">
                 {visibleTasks.map((task, index) => (
                   <tr
+                    role="row"
+                    tabIndex={0}
+                    aria-label={`Task ${task.id}: ${task.type} for ${task.campaign}, status is ${task.status}`}
                     className={`cursor-pointer transition hover:bg-teal-command/5 ${index % 2 === 1 ? 'bg-workflow-ivory/50' : 'bg-clean-surface'} ${task.blocker ? 'border-l-4 border-revision' : ''}`}
                     key={task.id}
                     onClick={() => setSelectedTask(task)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setSelectedTask(task);
+                      }
+                    }}
                   >
-                    <td className="px-5 py-4 font-mono text-sm font-semibold text-deep-charcoal">
+                    <td role="cell" className="px-5 py-4 font-mono text-sm font-semibold text-deep-charcoal">
                       {task.type}
                     </td>
-                    <td className="px-5 py-4 text-sm text-deep-charcoal">{task.campaign}</td>
-                    <td className="px-5 py-4">
+                    <td role="cell" className="px-5 py-4 text-sm text-deep-charcoal">{task.campaign}</td>
+                    <td role="cell" className="px-5 py-4">
                       <div className="flex items-center gap-2">
                         <span
                           className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold ${avatarStyles[index % avatarStyles.length]}`}
@@ -359,9 +374,9 @@ export const TaskPlanner: React.FC = () => {
                         <span className="text-sm text-deep-charcoal">{task.assignee}</span>
                       </div>
                     </td>
-                    <td className="px-5 py-4 text-sm text-slate-ink">{task.startDate}</td>
-                    <td className="px-5 py-4 text-sm text-slate-ink">{task.dueDate}</td>
-                    <td className="px-5 py-4">
+                    <td role="cell" className="px-5 py-4 text-sm text-slate-ink">{task.startDate}</td>
+                    <td role="cell" className="px-5 py-4 text-sm text-slate-ink">{task.dueDate}</td>
+                    <td role="cell" className="px-5 py-4">
                       <span
                         className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold uppercase ${statusStyles[task.status]}`}
                       >
@@ -370,11 +385,13 @@ export const TaskPlanner: React.FC = () => {
                       </span>
                     </td>
                     <td
+                      role="cell"
                       className={`px-5 py-4 text-sm ${task.blocker ? 'font-semibold text-rejected' : 'text-on-surface-variant/50'}`}
                     >
                       {task.blocker || '-'}
                     </td>
                     <td
+                      role="cell"
                       className="px-5 py-4 text-right"
                       onClick={(event) => event.stopPropagation()}
                     >
@@ -503,6 +520,7 @@ export const TaskPlanner: React.FC = () => {
                     </div>
                   ))}
                   <textarea
+                    aria-label="Add a comment"
                     className="h-24 w-full resize-none rounded border border-border-warm bg-clean-surface p-3 text-sm outline-none transition placeholder:text-on-surface-variant focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
                     placeholder="Add a comment..."
                   />

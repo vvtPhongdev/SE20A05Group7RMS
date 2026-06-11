@@ -256,6 +256,7 @@ export const AdminApprovalQueue: React.FC = () => {
               <span className="material-symbols-outlined text-[20px]">search</span>
             </span>
             <input
+              aria-label="Search requests"
               className="bg-clean-surface border border-border-warm rounded-full pl-10 pr-4 py-1.5 text-body-sm w-64 focus:ring-2 focus:ring-teal-command outline-none transition-all"
               placeholder="Search requests..."
               type="text"
@@ -401,6 +402,7 @@ export const AdminApprovalQueue: React.FC = () => {
           <div className="flex gap-2 self-end sm:self-auto">
             {/* Department Dropdown */}
             <select
+              aria-label="Filter by department"
               className="bg-white border border-border-warm rounded-lg px-3 py-1.5 text-sm text-on-surface outline-none focus:ring-2 focus:ring-teal-command"
               value={department}
               onChange={(e) => setDepartment(e.target.value)}
@@ -423,37 +425,46 @@ export const AdminApprovalQueue: React.FC = () => {
 
         {/* Table View */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[800px]">
-            <thead>
-              <tr className="bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm border-b border-border-warm">
-                <th className="px-6 py-4 font-semibold uppercase tracking-wider">Request ID</th>
-                <th className="px-6 py-4 font-semibold uppercase tracking-wider">Department</th>
-                <th className="px-6 py-4 font-semibold uppercase tracking-wider">Position</th>
-                <th className="px-6 py-4 font-semibold uppercase tracking-wider">Quantity</th>
-                <th className="px-6 py-4 font-semibold uppercase tracking-wider">Priority</th>
-                <th className="px-6 py-4 font-semibold uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 font-semibold uppercase tracking-wider">Date</th>
-                <th className="px-6 py-4 font-semibold uppercase tracking-wider text-right">
+          <table role="table" className="w-full text-left border-collapse min-w-[800px]">
+            <thead role="rowgroup">
+              <tr role="row" className="bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm border-b border-border-warm">
+                <th role="columnheader" scope="col" className="px-6 py-4 font-semibold uppercase tracking-wider">Request ID</th>
+                <th role="columnheader" scope="col" className="px-6 py-4 font-semibold uppercase tracking-wider">Department</th>
+                <th role="columnheader" scope="col" className="px-6 py-4 font-semibold uppercase tracking-wider">Position</th>
+                <th role="columnheader" scope="col" className="px-6 py-4 font-semibold uppercase tracking-wider">Quantity</th>
+                <th role="columnheader" scope="col" className="px-6 py-4 font-semibold uppercase tracking-wider">Priority</th>
+                <th role="columnheader" scope="col" className="px-6 py-4 font-semibold uppercase tracking-wider">Status</th>
+                <th role="columnheader" scope="col" className="px-6 py-4 font-semibold uppercase tracking-wider">Date</th>
+                <th role="columnheader" scope="col" className="px-6 py-4 font-semibold uppercase tracking-wider text-right">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border-warm font-body-sm text-body-sm">
+            <tbody role="rowgroup" className="divide-y divide-border-warm font-body-sm text-body-sm">
               {paginatedRequests.map((request) => (
                 <tr
+                  role="row"
+                  tabIndex={0}
+                  aria-label={`Request ${request.id}: ${request.position} for ${request.department}, status ${request.status}`}
                   key={request.id}
                   className="hover:shadow-[inset_4px_0_0_0_#0D9488] hover:bg-surface-container-low/40 transition-all cursor-pointer group"
                   onClick={() => handleOpenDrawer(request)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      handleOpenDrawer(request);
+                    }
+                  }}
                 >
-                  <td className="px-6 py-4 font-data-mono text-data-mono text-teal-command font-semibold">
+                  <td role="cell" className="px-6 py-4 font-data-mono text-data-mono text-teal-command font-semibold">
                     #{request.id}
                   </td>
-                  <td className="px-6 py-4">{request.department}</td>
-                  <td className="px-6 py-4 font-medium text-deep-charcoal">{request.position}</td>
-                  <td className="px-6 py-4 font-semibold">
+                  <td role="cell" className="px-6 py-4">{request.department}</td>
+                  <td role="cell" className="px-6 py-4 font-medium text-deep-charcoal">{request.position}</td>
+                  <td role="cell" className="px-6 py-4 font-semibold">
                     {String(request.headcount).padStart(2, '0')}
                   </td>
-                  <td className="px-6 py-4">
+                  <td role="cell" className="px-6 py-4">
                     <span
                       className={`px-2.5 py-1 rounded-lg font-label-sm text-label-sm flex items-center gap-1.5 w-fit ${
                         request.priority === 'High'
@@ -469,7 +480,7 @@ export const AdminApprovalQueue: React.FC = () => {
                       {request.priority}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
+                  <td role="cell" className="px-6 py-4">
                     <span
                       className={`px-2.5 py-1 rounded-lg font-label-sm text-label-sm flex items-center gap-1.5 w-fit ${
                         request.status === 'Approved'
@@ -495,8 +506,8 @@ export const AdminApprovalQueue: React.FC = () => {
                       {request.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-on-surface-variant">{request.submitted}</td>
-                  <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
+                  <td role="cell" className="px-6 py-4 text-on-surface-variant">{request.submitted}</td>
+                  <td role="cell" className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                     {request.status === 'Pending' || request.status === 'Draft' ? (
                       <button
                         className="px-4 py-1.5 border border-teal-command text-teal-command rounded-lg font-label-md hover:bg-teal-command hover:text-white transition-all font-semibold"

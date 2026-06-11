@@ -539,6 +539,7 @@ export const AdminUsers: React.FC = () => {
             search
           </span>
           <input
+            aria-label="Search by name or email"
             className="w-full bg-clean-surface border border-border-warm rounded-lg pl-10 pr-4 py-2 focus:ring-2 focus:ring-teal-command outline-none font-body-sm text-on-surface"
             placeholder="Search by name or email"
             type="text"
@@ -547,6 +548,7 @@ export const AdminUsers: React.FC = () => {
           />
         </div>
         <select
+          aria-label="Filter by role"
           className="bg-clean-surface border border-border-warm rounded-lg px-4 py-2 text-on-surface font-body-sm focus:ring-2 focus:ring-teal-command outline-none min-w-[140px]"
           value={roleFilter}
           onChange={(e) => handleRoleFilterChange(e.target.value as RoleKey | 'All')}
@@ -558,6 +560,7 @@ export const AdminUsers: React.FC = () => {
           <option value="Candidate">Candidate</option>
         </select>
         <select
+          aria-label="Filter by status"
           className="bg-clean-surface border border-border-warm rounded-lg px-4 py-2 text-on-surface font-body-sm focus:ring-2 focus:ring-teal-command outline-none min-w-[140px]"
           value={statusFilter}
           onChange={(e) => handleStatusFilterChange(e.target.value as UserStatus | 'All')}
@@ -568,6 +571,7 @@ export const AdminUsers: React.FC = () => {
           <option value="Pending">Pending</option>
         </select>
         <select
+          aria-label="Filter by department"
           className="bg-clean-surface border border-border-warm rounded-lg px-4 py-2 text-on-surface font-body-sm focus:ring-2 focus:ring-teal-command outline-none min-w-[160px]"
           value={deptFilter}
           onChange={(e) => handleDeptFilterChange(e.target.value)}
@@ -586,33 +590,33 @@ export const AdminUsers: React.FC = () => {
       {/* Data Table Card */}
       <div className="clean-surface-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-workflow-ivory border-b border-border-warm">
-                <th className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider">
+          <table role="table" className="w-full text-left border-collapse">
+            <thead role="rowgroup">
+              <tr role="row" className="bg-workflow-ivory border-b border-border-warm">
+                <th role="columnheader" scope="col" className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider">
                   User
                 </th>
-                <th className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider">
+                <th role="columnheader" scope="col" className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider">
                   Role
                 </th>
-                <th className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider">
+                <th role="columnheader" scope="col" className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider">
                   Department
                 </th>
-                <th className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider">
+                <th role="columnheader" scope="col" className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider">
+                <th role="columnheader" scope="col" className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider">
                   Last Active
                 </th>
-                <th className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider text-right">
+                <th role="columnheader" scope="col" className="px-margin-md py-4 font-label-md text-slate-ink uppercase tracking-wider text-right">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border-warm">
+            <tbody role="rowgroup" className="divide-y divide-border-warm">
               {paginatedUsers.map((user) => (
-                <tr className="hover:bg-workflow-ivory transition-colors group" key={user.id}>
-                  <td className="px-margin-md py-4">
+                <tr role="row" className="hover:bg-workflow-ivory transition-colors group" key={user.id}>
+                  <td role="cell" className="px-margin-md py-4">
                     <div className="flex items-center gap-3">
                       {user.avatarUrl ? (
                         <img
@@ -635,7 +639,7 @@ export const AdminUsers: React.FC = () => {
                       </div>
                     </div>
                   </td>
-                  <td className="px-margin-md py-4">
+                  <td role="cell" className="px-margin-md py-4">
                     <span
                       className={`inline-flex items-center px-3 py-1 rounded-full text-[12px] font-semibold text-white ${
                         user.role === 'Admin'
@@ -650,10 +654,10 @@ export const AdminUsers: React.FC = () => {
                       {user.role === 'Department Head' ? 'Dept Head' : user.role}
                     </span>
                   </td>
-                  <td className="px-margin-md py-4 font-body-sm text-on-surface">
+                  <td role="cell" className="px-margin-md py-4 font-body-sm text-on-surface">
                     {user.department}
                   </td>
-                  <td className="px-margin-md py-4">
+                  <td role="cell" className="px-margin-md py-4">
                     <span
                       className={`flex items-center gap-1.5 font-label-md ${
                         user.status === 'Active'
@@ -675,10 +679,10 @@ export const AdminUsers: React.FC = () => {
                       {user.status}
                     </span>
                   </td>
-                  <td className="px-margin-md py-4 font-data-mono text-slate-ink">
+                  <td role="cell" className="px-margin-md py-4 font-data-mono text-slate-ink">
                     {user.lastLogin}
                   </td>
-                  <td className="px-margin-md py-4 text-right relative">
+                  <td role="cell" className="px-margin-md py-4 text-right relative">
                     <button
                       className="text-on-surface-variant hover:text-teal-command p-1.5 rounded-full hover:bg-surface-container transition-colors"
                       onClick={() =>
