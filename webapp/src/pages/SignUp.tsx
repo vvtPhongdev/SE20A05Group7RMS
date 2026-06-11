@@ -184,7 +184,7 @@ export const SignUp: React.FC = () => {
       localStorage.removeItem('registered_email');
 
       if (data.accessToken && data.user) {
-        loginWithToken(data.accessToken, data.user);
+        loginWithToken(data.accessToken, data.user, data.refreshToken);
       }
     } catch (err: any) {
       setOtpError(err.message || 'Invalid or expired code. Please try again.');
