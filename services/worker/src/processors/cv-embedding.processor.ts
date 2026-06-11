@@ -1,10 +1,11 @@
 import { PrismaClient } from '@prisma/client';
 import { AuditLogService } from '@wr/database';
 import { AuditAction, AuditEntityType, EmbeddingGenerateJobPayload } from '@wr/contracts';
+import { config } from '../config';
 
 // Singleton Prisma client (same pattern as other services)
 const prisma = new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['query', 'warn', 'error'] : ['warn', 'error'],
+  log: config.NODE_ENV === 'development' ? ['query', 'warn', 'error'] : ['warn', 'error'],
 });
 
 const auditLog = new AuditLogService(prisma);

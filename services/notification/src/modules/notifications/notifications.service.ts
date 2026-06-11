@@ -13,6 +13,7 @@ import {
   EmailStatus,
 } from '@wr/contracts';
 import { EmailTemplateService } from './email-template.service';
+import { config } from '../../config';
 
 @Injectable()
 export class NotificationsService {
@@ -23,7 +24,7 @@ export class NotificationsService {
     @InjectQueue(QUEUE_NAMES.EMAIL_SEND) private readonly emailQueue: Queue,
     private readonly emailTemplateService: EmailTemplateService,
   ) {
-    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+    const redisUrl = config.REDIS_URL;
     this.pubClient = new Redis(redisUrl);
   }
 

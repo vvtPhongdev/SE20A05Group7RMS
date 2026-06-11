@@ -6,7 +6,9 @@ import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { IdentityModule } from './identity.module';
 
-const PORT = parseInt(process.env.IDENTITY_PORT || '3010', 10);
+import { config as appConfig } from './config';
+
+const PORT = appConfig.IDENTITY_PORT;
 
 async function bootstrap() {
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(IdentityModule, {

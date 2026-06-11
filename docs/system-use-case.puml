@@ -1,0 +1,360 @@
+@startuml
+title RMS - Use Case Diagram by Actor
+
+left to right direction
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundCorner 10
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+
+skinparam actor {
+  BackgroundColor #DBEAFE
+  BorderColor #1D4ED8
+  FontColor #172554
+}
+
+skinparam usecase {
+  BackgroundColor #F8FAFC
+  BorderColor #475569
+  ArrowColor #475569
+  FontColor #0F172A
+}
+
+skinparam rectangle {
+  BorderColor #64748B
+  FontColor #0F172A
+}
+
+actor "Admin / Boss\n(ADMIN)" as Admin
+actor "Department Head\n(DEPARTMENT_HEAD)" as DeptHead
+actor "HR Manager\n(HR_MANAGER)" as HR
+actor "Candidate\n(CANDIDATE)" as Candidate
+
+actor "Email Service" as Email <<external>>
+actor "BullMQ Worker" as Worker <<system>>
+actor "PostgreSQL / pgvector" as Database <<external>>
+actor "Redis / BullMQ" as Queue <<external>>
+
+rectangle "Recruitment Management System (RMS)" {
+
+  package "Authentication" {
+    usecase "Register Account" as UC_Register
+    usecase "Verify Email OTP" as UC_VerifyEmail
+    usecase "Login" as UC_Login
+    usecase "Refresh Token" as UC_Refresh
+    usecase "Logout" as UC_Logout
+    usecase "Forgot Password" as UC_ForgotPassword
+    usecase "Reset Password" as UC_ResetPassword
+    usecase "View Current Profile" as UC_CurrentProfile
+  }
+
+  package "User, Organization and Department Management" {
+    usecase "View Users" as UC_ViewUsers
+    usecase "Update User Role" as UC_UpdateUserRole
+    usecase "Activate / Deactivate User" as UC_UpdateUserStatus
+    usecase "View Organizations" as UC_ViewOrganizations
+    usecase "Create Organization" as UC_CreateOrganization
+    usecase "View Departments" as UC_ViewDepartments
+    usecase "Create Department" as UC_CreateDepartment
+    usecase "Update Department" as UC_UpdateDepartment
+    usecase "Assign Department Head" as UC_AssignDeptHead
+    usecase "Configure System Settings" as UC_SystemSettings
+  }
+
+  package "Recruitment Request Management" {
+    usecase "Create Recruitment Request" as UC_CreateRequest
+    usecase "Edit Draft Request" as UC_EditRequest
+    usecase "Submit Recruitment Request" as UC_SubmitRequest
+    usecase "View Request List" as UC_ViewRequests
+    usecase "View Request Detail" as UC_ViewRequestDetail
+    usecase "Review Request" as UC_ReviewRequest
+    usecase "Forward Request to Boss" as UC_ForwardRequest
+    usecase "Approve Request" as UC_ApproveRequest
+    usecase "Reject Request" as UC_RejectRequest
+    usecase "Request Revision" as UC_RequestRevision
+    usecase "View Request Audit Trail" as UC_RequestLogs
+    usecase "Track Request Progress" as UC_RequestTracking
+  }
+
+  package "Recruitment Plan and Task Management" {
+    usecase "Create Overall Plan" as UC_CreatePlan
+    usecase "View Plan Detail" as UC_ViewPlan
+    usecase "Update Overall Plan" as UC_UpdatePlan
+    usecase "Submit Plan for Approval" as UC_SubmitPlan
+    usecase "Approve Plan" as UC_ApprovePlan
+    usecase "Request Plan Revision" as UC_RequestPlanRevision
+    usecase "Add Plan Task" as UC_AddTask
+    usecase "Update Plan Task" as UC_UpdateTask
+    usecase "Update Task Status" as UC_UpdateTaskStatus
+    usecase "Enforce Plan-Locked Execution" as UC_PlanLock
+  }
+
+  package "Candidate and CV Management" {
+    usecase "Update Candidate Profile" as UC_UpdateProfile
+    usecase "Upload CV" as UC_UploadCV
+    usecase "Validate CV File" as UC_ValidateCV
+    usecase "Parse CV Content" as UC_ParseCV
+    usecase "Generate CV Embedding" as UC_GenerateEmbedding
+    usecase "List Candidates" as UC_ListCandidates
+    usecase "View Candidate Profile" as UC_ViewCandidate
+    usecase "View Candidate CV" as UC_ViewCV
+    usecase "Search Candidates by CV" as UC_SearchCandidates
+  }
+
+  package "Interview Management" {
+    usecase "View Interview List" as UC_ViewInterviews
+    usecase "View Interview Detail" as UC_ViewInterviewDetail
+    usecase "Check Available Slots" as UC_AvailableSlots
+    usecase "Schedule Interview" as UC_ScheduleInterview
+    usecase "Update Interview" as UC_UpdateInterview
+    usecase "Reschedule Interview" as UC_RescheduleInterview
+    usecase "Cancel Interview" as UC_CancelInterview
+    usecase "Receive Interview Invitation" as UC_ReceiveInvitation
+    usecase "Join Interview Panel" as UC_JoinPanel
+    usecase "Record Interview Result" as UC_RecordResult
+    usecase "Review Interview Result" as UC_ReviewResult
+    usecase "Make Final Hiring Decision" as UC_HiringDecision
+  }
+
+  package "Offer and Communication" {
+    usecase "Generate Offer Letter" as UC_GenerateOffer
+    usecase "Send Offer Letter" as UC_SendOffer
+    usecase "Accept / Decline Offer" as UC_OfferResponse
+    usecase "Send Rejection Email" as UC_SendRejection
+    usecase "Send Email" as UC_SendEmail
+    usecase "Track Email Delivery" as UC_EmailLog
+  }
+
+  package "Notification Management" {
+    usecase "View Notifications" as UC_ViewNotifications
+    usecase "View Unread Count" as UC_UnreadCount
+    usecase "Mark Notification as Read" as UC_MarkRead
+    usecase "Mark All Notifications as Read" as UC_MarkAllRead
+    usecase "Create System Notification" as UC_CreateNotification
+  }
+
+  package "Dashboard and Reporting" {
+    usecase "View Admin Dashboard" as UC_AdminDashboard
+    usecase "View Department Dashboard" as UC_DeptDashboard
+    usecase "View HR Dashboard" as UC_HRDashboard
+    usecase "View Candidate Dashboard" as UC_CandidateDashboard
+    usecase "View Annual Report" as UC_AnnualReport
+    usecase "View Department Report" as UC_DepartmentReport
+    usecase "View Time-to-Hire Metrics" as UC_TimeToHire
+    usecase "View Pipeline Overview" as UC_PipelineReport
+    usecase "Export Report" as UC_ExportReport
+  }
+}
+
+' Shared authentication use cases
+Admin -- UC_Login
+Admin -- UC_Refresh
+Admin -- UC_Logout
+Admin -- UC_ForgotPassword
+Admin -- UC_ResetPassword
+Admin -- UC_CurrentProfile
+
+DeptHead -- UC_Login
+DeptHead -- UC_Refresh
+DeptHead -- UC_Logout
+DeptHead -- UC_ForgotPassword
+DeptHead -- UC_ResetPassword
+DeptHead -- UC_CurrentProfile
+
+HR -- UC_Login
+HR -- UC_Refresh
+HR -- UC_Logout
+HR -- UC_ForgotPassword
+HR -- UC_ResetPassword
+HR -- UC_CurrentProfile
+
+Candidate -- UC_Register
+Candidate -- UC_VerifyEmail
+Candidate -- UC_Login
+Candidate -- UC_Refresh
+Candidate -- UC_Logout
+Candidate -- UC_ForgotPassword
+Candidate -- UC_ResetPassword
+Candidate -- UC_CurrentProfile
+
+' Admin / Boss use cases
+Admin -- UC_ViewUsers
+Admin -- UC_UpdateUserRole
+Admin -- UC_UpdateUserStatus
+Admin -- UC_ViewOrganizations
+Admin -- UC_CreateOrganization
+Admin -- UC_ViewDepartments
+Admin -- UC_CreateDepartment
+Admin -- UC_UpdateDepartment
+Admin -- UC_AssignDeptHead
+Admin -- UC_SystemSettings
+Admin -- UC_ViewRequests
+Admin -- UC_ViewRequestDetail
+Admin -- UC_ApproveRequest
+Admin -- UC_RejectRequest
+Admin -- UC_RequestLogs
+Admin -- UC_ViewPlan
+Admin -- UC_ApprovePlan
+Admin -- UC_RequestPlanRevision
+Admin -- UC_ViewInterviews
+Admin -- UC_ViewInterviewDetail
+Admin -- UC_ReviewResult
+Admin -- UC_HiringDecision
+Admin -- UC_ViewCandidate
+Admin -- UC_AdminDashboard
+Admin -- UC_AnnualReport
+Admin -- UC_DepartmentReport
+Admin -- UC_TimeToHire
+Admin -- UC_ViewNotifications
+Admin -- UC_UnreadCount
+Admin -- UC_MarkRead
+Admin -- UC_MarkAllRead
+
+' Department Head use cases
+DeptHead -- UC_CreateRequest
+DeptHead -- UC_EditRequest
+DeptHead -- UC_SubmitRequest
+DeptHead -- UC_ViewRequests
+DeptHead -- UC_ViewRequestDetail
+DeptHead -- UC_RequestLogs
+DeptHead -- UC_RequestTracking
+DeptHead -- UC_ViewInterviews
+DeptHead -- UC_ViewInterviewDetail
+DeptHead -- UC_ReceiveInvitation
+DeptHead -- UC_JoinPanel
+DeptHead -- UC_DeptDashboard
+DeptHead -- UC_DepartmentReport
+DeptHead -- UC_ViewNotifications
+DeptHead -- UC_UnreadCount
+DeptHead -- UC_MarkRead
+DeptHead -- UC_MarkAllRead
+
+' HR Manager use cases
+HR -- UC_ViewDepartments
+HR -- UC_ViewRequests
+HR -- UC_ViewRequestDetail
+HR -- UC_ReviewRequest
+HR -- UC_ForwardRequest
+HR -- UC_RequestLogs
+HR -- UC_CreatePlan
+HR -- UC_ViewPlan
+HR -- UC_UpdatePlan
+HR -- UC_SubmitPlan
+HR -- UC_AddTask
+HR -- UC_UpdateTask
+HR -- UC_UpdateTaskStatus
+HR -- UC_ListCandidates
+HR -- UC_ViewCandidate
+HR -- UC_ViewCV
+HR -- UC_SearchCandidates
+HR -- UC_ViewInterviews
+HR -- UC_ViewInterviewDetail
+HR -- UC_AvailableSlots
+HR -- UC_ScheduleInterview
+HR -- UC_UpdateInterview
+HR -- UC_RescheduleInterview
+HR -- UC_CancelInterview
+HR -- UC_RecordResult
+HR -- UC_GenerateOffer
+HR -- UC_SendOffer
+HR -- UC_SendRejection
+HR -- UC_HRDashboard
+HR -- UC_PipelineReport
+HR -- UC_ViewNotifications
+HR -- UC_UnreadCount
+HR -- UC_MarkRead
+HR -- UC_MarkAllRead
+
+' Candidate use cases
+Candidate -- UC_CandidateDashboard
+Candidate -- UC_UpdateProfile
+Candidate -- UC_UploadCV
+Candidate -- UC_ReceiveInvitation
+Candidate -- UC_ViewInterviewDetail
+Candidate -- UC_OfferResponse
+Candidate -- UC_ViewNotifications
+Candidate -- UC_UnreadCount
+Candidate -- UC_MarkRead
+Candidate -- UC_MarkAllRead
+
+' Include / extend relationships
+UC_CreateDepartment .> UC_AssignDeptHead : <<include>>
+UC_SubmitRequest .> UC_CreateNotification : <<include>>
+UC_ForwardRequest .> UC_CreateNotification : <<include>>
+UC_ApproveRequest .> UC_RequestLogs : <<include>>
+UC_ApproveRequest .> UC_CreateNotification : <<include>>
+UC_RejectRequest .> UC_RequestLogs : <<include>>
+UC_RejectRequest .> UC_CreateNotification : <<include>>
+UC_RequestRevision .> UC_CreateNotification : <<include>>
+
+UC_CreatePlan .> UC_PlanLock : <<include>>
+UC_UpdatePlan .> UC_PlanLock : <<include>>
+UC_AddTask .> UC_PlanLock : <<include>>
+UC_UpdateTask .> UC_PlanLock : <<include>>
+UC_UpdateTaskStatus .> UC_PlanLock : <<include>>
+UC_SubmitPlan .> UC_CreateNotification : <<include>>
+UC_ApprovePlan .> UC_CreateNotification : <<include>>
+UC_RequestPlanRevision .> UC_CreateNotification : <<include>>
+
+UC_UploadCV .> UC_ValidateCV : <<include>>
+UC_UploadCV .> UC_ParseCV : <<include>>
+UC_ParseCV .> UC_GenerateEmbedding : <<include>>
+UC_SearchCandidates .> UC_GenerateEmbedding : <<include>>
+
+UC_ScheduleInterview .> UC_AvailableSlots : <<include>>
+UC_ScheduleInterview .> UC_CreateNotification : <<include>>
+UC_ScheduleInterview .> UC_SendEmail : <<include>>
+UC_UpdateInterview .> UC_CreateNotification : <<include>>
+UC_RescheduleInterview .> UC_AvailableSlots : <<include>>
+UC_RescheduleInterview .> UC_CreateNotification : <<include>>
+UC_RescheduleInterview .> UC_SendEmail : <<include>>
+UC_CancelInterview .> UC_CreateNotification : <<include>>
+UC_CancelInterview .> UC_SendEmail : <<include>>
+UC_RecordResult .> UC_RequestLogs : <<include>>
+UC_RecordResult .> UC_CreateNotification : <<include>>
+UC_HiringDecision .> UC_ReviewResult : <<include>>
+UC_HiringDecision .> UC_RequestLogs : <<include>>
+
+UC_GenerateOffer ..> UC_HiringDecision : <<extend>> HIRE
+UC_SendRejection ..> UC_HiringDecision : <<extend>> REJECT
+UC_SendOffer .> UC_GenerateOffer : <<include>>
+UC_SendOffer .> UC_SendEmail : <<include>>
+UC_SendOffer .> UC_EmailLog : <<include>>
+UC_SendRejection .> UC_SendEmail : <<include>>
+UC_SendRejection .> UC_EmailLog : <<include>>
+UC_OfferResponse .> UC_RequestLogs : <<include>>
+UC_OfferResponse .> UC_CreateNotification : <<include>>
+
+UC_ViewNotifications .> UC_UnreadCount : <<include>>
+UC_MarkAllRead ..> UC_MarkRead : <<extend>>
+UC_AnnualReport ..> UC_ExportReport : <<extend>>
+UC_DepartmentReport ..> UC_ExportReport : <<extend>>
+UC_TimeToHire ..> UC_ExportReport : <<extend>>
+UC_PipelineReport ..> UC_ExportReport : <<extend>>
+
+' External system associations
+Worker -- UC_ParseCV
+Worker -- UC_GenerateEmbedding
+Worker -- UC_SendEmail
+Queue -- UC_ParseCV
+Queue -- UC_GenerateEmbedding
+Queue -- UC_SendEmail
+Email -- UC_SendEmail
+Database -- UC_RequestLogs
+Database -- UC_SearchCandidates
+Database -- UC_EmailLog
+Database -- UC_AnnualReport
+Database -- UC_DepartmentReport
+Database -- UC_TimeToHire
+Database -- UC_PipelineReport
+
+legend bottom
+  |= Element |= Meaning |
+  | Actor | Human or external participant |
+  | Use case | System capability from RMS project |
+  | <<include>> | Mandatory reused behavior |
+  | <<extend>> | Conditional or optional behavior |
+endlegend
+
+@enduml

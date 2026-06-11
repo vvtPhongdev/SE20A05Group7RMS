@@ -2,6 +2,7 @@ import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from
 import { Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 import { ErrorResponseDto, ERROR_CODES, errorCodeForStatus } from '@wr/contracts';
+import { config } from '../../config';
 
 interface ResolvedError {
   statusCode: number;
@@ -26,7 +27,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
-    const isProduction = process.env.NODE_ENV === 'production';
+    const isProduction = config.NODE_ENV === 'production';
 
     const correlationId = (request.headers['x-correlation-id'] as string | undefined) ?? randomUUID();
     const resolved = this.resolve(exception, isProduction);

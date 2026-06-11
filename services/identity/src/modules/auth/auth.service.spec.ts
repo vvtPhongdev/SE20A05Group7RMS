@@ -321,7 +321,7 @@ describe('AuthService', () => {
       expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { email } });
       expect(redisInstance.set).toHaveBeenCalledWith(
         redisKey,
-        expect.stringMatching(/^\d{6}$/),
+        expect.stringMatching(/^[a-f0-9]{64}$/),
         'EX',
         900,
       );

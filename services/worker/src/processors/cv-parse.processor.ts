@@ -2,10 +2,11 @@ import { PrismaClient } from '@prisma/client';
 import { AuditLogService } from '@wr/database';
 import { extractText } from '@wr/ai'; // re‑exports cv‑parser utilities
 import { AuditAction, AuditEntityType, CvParseJobPayload } from '@wr/contracts';
+import { config } from '../config';
 
 // Singleton Prisma client (same pattern as in other services)
 const prisma = new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['query', 'warn', 'error'] : ['warn', 'error'],
+  log: config.NODE_ENV === 'development' ? ['query', 'warn', 'error'] : ['warn', 'error'],
 });
 
 const auditLog = new AuditLogService(prisma);

@@ -10,6 +10,7 @@ import { SERVICE_PORTS } from './constants';
 import { JwtAuthGuard } from './auth/decorators/guard/jwt-auth.guard';
 import { RolesGuard } from './auth/decorators/guard/roles.guard';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
+import { config as appConfig } from './config';
 
 async function bootstrap() {
   const app = await NestFactory.create(GatewayModule);
@@ -19,7 +20,7 @@ async function bootstrap() {
 
   // CORS
   app.enableCors({
-    origin: process.env.API_CORS_ORIGIN || 'http://localhost:3000',
+    origin: appConfig.API_CORS_ORIGIN,
     credentials: true,
   });
 
