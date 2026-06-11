@@ -11,6 +11,7 @@ import { Unauthorized } from './pages/Unauthorized';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { AdminApprovalQueue } from './pages/AdminApprovalQueue';
 import { AdminAllRequests } from './pages/AdminAllRequests';
+import { AdminInterviewResults } from './pages/AdminInterviewResults';
 import { AdminSettings } from './pages/AdminSettings';
 import { AdminUsers } from './pages/AdminUsers';
 import { DeptHeadCreateRequest } from './pages/DeptHeadCreateRequest';
@@ -128,12 +129,7 @@ export function App() {
             path="/admin/interview-results"
             element={
               <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
-                <Layout>
-                  <PlaceholderPage
-                    title="Interview Results"
-                    description="Strategic review of interview performance data and overall hiring outcomes."
-                  />
-                </Layout>
+                <AdminInterviewResults />
               </ProtectedRoute>
             }
           />
