@@ -38,12 +38,18 @@ describe('InterviewResultService', () => {
     send: jest.fn().mockReturnValue(of({ success: true })),
   };
 
-  const service = new InterviewResultService(prisma as any, notificationClient as any);
+  const auditLog = {
+    log: jest.fn().mockResolvedValue(undefined),
+  };
+
+  const service = new InterviewResultService(prisma as any, auditLog as any, notificationClient as any);
 
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.$transaction.mockImplementation(async (txs) => txs);
     prisma.user.findUnique.mockResolvedValue({ id: 'evaluator-1', displayName: 'Evaluator' });
+    prisma.interviewResult.create.mockReturnValue({ id: 'interview-result-1' });
+    auditLog.log.mockResolvedValue(undefined);
   });
 
   it('fails if schedule does not exist', async () => {

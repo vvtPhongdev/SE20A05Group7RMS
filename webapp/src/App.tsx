@@ -12,14 +12,33 @@ import { Unauthorized } from './pages/Unauthorized';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { AdminApprovalQueue } from './pages/AdminApprovalQueue';
 import { AdminAllRequests } from './pages/AdminAllRequests';
+import { AdminInterviewResults } from './pages/AdminInterviewResults';
 import { AdminSettings } from './pages/AdminSettings';
 import { AdminUsers } from './pages/AdminUsers';
+import { AdminAnnualReport } from './pages/AdminAnnualReport';
+import { AdminDeptStats } from './pages/AdminDeptStats';
 import { DeptHeadCreateRequest } from './pages/DeptHeadCreateRequest';
 import { DeptHeadDashboard } from './pages/DeptHeadDashboard';
+import { DeptHeadInterviews } from './pages/DeptHeadInterviews';
 import { DeptHeadRequests } from './pages/DeptHeadRequests';
-import { HrManagerDashboard } from './pages/HrManagerDashboard';
+import { DeptHeadRequestDetail } from './pages/DeptHeadRequestDetail';
+import { DeptHeadSettings } from './pages/DeptHeadSettings';
+import { HRDashBoard } from './pages/HRDashBoard';
+import { HRCampaigns } from './pages/HRCampaigns';
+import { HRCampaignDetail } from './pages/HRCampaignDetail';
+import { HRRequestQueue } from './pages/HRRequestQueue';
+import { TaskPlanner } from './pages/TaskPlanner';
+import { TalentPool } from './pages/TalentPool';
+import { CandidateSearch } from './pages/CandidateSearch';
+import { HRInterviewSchedule } from './pages/HRInterviewSchedule';
+import { HRPipelineReports } from './pages/HRPipelineReports';
+import { HRInterviewResults } from './pages/HRInterviewResults';
+import { HRSystemNotifications } from './pages/HRSystemNotifications';
 import { CandidateDashboard } from './pages/CandidateDashboard';
-import { PlaceholderPage } from './pages/PlaceholderPage';
+import { CandidateProfile } from './pages/CandidateProfile';
+import { CandidateNotifications } from './pages/CandidateNotifications';
+import { CandidateUploadCv } from './pages/CandidateUploadCv';
+import { CandidateInterviewDetails } from './pages/CandidateInterviewDetails';
 import { UserRole } from '@wr/contracts';
 
 // Redirects user to their role-specific landing dashboard
@@ -42,13 +61,23 @@ function HomeRedirect() {
   }
 }
 
+// Redirects logged-in users visiting the root path to their dashboard, otherwise renders LandingPage
+function RootRedirect() {
+  const { user } = useAuth();
+
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return <LandingPage />;
+}
+
 export function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
           {/* Public routes */}
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={<RootRedirect />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
           <Route path="/verify-email" element={<EmailOtpVerification />} />
@@ -191,6 +220,16 @@ export function App() {
             }
           />
           <Route
+            path="/dept-head/requests/:id"
+            element={
+              <ProtectedRoute allowedRoles={[UserRole.DEPARTMENT_HEAD]}>
+                <Layout>
+                  <DeptHeadRequestDetail />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/dept-head/interviews"
             element={
               <ProtectedRoute allowedRoles={[UserRole.DEPARTMENT_HEAD]}>
@@ -210,7 +249,7 @@ export function App() {
             element={
               <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
                 <Layout>
-                  <HrManagerDashboard />
+                  <HRDashBoard />
                 </Layout>
               </ProtectedRoute>
             }

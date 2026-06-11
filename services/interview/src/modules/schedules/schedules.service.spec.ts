@@ -40,11 +40,16 @@ describe('SchedulesService', () => {
     send: jest.fn().mockReturnValue(of({ success: true })),
   };
 
-  const service = new SchedulesService(prisma as any, notificationClient as any);
+  const auditLog = {
+    log: jest.fn().mockResolvedValue(undefined),
+  };
+
+  const service = new SchedulesService(prisma as any, auditLog as any, notificationClient as any);
 
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.$transaction.mockImplementation(async (txs) => txs);
+    auditLog.log.mockResolvedValue(undefined);
   });
 
   describe('create', () => {

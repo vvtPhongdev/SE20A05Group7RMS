@@ -1,12 +1,14 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { DatabaseModule } from '../../common/database/database.module';
+import { AuditLogModule } from '../../common/audit-log/audit-log.module';
 import { ResultsController } from './results.controller';
 import { InterviewResultService } from './interview-result.service';
 
 @Module({
   imports: [
     DatabaseModule,
+    AuditLogModule,
     ClientsModule.register([
       {
         name: 'NOTIFICATION_SERVICE',

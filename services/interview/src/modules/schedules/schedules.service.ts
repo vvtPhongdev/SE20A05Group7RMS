@@ -1,7 +1,10 @@
 import { Injectable, HttpStatus, Inject } from '@nestjs/common';
 import { RpcException, ClientProxy } from '@nestjs/microservices';
+import { AuditLogService } from '@wr/database';
 import { PrismaService } from '../../common/database/prisma.service';
 import {
+  AuditAction,
+  AuditEntityType,
   InterviewStatus,
   PlanStatus,
   RecruitmentRequestStatus,
@@ -34,6 +37,7 @@ interface ConflictEntry {
 export class SchedulesService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly auditLog: AuditLogService,
     @Inject('NOTIFICATION_SERVICE') private readonly notificationClient: ClientProxy,
   ) {}
 
@@ -276,6 +280,15 @@ export class SchedulesService {
       }),
     ]);
 
+    this.auditLog.log({
+      entityType: AuditEntityType.INTERVIEW_SCHEDULE,
+      entityId: schedule.id,
+      action: AuditAction.INTERVIEW_SCHEDULED,
+      toStatus: InterviewStatus.SCHEDULED,
+      performedById: payload.interviewers[0] || 'SYSTEM',
+      metadata: { candidateId: payload.candidateId, scheduledAt: scheduledAt.toISOString() },
+    }).catch((err) => console.error('Failed to write audit log for INTERVIEW_SCHEDULED:', err));
+
     // Send in-app status update notification to Department Head
     this.prisma.recruitmentRequest.findUnique({
       where: { id: payload.requestId },
@@ -484,6 +497,16 @@ export class SchedulesService {
         },
       }),
     ]);
+
+    this.auditLog.log({
+      entityType: AuditEntityType.INTERVIEW_SCHEDULE,
+      entityId: payload.id,
+      action: AuditAction.INTERVIEW_CANCELLED,
+      fromStatus: schedule.status,
+      toStatus: InterviewStatus.CANCELLED,
+      performedById: payload.cancelledBy,
+      reason: payload.reason.trim(),
+    }).catch((err) => console.error('Failed to write audit log for INTERVIEW_CANCELLED:', err));
 
     // Send emails and notifications asynchronously via microservice
     if (candidateProfile) {
@@ -711,6 +734,20 @@ export class SchedulesService {
         },
       }),
     ]);
+
+    this.auditLog.log({
+      entityType: AuditEntityType.INTERVIEW_SCHEDULE,
+      entityId: payload.id,
+      action: AuditAction.INTERVIEW_RESCHEDULED,
+      fromStatus: existing.status,
+      toStatus: InterviewStatus.RESCHEDULED,
+      performedById: payload.interviewers[0] || 'SYSTEM',
+      reason: payload.reason.trim(),
+      metadata: {
+        oldScheduledAt: existing.scheduledAt.toISOString(),
+        newScheduledAt: newStart.toISOString(),
+      },
+    }).catch((err) => console.error('Failed to write audit log for INTERVIEW_RESCHEDULED:', err));
 
     // Send emails and notifications asynchronously via microservice
     if (candidateProfile) {

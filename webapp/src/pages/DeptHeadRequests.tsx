@@ -447,8 +447,24 @@ export const DeptHeadRequests: React.FC = () => {
                       onClick={() => setExpandedId(expanded ? '' : request.id)}
                     >
                       <td className="px-5 py-4">
-                        <p className="font-semibold text-deep-charcoal">{request.position}</p>
-                        <p className="mt-1 font-mono text-xs text-teal-command">{request.id}</p>
+                        <p
+                          className="font-semibold text-deep-charcoal hover:underline hover:text-teal-command"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/dept-head/requests/${request.id}`);
+                          }}
+                        >
+                          {request.position}
+                        </p>
+                        <p
+                          className="mt-1 font-mono text-xs text-teal-command hover:underline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/dept-head/requests/${request.id}`);
+                          }}
+                        >
+                          {request.id}
+                        </p>
                       </td>
                       <td className="px-5 py-4 text-sm text-slate-ink">{request.team}</td>
                       <td className="px-5 py-4">
@@ -500,6 +516,15 @@ export const DeptHeadRequests: React.FC = () => {
                                   <p className="mt-2 text-sm font-semibold text-deep-charcoal">{value}</p>
                                 </div>
                               ))}
+                            </div>
+                            <div className="flex justify-end lg:col-span-2 mt-2">
+                              <button
+                                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-xs font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
+                                onClick={() => navigate(`/dept-head/requests/${request.id}`)}
+                                type="button"
+                              >
+                                View Full Details (Timeline, Plan, CVs)
+                              </button>
                             </div>
                           </div>
                         </td>
