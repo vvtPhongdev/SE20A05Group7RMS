@@ -3,6 +3,7 @@ import { ClientTCP } from '@nestjs/microservices';
 import { Observable } from 'rxjs';
 import { v4 as uuidv4 } from 'uuid';
 import pino from 'pino';
+import pretty from 'pino-pretty';
 import { correlationIdStorage } from './storage';
 
 export * from './storage';
@@ -13,7 +14,8 @@ export class PinoLogger implements LoggerService {
 
   constructor(serviceName: string, logLevel?: string) {
     const isDev = process.env.NODE_ENV === 'development';
-    this.logger = pino({
+    
+    const pinoOptions: pino.LoggerOptions = {
       level: logLevel || process.env.LOG_LEVEL || 'info',
       base: {
         service: serviceName,
@@ -31,23 +33,24 @@ export class PinoLogger implements LoggerService {
           jobId: store?.jobId,
         };
       },
-      transport: isDev
-        ? {
-            target: 'pino-pretty',
-            options: {
-              colorize: true,
-              translateTime: 'SYS:standard',
-              ignore: 'pid,hostname,service,correlationId,jobId',
-              messageFormat: (log: any, messageKey: string) => {
-                const service = log.service ? `[${log.service}]` : '';
-                const corr = log.correlationId ? ` (corr:${log.correlationId})` : '';
-                const job = log.jobId ? ` (job:${log.jobId})` : '';
-                return `${service}${corr}${job} ${log[messageKey]}`;
-              }
-            },
-          }
-        : undefined,
-    });
+    };
+
+    if (isDev) {
+      const stream = pretty({
+        colorize: true,
+        translateTime: 'SYS:standard',
+        ignore: 'pid,hostname,service,correlationId,jobId',
+        messageFormat: (log: any, messageKey: string) => {
+          const service = log.service ? `[${log.service}]` : '';
+          const corr = log.correlationId ? ` (corr:${log.correlationId})` : '';
+          const job = log.jobId ? ` (job:${log.jobId})` : '';
+          return `${service}${corr}${job} ${log[messageKey]}`;
+        }
+      });
+      this.logger = pino(pinoOptions, stream);
+    } else {
+      this.logger = pino(pinoOptions);
+    }
   }
 
   log(message: any, ...optionalParams: any[]) {
