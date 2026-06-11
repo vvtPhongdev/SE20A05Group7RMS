@@ -6,6 +6,7 @@ import { AuditLogService } from '@wr/database';
 import { AuditAction, AuditEntityType } from '@wr/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
 import { QUEUE_NAMES, JOB_NAMES } from '@wr/queue';
+import { unlink } from 'fs/promises';
 
 @Injectable()
 export class CvService {
@@ -160,7 +161,28 @@ export class CvService {
     await this.prisma.candidateCV.delete({
       where: { id },
     });
+    await unlink(cvRecord.filePath).catch(() => undefined);
 
+    return { success: true, message: `CV Document with ID ${id} successfully deleted` };
+  }
+
+  async deleteCvForCandidate(id: string, userId: string) {
+    const cvRecord = await this.prisma.candidateCV.findFirst({
+      where: {
+        id,
+        candidate: { userId },
+      },
+    });
+
+    if (!cvRecord) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `CV Document with ID ${id} not found or access denied`,
+      });
+    }
+
+    await this.prisma.candidateCV.delete({ where: { id } });
+    await unlink(cvRecord.filePath).catch(() => undefined);
     return { success: true, message: `CV Document with ID ${id} successfully deleted` };
   }
 }

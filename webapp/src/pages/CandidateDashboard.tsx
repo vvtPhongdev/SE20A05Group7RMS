@@ -1,4 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../lib/api';
 
 type ApplicationStatus = 'Interview Phase' | 'Under Review' | 'Offer Extended' | 'Not Selected';
 type Step = 'Applied' | 'CV Review' | 'Interview' | 'Final Decision';
@@ -12,56 +15,12 @@ type Application = {
   currentStep: Step;
   completedSteps: Step[];
   event?: string;
+  interviewId?: string;
   action: string;
   disabled?: boolean;
 };
 
 const steps: Step[] = ['Applied', 'CV Review', 'Interview', 'Final Decision'];
-
-const applications: Application[] = [
-  {
-    id: 'APP-2401',
-    title: 'Senior Frontend Developer',
-    department: 'Phong Ky Thuat',
-    appliedDate: '15/05/2026',
-    status: 'Interview Phase',
-    currentStep: 'Interview',
-    completedSteps: ['Applied', 'CV Review'],
-    event: 'Interview Scheduled - 30/05/2026, 14:00',
-    action: 'View Details',
-  },
-  {
-    id: 'APP-2402',
-    title: 'Marketing Specialist',
-    department: 'Marketing Department',
-    appliedDate: '20/05/2026',
-    status: 'Under Review',
-    currentStep: 'CV Review',
-    completedSteps: ['Applied'],
-    action: 'View Details',
-  },
-  {
-    id: 'APP-2398',
-    title: 'Junior Developer',
-    department: 'Phong Ky Thuat',
-    appliedDate: '10/04/2026',
-    status: 'Offer Extended',
-    currentStep: 'Final Decision',
-    completedSteps: ['Applied', 'CV Review', 'Interview', 'Final Decision'],
-    action: 'Accept Offer',
-  },
-  {
-    id: 'APP-2388',
-    title: 'Data Analyst',
-    department: 'Data Intelligence',
-    appliedDate: '01/04/2026',
-    status: 'Not Selected',
-    currentStep: 'Applied',
-    completedSteps: [],
-    action: 'View Feedback',
-    disabled: true,
-  },
-];
 
 const statusClass: Record<ApplicationStatus, string> = {
   'Interview Phase': 'bg-pending/10 text-pending',
@@ -115,6 +74,95 @@ const StepMarker = ({ step, application }: { step: Step; application: Applicatio
 };
 
 export const CandidateDashboard: React.FC = () => {
+  const { token } = useAuth();
+  const navigate = useNavigate();
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    type Interview = {
+      id: string;
+      requestId: string;
+      scheduledAt: string;
+      status: string;
+    };
+    type ProfileResponse = {
+      applications: Array<{
+        id: string;
+        status: string;
+        createdAt: string;
+        request: {
+          id: string;
+          position: string;
+          department?: { name: string };
+        };
+      }>;
+      interviews: Interview[];
+    };
+
+    const loadDashboard = async () => {
+      try {
+        const profile = await apiRequest<ProfileResponse>('/candidate-profiles/me', token);
+        const mapped = profile.applications.map((application): Application => {
+          const status = application.status.toUpperCase();
+          const interview = profile.interviews.find(
+            (item) => item.requestId === application.request.id && item.status === 'SCHEDULED',
+          );
+          const isRejected = ['REJECTED', 'OFFER_DECLINED', 'CANCELLED'].includes(status);
+          const isOffer = ['OFFER_EXTENDED', 'OFFER_ACCEPTED'].includes(status);
+          const isInterview = ['INTERVIEWING', 'INTERVIEW_COMPLETED'].includes(status);
+
+          return {
+            id: application.id,
+            title: application.request.position,
+            department: application.request.department?.name ?? 'Department not available',
+            appliedDate: new Date(application.createdAt).toLocaleDateString(),
+            status: isRejected
+              ? 'Not Selected'
+              : isOffer
+                ? 'Offer Extended'
+                : isInterview
+                  ? 'Interview Phase'
+                  : 'Under Review',
+            currentStep:
+              isOffer || status === 'INTERVIEW_COMPLETED'
+                ? 'Final Decision'
+                : isInterview
+                  ? 'Interview'
+                  : 'CV Review',
+            completedSteps: isOffer
+              ? ['Applied', 'CV Review', 'Interview']
+              : isInterview
+                ? ['Applied', 'CV Review']
+                : isRejected
+                  ? ['Applied']
+                  : ['Applied'],
+            event: interview
+              ? `Interview scheduled - ${new Date(interview.scheduledAt).toLocaleString()}`
+              : undefined,
+            interviewId: interview?.id,
+            action: interview ? 'View Interview' : isOffer ? 'Review Offer' : 'View Details',
+            disabled: isRejected || !interview,
+          };
+        });
+        setApplications(mapped);
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : 'Unable to load applications');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadDashboard();
+  }, [token]);
+
+  const handleApplicationAction = (application: Application) => {
+    if (application.interviewId) {
+      navigate(`/candidate/interviews?id=${application.interviewId}`);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-[1440px]">
       <header className="mb-10">
@@ -125,6 +173,18 @@ export const CandidateDashboard: React.FC = () => {
           Track your application progress and view upcoming interviews.
         </p>
       </header>
+
+      {loading ? <p className="mb-6 text-sm text-secondary">Loading applications...</p> : null}
+      {error ? (
+        <p className="mb-6 rounded-lg border border-error/20 bg-error-container p-4 text-sm text-on-error-container">
+          {error}
+        </p>
+      ) : null}
+      {!loading && !error && applications.length === 0 ? (
+        <p className="mb-6 rounded-lg border border-border-warm bg-clean-surface p-6 text-sm text-secondary">
+          You have not submitted any applications yet.
+        </p>
+      ) : null}
 
       <section className="mb-12 flex flex-col gap-6" id="applications-container">
         {applications.map((application) => (
@@ -199,6 +259,7 @@ export const CandidateDashboard: React.FC = () => {
                         : 'border border-teal-command text-teal-command hover:bg-teal-command hover:text-white'
                   }`}
                   disabled={application.disabled}
+                  onClick={() => handleApplicationAction(application)}
                   type="button"
                 >
                   {application.action}

@@ -26,23 +26,13 @@ export class TalentSearchService {
     this.logger.debug(`Expanded "${query}" → ${expanded.expandedSkills.length} skills`);
 
     // Step 2: Find candidate profiles with capability models
-    const where: Record<string, unknown> = {};
-    if (filters?.workMode) {
-      where.preferredWorkMode = filters.workMode;
-    }
-    if (filters?.minYearsExperience) {
-      where.yearsOfExperience = { gte: filters.minYearsExperience };
-    }
-    if (filters?.visibility) {
-      where.visibility = filters.visibility;
-    } else {
-      where.visibility = { not: 'PRIVATE' };
-    }
-
     const candidates = await this.prisma.candidateProfile.findMany({
-      where,
       include: {
         user: { select: { displayName: true } },
+        cvDocuments: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
       },
       take: pageSize * 3, // Over-fetch for scoring then trim
       skip: 0,
@@ -56,8 +46,26 @@ export class TalentSearchService {
     const scoredResults = candidates
       .map((candidate: any) => {
         // Extract skills from the structured data JSONB
-        const capabilities = candidate.structuredData as { skills?: string[] } | null;
+        const capabilities = candidate.structuredData as {
+          skills?: string[];
+          currentRole?: string;
+          visibility?: string;
+          preferredWorkMode?: string;
+          yearsOfExperience?: number;
+        } | null;
         const candidateSkills = capabilities?.skills ?? [];
+        if (filters?.workMode && capabilities?.preferredWorkMode !== filters.workMode) {
+          return null;
+        }
+        if (
+          filters?.minYearsExperience &&
+          (capabilities?.yearsOfExperience ?? 0) < Number(filters.minYearsExperience)
+        ) {
+          return null;
+        }
+        if (capabilities?.visibility === 'PRIVATE' && filters?.visibility !== 'PRIVATE') {
+          return null;
+        }
 
         const result = this.scorer.scoreCandidate({
           candidateProfileId: candidate.id,
@@ -69,9 +77,12 @@ export class TalentSearchService {
         return {
           ...result,
           displayName: candidate.user.displayName,
-          headline: candidate.headline,
+          headline: capabilities?.currentRole ?? null,
+          skills: candidateSkills,
+          latestCv: candidate.cvDocuments[0] ?? null,
         };
       })
+      .filter(Boolean)
       .filter((r: any) => r.overallScore > 0.1)
       .sort((a: any, b: any) => b.overallScore - a.overallScore);
 

@@ -12,6 +12,7 @@ import { RecruitingController } from './controllers/recruiting.controller';
 import { ProfilesController } from './controllers/profiles.controller';
 import { NotificationsController } from './controllers/notifications.controller';
 import { InterviewController } from './controllers/interview.controller';
+import { CvController } from './controllers/cv.controller';
 import { SseNotificationService } from './services/sse-notification.service';
 import { CorrelationClientTCP, CorrelationIdMiddleware } from '@wr/logger';
 import { config as appConfig } from './config';
@@ -75,6 +76,7 @@ import { config as appConfig } from './config';
     ProfilesController,
     NotificationsController,
     InterviewController,
+    CvController,
   ],
 })
 export class GatewayModule implements NestModule {

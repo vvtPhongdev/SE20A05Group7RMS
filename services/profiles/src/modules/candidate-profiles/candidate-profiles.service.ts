@@ -7,6 +7,29 @@ import { UserRole } from '@wr/contracts';
 export class CandidateProfilesService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private structuredData(value: unknown): Record<string, any> {
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, any>)
+      : {};
+  }
+
+  private async findStoredProfile(id: string) {
+    const profile = await this.prisma.candidateProfile.findFirst({
+      where: {
+        OR: [{ id }, { userId: id }],
+      },
+    });
+
+    if (!profile) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Candidate profile not found for ID ${id}`,
+      });
+    }
+
+    return profile;
+  }
+
   async getProfile(id: string) {
     let profile = await this.prisma.candidateProfile.findFirst({
       where: {
@@ -16,8 +39,22 @@ export class CandidateProfilesService {
         cvDocuments: true,
         applications: {
           include: {
-            request: true,
+            request: {
+              include: {
+                department: true,
+              },
+            },
           },
+        },
+        interviews: {
+          include: {
+            request: {
+              include: {
+                department: true,
+              },
+            },
+          },
+          orderBy: { scheduledAt: 'asc' },
         },
       },
     });
@@ -42,8 +79,22 @@ export class CandidateProfilesService {
             cvDocuments: true,
             applications: {
               include: {
-                request: true,
+                request: {
+                  include: {
+                    department: true,
+                  },
+                },
               },
+            },
+            interviews: {
+              include: {
+                request: {
+                  include: {
+                    department: true,
+                  },
+                },
+              },
+              orderBy: { scheduledAt: 'asc' },
             },
           },
         });
@@ -55,29 +106,91 @@ export class CandidateProfilesService {
       }
     }
 
-    return profile;
+    const interviewerIds = [
+      ...new Set(profile.interviews.flatMap((interview) => interview.interviewers)),
+    ];
+    const interviewers = interviewerIds.length
+      ? await this.prisma.user.findMany({
+          where: { id: { in: interviewerIds } },
+          select: { id: true, displayName: true, role: true },
+        })
+      : [];
+    const interviewerMap = new Map(interviewers.map((user) => [user.id, user]));
+
+    return {
+      ...profile,
+      interviews: profile.interviews.map((interview) => ({
+        ...interview,
+        panel: interview.interviewers
+          .map((id) => interviewerMap.get(id))
+          .filter((user) => user !== undefined),
+      })),
+    };
   }
 
   async updateProfile(id: string, data: any) {
-    const profile = await this.prisma.candidateProfile.findFirst({
-      where: {
-        OR: [{ id: id }, { userId: id }],
-      },
-    });
+    const profile = await this.findStoredProfile(id);
+    const currentStructuredData = this.structuredData(profile.structuredData);
 
-    if (!profile) {
-      throw new RpcException({
-        status: HttpStatus.NOT_FOUND,
-        message: `Candidate profile not found for ID ${id}`,
-      });
-    }
-
-    // Clean up updates data to avoid prisma schema errors
-    const { id: _, userId: __, createdAt: ___, updatedAt: ____, ...allowedData } = data;
+    const allowedData = {
+      ...(data.fullName !== undefined ? { fullName: data.fullName } : {}),
+      ...(data.email !== undefined ? { email: data.email } : {}),
+      ...(data.phone !== undefined ? { phone: data.phone || null } : {}),
+      ...(data.summary !== undefined ? { summary: data.summary } : {}),
+      ...(data.structuredData !== undefined
+        ? {
+            structuredData: {
+              ...currentStructuredData,
+              ...this.structuredData(data.structuredData),
+            },
+          }
+        : {}),
+    };
 
     return this.prisma.candidateProfile.update({
       where: { id: profile.id },
       data: allowedData,
     });
+  }
+
+  async getAvatar(id: string) {
+    const profile = await this.findStoredProfile(id);
+    return this.structuredData(profile.structuredData).avatar ?? null;
+  }
+
+  async setAvatar(id: string, avatar: Record<string, string>) {
+    const profile = await this.findStoredProfile(id);
+    const structuredData = this.structuredData(profile.structuredData);
+    const previousAvatar = structuredData.avatar ?? null;
+    const updatedProfile = await this.prisma.candidateProfile.update({
+      where: { id: profile.id },
+      data: {
+        structuredData: {
+          ...structuredData,
+          avatar,
+        },
+      },
+    });
+
+    return {
+      avatar,
+      previousAvatar,
+      updatedAt: updatedProfile.updatedAt,
+    };
+  }
+
+  async removeAvatar(id: string) {
+    const profile = await this.findStoredProfile(id);
+    const structuredData = this.structuredData(profile.structuredData);
+    const { avatar: previousAvatar, ...remainingData } = structuredData;
+    const updatedProfile = await this.prisma.candidateProfile.update({
+      where: { id: profile.id },
+      data: { structuredData: remainingData },
+    });
+
+    return {
+      previousAvatar: previousAvatar ?? null,
+      updatedAt: updatedProfile.updatedAt,
+    };
   }
 }

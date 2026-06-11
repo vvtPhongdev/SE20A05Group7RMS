@@ -1,4 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../lib/api';
 
 // SVG Icons definition to match high-fidelity design without depending on external fonts
 const Icons = {
@@ -227,71 +229,88 @@ interface CvDocument {
 }
 
 export const CandidateUploadCv: React.FC = () => {
+  const { token } = useAuth();
   // Document History State
-  const [documents, setDocuments] = useState<CvDocument[]>([
-    {
-      id: 'doc-1',
-      name: 'Alex_Cameron_CV_2024.pdf',
-      version: 'v1.2.4',
-      uploadedDate: 'Oct 12, 2024',
-      parsingStatus: 'Ready',
-      embedding: 'Indexed',
-      lastUsed: 'Senior UI/UX Engineer',
-    },
-    {
-      id: 'doc-2',
-      name: 'Cameron_Portfolio_Draft.docx',
-      version: 'v1.0.0',
-      uploadedDate: 'Nov 01, 2024',
-      parsingStatus: 'Parsing Failed',
-      embedding: '—',
-      lastUsed: 'Not applied',
-    },
-  ]);
+  const [documents, setDocuments] = useState<CvDocument[]>([]);
 
   // Drag and Drop Visual State
   const [isDragActive, setIsDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [apiError, setApiError] = useState('');
+
+  const mapDocument = (document: {
+    id: string;
+    fileName: string;
+    parsedAt?: string | null;
+    rawText?: string;
+    createdAt: string;
+  }): CvDocument => ({
+    id: document.id,
+    name: document.fileName,
+    version: 'v1.0.0',
+    uploadedDate: new Date(document.createdAt).toLocaleDateString(),
+    parsingStatus: document.parsedAt ? 'Ready' : 'Parsing...',
+    embedding: document.parsedAt && document.rawText ? 'Pending' : 'Awaiting',
+    lastUsed: 'Not applied',
+  });
+
+  useEffect(() => {
+    const loadDocuments = async () => {
+      try {
+        const response = await apiRequest<
+          Array<{
+            id: string;
+            fileName: string;
+            parsedAt?: string | null;
+            rawText?: string;
+            createdAt: string;
+          }>
+        >('/candidate/cvs', token);
+        setDocuments(response.map(mapDocument));
+      } catch (loadError) {
+        setApiError(loadError instanceof Error ? loadError.message : 'Unable to load CV documents');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadDocuments();
+  }, [token]);
 
   // Trigger file selection dialog
   const handleBrowseFiles = () => {
     fileInputRef.current?.click();
   };
 
-  // Simulate file upload and parsing workflow
-  const handleFileUpload = (fileName: string) => {
-    const newDocId = `doc-${Date.now()}`;
-    const newDoc: CvDocument = {
-      id: newDocId,
-      name: fileName,
-      version: 'v1.0.0',
-      uploadedDate: new Date().toLocaleDateString('en-US', {
-        month: 'short',
-        day: '2-digit',
-        year: 'numeric',
-      }),
-      parsingStatus: 'Parsing...',
-      embedding: 'Awaiting',
-      lastUsed: 'Not applied',
-    };
+  const handleFileUpload = async (file: File) => {
+    if (file.size > 10 * 1024 * 1024) {
+      setApiError('CV file must be 10MB or smaller');
+      return;
+    }
 
-    setDocuments((prevDocs) => [newDoc, ...prevDocs]);
-
-    // Stage 1: Text extraction after 2 seconds
-    setTimeout(() => {
-      setDocuments((prevDocs) =>
-        prevDocs.map((doc) => (doc.id === newDocId ? { ...doc, embedding: 'Pending' } : doc)),
-      );
-
-      // Stage 2: Ready & Indexed after 4 seconds
-      setTimeout(() => {
-        setDocuments((prevDocs) =>
-          prevDocs.map((doc) =>
-            doc.id === newDocId ? { ...doc, parsingStatus: 'Ready', embedding: 'Indexed' } : doc,
-          ),
-        );
-      }, 2000);
-    }, 2000);
+    setUploading(true);
+    setApiError('');
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const uploaded = await apiRequest<{
+        id: string;
+        fileName: string;
+        parsedAt?: string | null;
+        rawText?: string;
+        createdAt: string;
+      }>('/candidate/cvs', token, { method: 'POST', body: formData });
+      setDocuments((current) => [mapDocument(uploaded), ...current]);
+    } catch (uploadError) {
+      setApiError(uploadError instanceof Error ? uploadError.message : 'Unable to upload CV');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   // Handle Drag Over
@@ -313,7 +332,7 @@ export const CandidateUploadCv: React.FC = () => {
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
       if (file.name.endsWith('.pdf') || file.name.endsWith('.docx')) {
-        handleFileUpload(file.name);
+        void handleFileUpload(file);
       } else {
         alert('Invalid file format. Please upload a PDF or DOCX file.');
       }
@@ -323,30 +342,26 @@ export const CandidateUploadCv: React.FC = () => {
   // Handle Native File Change
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      handleFileUpload(e.target.files[0].name);
+      void handleFileUpload(e.target.files[0]);
     }
   };
 
   // Retry parsing for failed documents
   const handleRetryParse = (id: string) => {
-    setDocuments((prevDocs) =>
-      prevDocs.map((doc) =>
-        doc.id === id ? { ...doc, parsingStatus: 'Parsing...', embedding: 'Awaiting' } : doc,
-      ),
-    );
-
-    setTimeout(() => {
-      setDocuments((prevDocs) =>
-        prevDocs.map((doc) =>
-          doc.id === id ? { ...doc, parsingStatus: 'Ready', embedding: 'Indexed' } : doc,
-        ),
-      );
-    }, 2500);
+    setApiError(`Retry parsing API is not available for document ${id}`);
   };
 
   // Delete document
-  const handleDeleteDoc = (id: string) => {
-    setDocuments(documents.filter((doc) => doc.id !== id));
+  const handleDeleteDoc = async (id: string) => {
+    setApiError('');
+    try {
+      await apiRequest<{ success: boolean }>(`/candidate/cvs/${id}`, token, {
+        method: 'DELETE',
+      });
+      setDocuments((current) => current.filter((doc) => doc.id !== id));
+    } catch (deleteError) {
+      setApiError(deleteError instanceof Error ? deleteError.message : 'Unable to delete CV');
+    }
   };
 
   return (
@@ -358,6 +373,13 @@ export const CandidateUploadCv: React.FC = () => {
         className="hidden"
         accept=".pdf,.docx"
       />
+
+      {loading ? <p className="mb-4 text-sm text-slate-ink">Loading CV documents...</p> : null}
+      {apiError ? (
+        <p className="mb-4 rounded-lg border border-error/20 bg-error-container p-4 text-sm text-on-error-container">
+          {apiError}
+        </p>
+      ) : null}
 
       <div className="grid grid-cols-12 gap-6 items-start">
         {/* Center Content: Main upload functionality and history */}
@@ -395,10 +417,11 @@ export const CandidateUploadCv: React.FC = () => {
             </p>
             <div className="flex gap-3" onClick={(e) => e.stopPropagation()}>
               <button
+                disabled={uploading}
                 onClick={handleBrowseFiles}
                 className="bg-teal-command text-white px-8 py-2.5 rounded-lg font-semibold text-sm active:scale-95 hover:bg-primary transition-all"
               >
-                Upload CV
+                {uploading ? 'Uploading...' : 'Upload CV'}
               </button>
               <button
                 onClick={handleBrowseFiles}
@@ -530,7 +553,7 @@ export const CandidateUploadCv: React.FC = () => {
                               <Icons.visibility />
                             </button>
                             <button
-                              onClick={() => handleDeleteDoc(doc.id)}
+                              onClick={() => void handleDeleteDoc(doc.id)}
                               className="p-1 hover:text-red-600 text-slate-ink"
                               title="Delete CV"
                             >

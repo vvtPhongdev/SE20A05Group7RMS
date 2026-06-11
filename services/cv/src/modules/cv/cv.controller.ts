@@ -26,6 +26,19 @@ export class CvController {
     return this.service.uploadCv(payload);
   }
 
+  @MessagePattern('cv.upload_candidate')
+  async uploadCandidateCv(
+    @Payload()
+    payload: {
+      candidateId: string;
+      fileName: string;
+      fileType: 'PDF' | 'DOCX';
+      filePath: string;
+    },
+  ) {
+    return this.service.uploadCv(payload);
+  }
+
   @MessagePattern('cv.get')
   async getCv(@Payload() payload: { id: string }) {
     return this.service.getCv(payload.id);
@@ -41,8 +54,18 @@ export class CvController {
     return this.service.listCvs(payload);
   }
 
+  @MessagePattern('cv.list_for_candidate')
+  async listCvsForCandidate(@Payload() payload: { userId: string }) {
+    return this.service.listCvs({ candidateId: payload.userId });
+  }
+
   @MessagePattern('cv.delete')
   async deleteCv(@Payload() payload: { id: string }) {
     return this.service.deleteCv(payload.id);
+  }
+
+  @MessagePattern('cv.delete_for_candidate')
+  async deleteCvForCandidate(@Payload() payload: { id: string; userId: string }) {
+    return this.service.deleteCvForCandidate(payload.id, payload.userId);
   }
 }
