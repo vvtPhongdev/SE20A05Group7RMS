@@ -218,7 +218,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    window.location.replace('/login');
   };
 
   return (

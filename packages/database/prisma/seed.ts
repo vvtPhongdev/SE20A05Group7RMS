@@ -33,7 +33,7 @@ async function main() {
   await prisma.user.deleteMany({});
   await prisma.department.deleteMany({});
 
-  const passwordHash = '$2a$12$g5p8FcJec.uMk1l0/.VCAuVYS.EWtuPm8hsnSxyCIzEumMvbbdVa.'; // Password123!
+  const passwordHash = '$2a$12$oHJcxrO8y3AeozTP//ubrumF6T3ZLjDDJxrF.mib4yYGmjsyVddle'; // Password123!
 
   // 3. Create Department heads and users
   const admin = await prisma.user.create({
@@ -48,7 +48,7 @@ async function main() {
 
   const dhEng = await prisma.user.create({
     data: {
-      email: 'dh.engineering@acme.com',
+      email: 'depthead@acme.com',
       displayName: 'Sarah Chen',
       role: 'DEPARTMENT_HEAD',
       passwordHash,
@@ -68,7 +68,7 @@ async function main() {
 
   const hrManager = await prisma.user.create({
     data: {
-      email: 'hm.senior@acme.com',
+      email: 'hr@acme.com',
       displayName: 'Emily Wong',
       role: 'HR_MANAGER',
       passwordHash,
@@ -88,7 +88,7 @@ async function main() {
 
   // Candidates
   const candidates = [
-    { email: 'candidate1@gmail.com', displayName: 'Alex Rivera' },
+    { email: 'candidate@acme.com', displayName: 'Alex Rivera' },
     { email: 'candidate2@gmail.com', displayName: 'Priya Sharma' },
     { email: 'candidate3@gmail.com', displayName: 'Tomás García' },
   ];

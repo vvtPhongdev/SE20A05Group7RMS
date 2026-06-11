@@ -2,11 +2,90 @@ import { Injectable, HttpStatus, OnModuleDestroy } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../common/database/prisma.service';
-import { RegisterUserSchema, RegisterUserInput, AuthTokenResponse, LoginSchema, LoginInput, RefreshTokenSchema, ForgotPasswordSchema, ResetPasswordSchema, ResetPasswordInput, VerifyRegisterSchema, VerifyRegisterInput } from '@wr/contracts';
+import {
+  RegisterUserSchema,
+  RegisterUserInput,
+  AuthTokenResponse,
+  LoginSchema,
+  LoginInput,
+  RefreshTokenSchema,
+  ForgotPasswordSchema,
+  ResetPasswordSchema,
+  ResetPasswordInput,
+  VerifyRegisterSchema,
+  VerifyRegisterInput,
+} from '@wr/contracts';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import IORedis from 'ioredis';
 import * as nodemailer from 'nodemailer';
+import * as path from 'path';
+import * as fs from 'fs';
+
+function getLogoPath(): string | null {
+  const logoPath = path.join(__dirname, '../../../../../assets/logo.png');
+  return fs.existsSync(logoPath) ? logoPath : null;
+}
+
+function buildAuthHtmlTemplate(title: string, bodyHtml: string, hasLogo: boolean): string {
+  const logoHtml = hasLogo
+    ? `<tr>
+         <td align="center" style="padding-bottom: 24px;">
+           <img src="cid:logo" alt="RMS Recruiter Logo" style="height: 45px; max-width: 180px; display: block; object-fit: contain; border: 0;" />
+         </td>
+       </tr>`
+    : '';
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" max-width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; width: 100%;">
+          ${logoHtml}
+          <tr>
+            <td>
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+                <!-- HEADER BANNER -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); padding: 40px 30px; text-align: center; color: #ffffff;">
+                    <div style="font-size: 48px; margin-bottom: 16px;">🔑</div>
+                    <h1 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.025em; font-family: inherit;">${title}</h1>
+                  </td>
+                </tr>
+                <!-- CONTENT -->
+                <tr>
+                  <td style="padding: 40px 30px; color: #1e293b; font-size: 16px; font-family: inherit; line-height: 1.6;">
+                    ${bodyHtml}
+                  </td>
+                </tr>
+                <!-- FOOTER -->
+                <tr>
+                  <td style="background-color: #f1f5f9; padding: 24px 30px; text-align: center; color: #64748b; font-size: 12px; border-top: 1px solid #e2e8f0; font-family: inherit;">
+                    <p style="margin: 0 0 8px 0; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #475569;">Works Recruiter System (RMS)</p>
+                    <p style="margin: 0 0 12px 0; line-height: 1.5;">This is an automated notification. Please do not reply directly to this email.</p>
+                    <div style="border-top: 1px solid #cbd5e1; margin: 12px 0;"></div>
+                    <p style="margin: 0; font-size: 11px; opacity: 0.8; line-height: 1.4;">Confidentiality Notice: This message contains confidential information and is intended solely for the individual named. If you are not the intended recipient, please destroy this message immediately.</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
 
 @Injectable()
 export class AuthService implements OnModuleDestroy {
@@ -105,7 +184,7 @@ export class AuthService implements OnModuleDestroy {
     const port = parseInt(process.env.SMTP_PORT || '1025', 10);
     const userAuth = process.env.SMTP_USER || '';
     const passAuth = process.env.SMTP_PASS || '';
-    const from = process.env.SMTP_FROM || '"Works Reruiter" <noreply@worksreruiter.com>';
+    const from = process.env.SMTP_FROM || '"Works Recruiter" <noreply@worksrecruiter.com>';
 
     const transporter = nodemailer.createTransport({
       host,
@@ -114,21 +193,36 @@ export class AuthService implements OnModuleDestroy {
       auth: userAuth && passAuth ? { user: userAuth, pass: passAuth } : undefined,
     });
 
+    const logoPath = getLogoPath();
     const mailOptions = {
-      from,
+      from: from
+        .replace('Works Reruiter', 'Works Recruiter')
+        .replace('worksreruiter.com', 'worksrecruiter.com'),
       to: email,
-      subject: 'Works Reruiter — Complete your Registration',
+      subject: 'Works Recruiter — Complete your Registration',
       text: `Your registration verification code is: ${code}. This code is valid for 15 minutes.`,
-      html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px; line-height: 1.6;">
-          <h2>Complete your Registration</h2>
-          <p>Thank you for signing up for Works Reruiter. Use the following 6-digit verification code to complete your registration:</p>
-          <div style="font-size: 24px; font-weight: bold; background-color: #f3f4f6; padding: 10px 20px; display: inline-block; letter-spacing: 2px; margin: 10px 0;">
+      html: buildAuthHtmlTemplate(
+        'Complete your Registration',
+        `
+        <p>Thank you for signing up for Works Recruiter. Use the following 6-digit verification code to complete your registration:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <div style="font-size: 32px; font-weight: bold; background-color: #f1f5f9; color: #1e293b; padding: 12px 24px; display: inline-block; letter-spacing: 4px; border-radius: 8px; border: 1px solid #e2e8f0; font-family: monospace;">
             ${code}
           </div>
-          <p>This code is valid for <strong>15 minutes</strong>. If you did not request this, you can ignore this email.</p>
         </div>
-      `,
+        <p>This code is valid for <strong>15 minutes</strong>. If you did not request this, you can ignore this email.</p>
+        `,
+        !!logoPath,
+      ),
+      attachments: logoPath
+        ? [
+            {
+              filename: 'logo.png',
+              path: logoPath,
+              cid: 'logo',
+            },
+          ]
+        : undefined,
     };
 
     try {
@@ -136,7 +230,9 @@ export class AuthService implements OnModuleDestroy {
     } catch (err: any) {
       console.error(`Failed to send email to ${email}:`, err.message);
       if (process.env.NODE_ENV === 'development' || host === 'localhost') {
-        console.warn(`⚠️ [DEVELOPMENT ONLY] Bypassing SMTP mail failure. You can use the OTP code printed above.`);
+        console.warn(
+          `⚠️ [DEVELOPMENT ONLY] Bypassing SMTP mail failure. You can use the OTP code printed above.`,
+        );
       } else {
         throw new RpcException({
           status: HttpStatus.INTERNAL_SERVER_ERROR,
@@ -313,19 +409,19 @@ export class AuthService implements OnModuleDestroy {
       return { success: true };
     }
 
-    // 4. Generate 6-digit code
-    const code = crypto.randomInt(100000, 1000000).toString();
+    // 4. Generate random token
+    const token = crypto.randomBytes(32).toString('hex');
 
-    // 5. Store code in Redis with 15-min TTL
+    // 5. Store token in Redis with 15-min TTL
     const redisKey = `reset:${email}`;
-    await this.redis.set(redisKey, code, 'EX', 900);
+    await this.redis.set(redisKey, token, 'EX', 900);
 
-    // 6. Send verification code via SMTP (nodemailer)
+    // 6. Send verification link via SMTP (nodemailer)
     const host = process.env.SMTP_HOST || 'localhost';
     const port = parseInt(process.env.SMTP_PORT || '1025', 10);
     const userAuth = process.env.SMTP_USER || '';
     const passAuth = process.env.SMTP_PASS || '';
-    const from = process.env.SMTP_FROM || '"Works Reruiter" <noreply@worksreruiter.com>';
+    const from = process.env.SMTP_FROM || '"Works Recruiter" <noreply@worksrecruiter.com>';
 
     const transporter = nodemailer.createTransport({
       host,
@@ -334,21 +430,41 @@ export class AuthService implements OnModuleDestroy {
       auth: userAuth && passAuth ? { user: userAuth, pass: passAuth } : undefined,
     });
 
+    const webappUrl = process.env.API_CORS_ORIGIN || 'http://localhost:3000';
+    const resetLink = `${webappUrl}/reset-password?email=${encodeURIComponent(email)}&token=${token}`;
+
+    const logoPath = getLogoPath();
     const mailOptions = {
-      from,
+      from: from
+        .replace('Works Reruiter', 'Works Recruiter')
+        .replace('worksreruiter.com', 'worksrecruiter.com'),
       to: email,
-      subject: 'Works Reruiter — Password Reset Verification Code',
-      text: `Your password reset verification code is: ${code}. This code is valid for 15 minutes.`,
-      html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px; line-height: 1.6;">
-          <h2>Password Reset Request</h2>
-          <p>We received a request to reset your password. Use the following 6-digit verification code to proceed:</p>
-          <div style="font-size: 24px; font-weight: bold; background-color: #f3f4f6; padding: 10px 20px; display: inline-block; letter-spacing: 2px; margin: 10px 0;">
-            ${code}
-          </div>
-          <p>This code is valid for <strong>15 minutes</strong>. If you did not request a password reset, please ignore this email.</p>
+      subject: 'Works Recruiter — Password Reset Link',
+      text: `Please reset your password by opening the following link in your browser: ${resetLink}. This link is valid for 15 minutes.`,
+      html: buildAuthHtmlTemplate(
+        'Password Reset Request',
+        `
+        <p>We received a request to reset your password. Click the button below to set a new password:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${resetLink}" target="_blank" style="background-color: #4f46e5; color: #ffffff; padding: 12px 24px; font-weight: 600; text-decoration: none; border-radius: 8px; display: inline-block; box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);">
+            Reset Password
+          </a>
         </div>
-      `,
+        <p style="font-size: 14px; color: #64748b; margin-top: 24px;">If the button doesn't work, you can copy and paste this link into your browser:</p>
+        <p style="font-size: 13px; color: #4f46e5; word-break: break-all;"><a href="${resetLink}" style="color: #4f46e5; text-decoration: underline;">${resetLink}</a></p>
+        <p>This link is valid for <strong>15 minutes</strong>. If you did not request a password reset, please ignore this email.</p>
+        `,
+        !!logoPath,
+      ),
+      attachments: logoPath
+        ? [
+            {
+              filename: 'logo.png',
+              path: logoPath,
+              cid: 'logo',
+            },
+          ]
+        : undefined,
     };
 
     try {
@@ -365,7 +481,7 @@ export class AuthService implements OnModuleDestroy {
   }
 
   /**
-   * Validate 6-digit code from Redis, hash new password (bcrypt 12 rounds),
+   * Validate token from Redis, hash new password (bcrypt 12 rounds),
    * update User.passwordHash, and delete ALL refresh tokens for user.
    */
   async resetPassword(dto: ResetPasswordInput): Promise<{ success: boolean }> {
@@ -381,7 +497,7 @@ export class AuthService implements OnModuleDestroy {
     if (!storedCode || storedCode !== parsed.code) {
       throw new RpcException({
         status: HttpStatus.BAD_REQUEST,
-        message: 'Invalid or expired reset code',
+        message: 'Invalid or expired reset link',
       });
     }
 
@@ -413,13 +529,7 @@ export class AuthService implements OnModuleDestroy {
     let scanCursor = cursor;
 
     do {
-      const result = await this.redis.scan(
-        scanCursor,
-        'MATCH',
-        'refresh:*',
-        'COUNT',
-        100
-      );
+      const result = await this.redis.scan(scanCursor, 'MATCH', 'refresh:*', 'COUNT', 100);
       scanCursor = result[0];
       const keys = result[1];
 
@@ -538,7 +648,7 @@ export class AuthService implements OnModuleDestroy {
     const port = parseInt(process.env.SMTP_PORT || '1025', 10);
     const userAuth = process.env.SMTP_USER || '';
     const passAuth = process.env.SMTP_PASS || '';
-    const from = process.env.SMTP_FROM || '"Works Reruiter" <noreply@worksreruiter.com>';
+    const from = process.env.SMTP_FROM || '"Works Recruiter" <noreply@worksrecruiter.com>';
 
     const transporter = nodemailer.createTransport({
       host,
@@ -547,21 +657,36 @@ export class AuthService implements OnModuleDestroy {
       auth: userAuth && passAuth ? { user: userAuth, pass: passAuth } : undefined,
     });
 
+    const logoPath = getLogoPath();
     const mailOptions = {
-      from,
+      from: from
+        .replace('Works Reruiter', 'Works Recruiter')
+        .replace('worksreruiter.com', 'worksrecruiter.com'),
       to: email,
-      subject: 'Works Reruiter — Complete your Registration (Resend)',
+      subject: 'Works Recruiter — Complete your Registration (Resend)',
       text: `Your new registration verification code is: ${code}. This code is valid for 15 minutes.`,
-      html: `
-        <div style="font-family: Arial, sans-serif; padding: 20px; line-height: 1.6;">
-          <h2>Complete your Registration</h2>
-          <p>Here is your new 6-digit verification code to complete your registration:</p>
-          <div style="font-size: 24px; font-weight: bold; background-color: #f3f4f6; padding: 10px 20px; display: inline-block; letter-spacing: 2px; margin: 10px 0;">
+      html: buildAuthHtmlTemplate(
+        'Complete your Registration',
+        `
+        <p>Here is your new 6-digit verification code to complete your registration:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <div style="font-size: 32px; font-weight: bold; background-color: #f1f5f9; color: #1e293b; padding: 12px 24px; display: inline-block; letter-spacing: 4px; border-radius: 8px; border: 1px solid #e2e8f0; font-family: monospace;">
             ${code}
           </div>
-          <p>This code is valid for <strong>15 minutes</strong>. If you did not request this, you can ignore this email.</p>
         </div>
-      `,
+        <p>This code is valid for <strong>15 minutes</strong>. If you did not request this, you can ignore this email.</p>
+        `,
+        !!logoPath,
+      ),
+      attachments: logoPath
+        ? [
+            {
+              filename: 'logo.png',
+              path: logoPath,
+              cid: 'logo',
+            },
+          ]
+        : undefined,
     };
 
     try {
@@ -569,7 +694,9 @@ export class AuthService implements OnModuleDestroy {
     } catch (err: any) {
       console.error(`Failed to send email to ${email}:`, err.message);
       if (process.env.NODE_ENV === 'development' || host === 'localhost') {
-        console.warn(`⚠️ [DEVELOPMENT ONLY] Bypassing SMTP mail failure. You can use the OTP code printed above.`);
+        console.warn(
+          `⚠️ [DEVELOPMENT ONLY] Bypassing SMTP mail failure. You can use the OTP code printed above.`,
+        );
       } else {
         throw new RpcException({
           status: HttpStatus.INTERNAL_SERVER_ERROR,
