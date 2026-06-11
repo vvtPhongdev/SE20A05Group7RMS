@@ -38,7 +38,6 @@ import { CandidateProfile } from './pages/CandidateProfile';
 import { CandidateUploadCv } from './pages/CandidateUploadCv';
 import { CandidateNotifications } from './pages/CandidateNotifications';
 import { CandidateInterviewDetails } from './pages/CandidateInterviewDetails';
-import { PlaceholderPage } from './pages/PlaceholderPage';
 import { UserRole } from '@wr/contracts';
 
 // Redirects user to their role-specific landing dashboard
