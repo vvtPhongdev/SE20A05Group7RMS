@@ -102,12 +102,67 @@ export class InterviewController {
 
   // ─── Results (FR-14) ──────────────────────────────────────────────
 
+  @Get('completed')
+  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'List completed or past interviews' })
+  listCompleted() {
+    return firstValueFrom(this.interviewClient.send('interview.list_completed', {}));
+  }
+
+  @Get(':id/details')
+  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'Get completed interview details with panel feedbacks' })
+  getDetails(@Param('id') id: string) {
+    return firstValueFrom(this.interviewClient.send('interview.get_details', { id }));
+  }
+
   @Post('schedules/:id/results')
   @Roles(UserRole.HR_MANAGER)
-  @ApiOperation({ summary: 'FR-14: Record interview result (PASS/FAIL) with panel notes' })
+  @ApiOperation({ summary: 'FR-14: Record detailed panel feedbacks and final recommendation (Legacy path)' })
+  recordResultLegacy(
+    @Param('id') interviewId: string,
+    @Body()
+    body: {
+      feedbacks: Array<{
+        evaluatorId: string;
+        decision: 'PASS' | 'FAIL';
+        technical: number;
+        communication: number;
+        culture: number;
+        notes: string;
+      }>;
+      finalRecommendation: string;
+      summaryNotes?: string;
+    },
+    @CurrentUser() user: any,
+  ) {
+    return firstValueFrom(
+      this.interviewClient.send('interview.record_result', {
+        interviewId,
+        ...body,
+        evaluatorId: user.sub,
+      }),
+    );
+  }
+
+  @Post(':id/results')
+  @Roles(UserRole.HR_MANAGER)
+  @ApiOperation({ summary: 'FR-14: Record detailed panel feedbacks and final recommendation' })
   recordResult(
     @Param('id') interviewId: string,
-    @Body() body: { result: string; notes: string },
+    @Body()
+    body: {
+      feedbacks: Array<{
+        evaluatorId: string;
+        decision: 'PASS' | 'FAIL';
+        technical: number;
+        communication: number;
+        culture: number;
+        notes: string;
+      }>;
+      finalRecommendation: string;
+      summaryNotes?: string;
+    },
     @CurrentUser() user: any,
   ) {
     return firstValueFrom(

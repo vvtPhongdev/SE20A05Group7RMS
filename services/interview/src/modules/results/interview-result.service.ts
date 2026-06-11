@@ -6,7 +6,6 @@ import {
   AuditAction,
   AuditEntityType,
   InterviewStatus,
-  InterviewResult,
   RecruitmentRequestStatus,
   NotificationType,
   UserRole,
@@ -21,16 +20,164 @@ export class InterviewResultService {
   ) {}
 
   /**
-   * T-053: Record interview PASS/FAIL result with detailed notes and evaluator.
-   * Updates candidate pipeline status (Application status) and triggers workflows (FR-15).
+   * List all completed or past interviews.
+   */
+  async listCompleted() {
+    const schedules = await this.prisma.interviewSchedule.findMany({
+      where: {
+        status: { not: InterviewStatus.CANCELLED },
+        OR: [
+          { status: InterviewStatus.COMPLETED },
+          { scheduledAt: { lte: new Date() } }
+        ]
+      },
+      include: {
+        candidate: true,
+        request: {
+          include: {
+            department: true
+          }
+        }
+      },
+      orderBy: {
+        scheduledAt: 'desc'
+      }
+    });
+
+    return schedules.map(s => {
+      const status = (s.finalRecommendation || s.status === InterviewStatus.COMPLETED)
+        ? 'Recorded'
+        : 'Pending Recording';
+
+      const formattedTime = s.scheduledAt.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      }) + ', ' + s.scheduledAt.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+
+      return {
+        id: s.id,
+        candidate: s.candidate.fullName,
+        role: s.request.position,
+        department: s.request.department.name,
+        time: formattedTime,
+        status,
+      };
+    });
+  }
+
+  /**
+   * Get completed interview details including panel members and their feedbacks.
+   */
+  async getDetails(id: string) {
+    const schedule = await this.prisma.interviewSchedule.findUnique({
+      where: { id },
+      include: {
+        candidate: true,
+        request: {
+          include: {
+            department: true
+          }
+        },
+        results: {
+          include: {
+            evaluator: true
+          }
+        }
+      }
+    });
+
+    if (!schedule) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Interview schedule ${id} not found`,
+      });
+    }
+
+    // Fetch details of all users listed in schedule.interviewers
+    const interviewers = await this.prisma.user.findMany({
+      where: {
+        id: { in: schedule.interviewers }
+      }
+    });
+
+    // Map each interviewer in schedule.interviewers to their feedback (recorded or default empty)
+    const feedbacks = schedule.interviewers.map(interviewerId => {
+      const interviewer = interviewers.find(u => u.id === interviewerId);
+      const result = schedule.results.find(r => r.evaluatorId === interviewerId);
+
+      const initials = interviewer
+        ? interviewer.displayName
+            .split(' ')
+            .map(n => n[0])
+            .join('')
+            .toUpperCase()
+        : 'U';
+
+      return {
+        id: interviewerId,
+        member: interviewer?.displayName || 'Unknown User',
+        role: interviewer?.role || 'Interviewer',
+        initials,
+        decision: result ? (result.result as 'PASS' | 'FAIL') : 'PASS',
+        technical: result?.technical !== undefined && result?.technical !== null ? result.technical : 0,
+        communication: result?.communication !== undefined && result?.communication !== null ? result.communication : 0,
+        culture: result?.culture !== undefined && result?.culture !== null ? result.culture : 0,
+        notes: result?.notes || '',
+        isRecorded: !!result
+      };
+    });
+
+    const formattedTime = schedule.scheduledAt.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    }) + ', ' + schedule.scheduledAt.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+
+    return {
+      id: schedule.id,
+      candidate: schedule.candidate.fullName,
+      role: schedule.request.position,
+      department: schedule.request.department.name,
+      time: formattedTime,
+      status: (schedule.finalRecommendation || schedule.status === InterviewStatus.COMPLETED) ? 'Recorded' : 'Pending Recording',
+      interviewers: interviewers.map(u => ({
+        id: u.id,
+        name: u.displayName,
+        role: u.role,
+        initials: u.displayName.split(' ').map(n => n[0]).join('').toUpperCase()
+      })),
+      feedbacks,
+      finalRecommendation: schedule.finalRecommendation || '',
+      summaryNotes: schedule.summaryNotes || ''
+    };
+  }
+
+  /**
+   * T-053: Record interview results with detailed panel feedback, scoring,
+   * and final recommendations. Updates candidate pipeline status (FR-15).
    */
   async recordResult(payload: {
     interviewId: string;
-    result: string;
-    notes: string;
+    feedbacks: Array<{
+      evaluatorId: string;
+      decision: 'PASS' | 'FAIL';
+      technical: number;
+      communication: number;
+      culture: number;
+      notes: string;
+    }>;
+    finalRecommendation: string;
+    summaryNotes?: string;
     evaluatorId?: string;
   }) {
-    const { interviewId, result, notes, evaluatorId } = payload;
+    const { interviewId, feedbacks, finalRecommendation, summaryNotes, evaluatorId } = payload;
 
     const schedule = await this.prisma.interviewSchedule.findUnique({
       where: { id: interviewId },
@@ -54,24 +201,11 @@ export class InterviewResultService {
       });
     }
 
-    if (schedule.status === InterviewStatus.COMPLETED) {
-      throw new RpcException({
-        status: HttpStatus.CONFLICT,
-        message: 'Interview result has already been recorded for this schedule',
-      });
-    }
-
-    if (!Object.values(InterviewResult).includes(result as InterviewResult)) {
+    const validRecommendations = ['Recommend Hire', 'Recommend Reject', 'Hold for Further'];
+    if (!validRecommendations.includes(finalRecommendation)) {
       throw new RpcException({
         status: HttpStatus.BAD_REQUEST,
-        message: `Result must be one of: ${Object.values(InterviewResult).join(', ')}`,
-      });
-    }
-
-    if (!notes?.trim()) {
-      throw new RpcException({
-        status: HttpStatus.BAD_REQUEST,
-        message: 'notes are mandatory when recording an interview result',
+        message: `finalRecommendation must be one of: ${validRecommendations.join(', ')}`,
       });
     }
 
@@ -122,46 +256,91 @@ export class InterviewResultService {
       ? RecruitmentRequestStatus.INTERVIEW_COMPLETED
       : RecruitmentRequestStatus.REJECTED;
 
-    const transactions: any[] = [
-      // 1. Create InterviewResult record
-      this.prisma.interviewResult.create({
-        data: {
-          interviewId,
-          result,
-          notes: notes.trim(),
-          evaluatorId: evaluatorId || null,
-        },
-      }),
+    // Find existing interview results to see what needs to be created vs updated
+    const existingResults = await this.prisma.interviewResult.findMany({
+      where: { interviewId }
+    });
 
-      // 2. Mark Schedule as COMPLETED
+    const transactions: any[] = [];
+
+    // 1. Create or Update InterviewResult records for each panel member feedback
+    for (const fb of feedbacks) {
+      const existing = existingResults.find(r => r.evaluatorId === fb.evaluatorId);
+      if (existing) {
+        transactions.push(
+          this.prisma.interviewResult.update({
+            where: { id: existing.id },
+            data: {
+              result: fb.decision,
+              notes: fb.notes?.trim() || null,
+              technical: fb.technical,
+              communication: fb.communication,
+              culture: fb.culture
+            }
+          })
+        );
+      } else {
+        transactions.push(
+          this.prisma.interviewResult.create({
+            data: {
+              interviewId,
+              evaluatorId: fb.evaluatorId,
+              result: fb.decision,
+              notes: fb.notes?.trim() || null,
+              technical: fb.technical,
+              communication: fb.communication,
+              culture: fb.culture
+            }
+          })
+        );
+      }
+    }
+
+    // 2. Mark Schedule as COMPLETED, and record recommendation
+    transactions.push(
       this.prisma.interviewSchedule.update({
         where: { id: interviewId },
-        data: { status: InterviewStatus.COMPLETED },
-      }),
+        data: {
+          status: InterviewStatus.COMPLETED,
+          finalRecommendation,
+          summaryNotes: summaryNotes?.trim() || null
+        },
+      })
+    );
 
-      // 3. Update Application Status
-      this.prisma.application.update({
-        where: { id: application.id },
-        data: { status: nextAppStatus },
-      }),
+    // 3. Update Application Status if recommendation specifies a transition
+    if (nextAppStatus) {
+      transactions.push(
+        this.prisma.application.update({
+          where: { id: application.id },
+          data: { status: nextAppStatus },
+        })
+      );
+    }
 
-      // 4. Create RequestLog for candidate evaluation outcome
+    // 4. Create RequestLog for candidate evaluation outcome
+    transactions.push(
       this.prisma.requestLog.create({
         data: {
           requestId: schedule.requestId,
-          action: isPass ? 'CANDIDATE_PASSED_INTERVIEW' : 'CANDIDATE_FAILED_INTERVIEW',
+          action: finalRecommendation === 'Recommend Hire'
+            ? 'CANDIDATE_PASSED_INTERVIEW'
+            : finalRecommendation === 'Recommend Reject'
+            ? 'CANDIDATE_FAILED_INTERVIEW'
+            : 'CANDIDATE_HOLD_INTERVIEW',
           performedById: evaluatorId || 'SYSTEM',
           metadata: {
             interviewId,
             candidateId: schedule.candidateId,
-            notes: notes.trim(),
+            finalRecommendation,
+            summaryNotes: summaryNotes?.trim() || null,
           },
         },
-      }),
-    ];
+      })
+    );
 
     // 5. If all schedules are finished, transition RecruitmentRequest to INTERVIEW_COMPLETED
-    if (isLastInterview) {
+    if (isLastInterview && nextAppStatus === RecruitmentRequestStatus.INTERVIEW_COMPLETED) {
       transactions.push(
         this.prisma.recruitmentRequest.update({
           where: { id: schedule.requestId },
@@ -182,7 +361,12 @@ export class InterviewResultService {
       );
     }
 
-    const [recordedResult] = await this.prisma.$transaction(transactions);
+    await this.prisma.$transaction(transactions);
+
+    // Fetch updated results to log them in AuditLogs
+    const updatedResults = await this.prisma.interviewResult.findMany({
+      where: { interviewId }
+    });
 
     this.auditLog
       .log({
@@ -275,6 +459,6 @@ export class InterviewResultService {
         });
     }
 
-    return recordedResult;
+    return { success: true };
   }
 }

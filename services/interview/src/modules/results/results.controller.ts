@@ -6,14 +6,32 @@ import { InterviewResultService } from './interview-result.service';
 export class ResultsController {
   constructor(private readonly resultsService: InterviewResultService) {}
 
+  @MessagePattern('interview.list_completed')
+  async listCompleted() {
+    return this.resultsService.listCompleted();
+  }
+
+  @MessagePattern('interview.get_details')
+  async getDetails(@Payload() payload: { id: string }) {
+    return this.resultsService.getDetails(payload.id);
+  }
+
   /** FR-14: Record PASS/FAIL result with panel notes and evaluator. */
   @MessagePattern('interview.record_result')
   async recordResult(
     @Payload()
     payload: {
       interviewId: string;
-      result: string;
-      notes: string;
+      feedbacks: Array<{
+        evaluatorId: string;
+        decision: 'PASS' | 'FAIL';
+        technical: number;
+        communication: number;
+        culture: number;
+        notes: string;
+      }>;
+      finalRecommendation: string;
+      summaryNotes?: string;
       evaluatorId?: string;
     },
   ) {
