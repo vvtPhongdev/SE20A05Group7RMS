@@ -129,7 +129,9 @@ export function App() {
             path="/admin/interview-results"
             element={
               <ProtectedRoute allowedRoles={[UserRole.ADMIN]}>
-                <AdminInterviewResults />
+                <Layout>
+                  <AdminInterviewResults />
+                </Layout>
               </ProtectedRoute>
             }
           />
