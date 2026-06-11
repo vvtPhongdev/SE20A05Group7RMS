@@ -11,6 +11,8 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { config as appConfig } from '../config';
 import { ClientProxy } from '@nestjs/microservices';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
 import { SERVICE_TOKENS } from '../constants';
@@ -316,6 +318,7 @@ export class IdentityController {
 
   @Post('auth/register')
   @Public()
+  @Throttle({ default: { limit: appConfig.RATE_LIMIT_AUTH_LIMIT, ttl: appConfig.RATE_LIMIT_TTL } })
   @ApiOperation({ summary: 'Register a new user' })
   @HttpCode(HttpStatus.CREATED)
   register(@Body() body: RegisterDto) {
@@ -324,6 +327,7 @@ export class IdentityController {
 
   @Post('auth/verify-register')
   @Public()
+  @Throttle({ default: { limit: appConfig.RATE_LIMIT_AUTH_LIMIT, ttl: appConfig.RATE_LIMIT_TTL } })
   @ApiOperation({ summary: 'Verify registration OTP code' })
   verifyRegister(@Body() body: VerifyRegisterDto) {
     return firstValueFrom(this.identityClient.send('identity.auth.verify-register', body));
@@ -331,6 +335,7 @@ export class IdentityController {
 
   @Post('auth/resend-register-otp')
   @Public()
+  @Throttle({ default: { limit: appConfig.RATE_LIMIT_AUTH_LIMIT, ttl: appConfig.RATE_LIMIT_TTL } })
   @ApiOperation({ summary: 'Resend registration OTP code' })
   resendRegisterOtp(@Body() body: ForgotPasswordDto) {
     return firstValueFrom(this.identityClient.send('identity.auth.resend-register-otp', body));
@@ -338,6 +343,7 @@ export class IdentityController {
 
   @Post('auth/login')
   @Public()
+  @Throttle({ default: { limit: appConfig.RATE_LIMIT_AUTH_LIMIT, ttl: appConfig.RATE_LIMIT_TTL } })
   @ApiOperation({ summary: 'Login' })
   @HttpCode(HttpStatus.OK)
   login(@Body() body: LoginDto) {
@@ -346,6 +352,7 @@ export class IdentityController {
 
   @Post('auth/refresh')
   @Public()
+  @Throttle({ default: { limit: appConfig.RATE_LIMIT_AUTH_LIMIT, ttl: appConfig.RATE_LIMIT_TTL } })
   @ApiOperation({ summary: 'Refresh JWT token' })
   @HttpCode(HttpStatus.OK)
   refresh(@Body() body: RefreshTokenDto) {
@@ -354,6 +361,7 @@ export class IdentityController {
 
   @Post('auth/logout')
   @Public()
+  @Throttle({ default: { limit: appConfig.RATE_LIMIT_AUTH_LIMIT, ttl: appConfig.RATE_LIMIT_TTL } })
   @ApiOperation({ summary: 'Logout and revoke refresh token' })
   @HttpCode(HttpStatus.NO_CONTENT)
   async logout(@Body() body: LogoutDto) {
@@ -363,6 +371,7 @@ export class IdentityController {
 
   @Post('auth/forgot-password')
   @Public()
+  @Throttle({ default: { limit: appConfig.RATE_LIMIT_AUTH_LIMIT, ttl: appConfig.RATE_LIMIT_TTL } })
   @ApiOperation({ summary: 'Request password reset' })
   forgotPassword(@Body() body: ForgotPasswordDto) {
     return firstValueFrom(this.identityClient.send('identity.auth.forgot-password', body));
@@ -370,6 +379,7 @@ export class IdentityController {
 
   @Post('auth/reset-password')
   @Public()
+  @Throttle({ default: { limit: appConfig.RATE_LIMIT_AUTH_LIMIT, ttl: appConfig.RATE_LIMIT_TTL } })
   @ApiOperation({ summary: 'Reset password with token' })
   resetPassword(@Body() body: ResetPasswordDto) {
     return firstValueFrom(this.identityClient.send('identity.auth.reset-password', body));

@@ -27,6 +27,9 @@ export const GatewayEnvSchema = BaseEnvSchema.extend({
   NOTIFICATION_PORT: z.coerce.number().int().default(3013),
   CV_PORT: z.coerce.number().int().default(3014),
   INTERVIEW_PORT: z.coerce.number().int().default(3015),
+  RATE_LIMIT_TTL: z.coerce.number().int().default(60000),
+  RATE_LIMIT_LIMIT: z.coerce.number().int().default(100),
+  RATE_LIMIT_AUTH_LIMIT: z.coerce.number().int().default(10),
 });
 
 // ─── Identity Service Environment ───────────────────────────────────
