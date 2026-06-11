@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const kpis = [
   {
@@ -91,11 +92,14 @@ const DashboardCard = ({ children, className = '' }: { children: React.ReactNode
 );
 
 export const AdminDashboard: React.FC = () => {
+  const navigate = useNavigate();
+
   return (
     <div className="mx-auto flex max-w-[1440px] flex-col gap-6">
       <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-deep-charcoal">Dashboard</h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">Director Portal</p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">Director Dashboard - Director</h1>
           <p className="mt-1 text-sm text-slate-ink">Good morning, Mr. Tu</p>
         </div>
         <div className="w-fit rounded-lg bg-surface-container px-3 py-1.5 font-mono text-sm text-slate-ink">
@@ -150,7 +154,11 @@ export const AdminDashboard: React.FC = () => {
         <DashboardCard className="xl:col-span-6">
           <div className="mb-5 flex items-center justify-between gap-4">
             <h2 className="text-xl font-semibold text-on-surface">Recent Approval Queue</h2>
-            <button className="text-sm font-semibold text-teal-command transition hover:underline active:scale-[0.98]" type="button">
+            <button
+              className="text-sm font-semibold text-teal-command transition hover:underline active:scale-[0.98]"
+              onClick={() => navigate('/admin/approval-queue')}
+              type="button"
+            >
               View All Queue
             </button>
           </div>
@@ -177,7 +185,11 @@ export const AdminDashboard: React.FC = () => {
                     </td>
                     <td className="py-4 text-slate-ink">{request.submitted}</td>
                     <td className="py-4 text-right">
-                      <button className="font-semibold text-teal-command transition hover:underline active:scale-[0.98]" type="button">
+                      <button
+                        className="font-semibold text-teal-command transition hover:underline active:scale-[0.98]"
+                        onClick={() => navigate('/admin/approval-queue')}
+                        type="button"
+                      >
                         Review
                       </button>
                     </td>
