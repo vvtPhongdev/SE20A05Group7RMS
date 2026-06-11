@@ -1,341 +1,377 @@
 import React, { useMemo, useState } from 'react';
 
-type InterviewStage = 'Scheduled' | 'Needs Feedback' | 'Completed' | 'Reschedule';
-type InterviewMode = 'Technical' | 'Culture Fit' | 'Final Panel';
+type ViewMode = 'This Week' | 'This Month';
+type SortKey = 'earliest' | 'position';
+type InterviewStatus = 'Confirmed' | 'Pending Confirmation';
+type InterviewTone = 'teal' | 'cyan' | 'amber' | 'slate';
 
-type Interview = {
+interface CalendarEvent {
   id: string;
-  candidate: string;
-  role: string;
-  requestId: string;
-  mode: InterviewMode;
-  stage: InterviewStage;
+  day: string;
   date: string;
   time: string;
+  round: string;
+  position: string;
+  location: string;
+  locationType: 'room' | 'video';
+  candidates: string[];
   panel: string[];
-  score?: number;
-  notes: string;
-};
+  status: InterviewStatus;
+  tone: InterviewTone;
+}
 
-const interviews: Interview[] = [
+const calendarDays = [
+  { day: 'Mon', date: 'May 26' },
+  { day: 'Tue', date: 'May 27' },
+  { day: 'Wed', date: 'May 28' },
+  { day: 'Thu', date: 'May 29' },
+  { day: 'Fri', date: 'May 30' },
+];
+
+const events: CalendarEvent[] = [
   {
-    id: 'INT-2026-041',
-    candidate: 'Le Minh Khang',
-    role: 'Systems Analyst',
-    requestId: 'REQ-2026-009',
-    mode: 'Technical',
-    stage: 'Scheduled',
-    date: '2026-06-12',
-    time: '09:30',
-    panel: ['Nhi Bui', 'Hanh Vo'],
-    notes: 'Prepare API design case and reporting scenario.',
+    id: 'INT-DH-001',
+    day: 'Mon',
+    date: 'May 26',
+    time: '10:00',
+    round: 'Round 1',
+    position: 'Senior Developer',
+    location: 'Room 301',
+    locationType: 'room',
+    candidates: ['Nguyen Van A', 'Tran Ngoc Mai', 'Le Hoang Quan'],
+    panel: ['Vo Minh Tu', 'Le Thi Hang'],
+    status: 'Confirmed',
+    tone: 'teal',
   },
   {
-    id: 'INT-2026-042',
-    candidate: 'Pham Thuy An',
-    role: 'QA Automation Engineer',
-    requestId: 'REQ-2026-010',
-    mode: 'Final Panel',
-    stage: 'Needs Feedback',
-    date: '2026-06-10',
+    id: 'INT-DH-002',
+    day: 'Mon',
+    date: 'May 26',
     time: '14:00',
-    panel: ['Quyen Lam', 'Tuan Le'],
-    score: 82,
-    notes: 'Feedback due today. Candidate was strong on test architecture.',
+    round: 'Technical',
+    position: 'Marketing Specialist',
+    location: 'Zoom Meeting Link',
+    locationType: 'video',
+    candidates: ['Phan Bao Ngoc', 'Le Quoc Huy'],
+    panel: ['Tran Van C'],
+    status: 'Pending Confirmation',
+    tone: 'cyan',
   },
   {
-    id: 'INT-2026-043',
-    candidate: 'Dao Gia Huy',
-    role: 'Technical Lead',
-    requestId: 'REQ-2026-011',
-    mode: 'Culture Fit',
-    stage: 'Completed',
-    date: '2026-06-09',
-    time: '10:15',
-    panel: ['Duc Truong', 'Mai Phan'],
-    score: 88,
-    notes: 'Recommended for offer review with architecture follow-up.',
+    id: 'INT-DH-003',
+    day: 'Tue',
+    date: 'May 27',
+    time: '09:00',
+    round: 'Final Round',
+    position: 'DevOps Engineer',
+    location: 'Room 502',
+    locationType: 'room',
+    candidates: ['Hoang Thanh Tung'],
+    panel: ['Admin', 'HR'],
+    status: 'Confirmed',
+    tone: 'amber',
   },
   {
-    id: 'INT-2026-044',
-    candidate: 'Nguyen Hoai Linh',
-    role: 'Integration Engineer',
-    requestId: 'REQ-2026-008',
-    mode: 'Technical',
-    stage: 'Reschedule',
-    date: '2026-06-13',
-    time: '16:30',
-    panel: ['Hanh Vo', 'Khoa Pham'],
-    notes: 'Panel conflict. HR requested new slots from department reviewers.',
-  },
-  {
-    id: 'INT-2026-045',
-    candidate: 'Tran Bao Chau',
-    role: 'Data Analyst',
-    requestId: 'REQ-2026-005',
-    mode: 'Technical',
-    stage: 'Scheduled',
-    date: '2026-06-14',
-    time: '11:00',
-    panel: ['Bao Nguyen', 'Nhi Bui'],
-    notes: 'Use dashboard interpretation exercise and SQL review.',
+    id: 'INT-DH-004',
+    day: 'Thu',
+    date: 'May 29',
+    time: '11:30',
+    round: 'Portfolio Review',
+    position: 'Junior Designer',
+    location: 'Room 201',
+    locationType: 'room',
+    candidates: ['Mai Anh', 'Doan Nhat Linh', 'Pham Thuy Vy', 'Nguyen Bao Chau'],
+    panel: ['Creative Lead', 'Dept Head'],
+    status: 'Confirmed',
+    tone: 'slate',
   },
 ];
 
-const stageStyles: Record<InterviewStage, string> = {
-  Scheduled: 'border-cyan-200 bg-cyan-50 text-pending',
-  'Needs Feedback': 'border-amber-200 bg-amber-50 text-revision',
-  Completed: 'border-green-200 bg-green-50 text-approved',
-  Reschedule: 'border-red-200 bg-red-50 text-rejected',
+const toneStyles: Record<InterviewTone, string> = {
+  teal: 'border-teal-command bg-primary-container/10 text-teal-command',
+  cyan: 'border-pending bg-pending/5 text-pending',
+  amber: 'border-revision bg-revision/10 text-revision',
+  slate: 'border-slate-ink bg-slate-ink/10 text-slate-ink',
 };
 
-const iconPaths: Record<string, React.ReactNode> = {
-  calendar: (
-    <path d="M7 3v4m10-4v4M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
-  ),
-  feedback: (
-    <path d="M8 10h8M8 14h5M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5l-4 3v-3H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" />
-  ),
-  check: <path d="m8 12 2.6 2.6L16.5 8.8M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
-  search: <path d="m21 21-4.3-4.3M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" />,
-  clock: <path d="M12 6v6l4 2m5-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
+const statusStyles: Record<InterviewStatus, string> = {
+  Confirmed: 'bg-approved/10 text-approved',
+  'Pending Confirmation': 'bg-revision/10 text-revision',
 };
 
-const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: string }) => (
-  <svg
-    aria-hidden="true"
-    className={className}
-    fill="none"
-    stroke="currentColor"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    strokeWidth="1.8"
-    viewBox="0 0 24 24"
-  >
-    {iconPaths[name]}
-  </svg>
-);
-
-const formatDate = (value: string) =>
-  new Intl.DateTimeFormat('en', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(new Date(`${value}T00:00:00`));
-
-export const DeptHeadInterviews: React.FC = () => {
-  const [query, setQuery] = useState('');
-  const [stage, setStage] = useState<InterviewStage | 'All'>('All');
-
-  const visibleInterviews = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-
-    return interviews.filter((interview) => {
-      const matchesStage = stage === 'All' || interview.stage === stage;
-      const matchesQuery =
-        !normalizedQuery ||
-        [
-          interview.id,
-          interview.candidate,
-          interview.role,
-          interview.requestId,
-          interview.mode,
-          interview.notes,
-        ].some((value) => value.toLowerCase().includes(normalizedQuery));
-
-      return matchesStage && matchesQuery;
-    });
-  }, [query, stage]);
-
-  const feedbackDue = interviews.filter((interview) => interview.stage === 'Needs Feedback').length;
-  const scheduled = interviews.filter((interview) => interview.stage === 'Scheduled').length;
-  const completed = interviews.filter((interview) => interview.stage === 'Completed').length;
+const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: string }) => {
+  const paths: Record<string, React.ReactNode> = {
+    calendar: (
+      <path d="M7 3v4m10-4v4M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
+    ),
+    candidates: <path d="M16 19a4 4 0 0 0-8 0M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm6 6a3 3 0 0 0-2-2.83M18 7.5a3 3 0 0 1 0 5" />,
+    room: <path d="M4 21V5a2 2 0 0 1 2-2h9v18M15 7h5v14M10 12h.01" />,
+    video: <path d="M4 7h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4V7Zm12 3 4-2v8l-4-2" />,
+    notification: <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />,
+    help: <path d="M9.5 9a2.5 2.5 0 1 1 4.45 1.55c-.7.64-1.45 1.12-1.45 2.45M12 17h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0" />,
+    empty: <path d="M7 3v4m10-4v4M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm5 8h6" />,
+  };
 
   return (
-    <div className="mx-auto flex max-w-[1440px] flex-col gap-6">
-      <header className="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-end">
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      viewBox="0 0 24 24"
+    >
+      {paths[name]}
+    </svg>
+  );
+};
+
+export const DeptHeadInterviews: React.FC = () => {
+  const [viewMode, setViewMode] = useState<ViewMode>('This Week');
+  const [sortKey, setSortKey] = useState<SortKey>('earliest');
+
+  const sortedEvents = useMemo(() => {
+    return [...events].sort((left, right) => {
+      if (sortKey === 'position') {
+        return left.position.localeCompare(right.position);
+      }
+
+      const leftDate = `${left.date} ${left.time}`;
+      const rightDate = `${right.date} ${right.time}`;
+      return leftDate.localeCompare(rightDate);
+    });
+  }, [sortKey]);
+
+  return (
+    <div className="mx-auto flex max-w-[1440px] flex-col gap-7">
+      <header className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-command">
-            Department Head Workspace
-          </p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-deep-charcoal">
-            Interviews & Assessment
+          <h1 className="text-2xl font-semibold tracking-tight text-on-surface">
+            Interview Schedule
           </h1>
-          <p className="mt-1 max-w-[70ch] text-sm leading-6 text-slate-ink">
-            Review interview schedules, panel assignments, and pending feedback for department
-            candidates.
+          <p className="mt-1 text-sm text-on-surface-variant">
+            Your upcoming interviews as panel member
           </p>
         </div>
 
-        <label className="relative block xl:min-w-[360px]">
-          <span className="sr-only">Search interviews</span>
-          <Icon
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-outline"
-            name="search"
-          />
-          <input
-            className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface pl-10 pr-3 text-sm text-deep-charcoal outline-none transition placeholder:text-on-surface-variant focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search candidate, role, request..."
-            type="search"
-            value={query}
-          />
-        </label>
-      </header>
-
-      <section className="grid grid-cols-1 gap-5 md:grid-cols-3" aria-label="Interview summary">
-        {[
-          {
-            label: 'Scheduled',
-            value: scheduled,
-            icon: 'calendar',
-            tone: 'bg-cyan-50 text-pending',
-          },
-          {
-            label: 'Feedback Due',
-            value: feedbackDue,
-            icon: 'feedback',
-            tone: 'bg-amber-50 text-revision',
-          },
-          {
-            label: 'Completed',
-            value: completed,
-            icon: 'check',
-            tone: 'bg-green-50 text-approved',
-          },
-        ].map((item) => (
-          <section
-            className="rounded-xl border border-border-warm bg-clean-surface p-5 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]"
-            key={item.label}
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <span className={`rounded-lg p-2 ${item.tone}`}>
-                <Icon name={item.icon} />
-              </span>
-            </div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-on-surface-variant">
-              {item.label}
-            </p>
-            <p className="mt-3 font-mono text-[32px] font-semibold leading-none text-deep-charcoal">
-              {item.value}
-            </p>
-          </section>
-        ))}
-      </section>
-
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[0.72fr_1.28fr]">
-        <aside className="rounded-xl border border-border-warm bg-clean-surface p-5 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]">
-          <h2 className="text-lg font-semibold text-deep-charcoal">Quick Filters</h2>
-          <div className="mt-4 flex flex-wrap gap-2 xl:flex-col">
-            {(
-              ['All', 'Scheduled', 'Needs Feedback', 'Completed', 'Reschedule'] as Array<
-                InterviewStage | 'All'
-              >
-            ).map((item) => (
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex rounded-lg bg-secondary-container p-1">
+            {(['This Week', 'This Month'] as ViewMode[]).map((item) => (
               <button
-                className={`h-10 rounded-lg px-4 text-left text-sm font-semibold transition active:scale-[0.98] ${
-                  stage === item
-                    ? 'bg-teal-command text-white'
-                    : 'border border-border-warm bg-clean-surface text-on-surface-variant hover:border-teal-command hover:text-teal-command'
+                className={`rounded-md px-4 py-1.5 text-xs font-semibold transition active:scale-[0.98] ${
+                  viewMode === item
+                    ? 'bg-clean-surface text-teal-command shadow-sm'
+                    : 'text-on-secondary-fixed-variant hover:text-on-surface'
                 }`}
                 key={item}
-                onClick={() => setStage(item)}
+                onClick={() => setViewMode(item)}
                 type="button"
               >
                 {item}
               </button>
             ))}
           </div>
+          <div className="hidden h-8 w-px bg-border-warm sm:block" />
+          <button
+            aria-label="Notifications"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-secondary-container active:scale-[0.98]"
+            type="button"
+          >
+            <Icon name="notification" />
+          </button>
+          <button
+            aria-label="Help"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-secondary-container active:scale-[0.98]"
+            type="button"
+          >
+            <Icon name="help" />
+          </button>
+        </div>
+      </header>
 
-          <div className="mt-6 rounded-lg border border-border-warm bg-workflow-ivory/70 p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-on-surface-variant">
-              Today
-            </p>
-            <p className="mt-2 text-sm font-semibold text-deep-charcoal">1 feedback decision due</p>
-            <p className="mt-1 text-sm leading-6 text-slate-ink">
-              Finalize interview notes for Pham Thuy An before HR moves the candidate forward.
-            </p>
-          </div>
-        </aside>
+      <section aria-label={`${viewMode} calendar`}>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+          {calendarDays.map((day) => {
+            const dayEvents = events.filter((event) => event.day === day.day);
 
-        <section className="rounded-xl border border-border-warm bg-clean-surface shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]">
-          <div className="border-b border-border-warm px-5 py-4">
-            <h2 className="text-lg font-semibold text-deep-charcoal">Panel Schedule</h2>
-            <p className="mt-1 text-sm text-slate-ink">
-              Showing {visibleInterviews.length} of {interviews.length} interview sessions.
-            </p>
-          </div>
-
-          <div className="divide-y divide-border-warm">
-            {visibleInterviews.map((interview) => (
-              <article
-                className="grid gap-4 p-5 transition hover:bg-workflow-ivory/60 lg:grid-cols-[1fr_auto]"
-                key={interview.id}
-              >
-                <div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-base font-semibold text-deep-charcoal">
-                      {interview.candidate}
-                    </h3>
-                    <span
-                      className={`rounded-full border px-2.5 py-1 text-xs font-bold ${stageStyles[interview.stage]}`}
-                    >
-                      {interview.stage}
-                    </span>
-                    <span className="rounded-full bg-surface-container px-2.5 py-1 text-xs font-semibold text-on-surface-variant">
-                      {interview.mode}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm text-slate-ink">
-                    {interview.role} ·{' '}
-                    <span className="font-mono text-teal-command">{interview.requestId}</span>
+            return (
+              <div className="flex min-h-[220px] flex-col gap-3" key={`${day.day}-${day.date}`}>
+                <div
+                  className={`flex h-full flex-col rounded-xl border p-4 shadow-sm ${
+                    day.day === 'Mon'
+                      ? 'border-teal-command/20 border-b-2 bg-clean-surface'
+                      : dayEvents.length
+                        ? 'border-border-warm bg-clean-surface'
+                        : 'border-dashed border-border-warm bg-parchment-lift/50'
+                  } ${day.day === 'Fri' ? 'opacity-70' : ''}`}
+                >
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                    {day.day} {day.date}
                   </p>
-                  <p className="mt-3 max-w-[70ch] text-sm leading-6 text-deep-charcoal">
-                    {interview.notes}
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {interview.panel.map((member) => (
-                      <span
-                        className="rounded-lg border border-border-warm bg-clean-surface px-3 py-1.5 text-xs font-semibold text-on-surface-variant"
-                        key={member}
-                      >
-                        {member}
-                      </span>
-                    ))}
-                  </div>
-                </div>
 
-                <div className="flex flex-row gap-4 lg:min-w-[190px] lg:flex-col lg:items-end">
-                  <div className="rounded-lg border border-border-warm bg-parchment-lift/70 px-4 py-3 text-left lg:text-right">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-deep-charcoal lg:justify-end">
-                      <Icon className="h-4 w-4 text-teal-command" name="clock" />
-                      {interview.time}
+                  {dayEvents.length > 0 ? (
+                    <div className="mt-4 flex flex-col gap-3">
+                      {dayEvents.map((event) => (
+                        <button
+                          className={`rounded border-l-4 p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm active:scale-[0.98] ${toneStyles[event.tone]}`}
+                          key={event.id}
+                          type="button"
+                        >
+                          <p className="text-sm font-bold">{event.round}</p>
+                          <p className="mt-1 text-sm leading-tight text-on-surface">
+                            {event.position}
+                          </p>
+                          <div className="mt-2 flex items-center gap-1 text-[11px] text-on-surface-variant">
+                            <Icon
+                              className="h-3.5 w-3.5"
+                              name={event.locationType === 'video' ? 'video' : 'room'}
+                            />
+                            {event.location}
+                          </div>
+                          <div className="mt-1 flex items-center gap-1 text-[11px] text-on-surface-variant">
+                            <Icon className="h-3.5 w-3.5" name="candidates" />
+                            {event.candidates.length}{' '}
+                            {event.candidates.length === 1 ? 'Candidate' : 'Candidates'}
+                          </div>
+                        </button>
+                      ))}
                     </div>
-                    <p className="mt-1 text-sm text-slate-ink">{formatDate(interview.date)}</p>
-                  </div>
-                  <button
-                    className="h-10 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
-                    type="button"
-                  >
-                    {interview.stage === 'Needs Feedback' ? 'Add Feedback' : 'View Detail'}
-                  </button>
+                  ) : (
+                    <div className="flex flex-1 flex-col items-center justify-center text-center">
+                      <Icon className="mb-2 h-8 w-8 text-outline-variant" name="empty" />
+                      <p className="text-sm text-on-surface-variant/70">
+                        {day.day === 'Fri' ? 'No items' : 'No interviews scheduled'}
+                      </p>
+                    </div>
+                  )}
                 </div>
-              </article>
-            ))}
-          </div>
-
-          {visibleInterviews.length === 0 ? (
-            <div className="px-6 py-12 text-center">
-              <p className="text-sm font-semibold text-deep-charcoal">
-                No interviews match this view.
-              </p>
-              <p className="mt-1 text-sm text-slate-ink">
-                Try another status filter or search term.
-              </p>
-            </div>
-          ) : null}
-        </section>
+              </div>
+            );
+          })}
+        </div>
       </section>
+
+      <section>
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-xl font-semibold text-on-surface">Upcoming Interviews</h2>
+          <label className="flex items-center gap-2 text-sm text-on-surface-variant">
+            <span>Sort by:</span>
+            <select
+              className="rounded-lg border border-border-warm bg-clean-surface px-3 py-2 text-sm font-semibold text-teal-command outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+              onChange={(event) => setSortKey(event.target.value as SortKey)}
+              value={sortKey}
+            >
+              <option value="earliest">Earliest First</option>
+              <option value="position">By Position</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="space-y-4">
+          {sortedEvents.map((event) => (
+            <article
+              className="group flex flex-col gap-5 rounded-xl border border-border-warm bg-clean-surface p-5 transition hover:-translate-y-0.5 hover:shadow-md md:flex-row md:items-center"
+              key={event.id}
+            >
+              <div className="flex min-w-[100px] flex-row items-center gap-3 rounded-lg bg-parchment-lift px-4 py-3 md:flex-col md:justify-center md:gap-0">
+                <p className="font-mono text-sm font-bold text-on-surface">{event.time}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-on-surface-variant">
+                  {event.date}
+                </p>
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h3 className="text-lg font-semibold text-on-surface transition group-hover:text-teal-command">
+                    {event.position} - {event.round}
+                  </h3>
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider ${statusStyles[event.status]}`}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                    {event.status}
+                  </span>
+                </div>
+
+                <p className="mt-2 text-sm text-on-surface-variant">
+                  Panel:{' '}
+                  <span className="font-medium text-on-surface">{event.panel.join(', ')}</span>
+                  <span className="px-2 text-outline">-</span>
+                  Location:{' '}
+                  <span
+                    className={
+                      event.locationType === 'video'
+                        ? 'rounded bg-teal-command/10 px-1.5 py-0.5 text-teal-command'
+                        : 'font-medium text-on-surface'
+                    }
+                  >
+                    {event.location}
+                  </span>
+                </p>
+
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <AvatarStack names={event.candidates} />
+                  <p className="text-sm text-on-surface-variant">
+                    Candidates:{' '}
+                    <span className="font-medium text-on-surface">
+                      {event.candidates.length > 2
+                        ? `${event.candidates.slice(0, 2).join(', ')}, +${event.candidates.length - 2} more`
+                        : event.candidates.join(', ')}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 md:justify-end">
+                <button
+                  className="rounded-lg bg-teal-command/10 px-4 py-2 text-sm font-semibold text-teal-command transition hover:bg-teal-command/15 active:scale-[0.98]"
+                  type="button"
+                >
+                  Evaluation Form
+                </button>
+                <button
+                  className="rounded-lg border border-teal-command px-4 py-2 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98]"
+                  type="button"
+                >
+                  View CV
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+};
+
+const AvatarStack = ({ names }: { names: string[] }) => {
+  const visibleNames = names.slice(0, 2);
+  const hiddenCount = Math.max(names.length - visibleNames.length, 0);
+
+  return (
+    <div className="flex -space-x-2">
+      {visibleNames.map((name, index) => (
+        <div
+          className={`grid h-8 w-8 place-items-center rounded-full border-2 border-clean-surface text-[10px] font-bold ${
+            index === 0 ? 'bg-teal-command/15 text-teal-command' : 'bg-secondary-container text-on-secondary-container'
+          }`}
+          key={name}
+          title={name}
+        >
+          {name
+            .split(' ')
+            .map((part) => part[0])
+            .slice(-2)
+            .join('')}
+        </div>
+      ))}
+      {hiddenCount > 0 && (
+        <div className="grid h-8 w-8 place-items-center rounded-full border-2 border-clean-surface bg-secondary-container text-[10px] font-bold text-on-secondary-container">
+          +{hiddenCount}
+        </div>
+      )}
     </div>
   );
 };

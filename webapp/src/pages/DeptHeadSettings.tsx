@@ -1,103 +1,107 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 
-type MemberRole =
-  | 'Department Head'
-  | 'Technical Interviewer'
-  | 'Recruiter'
-  | 'Senior Engineer'
-  | 'Software Engineer'
-  | 'QA Engineer';
-type MemberStatus = 'Active' | 'Inactive';
+type Permission = 'Full Admin' | 'Interviewer' | 'Request Reviewer';
+type Priority = 'Critical' | 'High' | 'Medium' | 'Low';
 
-interface DepartmentMember {
+interface TeamMember {
   id: string;
   name: string;
+  role: string;
   email: string;
-  role: MemberRole;
-  status: MemberStatus;
-  dateJoined: string;
+  phone: string;
+  permission: Permission;
 }
 
-interface NotificationPrefs {
-  requestLifecycle: boolean;
-  planReady: boolean;
-  interviewUpdates: boolean;
-  weeklyDigest: boolean;
-  panelAlerts: boolean;
+interface NotificationPreference {
+  key: string;
+  title: string;
+  description: string;
+  enabled: boolean;
+  disabled?: boolean;
 }
 
-const defaultMembers: DepartmentMember[] = [
+const teamMembers: TeamMember[] = [
   {
-    id: 'MEM-001',
-    name: 'Le Minh Khoa',
-    email: 'khoa.le@rms.company.vn',
-    role: 'Department Head',
-    status: 'Active',
-    dateJoined: '2024-01-15',
+    id: 'TM-001',
+    name: 'Jordan Smith',
+    role: 'Lead Developer',
+    email: 'j.smith@rms.com',
+    phone: '+1 (555) 123-4567',
+    permission: 'Full Admin',
   },
   {
-    id: 'MEM-002',
-    name: 'Nguyen Van Binh',
-    email: 'binh.nguyen@rms.company.vn',
-    role: 'Technical Interviewer',
-    status: 'Active',
-    dateJoined: '2024-06-20',
+    id: 'TM-002',
+    name: 'Maria Lopez',
+    role: 'Senior QA Engineer',
+    email: 'm.lopez@rms.com',
+    phone: '+1 (555) 987-6543',
+    permission: 'Interviewer',
   },
   {
-    id: 'MEM-003',
-    name: 'Tran Thi Cat',
-    email: 'cat.tran@rms.company.vn',
-    role: 'Senior Engineer',
-    status: 'Active',
-    dateJoined: '2024-08-11',
-  },
-  {
-    id: 'MEM-004',
-    name: 'Pham Minh Dung',
-    email: 'dung.pham@rms.company.vn',
-    role: 'Recruiter',
-    status: 'Active',
-    dateJoined: '2025-02-05',
-  },
-  {
-    id: 'MEM-005',
-    name: 'Hoang Quoc Dat',
-    email: 'dat.hoang@rms.company.vn',
-    role: 'Software Engineer',
-    status: 'Inactive',
-    dateJoined: '2025-10-18',
+    id: 'TM-003',
+    name: 'David Wong',
+    role: 'Cloud Architect',
+    email: 'd.wong@rms.com',
+    phone: '+1 (555) 444-3322',
+    permission: 'Full Admin',
   },
 ];
 
-const defaultPrefs: NotificationPrefs = {
-  requestLifecycle: true,
-  planReady: true,
-  interviewUpdates: true,
-  weeklyDigest: false,
-  panelAlerts: true,
+const initialPreferences: NotificationPreference[] = [
+  {
+    key: 'applications',
+    title: 'New Applications',
+    description: 'Get notified immediately when someone applies.',
+    enabled: true,
+  },
+  {
+    key: 'digest',
+    title: 'Daily Interview Digest',
+    description: 'Summarized report of upcoming interviews.',
+    enabled: true,
+  },
+  {
+    key: 'budget',
+    title: 'Budget Alerts',
+    description: 'Notify when 90% of budget is reached.',
+    enabled: false,
+    disabled: true,
+  },
+];
+
+const priorityOptions: Array<{ value: Priority; response: string; className: string }> = [
+  { value: 'Critical', response: '24h Response', className: 'text-error' },
+  { value: 'High', response: '72h Response', className: 'text-teal-command' },
+  { value: 'Medium', response: '5-7 Days', className: 'text-pending' },
+  { value: 'Low', response: '14 Days', className: 'text-draft' },
+];
+
+const permissionStyles: Record<Permission, string> = {
+  'Full Admin': 'bg-surface-container-high text-on-surface',
+  Interviewer: 'bg-surface-container-high text-on-surface',
+  'Request Reviewer': 'bg-surface-container-high text-on-surface',
+};
+
+const permissionDotStyles: Record<Permission, string> = {
+  'Full Admin': 'bg-teal-command',
+  Interviewer: 'bg-pending',
+  'Request Reviewer': 'bg-revision',
 };
 
 const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: string }) => {
   const paths: Record<string, React.ReactNode> = {
-    dept: <path d="M4 21v-7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v7M12 11V3m-4 4h8" />,
-    members: (
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm13 10v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+    wallet: (
+      <path d="M19 7V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-1m0-10h-7a2 2 0 0 0 0 4h7V7Zm-3 2h.01" />
     ),
-    bell: <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />,
-    save: (
-      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z M17 21v-8H7v8M7 3v5h8" />
-    ),
-    check: <path d="M20 6 9 17l-5-5" />,
-    search: <path d="m21 21-4.3-4.3M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" />,
-    plus: <path d="M12 5v14m-7-7h14" />,
     edit: <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" />,
-    trash: (
-      <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-    ),
-    close: <path d="M18 6 6 18M6 6l12 12" />,
-    warning: (
-      <path d="M12 9v4m0 4h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
-    ),
+    engineering: <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48 2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48 2.83-2.83M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />,
+    more: <path d="M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM19 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM5 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" />,
+    notifications: <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />,
+    priority: <path d="M12 7v6m0 4h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />,
+    search: <path d="m21 21-4.3-4.3M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" />,
+    check: <path d="M20 6 9 17l-5-5" />,
+    plus: <path d="M12 5v14M5 12h14" />,
+    info: <path d="M12 16v-4m0-4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0" />,
   };
 
   return (
@@ -116,745 +120,305 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
   );
 };
 
-const SettingsCard = ({
-  title,
-  description,
-  icon,
-  children,
-}: {
-  title: string;
-  description: string;
-  icon: string;
-  children: React.ReactNode;
-}) => (
-  <section className="rounded-xl border border-border-warm bg-clean-surface p-6 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]">
-    <div className="mb-6 flex items-start gap-3">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-command/10 text-teal-command">
-        <Icon name={icon} />
-      </div>
-      <div>
-        <h2 className="text-xl font-semibold text-deep-charcoal">{title}</h2>
-        <p className="mt-1 text-sm leading-6 text-slate-ink">{description}</p>
-      </div>
-    </div>
-    {children}
-  </section>
-);
-
 export const DeptHeadSettings: React.FC = () => {
-  // --- Form States ---
-  const [deptName, setDeptName] = useState('Information Technology');
-  const [deptCode, setDeptCode] = useState('IT');
-  const [parentDept, setParentDept] = useState('Executive');
-  const [headUserId, setHeadUserId] = useState('MEM-001');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [preferences, setPreferences] = useState(initialPreferences);
+  const [selectedPriority, setSelectedPriority] = useState<Priority>('High');
+  const [showToast, setShowToast] = useState(false);
 
-  const [members, setMembers] = useState<DepartmentMember[]>(defaultMembers);
-  const [notifications, setNotifications] = useState<NotificationPrefs>(defaultPrefs);
-
-  // --- UI feedback states ---
-  const [saved, setSaved] = useState(false);
-
-  // --- CRUD Modals states ---
-  const [memberSearch, setMemberSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState<string>('All');
-  const [statusFilter, setStatusFilter] = useState<string>('All');
-
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalType, setModalType] = useState<'create' | 'edit'>('create');
-  const [editingMember, setEditingMember] = useState<DepartmentMember | null>(null);
-
-  // Member form state
-  const [memberName, setMemberName] = useState('');
-  const [memberEmail, setMemberEmail] = useState('');
-  const [memberRole, setMemberRole] = useState<MemberRole>('Software Engineer');
-  const [memberStatus, setMemberStatus] = useState<MemberStatus>('Active');
-  const [formError, setFormError] = useState<string | null>(null);
-
-  // Delete Member Confirm state
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [memberToDelete, setMemberToDelete] = useState<DepartmentMember | null>(null);
-
-  // Load state from localStorage on mount
-  useEffect(() => {
-    const storedDeptName = localStorage.getItem('dept_name');
-    const storedDeptCode = localStorage.getItem('dept_code');
-    const storedParentDept = localStorage.getItem('parent_dept');
-    const storedHeadId = localStorage.getItem('head_user_id');
-    const storedMembers = localStorage.getItem('dept_members');
-    const storedPrefs = localStorage.getItem('dept_notifications');
-
-    if (storedDeptName) setDeptName(storedDeptName);
-    if (storedDeptCode) setDeptCode(storedDeptCode);
-    if (storedParentDept) setParentDept(storedParentDept);
-    if (storedHeadId) setHeadUserId(storedHeadId);
-    if (storedMembers) {
-      try {
-        setMembers(JSON.parse(storedMembers));
-      } catch (e) {
-        console.error('Failed to parse stored members', e);
-      }
-    }
-    if (storedPrefs) {
-      try {
-        setNotifications(JSON.parse(storedPrefs));
-      } catch (e) {
-        console.error('Failed to parse stored notifications', e);
-      }
-    }
-  }, []);
-
-  // Save Settings handler
-  const handleSaveSettings = () => {
-    localStorage.setItem('dept_name', deptName);
-    localStorage.setItem('dept_code', deptCode);
-    localStorage.setItem('parent_dept', parentDept);
-    localStorage.setItem('head_user_id', headUserId);
-    localStorage.setItem('dept_members', JSON.stringify(members));
-    localStorage.setItem('dept_notifications', JSON.stringify(notifications));
-
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 2000);
-  };
-
-  // Synchronize department head role in member list
-  useEffect(() => {
-    setMembers((current) =>
-      current.map((m) => {
-        if (m.id === headUserId) {
-          return { ...m, role: 'Department Head', status: 'Active' };
-        }
-        if (m.role === 'Department Head' && m.id !== headUserId) {
-          return { ...m, role: 'Technical Interviewer' }; // Fallback role for former head
-        }
-        return m;
-      }),
-    );
-  }, [headUserId]);
-
-  // Handle Opening Create Modal
-  const openCreateModal = () => {
-    setModalType('create');
-    setEditingMember(null);
-    setMemberName('');
-    setMemberEmail('');
-    setMemberRole('Software Engineer');
-    setMemberStatus('Active');
-    setFormError(null);
-    setModalOpen(true);
-  };
-
-  // Handle Opening Edit Modal
-  const openEditModal = (member: DepartmentMember) => {
-    setModalType('edit');
-    setEditingMember(member);
-    setMemberName(member.name);
-    setMemberEmail(member.email);
-    setMemberRole(member.role);
-    setMemberStatus(member.status);
-    setFormError(null);
-    setModalOpen(true);
-  };
-
-  // Save member form
-  const handleSaveMember = (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError(null);
-
-    if (!memberName.trim() || !memberEmail.trim()) {
-      setFormError('Please fill in both name and email.');
-      return;
-    }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(memberEmail)) {
-      setFormError('Please enter a valid email address.');
-      return;
-    }
-
-    if (modalType === 'create') {
-      const isEmailDuplicate = members.some(
-        (m) => m.email.toLowerCase() === memberEmail.trim().toLowerCase(),
-      );
-      if (isEmailDuplicate) {
-        setFormError('A member with this email address already exists in the department.');
-        return;
-      }
-
-      const newMember: DepartmentMember = {
-        id: `MEM-${String(members.length + 1).padStart(3, '0')}`,
-        name: memberName.trim(),
-        email: memberEmail.trim().toLowerCase(),
-        role: memberRole,
-        status: memberStatus,
-        dateJoined: new Date().toISOString().split('T')[0],
-      };
-
-      const updated = [newMember, ...members];
-      setMembers(updated);
-      localStorage.setItem('dept_members', JSON.stringify(updated));
-    } else if (modalType === 'edit' && editingMember) {
-      // If we change current head's status to inactive or role to something else, prompt warning or handle
-      if (
-        editingMember.id === headUserId &&
-        (memberStatus === 'Inactive' || memberRole !== 'Department Head')
-      ) {
-        setFormError(
-          'Cannot change role or deactivate the active Department Head. Assign a new Head first.',
-        );
-        return;
-      }
-
-      const updated = members.map((m) =>
-        m.id === editingMember.id
-          ? {
-              ...m,
-              name: memberName.trim(),
-              email: memberEmail.trim().toLowerCase(),
-              role: memberRole,
-              status: memberStatus,
-            }
-          : m,
-      );
-      setMembers(updated);
-      localStorage.setItem('dept_members', JSON.stringify(updated));
-    }
-
-    setModalOpen(false);
-  };
-
-  // Handle Delete Confirmation Dialog
-  const triggerDelete = (member: DepartmentMember) => {
-    if (member.id === headUserId) {
-      alert('Cannot delete the active Department Head. Please assign another head user first.');
-      return;
-    }
-    setMemberToDelete(member);
-    setDeleteConfirmOpen(true);
-  };
-
-  const confirmDeleteMember = () => {
-    if (memberToDelete) {
-      const updated = members.filter((m) => m.id !== memberToDelete.id);
-      setMembers(updated);
-      localStorage.setItem('dept_members', JSON.stringify(updated));
-      setDeleteConfirmOpen(false);
-      setMemberToDelete(null);
-    }
-  };
-
-  // Toggle Notification preferences
-  const handleTogglePref = (key: keyof NotificationPrefs) => {
-    setNotifications((current) => ({
-      ...current,
-      [key]: !current[key],
-    }));
-  };
-
-  // Filtered members list
   const filteredMembers = useMemo(() => {
-    const searchNorm = memberSearch.trim().toLowerCase();
-    return members.filter((member) => {
-      const matchesSearch =
-        !searchNorm ||
-        member.name.toLowerCase().includes(searchNorm) ||
-        member.email.toLowerCase().includes(searchNorm);
-      const matchesRole = roleFilter === 'All' || member.role === roleFilter;
-      const matchesStatus = statusFilter === 'All' || member.status === statusFilter;
+    const query = searchQuery.trim().toLowerCase();
 
-      return matchesSearch && matchesRole && matchesStatus;
-    });
-  }, [members, memberSearch, roleFilter, statusFilter]);
+    if (!query) return teamMembers;
 
-  // Potential department heads (must have ACTIVE status or be the current head)
-  const eligibleHeads = useMemo(() => {
-    return members.filter((m) => m.status === 'Active' || m.id === headUserId);
-  }, [members, headUserId]);
+    return teamMembers.filter((member) =>
+      [member.name, member.role, member.email, member.permission].some((value) =>
+        value.toLowerCase().includes(query),
+      ),
+    );
+  }, [searchQuery]);
 
-  const rolesList: string[] = [
-    'All',
-    'Department Head',
-    'Technical Interviewer',
-    'Recruiter',
-    'Senior Engineer',
-    'Software Engineer',
-    'QA Engineer',
-  ];
+  const showSavedToast = () => {
+    setShowToast(true);
+    window.setTimeout(() => setShowToast(false), 2400);
+  };
+
+  const togglePreference = (key: string) => {
+    setPreferences((current) =>
+      current.map((preference) =>
+        preference.key === key && !preference.disabled
+          ? { ...preference, enabled: !preference.enabled }
+          : preference,
+      ),
+    );
+    showSavedToast();
+  };
 
   return (
     <div className="mx-auto flex max-w-[1440px] flex-col gap-6">
-      <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+      <header className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
         <div>
-          <p className="mb-2 text-sm font-semibold uppercase tracking-[0.18em] text-teal-command">
-            Department Management
-          </p>
           <h1 className="text-2xl font-semibold tracking-tight text-deep-charcoal">
             Department Settings
           </h1>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-ink">
-            Configure department parameters, assign status roles, manage staff lists, and customize
-            notification routes.
+          <p className="mt-1 text-sm text-on-surface-variant">
+            Department Head Portal configuration workspace
           </p>
         </div>
-        <button
-          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-teal-command px-5 text-sm font-semibold text-white transition hover:-translate-y-[1px] hover:bg-primary active:translate-y-0 active:scale-[0.98] sm:w-auto"
-          onClick={handleSaveSettings}
-          type="button"
-        >
-          {saved ? (
-            <Icon className="h-4 w-4" name="check" />
-          ) : (
-            <Icon className="h-4 w-4" name="save" />
-          )}
-          {saved ? 'Settings Saved' : 'Save settings'}
-        </button>
+
+        <label className="relative block lg:min-w-[320px]">
+          <span className="sr-only">Search settings</span>
+          <Icon
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant"
+            name="search"
+          />
+          <input
+            className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface pl-10 pr-4 text-sm outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search settings..."
+            type="search"
+            value={searchQuery}
+          />
+        </label>
       </header>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        {/* Left column: Department Details */}
-        <div className="flex flex-col gap-6">
-          <SettingsCard
-            description="Manage the general profile identifiers and direct structural relationships of this organizational division."
-            icon="dept"
-            title="Department Details"
-          >
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-              <label className="space-y-2">
-                <span className="text-sm font-semibold text-deep-charcoal">Department name</span>
-                <input
-                  className="h-11 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:bg-white focus:ring-2 focus:ring-teal-command/15"
-                  value={deptName}
-                  onChange={(e) => setDeptName(e.target.value)}
-                />
-                <span className="block text-xs text-slate-ink">
-                  Displayed on Job Descriptions and Candidate invitations.
-                </span>
-              </label>
+      <div className="grid grid-cols-12 gap-6">
+        <section className="col-span-12 flex flex-col gap-6 rounded-xl border border-border-warm bg-clean-surface p-6 shadow-sm lg:col-span-8 lg:flex-row lg:items-start">
+          <div className="grid h-32 w-32 shrink-0 place-items-center rounded-lg bg-surface-container text-teal-command">
+            <Icon className="h-12 w-12" name="engineering" />
+          </div>
 
-              <label className="space-y-2">
-                <span className="text-sm font-semibold text-deep-charcoal">Department code</span>
-                <input
-                  className="h-11 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm font-mono outline-none transition focus:border-teal-command focus:bg-white focus:ring-2 focus:ring-teal-command/15"
-                  value={deptCode}
-                  onChange={(e) => setDeptCode(e.target.value.toUpperCase())}
-                />
-                <span className="block text-xs text-slate-ink">
-                  Short identifier prefix for tracking recruitment requests.
-                </span>
-              </label>
-
-              <label className="space-y-2">
-                <span className="text-sm font-semibold text-deep-charcoal">Parent department</span>
-                <select
-                  className="h-11 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:bg-white focus:ring-2 focus:ring-teal-command/15"
-                  value={parentDept}
-                  onChange={(e) => setParentDept(e.target.value)}
-                >
-                  <option value="None">None (Top Level)</option>
-                  <option value="Executive">Executive Office</option>
-                  <option value="Human Resources">Human Resources (HR)</option>
-                  <option value="Finance & Admin">Finance & Administration</option>
-                </select>
-                <span className="block text-xs text-slate-ink">
-                  Defines request escalation rules in the hierarchy.
-                </span>
-              </label>
-
-              <label className="space-y-2">
-                <span className="text-sm font-semibold text-deep-charcoal">
-                  Department Head (Active)
-                </span>
-                <select
-                  className="h-11 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:bg-white focus:ring-2 focus:ring-teal-command/15"
-                  value={headUserId}
-                  onChange={(e) => setHeadUserId(e.target.value)}
-                >
-                  {eligibleHeads.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name} ({m.email})
-                    </option>
-                  ))}
-                </select>
-                <span className="block text-xs text-slate-ink text-rejected">
-                  Warning: Changing this immediately assigns system request approvals to this user.
-                </span>
-              </label>
-            </div>
-          </SettingsCard>
-
-          {/* Member List Section */}
-          <section className="rounded-xl border border-border-warm bg-clean-surface p-6 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]">
-            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-command/10 text-teal-command">
-                  <Icon name="members" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-semibold text-deep-charcoal">Department Staff</h2>
-                  <p className="mt-1 text-sm text-slate-ink">
-                    Manage members assigned to participate in technical screening or routing panels.
-                  </p>
-                </div>
-              </div>
-              <button
-                className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
-                onClick={openCreateModal}
-                type="button"
-              >
-                <Icon className="h-4 w-4" name="plus" />
-                Add staff
-              </button>
-            </div>
-
-            {/* Filter Bar */}
-            <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <label className="relative flex-1 max-w-md">
-                <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-outline">
-                  <Icon className="h-4 w-4 text-slate-ink/50" name="search" />
-                </span>
-                <input
-                  className="h-10 w-full rounded-lg border border-border-warm bg-workflow-ivory pl-9 pr-3 text-sm outline-none transition focus:border-teal-command focus:bg-white focus:ring-2 focus:ring-teal-command/15"
-                  placeholder="Search staff name or email..."
-                  type="search"
-                  value={memberSearch}
-                  onChange={(e) => setMemberSearch(e.target.value)}
-                />
-              </label>
-
-              <div className="flex flex-wrap gap-3">
-                <select
-                  className="h-10 rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm font-medium text-deep-charcoal outline-none transition focus:border-teal-command focus:bg-white focus:ring-2 focus:ring-teal-command/15"
-                  value={roleFilter}
-                  onChange={(e) => setRoleFilter(e.target.value)}
-                >
-                  {rolesList.map((role) => (
-                    <option key={role} value={role}>
-                      {role === 'All' ? 'All Roles' : role}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  className="h-10 rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm font-medium text-deep-charcoal outline-none transition focus:border-teal-command focus:bg-white focus:ring-2 focus:ring-teal-command/15"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                >
-                  <option value="All">All Statuses</option>
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Member Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[700px] text-left">
-                <thead>
-                  <tr className="border-y border-border-warm bg-workflow-ivory text-xs font-semibold uppercase tracking-[0.04em] text-on-surface-variant">
-                    <th className="px-4 py-3">Member</th>
-                    <th className="px-4 py-3">Department Role</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Date Joined</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-warm text-sm">
-                  {filteredMembers.map((member) => (
-                    <tr className="transition hover:bg-workflow-ivory/50" key={member.id}>
-                      <td className="px-4 py-3.5">
-                        <div>
-                          <p className="font-semibold text-deep-charcoal">{member.name}</p>
-                          <p className="text-xs text-slate-ink">{member.email}</p>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <span
-                          className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${
-                            member.role === 'Department Head'
-                              ? 'border-teal-command/20 bg-teal-command/5 text-teal-command'
-                              : member.role === 'Technical Interviewer'
-                                ? 'border-yellow-600/20 bg-yellow-50 text-yellow-700'
-                                : 'border-slate-300 bg-slate-50 text-slate-700'
-                          }`}
-                        >
-                          {member.role}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <span
-                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            member.status === 'Active'
-                              ? 'bg-green-50 text-green-700 border border-green-200'
-                              : 'bg-red-50 text-red-700 border border-red-200'
-                          }`}
-                        >
-                          <span
-                            className={`h-1.5 w-1.5 rounded-full ${member.status === 'Active' ? 'bg-green-600' : 'bg-red-600'}`}
-                          />
-                          {member.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3.5 font-mono text-xs text-slate-ink">
-                        {member.dateJoined}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            className="inline-flex h-8 items-center gap-1 rounded-lg border border-border-warm bg-white px-2.5 text-xs font-semibold text-slate-ink transition hover:border-teal-command hover:text-teal-command active:scale-[0.98]"
-                            onClick={() => openEditModal(member)}
-                            type="button"
-                          >
-                            <Icon className="h-3 w-3" name="edit" />
-                            Edit
-                          </button>
-                          <button
-                            className="inline-flex h-8 items-center gap-1 rounded-lg border border-red-200 bg-red-50/50 px-2.5 text-xs font-semibold text-red-600 transition hover:bg-red-600 hover:text-white active:scale-[0.98]"
-                            onClick={() => triggerDelete(member)}
-                            type="button"
-                          >
-                            <Icon className="h-3 w-3" name="trash" />
-                            Remove
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-
-                  {filteredMembers.length === 0 && (
-                    <tr>
-                      <td className="py-12 text-center" colSpan={5}>
-                        <p className="text-sm font-semibold text-deep-charcoal">
-                          No staff members found
-                        </p>
-                        <p className="text-xs text-slate-ink mt-1">
-                          Refine your search parameters or add a new department staff member.
-                        </p>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </div>
-
-        {/* Right column: Notification Preferences */}
-        <div>
-          <SettingsCard
-            description="Manage routing rules for automated alerts generated by request events and assessment milestones."
-            icon="bell"
-            title="Notification Routing"
-          >
-            <div className="space-y-4">
-              {[
-                {
-                  key: 'requestLifecycle' as const,
-                  title: 'Request status tracking',
-                  desc: 'Receive alerts when your staffing requests transition statuses (e.g. HR approved, Boss approved, or rejected).',
-                },
-                {
-                  key: 'planReady' as const,
-                  title: 'Recruitment plans ready',
-                  desc: 'Notify me immediately when HR drafts or publishes campaign plans linked to my requests.',
-                },
-                {
-                  key: 'interviewUpdates' as const,
-                  title: 'Candidate interview updates',
-                  desc: 'Alert me when interviews are scheduled, rescheduled, or cancelled for my open headcounts.',
-                },
-                {
-                  key: 'weeklyDigest' as const,
-                  title: 'Weekly department report',
-                  desc: 'Email a weekly digest summarizing candidate screen pass-rates, time-to-hire, and SLA compliance.',
-                },
-                {
-                  key: 'panelAlerts' as const,
-                  title: 'Interviewer assignment alerts',
-                  desc: 'Automatically notify technical staff members when they are assigned to candidate review panels.',
-                },
-              ].map((item) => {
-                const enabled = notifications[item.key];
-                return (
-                  <button
-                    aria-pressed={enabled}
-                    className={`w-full rounded-xl border p-4 text-left transition hover:-translate-y-[1px] active:translate-y-0 active:scale-[0.99] ${
-                      enabled
-                        ? 'border-teal-command bg-teal-command/5 shadow-[0_12px_36px_-24px_rgba(13,148,136,0.3)]'
-                        : 'border-border-warm bg-workflow-ivory'
-                    }`}
-                    key={item.key}
-                    onClick={() => handleTogglePref(item.key)}
-                    type="button"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <h3 className="text-sm font-semibold text-deep-charcoal">{item.title}</h3>
-                        <p className="mt-1.5 text-xs leading-5 text-slate-ink">{item.desc}</p>
-                      </div>
-                      <span
-                        className={`mt-1 flex h-6 w-11 shrink-0 items-center rounded-full p-1 transition duration-200 ${enabled ? 'bg-teal-command' : 'bg-stone-300'}`}
-                      >
-                        <span
-                          className={`h-4 w-4 rounded-full bg-white transition-transform duration-200 ${enabled ? 'translate-x-5' : 'translate-x-0'}`}
-                        />
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </SettingsCard>
-        </div>
-      </div>
-
-      {/* CRUD Modals (Add / Edit Staff) */}
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(28,25,23,0.42)] px-4 py-6">
-          <div className="w-full max-w-[500px] rounded-xl border border-border-warm bg-clean-surface shadow-[0_24px_80px_-48px_rgba(28,25,23,0.7)]">
-            <div className="flex items-start justify-between gap-4 border-b border-border-warm p-5">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-deep-charcoal">
-                  {modalType === 'create' ? 'Add department staff' : 'Edit staff profile'}
+                <span className="mb-2 inline-block rounded bg-teal-command/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-teal-command">
+                  Department Identity
+                </span>
+                <h2 className="text-2xl font-semibold text-deep-charcoal">
+                  Engineering & Infrastructure
                 </h2>
-                <p className="mt-1 text-xs text-slate-ink">
-                  Configure workspace permissions and review capabilities for this department
-                  member.
+                <p className="mt-1 text-sm font-medium text-on-surface-variant">
+                  Led by Alex Sterling, Director of Engineering
                 </p>
               </div>
               <button
-                aria-label="Close modal"
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-warm bg-white text-slate-ink transition hover:border-rejected hover:text-rejected active:scale-[0.98]"
-                onClick={() => setModalOpen(false)}
+                className="inline-flex h-10 w-fit items-center gap-2 rounded-lg border border-teal-command px-4 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98]"
+                onClick={showSavedToast}
                 type="button"
               >
-                <Icon className="h-4 w-4" name="close" />
+                <Icon className="h-4 w-4" name="edit" />
+                Edit Profile
               </button>
             </div>
-
-            <form className="space-y-4 p-5" onSubmit={handleSaveMember}>
-              {formError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700 flex items-start gap-2">
-                  <Icon className="h-4 w-4 shrink-0 text-red-600" name="warning" />
-                  <span>{formError}</span>
-                </div>
-              )}
-
-              <div className="space-y-4">
-                <label className="block space-y-1.5">
-                  <span className="text-xs font-semibold text-deep-charcoal">Full name</span>
-                  <input
-                    className="h-10 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:bg-white focus:ring-2 focus:ring-teal-command/15"
-                    placeholder="Enter full name"
-                    required
-                    value={memberName}
-                    onChange={(e) => setMemberName(e.target.value)}
-                  />
-                </label>
-
-                <label className="block space-y-1.5">
-                  <span className="text-xs font-semibold text-deep-charcoal">Email address</span>
-                  <input
-                    className="h-10 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:bg-white focus:ring-2 focus:ring-teal-command/15"
-                    disabled={modalType === 'edit'}
-                    placeholder="name@rms.company.vn"
-                    required
-                    type="email"
-                    value={memberEmail}
-                    onChange={(e) => setMemberEmail(e.target.value)}
-                  />
-                </label>
-
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <label className="block space-y-1.5">
-                    <span className="text-xs font-semibold text-deep-charcoal">
-                      Department role
-                    </span>
-                    <select
-                      className="h-10 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:bg-white focus:ring-2 focus:ring-teal-command/15"
-                      value={memberRole}
-                      onChange={(e) => setMemberRole(e.target.value as MemberRole)}
-                    >
-                      {rolesList
-                        .filter((r) => r !== 'All' && r !== 'Department Head')
-                        .map((role) => (
-                          <option key={role} value={role}>
-                            {role}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-
-                  <label className="block space-y-1.5">
-                    <span className="text-xs font-semibold text-deep-charcoal">Active status</span>
-                    <select
-                      className="h-10 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:bg-white focus:ring-2 focus:ring-teal-command/15"
-                      value={memberStatus}
-                      onChange={(e) => setMemberStatus(e.target.value as MemberStatus)}
-                    >
-                      <option value="Active">Active</option>
-                      <option value="Inactive">Inactive</option>
-                    </select>
-                  </label>
-                </div>
-              </div>
-
-              <div className="flex flex-col-reverse gap-2 border-t border-border-warm pt-4 sm:flex-row sm:justify-end">
-                <button
-                  className="h-10 rounded-lg border border-border-warm bg-white px-4 text-xs font-semibold text-slate-ink transition hover:border-rejected hover:text-rejected active:scale-[0.98]"
-                  onClick={() => setModalOpen(false)}
-                  type="button"
-                >
-                  Cancel
-                </button>
-                <button
-                  className="h-10 rounded-lg bg-teal-command px-5 text-xs font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
-                  type="submit"
-                >
-                  {modalType === 'create' ? 'Add Staff' : 'Save Changes'}
-                </button>
-              </div>
-            </form>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-on-surface">
+              Our mission is to build scalable, resilient systems that power the RMS ecosystem. We
+              focus on technological excellence, automation-first processes, and a collaborative
+              environment for engineers to thrive and innovate.
+            </p>
           </div>
-        </div>
-      )}
+        </section>
 
-      {/* Delete Member Confirmation Modal */}
-      {deleteConfirmOpen && memberToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(28,25,23,0.42)] px-4 py-6">
-          <div className="w-full max-w-[420px] rounded-xl border border-border-warm bg-clean-surface shadow-[0_24px_80px_-48px_rgba(28,25,23,0.7)]">
-            <div className="p-6">
-              <div className="flex items-center gap-3 text-red-600">
-                <div className="rounded-full bg-red-50 p-2">
-                  <Icon className="h-6 w-6" name="warning" />
-                </div>
-                <h3 className="text-lg font-semibold text-deep-charcoal">Remove staff member</h3>
+        <section className="col-span-12 rounded-xl border border-border-warm bg-clean-surface p-6 shadow-sm lg:col-span-4">
+          <h2 className="mb-4 flex items-center gap-2 text-sm font-bold text-deep-charcoal">
+            <Icon className="h-5 w-5 text-teal-command" name="wallet" />
+            Q3 Recruitment Budget
+          </h2>
+
+          <div className="space-y-4">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <p className="text-2xl font-bold text-deep-charcoal">$142,500</p>
+                <p className="text-xs font-semibold text-on-surface-variant">Total Allocated</p>
               </div>
-              <p className="mt-3 text-sm text-slate-ink">
-                Are you sure you want to remove <strong>{memberToDelete.name}</strong> from the
-                department? This user will no longer be assigned to active interview panels or
-                review requests.
-              </p>
-              <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <div className="text-right">
+                <p className="text-xl font-semibold text-on-surface-variant">$38,200</p>
+                <p className="text-xs font-semibold text-on-surface-variant">Remaining</p>
+              </div>
+            </div>
+
+            <div className="h-3 overflow-hidden rounded-full bg-surface-container">
+              <div className="h-full w-[73.2%] rounded-full bg-teal-command transition-all duration-700" />
+            </div>
+
+            <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">
+              <span>73.2% Utilized</span>
+              <span>Target: &lt; 80%</span>
+            </div>
+          </div>
+
+          <div className="mt-6 flex items-center gap-2 border-t border-border-warm pt-4 text-on-surface-variant">
+            <Icon className="h-4 w-4" name="info" />
+            <p className="text-xs">Next budget review: Sep 15, 2026</p>
+          </div>
+        </section>
+
+        <section className="col-span-12 overflow-hidden rounded-xl border border-border-warm bg-clean-surface shadow-sm lg:col-span-7">
+          <div className="flex flex-col gap-3 border-b border-border-warm px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-xl font-semibold text-deep-charcoal">Team Management</h2>
+            <button
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
+              onClick={showSavedToast}
+              type="button"
+            >
+              <Icon className="h-4 w-4" name="plus" />
+              Add Member
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left">
+              <thead>
+                <tr className="border-b border-border-warm bg-workflow-ivory">
+                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-widest text-on-surface-variant">
+                    Name & Role
+                  </th>
+                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-widest text-on-surface-variant">
+                    Contact Info
+                  </th>
+                  <th className="px-6 py-3 text-xs font-semibold uppercase tracking-widest text-on-surface-variant">
+                    Permissions
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-widest text-on-surface-variant">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-warm">
+                {filteredMembers.map((member) => (
+                  <tr className="transition hover:bg-teal-command/5" key={member.id}>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <InitialAvatar name={member.name} />
+                        <div>
+                          <p className="text-sm font-semibold text-deep-charcoal">{member.name}</p>
+                          <p className="text-xs text-on-surface-variant">{member.role}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm leading-6 text-on-surface-variant">
+                      {member.email}
+                      <br />
+                      {member.phone}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`inline-flex items-center gap-1.5 rounded-full border border-border-warm px-2.5 py-1 text-xs font-medium ${permissionStyles[member.permission]}`}
+                      >
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${permissionDotStyles[member.permission]}`}
+                        />
+                        {member.permission}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        aria-label={`Open actions for ${member.name}`}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-on-surface-variant transition hover:bg-surface-container hover:text-teal-command active:scale-[0.98]"
+                        onClick={showSavedToast}
+                        type="button"
+                      >
+                        <Icon className="h-5 w-5" name="more" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {filteredMembers.length === 0 && (
+            <div className="border-t border-border-warm px-6 py-12 text-center">
+              <p className="text-sm font-semibold text-deep-charcoal">No team members found</p>
+              <p className="mt-1 text-sm text-slate-ink">Try a different search term.</p>
+            </div>
+          )}
+        </section>
+
+        <section className="col-span-12 flex flex-col gap-6 lg:col-span-5">
+          <div className="rounded-xl border border-border-warm bg-clean-surface p-6 shadow-sm">
+            <h2 className="mb-6 flex items-center gap-2 text-sm font-bold text-deep-charcoal">
+              <Icon className="h-5 w-5 text-teal-command" name="notifications" />
+              Notification Preferences
+            </h2>
+
+            <div className="space-y-6">
+              {preferences.map((preference) => (
+                <div
+                  className={`flex items-center justify-between gap-4 ${preference.disabled ? 'opacity-60' : ''}`}
+                  key={preference.key}
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-deep-charcoal">{preference.title}</p>
+                    <p className="mt-1 text-xs text-on-surface-variant">{preference.description}</p>
+                  </div>
+                  <button
+                    aria-pressed={preference.enabled}
+                    className={`relative h-6 w-11 shrink-0 rounded-full transition active:scale-[0.98] ${
+                      preference.enabled ? 'bg-teal-command' : 'bg-surface-variant'
+                    } ${preference.disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                    disabled={preference.disabled}
+                    onClick={() => togglePreference(preference.key)}
+                    type="button"
+                  >
+                    <span
+                      className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full border bg-white transition-transform ${
+                        preference.enabled ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border-warm bg-clean-surface p-6 shadow-sm">
+            <h2 className="mb-4 flex items-center gap-2 text-sm font-bold text-deep-charcoal">
+              <Icon className="h-5 w-5 text-teal-command" name="priority" />
+              Default Request Priorities
+            </h2>
+
+            <div className="grid grid-cols-2 gap-4">
+              {priorityOptions.map((priority) => (
                 <button
-                  className="h-10 rounded-lg border border-border-warm bg-white px-4 text-xs font-semibold text-slate-ink transition hover:border-deep-charcoal active:scale-[0.98]"
+                  className={`rounded-lg border p-3 text-center transition hover:border-teal-command active:scale-[0.98] ${
+                    selectedPriority === priority.value
+                      ? 'border-2 border-teal-command bg-clean-surface shadow-sm'
+                      : 'border-border-warm bg-workflow-ivory'
+                  }`}
+                  key={priority.value}
                   onClick={() => {
-                    setDeleteConfirmOpen(false);
-                    setMemberToDelete(null);
+                    setSelectedPriority(priority.value);
+                    showSavedToast();
                   }}
                   type="button"
                 >
-                  Cancel
+                  <p className={`font-bold ${priority.className}`}>{priority.value}</p>
+                  <p className="text-[10px] text-on-surface-variant">{priority.response}</p>
                 </button>
-                <button
-                  className="h-10 rounded-lg bg-red-600 px-5 text-xs font-semibold text-white transition hover:bg-red-700 active:scale-[0.98]"
-                  onClick={confirmDeleteMember}
-                  type="button"
-                >
-                  Remove Staff
-                </button>
-              </div>
+              ))}
             </div>
           </div>
-        </div>
-      )}
+        </section>
+      </div>
+
+      <div
+        className={`fixed bottom-8 right-8 flex items-center gap-3 rounded-lg bg-inverse-surface px-6 py-3 text-inverse-on-surface shadow-xl transition-all duration-300 ${
+          showToast ? 'translate-y-0 opacity-100' : 'translate-y-24 opacity-0'
+        }`}
+      >
+        <Icon className="h-5 w-5 text-teal-command" name="check" />
+        <p className="text-sm font-semibold">Settings updated successfully.</p>
+      </div>
     </div>
   );
 };
+
+const InitialAvatar = ({ name }: { name: string }) => (
+  <div className="grid h-10 w-10 place-items-center rounded-full border border-border-warm bg-surface-container text-xs font-bold text-teal-command">
+    {name
+      .split(' ')
+      .map((part) => part[0])
+      .slice(0, 2)
+      .join('')}
+  </div>
+);
