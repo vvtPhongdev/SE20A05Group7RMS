@@ -1,8 +1,18 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 export const Unauthorized: React.FC = () => {
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return null;
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-[var(--wr-bg-page)] p-4 box-border">

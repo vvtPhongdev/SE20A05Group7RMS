@@ -13,12 +13,58 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  loginWithToken: (accessToken: string, loggedUser: User) => void;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<User>;
+  loginWithToken: (
+    accessToken: string,
+    loggedUser: User,
+    refreshToken?: string,
+    rememberMe?: boolean,
+  ) => void;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AUTH_STORAGE_KEYS = ['token', 'accessToken', 'refreshToken', 'user'] as const;
+const AUTH_LOGOUT_EVENT_KEY = 'authLogoutAt';
+
+const clearStoredAuth = () => {
+  for (const key of AUTH_STORAGE_KEYS) {
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+  }
+};
+
+const storeAuth = (
+  accessToken: string,
+  loggedUser: User,
+  refreshToken?: string,
+  rememberMe = false,
+) => {
+  clearStoredAuth();
+
+  const storage = rememberMe ? localStorage : sessionStorage;
+  storage.setItem('token', accessToken);
+  storage.setItem('user', JSON.stringify(loggedUser));
+  if (refreshToken) {
+    storage.setItem('refreshToken', refreshToken);
+  }
+};
+
+const getStoredAuth = () => {
+  for (const storage of [sessionStorage, localStorage]) {
+    const accessToken = storage.getItem('token') ?? storage.getItem('accessToken');
+    const savedUser = storage.getItem('user');
+
+    if (accessToken && savedUser) {
+      return { accessToken, savedUser };
+    }
+  }
+
+  return null;
+};
+
+const getStoredRefreshToken = () =>
+  sessionStorage.getItem('refreshToken') ?? localStorage.getItem('refreshToken');
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -66,18 +112,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
+    const restoreStoredAuth = () => {
+      const savedAuth = getStoredAuth();
 
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
-    }
+      if (!savedAuth) {
+        setToken(null);
+        setUser(null);
+        return;
+      }
+
+      try {
+        setToken(savedAuth.accessToken);
+        setUser(JSON.parse(savedAuth.savedUser) as User);
+      } catch {
+        clearStoredAuth();
+        setToken(null);
+        setUser(null);
+      }
+    };
+
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.storageArea === localStorage && event.key === AUTH_LOGOUT_EVENT_KEY) {
+        clearStoredAuth();
+        setToken(null);
+        setUser(null);
+        return;
+      }
+
+      const isAuthKey = AUTH_STORAGE_KEYS.some((key) => key === event.key);
+      if (event.storageArea === localStorage && isAuthKey) {
+        restoreStoredAuth();
+      }
+    };
+
+    restoreStoredAuth();
     setLoading(false);
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, rememberMe = false) => {
     setLoading(true);
+    let isApiConnected = false;
+
     try {
       // 1. Try to hit actual login endpoint in the gateway
       const response = await fetch('/api/v1/auth/login', {
@@ -85,6 +163,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
+
+      isApiConnected = true;
 
       if (response.ok) {
         const data = await response.json();
@@ -96,44 +176,71 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           organizationId: data.user.organizationId,
         };
 
-        localStorage.setItem('token', data.accessToken);
-        localStorage.setItem('user', JSON.stringify(loggedUser));
+        storeAuth(data.accessToken, loggedUser, data.refreshToken, rememberMe);
         setToken(data.accessToken);
         setUser(loggedUser);
-        return;
+        setLoading(false);
+        return loggedUser;
       }
+
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `Login failed (${response.status})`);
     } catch (err) {
-      console.warn('API connection failed, falling back to mock authentication:', err);
-    }
+      if (!isApiConnected) {
+        console.warn('API connection failed, falling back to mock authentication:', err);
 
-    // 2. Mock Fallback
-    const mockUser = MOCK_USERS[email.toLowerCase()];
-    if (mockUser && password === 'Password123!') {
-      const mockToken = `mock-jwt-token-for-${mockUser.role}`;
-      localStorage.setItem('token', mockToken);
-      localStorage.setItem('user', JSON.stringify(mockUser));
-      setToken(mockToken);
-      setUser(mockUser);
+        // 2. Mock fallback is only available when the API cannot be reached.
+        const mockUser = MOCK_USERS[email.toLowerCase()];
+        if (mockUser && password === 'Password123!') {
+          const mockToken = `mock-jwt-token-for-${mockUser.role}`;
+          storeAuth(mockToken, mockUser, undefined, rememberMe);
+          setToken(mockToken);
+          setUser(mockUser);
+          setLoading(false);
+          return mockUser;
+        }
+      }
+
       setLoading(false);
-      return;
+      throw err instanceof Error ? err : new Error('Invalid email or password');
     }
-
-    setLoading(false);
-    throw new Error('Invalid email or password');
   };
 
-  const loginWithToken = (accessToken: string, loggedUser: User) => {
-    localStorage.setItem('token', accessToken);
-    localStorage.setItem('user', JSON.stringify(loggedUser));
+  const loginWithToken = (
+    accessToken: string,
+    loggedUser: User,
+    refreshToken?: string,
+    rememberMe = false,
+  ) => {
+    storeAuth(accessToken, loggedUser, refreshToken, rememberMe);
     setToken(accessToken);
     setUser(loggedUser);
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    const refreshToken = getStoredRefreshToken();
+
+    clearStoredAuth();
+    localStorage.setItem(AUTH_LOGOUT_EVENT_KEY, Date.now().toString());
     setToken(null);
     setUser(null);
+
+    if (refreshToken) {
+      void fetch('/api/v1/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+        keepalive: true,
+      })
+        .then((response) => {
+          if (!response.ok) {
+            console.warn(`Server logout failed with status ${response.status}`);
+          }
+        })
+        .catch((err) => {
+          console.warn('Server logout failed after local session was cleared:', err);
+        });
+    }
   };
 
   return (

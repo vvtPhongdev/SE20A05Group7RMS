@@ -1,0 +1,9 @@
+npm warn "0.0.0.0" is being parsed as a normal command line argument.
+npm warn Unknown cli config "--host". This will stop working in the next major version of npm.
+npm error Lifecycle script `dev` failed with error:
+npm error code 4294967295
+npm error path D:\SU26\SWP\RMS\SE20A05Group7RMS\webapp
+npm error workspace @wr/webapp@0.1.0
+npm error location D:\SU26\SWP\RMS\SE20A05Group7RMS\webapp
+npm error command failed
+npm error command C:\WINDOWS\system32\cmd.exe /d /s /c vite --port 3000 0.0.0.0

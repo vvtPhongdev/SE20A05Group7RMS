@@ -45,7 +45,7 @@ export const ForgotPassword: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
 
@@ -60,10 +60,28 @@ export const ForgotPassword: React.FC = () => {
     }
 
     setLoading(true);
-    window.setTimeout(() => {
-      setLoading(false);
+
+    try {
+      const response = await fetch('/api/v1/auth/forgot-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to send reset instructions.');
+      }
+
       setSent(true);
-    }, 750);
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -84,17 +102,23 @@ export const ForgotPassword: React.FC = () => {
           </Link>
 
           <div className="relative my-auto max-w-2xl py-12">
-            <p className="mb-4 text-sm font-semibold uppercase tracking-[0.08em] text-white/70">Password recovery</p>
+            <p className="mb-4 text-sm font-semibold uppercase tracking-[0.08em] text-white/70">
+              Password recovery
+            </p>
             <h1 className="max-w-xl text-[42px] font-semibold leading-[1.04] tracking-tight xl:text-[52px]">
               Reset access without exposing candidate or pipeline data.
             </h1>
             <p className="mt-6 max-w-lg text-base leading-7 text-white/78">
-              Enter your email address and RMS will send reset instructions through a controlled verification flow.
+              Enter your email address and RMS will send reset instructions through a controlled
+              verification flow.
             </p>
 
             <div className="mt-10 flex flex-wrap gap-3">
               {trustItems.map((item) => (
-                <div className="flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-medium text-white/78 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur" key={item.label}>
+                <div
+                  className="flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-medium text-white/78 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur"
+                  key={item.label}
+                >
                   <Icon className="h-4 w-4" name={item.icon} />
                   {item.label}
                 </div>
@@ -117,7 +141,10 @@ export const ForgotPassword: React.FC = () => {
 
         <section className="flex min-h-[100dvh] flex-col justify-between bg-[var(--wr-bg-surface)] px-5 py-8 sm:px-8 lg:px-16">
           <div className="flex justify-between">
-            <Link className="group inline-flex items-center gap-2 text-sm font-semibold text-[var(--wr-accent-primary)] transition hover:underline" to="/login">
+            <Link
+              className="group inline-flex items-center gap-2 text-sm font-semibold text-[var(--wr-accent-primary)] transition hover:underline"
+              to="/login"
+            >
               <Icon className="h-4 w-4 transition group-hover:-translate-x-1" name="arrowLeft" />
               Back to sign in
             </Link>
@@ -146,7 +173,8 @@ export const ForgotPassword: React.FC = () => {
                     <div>
                       <p className="text-sm font-semibold">Reset email sent</p>
                       <p className="mt-1 text-sm leading-6">
-                        Check {email} for password reset instructions. The link expires after a short security window.
+                        Check {email} for password reset instructions. The link expires after a
+                        short security window.
                       </p>
                     </div>
                   </div>
@@ -167,7 +195,10 @@ export const ForgotPassword: React.FC = () => {
 
                   <form className="space-y-6" onSubmit={handleSubmit}>
                     <div className="space-y-2">
-                      <label className="block text-sm font-medium text-[var(--wr-text-primary)]" htmlFor="email">
+                      <label
+                        className="block text-sm font-medium text-[var(--wr-text-primary)]"
+                        htmlFor="email"
+                      >
                         Email address
                       </label>
                       <div className="relative">
@@ -184,7 +215,9 @@ export const ForgotPassword: React.FC = () => {
                           onChange={(event) => setEmail(event.target.value)}
                         />
                       </div>
-                      <p className="text-xs text-[var(--wr-text-muted)]">Use the email assigned to your RMS account.</p>
+                      <p className="text-xs text-[var(--wr-text-muted)]">
+                        Use the email assigned to your RMS account.
+                      </p>
                     </div>
 
                     <button
@@ -193,7 +226,10 @@ export const ForgotPassword: React.FC = () => {
                       type="submit"
                     >
                       {loading ? (
-                        <span className="flex w-32 items-center justify-center gap-1.5" aria-label="Sending reset link">
+                        <span
+                          className="flex w-32 items-center justify-center gap-1.5"
+                          aria-label="Sending reset link"
+                        >
                           <span className="h-1.5 w-6 rounded-full bg-white/45 animate-pulse" />
                           <span className="h-1.5 w-12 rounded-full bg-white/70 animate-pulse [animation-delay:120ms]" />
                           <span className="h-1.5 w-5 rounded-full bg-white/45 animate-pulse [animation-delay:240ms]" />
@@ -206,7 +242,10 @@ export const ForgotPassword: React.FC = () => {
 
                   <p className="mt-8 text-center text-sm text-[var(--wr-text-secondary)]">
                     Remember your password?{' '}
-                    <Link className="font-semibold text-[var(--wr-accent-primary)] hover:underline" to="/login">
+                    <Link
+                      className="font-semibold text-[var(--wr-accent-primary)] hover:underline"
+                      to="/login"
+                    >
                       Sign in
                     </Link>
                   </p>
@@ -215,9 +254,13 @@ export const ForgotPassword: React.FC = () => {
 
               <div className="mt-8 rounded-xl border border-[var(--wr-border-default)] bg-[#fefdfb] p-4">
                 <div className="flex gap-3">
-                  <Icon className="mt-0.5 h-5 w-5 shrink-0 text-[var(--wr-text-secondary)]" name="info" />
+                  <Icon
+                    className="mt-0.5 h-5 w-5 shrink-0 text-[var(--wr-text-secondary)]"
+                    name="info"
+                  />
                   <p className="text-sm leading-6 text-[var(--wr-text-secondary)]">
-                    If you do not receive an email within 5 minutes, check your spam folder or contact your administrator.
+                    If you do not receive an email within 5 minutes, check your spam folder or
+                    contact your administrator.
                   </p>
                 </div>
               </div>
