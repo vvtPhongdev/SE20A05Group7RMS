@@ -78,6 +78,18 @@ export const WorkerEnvSchema = BaseEnvSchema.extend({
   SMTP_FROM: z.string().default('"Works Recruiter" <noreply@worksrecruiter.com>'),
 });
 
+// ─── CV Service Environment ──────────────────────────────────────────
+
+export const CvEnvSchema = BaseEnvSchema.extend({
+  CV_PORT: z.coerce.number().int().default(3014),
+});
+
+// ─── Interview Service Environment ───────────────────────────────────
+
+export const InterviewEnvSchema = BaseEnvSchema.extend({
+  INTERVIEW_PORT: z.coerce.number().int().default(3015),
+});
+
 // ─── Types ──────────────────────────────────────────────────────────
 
 export type BaseEnv = z.infer<typeof BaseEnvSchema>;
@@ -87,6 +99,8 @@ export type RecruitingEnv = z.infer<typeof RecruitingEnvSchema>;
 export type ProfilesEnv = z.infer<typeof ProfilesEnvSchema>;
 export type NotificationEnv = z.infer<typeof NotificationEnvSchema>;
 export type WorkerEnv = z.infer<typeof WorkerEnvSchema>;
+export type CvEnv = z.infer<typeof CvEnvSchema>;
+export type InterviewEnv = z.infer<typeof InterviewEnvSchema>;
 
 // ─── Config Factory ─────────────────────────────────────────────────
 
@@ -108,3 +122,4 @@ export function loadConfig<T extends z.ZodTypeAny>(
   }
   return result.data;
 }
+

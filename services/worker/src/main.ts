@@ -9,6 +9,8 @@ import { processCvParseJob as cvParseProcessor } from './processors/cv-parse.pro
 import { processCvEmbeddingJob as embeddingProcessor } from './processors/cv-embedding.processor';
 import { processEmailSendJob as emailProcessor } from './processors/email-send.processor';
 import { config as appConfig } from './config';
+import { wrapWorkerProcessor } from '@wr/logger';
+import { logger } from './logger';
 
 /**
  * Worker bootstrap — starts BullMQ workers for each queue.
@@ -19,7 +21,7 @@ async function bootstrap() {
     maxRetriesPerRequest: null, // Required by BullMQ for blocking operations
   });
 
-  console.log(`🔌 Worker connecting to Redis at ${redisUrl}`);
+  logger.log(`🔌 Worker connecting to Redis at ${redisUrl}`);
 
   // Optimized options for Redis connection to prevent rate limiting (especially on Upstash)
   const workerOptions = {
@@ -31,33 +33,33 @@ async function bootstrap() {
   // CV Parse Queue Worker
   const cvParseWorker = new Worker(
     QUEUE_NAMES.CV_PARSE,
-    async (job) => {
-      console.log(`📄 Processing CV parse job: ${job.name} [${job.id}]`);
+    wrapWorkerProcessor(async (job) => {
+      logger.log(`📄 Processing CV parse job: ${job.name} [${job.id}]`);
       await cvParseProcessor(job.data);
-      console.log(`✅ CV parse job ${job.id} completed`);
-    },
+      logger.log(`✅ CV parse job ${job.id} completed`);
+    }),
     workerOptions,
   );
 
   // Embedding Generation Queue Worker
   const embeddingWorker = new Worker(
     QUEUE_NAMES.EMBEDDING_GENERATE,
-    async (job) => {
-      console.log(`🧬 Processing embedding job: ${job.name} [${job.id}]`);
+    wrapWorkerProcessor(async (job) => {
+      logger.log(`🧬 Processing embedding job: ${job.name} [${job.id}]`);
       await embeddingProcessor(job.data);
-      console.log(`✅ Embedding job ${job.id} completed`);
-    },
+      logger.log(`✅ Embedding job ${job.id} completed`);
+    }),
     workerOptions,
   );
 
   // Email Send Queue Worker
   const emailWorker = new Worker(
     QUEUE_NAMES.EMAIL_SEND,
-    async (job) => {
-      console.log(`📧 Processing email send job: ${job.name} [${job.id}]`);
+    wrapWorkerProcessor(async (job) => {
+      logger.log(`📧 Processing email send job: ${job.name} [${job.id}]`);
       await emailProcessor(job.data);
-      console.log(`✅ Email send job ${job.id} completed`);
-    },
+      logger.log(`✅ Email send job ${job.id} completed`);
+    }),
     workerOptions,
   );
 
@@ -65,7 +67,7 @@ async function bootstrap() {
   const workers = [cvParseWorker, embeddingWorker, emailWorker];
 
   const shutdown = async () => {
-    console.log('\n🛑 Shutting down workers...');
+    logger.log('\n🛑 Shutting down workers...');
     await Promise.all(workers.map((w) => w.close()));
     process.exit(0);
   };
@@ -73,11 +75,11 @@ async function bootstrap() {
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
 
-  console.log(`✅ Worker started — listening on ${Object.values(QUEUE_NAMES).length} queues`);
-  console.log(`   Queues: ${Object.values(QUEUE_NAMES).join(', ')}`);
+  logger.log(`✅ Worker started — listening on ${Object.values(QUEUE_NAMES).length} queues`);
+  logger.log(`   Queues: ${Object.values(QUEUE_NAMES).join(', ')}`);
 }
 
 bootstrap().catch((err) => {
-  console.error('❌ Worker failed to start:', err);
+  logger.error('❌ Worker failed to start:', err);
   process.exit(1);
 });

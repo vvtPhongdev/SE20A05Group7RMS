@@ -11,9 +11,12 @@ import { JwtAuthGuard } from './auth/decorators/guard/jwt-auth.guard';
 import { RolesGuard } from './auth/decorators/guard/roles.guard';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 import { config as appConfig } from './config';
+import { PinoLogger } from '@wr/logger';
 
 async function bootstrap() {
-  const app = await NestFactory.create(GatewayModule);
+  const app = await NestFactory.create(GatewayModule, {
+    logger: new PinoLogger('gateway', appConfig.LOG_LEVEL),
+  });
 
   // Global prefix
   app.setGlobalPrefix('api/v1');

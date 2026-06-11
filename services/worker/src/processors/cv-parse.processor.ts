@@ -3,6 +3,7 @@ import { AuditLogService } from '@wr/database';
 import { extractText } from '@wr/ai'; // re‑exports cv‑parser utilities
 import { AuditAction, AuditEntityType, CvParseJobPayload } from '@wr/contracts';
 import { config } from '../config';
+import { logger } from '../logger';
 
 // Singleton Prisma client (same pattern as in other services)
 const prisma = new PrismaClient({
@@ -31,7 +32,7 @@ export async function processCvParseJob(payload: CvParseJobPayload): Promise<voi
 
   // Idempotency check: If rawText already exists or parsedAt is set, log and skip (exit cleanly)
   if (cvRecord.parsedAt || cvRecord.rawText) {
-    console.log(`[Idempotency] CandidateCV ${cvDocumentId} has already been parsed. Skipping job.`);
+    logger.log(`[Idempotency] CandidateCV ${cvDocumentId} has already been parsed. Skipping job.`);
     return;
   }
 
@@ -41,7 +42,7 @@ export async function processCvParseJob(payload: CvParseJobPayload): Promise<voi
     action: AuditAction.CV_PARSE_STARTED,
     toStatus: 'PARSING',
     performedById: 'SYSTEM',
-  }).catch((err) => console.error('Failed to write audit log for CV_PARSE_STARTED:', err));
+  }).catch((err) => logger.error('Failed to write audit log for CV_PARSE_STARTED:', err));
 
   try {
 
@@ -70,9 +71,9 @@ export async function processCvParseJob(payload: CvParseJobPayload): Promise<voi
         toStatus: 'PARSED',
         performedById: 'SYSTEM',
       })
-      .catch((err) => console.error('Failed to write audit log for CV_PARSE_COMPLETED:', err));
+      .catch((err) => logger.error('Failed to write audit log for CV_PARSE_COMPLETED:', err));
 
-    console.log(`✅ CV ${cvDocumentId} parsed and stored (type=${fileType})`);
+    logger.log(`✅ CV ${cvDocumentId} parsed and stored (type=${fileType})`);
   } catch (err) {
     await auditLog
       .log({
@@ -84,7 +85,7 @@ export async function processCvParseJob(payload: CvParseJobPayload): Promise<voi
         performedById: 'SYSTEM',
         reason: err instanceof Error ? err.message : String(err),
       })
-      .catch((logErr) => console.error('Failed to write audit log for CV_PARSE_FAILED:', logErr));
+      .catch((logErr) => logger.error('Failed to write audit log for CV_PARSE_FAILED:', logErr));
 
     throw err;
   }

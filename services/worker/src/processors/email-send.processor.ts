@@ -225,6 +225,7 @@ import * as nodemailer from 'nodemailer';
 import * as path from 'path';
 import * as fs from 'fs';
 import { config } from '../config';
+import { logger } from '../logger';
 
 const prisma = new PrismaClient({
   log: config.NODE_ENV === 'development' ? ['query', 'warn', 'error'] : ['warn', 'error'],
@@ -421,7 +422,7 @@ export async function processEmailSendJob(payload: EmailSendJobPayload): Promise
 
   // Idempotency check: if email is already marked as SENT, skip sending it again
   if (emailLog.status === EmailStatus.SENT) {
-    console.log(`[Idempotency] Email ${emailLogId} has already been sent. Skipping job.`);
+    logger.log(`[Idempotency] Email ${emailLogId} has already been sent. Skipping job.`);
     return;
   }
 
@@ -455,7 +456,7 @@ export async function processEmailSendJob(payload: EmailSendJobPayload): Promise
       },
     });
   } catch (error: any) {
-    console.error(`Failed to send email ${emailLogId}:`, error);
+    logger.error(`Failed to send email ${emailLogId}:`, error);
     await prisma.emailLog.update({
       where: { id: emailLogId },
       data: {

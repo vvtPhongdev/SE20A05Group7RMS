@@ -1,5 +1,6 @@
 import { processCvEmbeddingJob } from './cv-embedding.processor';
 import { PrismaClient } from '@prisma/client';
+import { logger } from '../logger';
 
 jest.mock('@prisma/client', () => {
   const mockPrisma = {
@@ -49,7 +50,7 @@ describe('processCvEmbeddingJob', () => {
     prismaMock.candidateCV.findUnique.mockResolvedValue({ id: 'cv-1' });
     prismaMock.cvEmbedding.findFirst.mockResolvedValue({ id: 'emb-1', cvDocumentId: 'cv-1' });
 
-    const consoleSpy = jest.spyOn(console, 'log').mockImplementation();
+    const consoleSpy = jest.spyOn(logger, 'log').mockImplementation();
 
     await processCvEmbeddingJob({ cvDocumentId: 'cv-1', rawText: 'CV content' });
 
