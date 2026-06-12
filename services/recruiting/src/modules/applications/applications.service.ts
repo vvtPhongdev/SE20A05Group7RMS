@@ -112,7 +112,15 @@ export class ApplicationsService {
       where,
       include: {
         request: true,
-        candidate: true,
+        candidate: {
+          include: {
+            cvDocuments: {
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+              select: { screeningStatus: true },
+            },
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',

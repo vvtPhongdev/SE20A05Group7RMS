@@ -38,4 +38,12 @@ export class OverallPlanController {
   reject(@Payload() payload: { id: string; approvedById: string; revisionNotes: string }) {
     return this.service.reject(payload);
   }
+
+  @MessagePattern('overall-plan.resubmit')
+  resubmit(
+    @Payload()
+    payload: { id: string; performedById: string; startDate?: string; endDate?: string },
+  ) {
+    return this.service.resubmit(payload);
+  }
 }

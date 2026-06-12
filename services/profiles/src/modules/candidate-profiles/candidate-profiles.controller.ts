@@ -6,6 +6,11 @@ import { CandidateProfilesService } from './candidate-profiles.service';
 export class CandidateProfilesController {
   constructor(private readonly service: CandidateProfilesService) {}
 
+  @MessagePattern('profiles.list')
+  listCandidates(@Payload() payload: { q?: string; page?: number; pageSize?: number }) {
+    return this.service.listCandidates(payload);
+  }
+
   @MessagePattern('profiles.get')
   getProfile(@Payload() payload: { id: string }) {
     return this.service.getProfile(payload.id);

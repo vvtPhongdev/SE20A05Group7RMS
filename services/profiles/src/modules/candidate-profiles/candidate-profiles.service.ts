@@ -30,6 +30,81 @@ export class CandidateProfilesService {
     return profile;
   }
 
+  async listCandidates(payload: { q?: string; page?: number; pageSize?: number }) {
+    const page = Math.max(1, Number(payload.page) || 1);
+    const pageSize = Math.max(1, Math.min(100, Number(payload.pageSize) || 50));
+    const where: any = {};
+
+    if (payload.q?.trim()) {
+      where.OR = [
+        { fullName: { contains: payload.q.trim(), mode: 'insensitive' } },
+        { email: { contains: payload.q.trim(), mode: 'insensitive' } },
+      ];
+    }
+
+    const activeApplicationStatuses = [
+      'SUBMITTED',
+      'SCREENING',
+      'INTERVIEWING',
+      'OFFER_EXTENDED',
+      'OFFER_ACCEPTED',
+    ];
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const [total, candidates, parsedCount, newThisWeekCount, activeCampaignsCount] =
+      await Promise.all([
+        this.prisma.candidateProfile.count({ where }),
+        this.prisma.candidateProfile.findMany({
+          where,
+          include: {
+            cvDocuments: {
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+              select: { parsedAt: true, screeningStatus: true },
+            },
+            applications: {
+              orderBy: { createdAt: 'desc' },
+              take: 3,
+              select: {
+                status: true,
+                request: {
+                  select: {
+                    position: true,
+                    department: { select: { name: true } },
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+        this.prisma.candidateProfile.count({
+          where: { cvDocuments: { some: { parsedAt: { not: null } } } },
+        }),
+        this.prisma.candidateProfile.count({
+          where: { createdAt: { gte: sevenDaysAgo } },
+        }),
+        this.prisma.candidateProfile.count({
+          where: { applications: { some: { status: { in: activeApplicationStatuses } } } },
+        }),
+      ]);
+
+    return {
+      data: candidates,
+      meta: {
+        total,
+        page,
+        pageSize,
+        totalPages: Math.ceil(total / pageSize),
+        parsedCount,
+        newThisWeekCount,
+        activeCampaignsCount,
+      },
+    };
+  }
+
   async getProfile(id: string) {
     let profile = await this.prisma.candidateProfile.findFirst({
       where: {

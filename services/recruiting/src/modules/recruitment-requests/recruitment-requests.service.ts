@@ -59,6 +59,7 @@ export class RecruitmentRequestsService {
     departmentId?: string;
     urgency?: string;
     q?: string;
+    reviewedById?: string;
   }) {
     const page = Math.max(1, Number(payload.page) || 1);
     const limit = Math.max(1, Math.min(100, Number(payload.limit) || 50));
@@ -67,6 +68,7 @@ export class RecruitmentRequestsService {
     if (payload.status) where.status = payload.status;
     if (payload.departmentId) where.departmentId = payload.departmentId;
     if (payload.urgency) where.urgency = payload.urgency;
+    if (payload.reviewedById) where.reviewedById = payload.reviewedById;
     if (payload.q?.trim()) {
       where.OR = [
         { position: { contains: payload.q.trim(), mode: 'insensitive' } },
@@ -92,6 +94,19 @@ export class RecruitmentRequestsService {
           applications: {
             select: { status: true },
           },
+          overallPlan: {
+            select: {
+              id: true,
+              status: true,
+              startDate: true,
+              endDate: true,
+              revisionNotes: true,
+              updatedAt: true,
+              createdBy: { select: { id: true, displayName: true } },
+              approvedBy: { select: { id: true, displayName: true } },
+              _count: { select: { tasks: true } },
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
@@ -115,6 +130,7 @@ export class RecruitmentRequestsService {
         jobDescription: request.jobDescription,
         skillRequirements: request.skillRequirements,
         justification: request.justification,
+        overallPlan: request.overallPlan,
         createdAt: request.createdAt,
         updatedAt: request.updatedAt,
       })),
@@ -321,6 +337,53 @@ export class RecruitmentRequestsService {
           toStatus: payload.decision,
           performedById: payload.adminId,
           metadata: { comments },
+        },
+      }),
+    ]);
+
+    return updated;
+  }
+
+  async returnForRevision(payload: { id: string; hrManagerId: string; feedback: string }) {
+    const request = await this.prisma.recruitmentRequest.findUnique({
+      where: { id: payload.id },
+    });
+
+    if (!request) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Recruitment request with ID ${payload.id} not found`,
+      });
+    }
+    if (request.reviewedById !== payload.hrManagerId) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'You can only return recruitment requests assigned to you',
+      });
+    }
+    if (request.status !== RecruitmentRequestStatus.PENDING_REVIEW) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: `Only requests in ${RecruitmentRequestStatus.PENDING_REVIEW} status can be returned for revision`,
+      });
+    }
+
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.recruitmentRequest.update({
+        where: { id: payload.id },
+        data: {
+          status: RecruitmentRequestStatus.REVISION_NEEDED,
+          rejectionReason: payload.feedback,
+        },
+      }),
+      this.prisma.requestLog.create({
+        data: {
+          requestId: payload.id,
+          action: 'HR_RETURNED_FOR_REVISION',
+          fromStatus: RecruitmentRequestStatus.PENDING_REVIEW,
+          toStatus: RecruitmentRequestStatus.REVISION_NEEDED,
+          performedById: payload.hrManagerId,
+          metadata: { feedback: payload.feedback },
         },
       }),
     ]);

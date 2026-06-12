@@ -465,6 +465,8 @@ export class ReportsService {
     const where: any = {};
     if (role === UserRole.DEPARTMENT_HEAD) {
       where.createdById = userId;
+    } else if (role === UserRole.HR_MANAGER) {
+      where.reviewedById = userId;
     }
 
     const requests = await this.prisma.recruitmentRequest.findMany({
@@ -475,6 +477,9 @@ export class ReportsService {
         },
         reviewedBy: {
           select: { displayName: true },
+        },
+        department: {
+          select: { name: true },
         },
         applications: {
           where: { status: 'OFFER_ACCEPTED' },
@@ -487,6 +492,7 @@ export class ReportsService {
       return {
         id: req.id,
         position: req.position,
+        department: req.department.name,
         targetHeadcount: req.headcount,
         filledHeadcount: req.applications.length,
         status: req.status,

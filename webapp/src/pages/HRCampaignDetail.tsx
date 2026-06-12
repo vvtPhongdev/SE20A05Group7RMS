@@ -1,7 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { apiRequest, ApiError } from '../lib/api';
+import { mapPlanStatus, type PlanStatus } from '../lib/planStatus';
 
-type PlanStatus = 'PENDING_APPROVAL' | 'APPROVED' | 'DRAFT' | 'REVISION_REQUIRED';
 type KanbanStage = 'applied' | 'cv_screening' | 'interview' | 'final_review' | 'offer';
 type InterviewType = 'Technical' | 'HR Fit' | 'Final' | 'Culture';
 type DetailTab = 'kanban' | 'calendar' | 'tasks';
@@ -32,6 +34,7 @@ type Interview = {
 
 type TaskItem = {
   id: string;
+  taskType: string;
   title: string;
   done: boolean;
   dueDate: string;
@@ -48,180 +51,113 @@ type CampaignData = {
   budget: string;
   progress: number;
   description: string;
-  candidates: Candidate[];
-  interviews: Interview[];
-  tasks: TaskItem[];
 };
 
-const campaignData: Record<string, CampaignData> = {
-  'REQ-2024-041': {
-    id: 'REQ-2024-041',
-    position: 'Senior Backend Engineer',
-    department: 'Engineering',
-    headcount: 2,
-    status: 'APPROVED',
-    window: 'Oct 15 - Nov 30, 2024',
-    owner: 'Sarah Jenkins',
-    budget: '$15,000',
-    progress: 55,
-    description:
-      'Seeking two senior backend engineers with deep Go or Rust experience for the core infrastructure team. Strong distributed systems fundamentals and cloud-native deployment experience are required.',
-    candidates: [
-      {
-        id: 'c1',
-        name: 'Nguyen Van Anh',
-        initials: 'NA',
-        source: 'LinkedIn',
-        score: 88,
-        stage: 'final_review',
-        color: 'bg-teal-command',
-        appliedDate: 'Oct 16',
-        tags: ['Go', 'Kubernetes'],
-      },
-      {
-        id: 'c2',
-        name: 'Tran Minh Tam',
-        initials: 'TM',
-        source: 'Referral',
-        score: 82,
-        stage: 'interview',
-        color: 'bg-revision',
-        appliedDate: 'Oct 17',
-        tags: ['Rust', 'AWS'],
-      },
-      {
-        id: 'c3',
-        name: 'Le Quoc Bao',
-        initials: 'LB',
-        source: 'Indeed',
-        score: 75,
-        stage: 'interview',
-        color: 'bg-pending',
-        appliedDate: 'Oct 18',
-        tags: ['Java', 'GCP'],
-      },
-      {
-        id: 'c4',
-        name: 'Pham Thi Thu',
-        initials: 'PT',
-        source: 'Direct',
-        score: 70,
-        stage: 'cv_screening',
-        color: 'bg-approved',
-        appliedDate: 'Oct 19',
-        tags: ['Node.js'],
-      },
-      {
-        id: 'c5',
-        name: 'Hoang Duc Manh',
-        initials: 'HM',
-        source: 'LinkedIn',
-        score: 65,
-        stage: 'cv_screening',
-        color: 'bg-slate-ink',
-        appliedDate: 'Oct 20',
-        tags: ['Python', 'Docker'],
-      },
-      {
-        id: 'c6',
-        name: 'Vo Thi Lan',
-        initials: 'VL',
-        source: 'Indeed',
-        score: 60,
-        stage: 'applied',
-        color: 'bg-draft',
-        appliedDate: 'Oct 21',
-        tags: ['Go'],
-      },
-      {
-        id: 'c7',
-        name: 'Bui Van Son',
-        initials: 'BS',
-        source: 'Referral',
-        score: 58,
-        stage: 'applied',
-        color: 'bg-teal-command/70',
-        appliedDate: 'Oct 22',
-        tags: ['C++'],
-      },
-      {
-        id: 'c8',
-        name: 'Dinh Thi Hoa',
-        initials: 'DH',
-        source: 'LinkedIn',
-        score: 92,
-        stage: 'offer',
-        color: 'bg-approved',
-        appliedDate: 'Oct 15',
-        tags: ['Go', 'Rust', 'K8s'],
-      },
-    ],
-    interviews: [
-      {
-        id: 'i1',
-        candidateName: 'Nguyen Van Anh',
-        initials: 'NA',
-        color: 'bg-teal-command',
-        type: 'Final',
-        date: 'Mon 16',
-        time: '10:00 AM',
-        location: 'Room 402',
-        interviewer: 'David Chen',
-      },
-      {
-        id: 'i2',
-        candidateName: 'Tran Minh Tam',
-        initials: 'TM',
-        color: 'bg-revision',
-        type: 'Technical',
-        date: 'Mon 16',
-        time: '02:00 PM',
-        location: 'Virtual',
-        interviewer: 'Sarah Jenkins',
-      },
-      {
-        id: 'i3',
-        candidateName: 'Le Quoc Bao',
-        initials: 'LB',
-        color: 'bg-pending',
-        type: 'HR Fit',
-        date: 'Tue 17',
-        time: '09:30 AM',
-        location: 'Room 201',
-        interviewer: 'Sarah Jenkins',
-      },
-      {
-        id: 'i4',
-        candidateName: 'Dinh Thi Hoa',
-        initials: 'DH',
-        color: 'bg-approved',
-        type: 'Culture',
-        date: 'Wed 18',
-        time: '11:00 AM',
-        location: 'Office 101',
-        interviewer: 'Lin Park',
-      },
-    ],
-    tasks: [
-      {
-        id: 't1',
-        title: 'Publish job posting on LinkedIn and Indeed',
-        done: true,
-        dueDate: 'Oct 16',
-      },
-      { id: 't2', title: 'Screen 50 incoming CVs', done: true, dueDate: 'Oct 22' },
-      { id: 't3', title: 'Schedule technical phone screens', done: true, dueDate: 'Oct 25' },
-      { id: 't4', title: 'Conduct take-home coding challenge', done: false, dueDate: 'Oct 30' },
-      {
-        id: 't5',
-        title: 'Panel interviews with shortlisted candidates',
-        done: false,
-        dueDate: 'Nov 06',
-      },
-      { id: 't6', title: 'Complete reference checks', done: false, dueDate: 'Nov 18' },
-      { id: 't7', title: 'Extend offer letters', done: false, dueDate: 'Nov 25' },
-    ],
-  },
+interface RecruitmentRequestApiItem {
+  id: string;
+  position: string;
+  department: { id: string; name: string; code: string } | null;
+  reviewedBy: { id: string; displayName: string } | null;
+  status: string;
+  headcount: number;
+  jobDescription: string;
+  skillRequirements: Record<string, unknown> | null;
+}
+
+interface RecruitmentRequestListResponse {
+  data: RecruitmentRequestApiItem[];
+}
+
+interface TaskPlanApiItem {
+  id: string;
+  overallPlanId: string;
+  taskType: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  assignedTo: { id: string; displayName: string } | null;
+}
+
+interface OverallPlanFull {
+  id: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  revisionNotes: string | null;
+  createdBy: { id: string; displayName: string } | null;
+  approvedBy: { id: string; displayName: string } | null;
+  tasks: TaskPlanApiItem[];
+}
+
+interface ApplicationApiItem {
+  id: string;
+  requestId: string;
+  candidateId: string;
+  status: string;
+  createdAt: string;
+  candidate: {
+    id: string;
+    fullName: string;
+    structuredData: Record<string, unknown> | null;
+    cvDocuments: Array<{ screeningStatus: string }>;
+  };
+}
+
+interface InterviewScheduleApiItem {
+  id: string;
+  requestId: string;
+  candidateId: string;
+  scheduledAt: string;
+  duration: number;
+  location: string;
+  interviewers: string[];
+  status: string;
+}
+
+const TASK_TYPE_LABELS: Record<string, string> = {
+  JOB_POSTING: 'Publish job posting',
+  CV_COLLECTION: 'Collect candidate CVs',
+  CV_SCREENING: 'Screen incoming CVs',
+  INTERVIEW_COORDINATION: 'Coordinate interviews',
+};
+
+const CANDIDATE_COLOR_PALETTE = [
+  'bg-teal-command',
+  'bg-revision',
+  'bg-pending',
+  'bg-approved',
+  'bg-slate-ink',
+  'bg-draft',
+  'bg-teal-command/70',
+];
+
+const INTERVIEW_TYPES: InterviewType[] = ['Technical', 'HR Fit', 'Final', 'Culture'];
+
+const formatDate = (value: string) =>
+  new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(value));
+
+const getInitials = (name: string) =>
+  name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? '')
+    .join('') || '??';
+
+const getCurrentWeekDays = () => {
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+
+  return Array.from({ length: 5 }, (_, index) => {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + index);
+    return {
+      label: `${date.toLocaleDateString('en-US', { weekday: 'short' })} ${date.getDate()}`,
+      date,
+    };
+  });
 };
 
 const kanbanColumns: Array<{ key: KanbanStage; label: string; accent: string; bg: string }> = [
@@ -237,7 +173,6 @@ const kanbanColumns: Array<{ key: KanbanStage; label: string; accent: string; bg
   { key: 'offer', label: 'Offer', accent: 'border-approved', bg: 'bg-green-50' },
 ];
 
-const weekDays = ['Mon 16', 'Tue 17', 'Wed 18', 'Thu 19', 'Fri 20'];
 const timeSlots = [
   '09:00 AM',
   '10:00 AM',
@@ -288,6 +223,7 @@ const iconPaths: Record<string, React.ReactNode> = {
   userPlus: <path d="M16 21a6 6 0 0 0-12 0m8-13a4 4 0 1 1-8 0 4 4 0 0 1 8 0Zm5 3v6m-3-3h6" />,
   report: <path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6m-6 4h4" />,
   check: <path d="m5 12 4 4L19 6" />,
+  close: <path d="m6 6 12 12M18 6 6 18" />,
 };
 
 const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: string }) => (
@@ -357,43 +293,300 @@ const fallbackCampaign = (id: string): CampaignData => ({
   headcount: 1,
   status: 'DRAFT',
   window: 'TBD',
-  owner: 'Sarah Jenkins',
-  budget: '$0',
+  owner: 'Unassigned',
+  budget: 'N/A',
   progress: 0,
-  description: 'No detail data has been configured for this campaign yet.',
-  candidates: [],
-  interviews: [],
-  tasks: [],
+  description: 'No detail data is available for this campaign yet.',
 });
 
 export const HRCampaignDetail: React.FC = () => {
   const navigate = useNavigate();
+  const { token } = useAuth();
   const { id } = useParams<{ id: string }>();
+  const campaignId = id?.replace(/^#/, '') ?? '';
+
   const [activeTab, setActiveTab] = useState<DetailTab>('kanban');
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
+  const [request, setRequest] = useState<RecruitmentRequestApiItem | null>(null);
+  const [plan, setPlan] = useState<OverallPlanFull | null>(null);
+  const [applications, setApplications] = useState<ApplicationApiItem[]>([]);
+  const [schedules, setSchedules] = useState<InterviewScheduleApiItem[]>([]);
 
-  const campaignId = id?.replace(/^#/, '') ?? 'REQ-2024-041';
-  const campaign = campaignData[campaignId] ?? fallbackCampaign(campaignId);
+  const [actionError, setActionError] = useState('');
+  const [actionSubmitting, setActionSubmitting] = useState(false);
 
-  const completedTasks = campaign.tasks.filter((task) => task.done).length;
+  const [taskActionError, setTaskActionError] = useState('');
+  const [taskBusyId, setTaskBusyId] = useState<string | null>(null);
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [newTaskType, setNewTaskType] = useState('JOB_POSTING');
+  const [newTaskDue, setNewTaskDue] = useState('');
+  const [addTaskSubmitting, setAddTaskSubmitting] = useState(false);
+
+  const loadCampaign = async () => {
+    setLoading(true);
+    setApiError('');
+    try {
+      const [requestsResponse, planResponse, applicationsResponse, schedulesResponse] =
+        await Promise.all([
+          apiRequest<RecruitmentRequestListResponse>('/recruitment-requests?limit=100', token),
+          apiRequest<OverallPlanFull>(`/overall-plan/by-request/${campaignId}`, token).catch(
+            (planError) => {
+              if (planError instanceof ApiError && planError.status === 404) return null;
+              throw planError;
+            },
+          ),
+          apiRequest<ApplicationApiItem[]>(`/applications?requestId=${campaignId}`, token),
+          apiRequest<InterviewScheduleApiItem[]>(
+            `/interviews/requests/${campaignId}/schedules`,
+            token,
+          ).catch(() => []),
+        ]);
+      setRequest(requestsResponse.data.find((item) => item.id === campaignId) ?? null);
+      setPlan(planResponse);
+      setApplications(applicationsResponse);
+      setSchedules(schedulesResponse);
+    } catch (loadError) {
+      setApiError(loadError instanceof Error ? loadError.message : 'Unable to load campaign');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadCampaign();
+  }, [token, campaignId]);
+
+  const tasks: TaskItem[] = useMemo(
+    () =>
+      (plan?.tasks ?? []).map((task) => ({
+        id: task.id,
+        taskType: task.taskType,
+        title: TASK_TYPE_LABELS[task.taskType] ?? task.taskType,
+        done: task.status === 'COMPLETED',
+        dueDate: formatDate(task.endDate),
+      })),
+    [plan],
+  );
+
+  const completedTasks = tasks.filter((task) => task.done).length;
+  const taskProgress = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
+
+  const campaign: CampaignData = useMemo(() => {
+    if (!request) return fallbackCampaign(campaignId);
+
+    const skills = (request.skillRequirements ?? {}) as Record<string, unknown>;
+    const salaryMin = skills.salaryMin as string | number | undefined;
+    const salaryMax = skills.salaryMax as string | number | undefined;
+    let budget = 'N/A';
+    if (salaryMin || salaryMax) {
+      budget = salaryMax ? `${salaryMin ?? ''}-${salaryMax}`.replace(/^-/, '') : `${salaryMin}`;
+    }
+
+    return {
+      id: request.id,
+      position: request.position,
+      department: request.department?.name ?? 'Unassigned',
+      headcount: request.headcount,
+      status: mapPlanStatus(plan),
+      window: plan ? `${formatDate(plan.startDate)} - ${formatDate(plan.endDate)}` : 'TBD',
+      owner: plan?.createdBy?.displayName ?? request.reviewedBy?.displayName ?? 'Unassigned',
+      budget,
+      progress: taskProgress,
+      description: request.jobDescription,
+    };
+  }, [request, plan, campaignId, taskProgress]);
+
+  const candidates: Candidate[] = useMemo(
+    () =>
+      applications
+        .filter((application) => application.status !== 'REJECTED')
+        .map((application, index) => {
+          const screeningStatus = application.candidate.cvDocuments?.[0]?.screeningStatus;
+          const score =
+            screeningStatus === 'SHORTLISTED'
+              ? 85
+              : screeningStatus === 'REJECTED'
+                ? 40
+                : screeningStatus === 'PENDING'
+                  ? 65
+                  : 60;
+
+          const hasCompletedInterview = schedules.some(
+            (schedule) =>
+              schedule.candidateId === application.candidateId &&
+              schedule.status === 'COMPLETED',
+          );
+
+          let stage: KanbanStage;
+          switch (application.status) {
+            case 'SUBMITTED':
+              stage = 'applied';
+              break;
+            case 'SCREENING':
+              stage = 'cv_screening';
+              break;
+            case 'INTERVIEWING':
+              stage = hasCompletedInterview ? 'final_review' : 'interview';
+              break;
+            case 'OFFER_EXTENDED':
+            case 'OFFER_ACCEPTED':
+              stage = 'offer';
+              break;
+            default:
+              stage = 'applied';
+          }
+
+          const structuredSkills = (
+            application.candidate.structuredData as { skills?: string[] } | null
+          )?.skills;
+
+          return {
+            id: application.id,
+            name: application.candidate.fullName,
+            initials: getInitials(application.candidate.fullName),
+            source: 'Direct',
+            score,
+            stage,
+            color: CANDIDATE_COLOR_PALETTE[index % CANDIDATE_COLOR_PALETTE.length],
+            appliedDate: formatDate(application.createdAt),
+            tags: (structuredSkills ?? []).slice(0, 3),
+          };
+        }),
+    [applications, schedules],
+  );
+
   const candidatesByStage = useMemo(
     () =>
       kanbanColumns.reduce(
         (acc, column) => {
-          acc[column.key] = campaign.candidates.filter(
-            (candidate) => candidate.stage === column.key,
-          );
+          acc[column.key] = candidates.filter((candidate) => candidate.stage === column.key);
           return acc;
         },
         {} as Record<KanbanStage, Candidate[]>,
       ),
-    [campaign.candidates],
+    [candidates],
   );
 
-  const taskProgress =
-    campaign.tasks.length > 0 ? Math.round((completedTasks / campaign.tasks.length) * 100) : 0;
+  const weekDays = useMemo(() => getCurrentWeekDays(), []);
+
+  const interviews: Interview[] = useMemo(() => {
+    const typeIndexByCandidate = new Map<string, number>();
+    const sorted = [...schedules].sort(
+      (a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
+    );
+
+    return sorted.map((schedule, index) => {
+      const application = applications.find((item) => item.candidateId === schedule.candidateId);
+      const candidateName =
+        application?.candidate.fullName ?? `Candidate ${schedule.candidateId.slice(0, 8)}`;
+
+      const typeIndex = typeIndexByCandidate.get(schedule.candidateId) ?? 0;
+      typeIndexByCandidate.set(schedule.candidateId, typeIndex + 1);
+
+      const scheduledDate = new Date(schedule.scheduledAt);
+      const weekDay = weekDays.find(
+        (day) => day.date.toDateString() === scheduledDate.toDateString(),
+      );
+
+      return {
+        id: schedule.id,
+        candidateName,
+        initials: getInitials(candidateName),
+        color: CANDIDATE_COLOR_PALETTE[index % CANDIDATE_COLOR_PALETTE.length],
+        type: INTERVIEW_TYPES[typeIndex % INTERVIEW_TYPES.length],
+        date: weekDay?.label ?? '',
+        time: scheduledDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        location: schedule.location,
+        interviewer: `Panel (${schedule.interviewers.length})`,
+      };
+    });
+  }, [schedules, applications, weekDays]);
+
+  const resubmitPlan = async () => {
+    if (!plan) return;
+
+    setActionSubmitting(true);
+    setActionError('');
+    try {
+      await apiRequest(`/overall-plan/${plan.id}/resubmit`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({}),
+      });
+      await loadCampaign();
+    } catch (resubmitErr) {
+      setActionError(
+        resubmitErr instanceof ApiError ? resubmitErr.message : 'Unable to resubmit plan',
+      );
+    } finally {
+      setActionSubmitting(false);
+    }
+  };
+
+  const markTaskDone = async (taskId: string) => {
+    setTaskBusyId(taskId);
+    setTaskActionError('');
+    try {
+      await apiRequest(`/task-plan/${taskId}/status`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'COMPLETED' }),
+      });
+      setPlan((current) =>
+        current
+          ? {
+              ...current,
+              tasks: current.tasks.map((task) =>
+                task.id === taskId ? { ...task, status: 'COMPLETED' } : task,
+              ),
+            }
+          : current,
+      );
+    } catch (taskErr) {
+      setTaskActionError(taskErr instanceof ApiError ? taskErr.message : 'Unable to update task');
+    } finally {
+      setTaskBusyId(null);
+    }
+  };
+
+  const addTask = async () => {
+    if (!plan || !newTaskDue) return;
+
+    setAddTaskSubmitting(true);
+    setTaskActionError('');
+    try {
+      await apiRequest('/task-plan', token, {
+        method: 'POST',
+        body: JSON.stringify({
+          overallPlanId: plan.id,
+          taskType: newTaskType,
+          startDate: new Date().toISOString(),
+          endDate: new Date(newTaskDue).toISOString(),
+        }),
+      });
+      setShowAddTask(false);
+      setNewTaskDue('');
+      await loadCampaign();
+    } catch (taskErr) {
+      setTaskActionError(taskErr instanceof ApiError ? taskErr.message : 'Unable to add task');
+    } finally {
+      setAddTaskSubmitting(false);
+    }
+  };
 
   return (
     <div className="mx-auto flex max-w-[1440px] flex-col gap-6">
+      {apiError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-rejected">
+          {apiError}
+        </div>
+      )}
+
+      {loading && (
+        <div className="rounded-lg border border-border-warm bg-clean-surface px-4 py-3 text-sm text-on-surface-variant">
+          Loading campaign...
+        </div>
+      )}
+
       <header className="rounded-xl border border-border-warm bg-clean-surface p-5 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
@@ -407,7 +600,7 @@ export const HRCampaignDetail: React.FC = () => {
             </button>
             <div className="flex flex-wrap items-center gap-3">
               <span className="font-mono text-sm font-semibold text-teal-command">
-                #{campaign.id}
+                #{campaign.id.slice(0, 8)}
               </span>
               <h1 className="text-2xl font-semibold tracking-tight text-deep-charcoal">
                 {campaign.position}
@@ -420,20 +613,39 @@ export const HRCampaignDetail: React.FC = () => {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
+            {actionError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-rejected">
+                {actionError}
+              </div>
+            )}
             <button
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border-warm bg-clean-surface px-4 text-sm font-semibold text-slate-ink transition hover:border-teal-command hover:text-teal-command active:scale-[0.98]"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border-warm bg-clean-surface px-4 text-sm font-semibold text-slate-ink transition hover:border-teal-command hover:text-teal-command active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+              disabled
+              title="Editing an existing plan is not yet supported"
               type="button"
             >
               <Icon className="h-4 w-4" name="edit" />
               Edit Plan
             </button>
-            <button
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
-              type="button"
-            >
-              <Icon className="h-4 w-4" name="send" />
-              Submit for Approval
-            </button>
+            {campaign.status === 'REVISION_REQUIRED' ? (
+              <button
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={actionSubmitting}
+                onClick={() => void resubmitPlan()}
+                type="button"
+              >
+                <Icon className="h-4 w-4" name="send" />
+                {actionSubmitting ? 'Resubmitting...' : 'Resubmit for Approval'}
+              </button>
+            ) : campaign.status === 'PENDING_APPROVAL' ? (
+              <div className="inline-flex h-10 items-center justify-center rounded-lg border border-border-warm bg-workflow-ivory px-4 text-sm font-semibold text-on-surface-variant">
+                Awaiting Admin Approval
+              </div>
+            ) : campaign.status === 'DRAFT' ? (
+              <div className="inline-flex h-10 items-center justify-center rounded-lg border border-border-warm bg-workflow-ivory px-4 text-sm text-on-surface-variant">
+                No overall plan yet
+              </div>
+            ) : null}
           </div>
         </div>
       </header>
@@ -507,15 +719,15 @@ export const HRCampaignDetail: React.FC = () => {
                 {weekDays.map((day) => (
                   <div
                     className="border-l border-border-warm bg-workflow-ivory/50 p-3 text-center"
-                    key={day}
+                    key={day.label}
                   >
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                      {day.split(' ')[0]}
+                      {day.label.split(' ')[0]}
                     </p>
                     <p
-                      className={`mt-0.5 text-lg font-bold ${day === 'Mon 16' ? 'text-teal-command' : 'text-deep-charcoal'}`}
+                      className={`mt-0.5 text-lg font-bold ${day.date.toDateString() === new Date().toDateString() ? 'text-teal-command' : 'text-deep-charcoal'}`}
                     >
-                      {day.split(' ')[1]}
+                      {day.label.split(' ')[1]}
                     </p>
                   </div>
                 ))}
@@ -531,13 +743,14 @@ export const HRCampaignDetail: React.FC = () => {
                       {slot}
                     </div>
                     {weekDays.map((day) => {
-                      const items = campaign.interviews.filter(
+                      const items = interviews.filter(
                         (interview) =>
-                          interview.date === day && interview.time.startsWith(slot.split(':')[0]),
+                          interview.date === day.label &&
+                          interview.time.startsWith(slot.split(':')[0]),
                       );
 
                       return (
-                        <div className="min-h-[74px] border-l border-border-warm p-1.5" key={day}>
+                        <div className="min-h-[74px] border-l border-border-warm p-1.5" key={day.label}>
                           {items.map((interview) => (
                             <div
                               className={`mb-1 rounded-md border-l-2 p-2 transition hover:shadow-sm ${
@@ -576,7 +789,7 @@ export const HRCampaignDetail: React.FC = () => {
                 ))}
               </div>
               <div className="flex flex-wrap gap-2 border-t border-border-warm bg-workflow-ivory/50 px-4 py-3">
-                {(['Technical', 'HR Fit', 'Final', 'Culture'] as InterviewType[]).map((type) => (
+                {INTERVIEW_TYPES.map((type) => (
                   <span
                     className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${interviewTypeBadge[type]}`}
                     key={type}
@@ -594,7 +807,7 @@ export const HRCampaignDetail: React.FC = () => {
                 <div>
                   <h2 className="text-lg font-semibold text-deep-charcoal">Campaign Tasks</h2>
                   <p className="mt-1 text-xs text-on-surface-variant">
-                    {completedTasks} of {campaign.tasks.length} completed
+                    {completedTasks} of {tasks.length} completed
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -607,8 +820,13 @@ export const HRCampaignDetail: React.FC = () => {
                   <span className="font-mono text-xs text-on-surface-variant">{taskProgress}%</span>
                 </div>
               </div>
+              {taskActionError && (
+                <div className="border-b border-border-warm bg-red-50 px-6 py-2 text-xs font-semibold text-rejected">
+                  {taskActionError}
+                </div>
+              )}
               <ul className="divide-y divide-border-warm">
-                {campaign.tasks.map((task) => (
+                {tasks.map((task) => (
                   <li
                     className={`flex items-center gap-4 px-6 py-4 transition ${task.done ? 'bg-workflow-ivory/30' : 'hover:bg-workflow-ivory/50'}`}
                     key={task.id}
@@ -629,21 +847,83 @@ export const HRCampaignDetail: React.FC = () => {
                       Due {task.dueDate}
                     </span>
                     {!task.done ? (
-                      <button className="text-xs font-semibold text-teal-command transition hover:underline">
-                        Mark done
+                      <button
+                        className="text-xs font-semibold text-teal-command transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={taskBusyId === task.id}
+                        onClick={() => void markTaskDone(task.id)}
+                        type="button"
+                      >
+                        {taskBusyId === task.id ? 'Updating...' : 'Mark done'}
                       </button>
                     ) : null}
                   </li>
                 ))}
+                {tasks.length === 0 ? (
+                  <li className="px-6 py-8 text-center text-sm text-on-surface-variant">
+                    No tasks have been added to this plan yet.
+                  </li>
+                ) : null}
               </ul>
               <div className="border-t border-border-warm bg-workflow-ivory/50 px-6 py-3">
-                <button
-                  className="inline-flex items-center gap-2 text-sm font-semibold text-teal-command transition hover:underline"
-                  type="button"
-                >
-                  <Icon className="h-4 w-4" name="plus" />
-                  Add task
-                </button>
+                {showAddTask ? (
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                    <label className="block">
+                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                        Task Type
+                      </span>
+                      <select
+                        className="h-10 w-full min-w-[200px] rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                        onChange={(event) => setNewTaskType(event.target.value)}
+                        value={newTaskType}
+                      >
+                        {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                        Due Date
+                      </span>
+                      <input
+                        className="h-10 rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                        onChange={(event) => setNewTaskDue(event.target.value)}
+                        type="date"
+                        value={newTaskDue}
+                      />
+                    </label>
+                    <div className="flex gap-2">
+                      <button
+                        className="h-10 rounded-lg bg-teal-command px-4 text-sm font-bold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={!newTaskDue || addTaskSubmitting}
+                        onClick={() => void addTask()}
+                        type="button"
+                      >
+                        {addTaskSubmitting ? 'Adding...' : 'Save'}
+                      </button>
+                      <button
+                        className="h-10 rounded-lg border border-border-warm px-4 text-sm font-semibold text-secondary transition hover:bg-surface-variant/40 active:scale-[0.98]"
+                        onClick={() => setShowAddTask(false)}
+                        type="button"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    className="inline-flex items-center gap-2 text-sm font-semibold text-teal-command transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!plan}
+                    onClick={() => setShowAddTask(true)}
+                    title={!plan ? 'Create an Overall Plan first.' : undefined}
+                    type="button"
+                  >
+                    <Icon className="h-4 w-4" name="plus" />
+                    Add task
+                  </button>
+                )}
               </div>
             </section>
           ) : null}
@@ -683,7 +963,7 @@ export const HRCampaignDetail: React.FC = () => {
               Plan Summary
             </p>
             {[
-              ['Campaign ID', `#${campaign.id}`, true],
+              ['Campaign ID', `#${campaign.id.slice(0, 8)}`, true],
               ['Owner', campaign.owner, false],
               ['Department', campaign.department, false],
               ['Headcount', String(campaign.headcount), true],
@@ -722,7 +1002,7 @@ export const HRCampaignDetail: React.FC = () => {
               </button>
             </div>
             <div className="space-y-3">
-              {campaign.interviews.slice(0, 3).map((interview) => (
+              {interviews.slice(0, 3).map((interview) => (
                 <div className="flex items-start gap-2.5" key={interview.id}>
                   <span
                     className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white ${interview.color}`}
@@ -734,12 +1014,15 @@ export const HRCampaignDetail: React.FC = () => {
                       {interview.candidateName}
                     </p>
                     <p className="text-[11px] text-on-surface-variant">
-                      {interview.type} / {interview.date} {interview.time}
+                      {interview.type} / {interview.date || 'Outside current week'} {interview.time}
                     </p>
                     <p className="text-[10px] text-on-surface-variant">{interview.location}</p>
                   </div>
                 </div>
               ))}
+              {interviews.length === 0 ? (
+                <p className="text-xs text-on-surface-variant">No interviews scheduled yet.</p>
+              ) : null}
             </div>
           </section>
 
@@ -747,6 +1030,7 @@ export const HRCampaignDetail: React.FC = () => {
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
               Quick Actions
             </p>
+            {/* Add Candidate / Schedule Interview / Export Report: deferred to Phase 2b (Talent Pool). */}
             {[
               { icon: 'userPlus', label: 'Add Candidate' },
               { icon: 'calendar', label: 'Schedule Interview' },

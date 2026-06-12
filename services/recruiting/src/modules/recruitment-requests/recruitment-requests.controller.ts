@@ -57,4 +57,16 @@ export class RecruitmentRequestsController {
   ) {
     return this.service.decide(payload);
   }
+
+  @MessagePattern('recruitment-requests.hr.return_for_revision')
+  returnForRevision(
+    @Payload()
+    payload: {
+      id: string;
+      hrManagerId: string;
+      feedback: string;
+    },
+  ) {
+    return this.service.returnForRevision(payload);
+  }
 }
