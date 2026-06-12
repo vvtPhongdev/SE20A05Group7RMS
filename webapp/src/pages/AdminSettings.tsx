@@ -17,6 +17,8 @@ interface PipelineStage {
   color: string;
 }
 
+/*
+ * Mock departments retained for UI reference only.
 const defaultDepartments: Department[] = [
   {
     name: 'IT & Engineering',
@@ -48,14 +50,17 @@ const defaultDepartments: Department[] = [
   },
 ];
 
-void defaultDepartments;
+*/
 
+/*
+ * Mock pipeline stages retained for UI reference only.
 const defaultStages: PipelineStage[] = [
   { name: 'Application Received', color: 'bg-blue-500' },
   { name: 'Resume Screening', color: 'bg-cyan-500' },
   { name: 'Technical Assessment', color: 'bg-amber-500' },
   { name: 'Onboarding', color: 'bg-teal-command' },
 ];
+*/
 
 export const AdminSettings: React.FC = () => {
   const { token } = useAuth();
@@ -63,11 +68,9 @@ export const AdminSettings: React.FC = () => {
   const [organizationId, setOrganizationId] = useState('');
   const [orgName, setOrgName] = useState('');
   const [orgCode, setOrgCode] = useState('');
-  const [industry, setIndustry] = useState('Information Technology');
-  const [orgSize, setOrgSize] = useState('201-500 employees');
-  const [logoUrl, setLogoUrl] = useState(
-    'https://lh3.googleusercontent.com/aida-public/AB6AXBKIWziYFI2f30JGLWZLz7T_wVjimcKWVHMmtsvMkfoHEldDaGfgCfgVZJXmzebuiG6fPfWhkykmBw6Ylcam_o1bphMSdQrNH0F1GlVFFCHTmnnAmz2nQg_ANkCMisECS19Eq-ki0nYqBoo8t8AEkXneZbpguANpUA8g7M-cpzcwpsQ5N82H_T9-d5gQbtf5pg9lDyd0B6VGPK_E1DZcQ2_70N6Je3mWOkrR-NdyZ_zo1Emx9PxT7JNOyzNOnj7zscbs0LwRouLzP8',
-  );
+  const [industry, setIndustry] = useState('');
+  const [orgSize, setOrgSize] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
   const [storedSettings, setStoredSettings] = useState<Record<string, unknown>>({});
   const [departmentHeads, setDepartmentHeads] = useState<Array<{ id: string; name: string }>>([]);
   const [loading, setLoading] = useState(true);
@@ -93,7 +96,7 @@ export const AdminSettings: React.FC = () => {
   const [enableMultiLevel, setEnableMultiLevel] = useState(false);
 
   // Pipeline Stages
-  const [pipelineStages, setPipelineStages] = useState<PipelineStage[]>(defaultStages);
+  const [pipelineStages, setPipelineStages] = useState<PipelineStage[]>([]);
   const [stageModalOpen, setStageModalOpen] = useState(false);
   const [stageForm, setStageForm] = useState<PipelineStage>({ name: '', color: 'bg-blue-500' });
 
@@ -167,14 +170,14 @@ export const AdminSettings: React.FC = () => {
       setStoredSettings(organization.settings ?? {});
       setOrgName(organization.name);
       setOrgCode(organization.slug);
-      setIndustry(organization.settings?.industry ?? 'Information Technology');
-      setOrgSize(organization.settings?.orgSize ?? '201-500 employees');
+      setIndustry(organization.settings?.industry ?? '');
+      setOrgSize(organization.settings?.orgSize ?? '');
       setLogoUrl(organization.settings?.logoUrl ?? '');
       setBudgetJustification(workflow.budgetJustification ?? true);
       setAutoApproveLow(workflow.autoApproveLow ?? false);
       setRequireVpExecutive(workflow.requireVpExecutive ?? true);
       setEnableMultiLevel(workflow.enableMultiLevel ?? false);
-      setPipelineStages(organization.settings?.pipelineStages ?? defaultStages);
+      setPipelineStages(organization.settings?.pipelineStages ?? []);
       setDepartmentHeads(heads.data.map((head) => ({ id: head.id, name: head.displayName })));
     } catch (loadError) {
       setApiError(loadError instanceof Error ? loadError.message : 'Unable to load settings');

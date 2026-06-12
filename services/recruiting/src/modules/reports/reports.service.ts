@@ -44,10 +44,18 @@ export class ReportsService {
       include: {
         department: true,
         applications: true,
+        offers: true,
+        reviewedBy: {
+          select: {
+            id: true,
+            displayName: true,
+          },
+        },
       },
     });
 
     const totalRequests = requests.length;
+    const totalPositionsOpened = requests.reduce((sum, request) => sum + request.headcount, 0);
     const completedHires = requests
       .filter((r) => r.status === 'CLOSED' || r.status === 'OFFER_ACCEPTED')
       .reduce(
@@ -56,10 +64,67 @@ export class ReportsService {
       );
 
     const monthlyRequests = Array(12).fill(0);
+    const monthlyFilled = Array(12).fill(0);
     for (const req of requests) {
       const month = new Date(req.createdAt).getMonth();
       monthlyRequests[month]++;
+      for (const application of req.applications) {
+        if (
+          application.status === 'OFFER_ACCEPTED' &&
+          application.updatedAt >= startOfYear &&
+          application.updatedAt <= endOfYear
+        ) {
+          monthlyFilled[application.updatedAt.getMonth()]++;
+        }
+      }
     }
+
+    const completedRequests = requests.filter(
+      (request) => request.status === 'CLOSED' || request.status === 'OFFER_ACCEPTED',
+    );
+    const averageTimeToHireDays =
+      completedRequests.length > 0
+        ? Number(
+            (
+              completedRequests.reduce(
+                (sum, request) => sum + (request.updatedAt.getTime() - request.createdAt.getTime()),
+                0,
+              ) /
+              completedRequests.length /
+              (1000 * 60 * 60 * 24)
+            ).toFixed(2),
+          )
+        : 0;
+
+    const offers = requests.flatMap((request) => request.offers);
+    const respondedOffers = offers.filter((offer) =>
+      ['ACCEPTED', 'DECLINED'].includes(offer.status),
+    );
+    const acceptedOffers = respondedOffers.filter((offer) => offer.status === 'ACCEPTED').length;
+    const offerAcceptanceRate =
+      respondedOffers.length > 0
+        ? Number(((acceptedOffers / respondedOffers.length) * 100).toFixed(2))
+        : 0;
+
+    const parseCompensation = (value: string | null | undefined) => {
+      if (!value) return 0;
+      const digits = value.replace(/\D/g, '');
+      if (!digits) return 0;
+      const parsed = Number(digits);
+      return parsed < 100000 ? parsed * 1000000 : parsed;
+    };
+    const acceptedCandidateIds = new Set(
+      requests.flatMap((request) =>
+        request.applications
+          .filter((application) => application.status === 'OFFER_ACCEPTED')
+          .map((application) => application.candidateId),
+      ),
+    );
+    const totalHiringCost = offers
+      .filter((offer) => acceptedCandidateIds.has(offer.candidateId))
+      .reduce((sum, offer) => sum + 15000000 + parseCompensation(offer.compensation) * 0.1, 0);
+    const costPerHire =
+      completedHires > 0 ? Number((totalHiringCost / completedHires).toFixed(2)) : 0;
 
     const totalInterviews = await this.prisma.interviewSchedule.count({
       where: {
@@ -167,16 +232,118 @@ export class ReportsService {
       };
     });
 
+    const managerMap = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        requests: number;
+        filled: number;
+        target: number;
+        processingDays: number;
+      }
+    >();
+    for (const request of requests) {
+      if (!request.reviewedBy) continue;
+      const manager = managerMap.get(request.reviewedBy.id) ?? {
+        id: request.reviewedBy.id,
+        name: request.reviewedBy.displayName,
+        requests: 0,
+        filled: 0,
+        target: 0,
+        processingDays: 0,
+      };
+      manager.requests++;
+      manager.target += request.headcount;
+      manager.filled += request.applications.filter(
+        (application) => application.status === 'OFFER_ACCEPTED',
+      ).length;
+      manager.processingDays +=
+        (request.updatedAt.getTime() - request.createdAt.getTime()) / (1000 * 60 * 60 * 24);
+      managerMap.set(manager.id, manager);
+    }
+    const managerPerformance = Array.from(managerMap.values()).map((manager) => ({
+      id: manager.id,
+      name: manager.name,
+      requests: manager.requests,
+      averageProcessingDays: Number((manager.processingDays / manager.requests).toFixed(2)),
+      fillRate:
+        manager.target > 0 ? Number(((manager.filled / manager.target) * 100).toFixed(2)) : 0,
+    }));
+
+    const completedRequestIds = completedRequests.map((request) => request.id);
+    const logs =
+      completedRequestIds.length > 0
+        ? await this.prisma.requestLog.findMany({
+            where: { requestId: { in: completedRequestIds } },
+            orderBy: { createdAt: 'asc' },
+          })
+        : [];
+    const stageTotals: Record<string, number> = {};
+    const stageCounts: Record<string, number> = {};
+    const stageForStatus = (status: string | null) => {
+      if (status === 'INTERVIEWING') return 'Interview';
+      if (status === 'INTERVIEW_COMPLETED') return 'Decision';
+      if (status === 'OFFER_EXTENDED') return 'Offer Process';
+      if (status === 'OFFER_ACCEPTED') return 'Onboarding Prep';
+      return 'Screening';
+    };
+    for (const request of completedRequests) {
+      const requestLogs = logs.filter((log) => log.requestId === request.id);
+      const timeline = [
+        { status: 'DRAFT', time: request.createdAt.getTime() },
+        ...requestLogs.map((log) => ({
+          status: log.toStatus || log.fromStatus || 'DRAFT',
+          time: log.createdAt.getTime(),
+        })),
+        { status: request.status, time: request.updatedAt.getTime() },
+      ].sort((a, b) => a.time - b.time);
+      for (let index = 0; index < timeline.length - 1; index++) {
+        const current = timeline[index];
+        const next = timeline[index + 1];
+        if (!current || !next || next.time <= current.time) continue;
+        const stage = stageForStatus(current.status);
+        stageTotals[stage] = (stageTotals[stage] || 0) + next.time - current.time;
+        stageCounts[stage] = (stageCounts[stage] || 0) + 1;
+      }
+    }
+    const timeToHireByStage = [
+      'Screening',
+      'Interview',
+      'Decision',
+      'Offer Process',
+      'Onboarding Prep',
+    ].map((stage) => ({
+      stage,
+      days:
+        (stageCounts[stage] ?? 0) > 0
+          ? Number(
+              (
+                (stageTotals[stage] ?? 0) /
+                (stageCounts[stage] ?? 1) /
+                (1000 * 60 * 60 * 24)
+              ).toFixed(2),
+            )
+          : 0,
+    }));
+
     return {
       year,
       summary: {
         totalRequests,
+        totalPositionsOpened,
         totalInterviews,
         completedHires,
         monthlyRequests,
+        monthlyFilled,
+        averageTimeToHireDays,
+        offerAcceptanceRate,
+        costPerHire,
       },
       yoyComparison,
       departmentBreakdown,
+      managerPerformance,
+      timeToHireByStage,
     };
   }
 
@@ -444,6 +611,169 @@ export class ReportsService {
         toStatus: log.toStatus,
         createdAt: log.createdAt,
       })),
+    };
+  }
+
+  async getDepartmentStats(payload: { range?: '30d' | 'quarter' | 'year' }) {
+    const range = payload.range || '30d';
+    const now = new Date();
+    let startDate: Date;
+    if (range === 'quarter') {
+      startDate = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
+    } else if (range === 'year') {
+      startDate = new Date(now.getFullYear(), 0, 1);
+    } else {
+      startDate = new Date(now);
+      startDate.setDate(startDate.getDate() - 30);
+    }
+
+    const departments = await this.prisma.department.findMany({
+      include: {
+        headUser: {
+          select: {
+            displayName: true,
+            updatedAt: true,
+          },
+        },
+        requests: {
+          where: {
+            createdAt: { gte: startDate },
+          },
+          include: {
+            applications: {
+              select: {
+                status: true,
+              },
+            },
+            overallPlan: {
+              select: {
+                status: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    const inactiveStatuses = ['CLOSED', 'CANCELLED', 'REJECTED'];
+    const finishedApplicationStatuses = ['OFFER_ACCEPTED', 'REJECTED'];
+    const relativeTime = (date: Date) => {
+      const hours = Math.max(0, Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60)));
+      if (hours < 1) return 'Active';
+      if (hours < 24) return `${hours}h ago`;
+      return `${Math.floor(hours / 24)}d ago`;
+    };
+
+    const rows = departments.map((department, index) => {
+      const requested = department.requests.reduce((sum, request) => sum + request.headcount, 0);
+      const filled = department.requests.reduce(
+        (sum, request) =>
+          sum +
+          request.applications.filter((application) => application.status === 'OFFER_ACCEPTED')
+            .length,
+        0,
+      );
+      const inProgress = department.requests.reduce(
+        (sum, request) =>
+          sum +
+          request.applications.filter(
+            (application) => !finishedApplicationStatuses.includes(application.status),
+          ).length,
+        0,
+      );
+      const pendingRequests = department.requests.filter(
+        (request) => request.status === 'PENDING_REVIEW',
+      );
+      const pendingPlans = department.requests.filter(
+        (request) => request.overallPlan?.status === 'PENDING_APPROVAL',
+      ).length;
+      const completed = department.requests.filter((request) =>
+        ['CLOSED', 'OFFER_ACCEPTED'].includes(request.status),
+      );
+      const timeToHire =
+        completed.length > 0
+          ? Number(
+              (
+                completed.reduce(
+                  (sum, request) =>
+                    sum + (request.updatedAt.getTime() - request.createdAt.getTime()),
+                  0,
+                ) /
+                completed.length /
+                (1000 * 60 * 60 * 24)
+              ).toFixed(1),
+            )
+          : 0;
+      const fillRate = requested > 0 ? Math.round((filled / requested) * 100) : 0;
+      const oldestPendingDays =
+        pendingRequests.length > 0
+          ? Math.max(
+              ...pendingRequests.map((request) =>
+                Math.max(
+                  0,
+                  Math.floor((now.getTime() - request.createdAt.getTime()) / (1000 * 60 * 60 * 24)),
+                ),
+              ),
+            )
+          : 0;
+      const headName = department.headUser?.displayName || 'Not assigned';
+      const initials =
+        headName === 'Not assigned'
+          ? 'NA'
+          : headName
+              .split(' ')
+              .map((part) => part[0])
+              .join('')
+              .slice(0, 2)
+              .toUpperCase();
+
+      return {
+        card: {
+          name: department.name,
+          head: headName,
+          fillRate,
+          timeToHire,
+          activeRequests: department.requests.filter(
+            (request) => !inactiveStatuses.includes(request.status),
+          ).length,
+          pendingApprovalsText: `${pendingRequests.length} Pending Approval${pendingRequests.length === 1 ? '' : 's'}`,
+          pendingApproved: pendingRequests.length === 0,
+        },
+        chart: {
+          label: department.code || department.name,
+          requested,
+          inProgress,
+          filled,
+        },
+        pending: {
+          department: department.name,
+          requests: pendingRequests.length,
+          plans: pendingPlans,
+          oldest: `${oldestPendingDays} day${oldestPendingDays === 1 ? '' : 's'}`,
+          badge: oldestPendingDays >= 5,
+        },
+        activity: {
+          name: headName,
+          initials,
+          dept: department.name,
+          reqs: department.requests.length,
+          score: Number(Math.min(5, fillRate / 20).toFixed(1)),
+          lastActive: relativeTime(department.headUser?.updatedAt || department.updatedAt),
+          avatarBg: ['bg-primary-container', 'bg-secondary', 'bg-teal-command', 'bg-slate-ink'][
+            index % 4
+          ],
+        },
+      };
+    });
+
+    return {
+      range,
+      generatedAt: now,
+      cards: rows.map((row) => row.card),
+      chart: rows.map((row) => row.chart),
+      pending: rows.map((row) => row.pending).filter((row) => row.requests > 0 || row.plans > 0),
+      activity: rows.map((row) => row.activity).filter((row) => row.name !== 'Not assigned'),
     };
   }
 

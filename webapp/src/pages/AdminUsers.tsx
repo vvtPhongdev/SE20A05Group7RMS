@@ -18,6 +18,8 @@ interface ManagedUser {
 
 type UserForm = Omit<ManagedUser, 'id' | 'lastLogin'>;
 
+/*
+ * Mock users retained for UI reference only.
 const getInitialUsers = (): ManagedUser[] => {
   const list: ManagedUser[] = [
     {
@@ -171,7 +173,7 @@ const getInitialUsers = (): ManagedUser[] => {
   return list;
 };
 
-void getInitialUsers;
+*/
 
 const emptyForm: UserForm = {
   name: '',

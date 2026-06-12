@@ -45,9 +45,11 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
 export const CandidateSearch: React.FC = () => {
   const { token } = useAuth();
   const [campaign, setCampaign] = useState('');
-  const [query, setQuery] = useState(
-    'backend developer with Go, PostgreSQL, Redis, and distributed systems experience in fintech',
-  );
+  /*
+   * Mock search query retained for UI reference only:
+   * backend developer with Go, PostgreSQL, Redis, and distributed systems experience in fintech
+   */
+  const [query, setQuery] = useState('');
   const [locked, setLocked] = useState(true);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [campaigns, setCampaigns] = useState<Array<{ requestId: string; label: string }>>([]);

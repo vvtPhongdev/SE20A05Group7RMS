@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../lib/api';
 
 interface ManagerPerformance {
   name: string;
@@ -8,6 +10,8 @@ interface ManagerPerformance {
   efficiencyPath: string;
 }
 
+/*
+ * Mock annual report data retained for UI reference only.
 const managerPerformanceData: Record<string, ManagerPerformance[]> = {
   '2026': [
     {
@@ -217,16 +221,170 @@ const statsData: Record<
     },
   ],
 };
+*/
+
+interface AnnualReport {
+  year: number;
+  summary: {
+    totalRequests: number;
+    totalPositionsOpened: number;
+    completedHires: number;
+    monthlyRequests: number[];
+    monthlyFilled: number[];
+    averageTimeToHireDays: number;
+    offerAcceptanceRate: number;
+    costPerHire: number;
+  };
+  yoyComparison: {
+    previousYear: number;
+    requests: { growthPercentage: number };
+  };
+  departmentBreakdown: Array<{
+    departmentId: string;
+    departmentName: string;
+    totalRequests: number;
+    targetHeadcount: number;
+    totalFilled: number;
+    fillRate: number;
+  }>;
+  managerPerformance: Array<{
+    id: string;
+    name: string;
+    requests: number;
+    averageProcessingDays: number;
+    fillRate: number;
+  }>;
+  timeToHireByStage: Array<{ stage: string; days: number }>;
+}
 
 export const AdminAnnualReport: React.FC = () => {
+  const { token } = useAuth();
   const [selectedYear, setSelectedYear] = useState<'2026' | '2025' | '2024'>('2026');
   const [hoveredRow, setHoveredRow] = useState<number | null>(null);
+  const [report, setReport] = useState<AnnualReport | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
 
-  const stats = statsData[selectedYear];
-  const managers = managerPerformanceData[selectedYear];
+  useEffect(() => {
+    let cancelled = false;
+    const loadReport = async () => {
+      setLoading(true);
+      setApiError('');
+      try {
+        const response = await apiRequest<AnnualReport>(
+          `/reports/annual?year=${selectedYear}`,
+          token,
+        );
+        if (!cancelled) setReport(response);
+      } catch (error) {
+        if (!cancelled) {
+          setApiError(error instanceof Error ? error.message : 'Unable to load annual report');
+          setReport(null);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void loadReport();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedYear, token]);
 
-  const handleExportPDF = () => {
-    alert(`Exporting Annual Recruitment Report ${selectedYear} as PDF...`);
+  const stats = useMemo(() => {
+    if (!report) return [];
+    const summary = report.summary;
+    return [
+      {
+        label: 'Total Positions Opened',
+        value: String(summary.totalPositionsOpened),
+        helper: `${report.yoyComparison.requests.growthPercentage}%`,
+        sub: `vs ${report.yoyComparison.previousYear} FY`,
+        positive: report.yoyComparison.requests.growthPercentage >= 0,
+      },
+      {
+        label: 'Positions Filled',
+        value: String(summary.completedHires),
+        helper: `${summary.totalPositionsOpened > 0 ? ((summary.completedHires / summary.totalPositionsOpened) * 100).toFixed(1) : 0}%`,
+        sub: 'Accepted offers',
+        positive: true,
+      },
+      {
+        label: 'Avg. Time-to-Hire',
+        value: String(Math.round(summary.averageTimeToHireDays)),
+        helper: 'actual',
+        sub: 'Completed requests',
+        positive: true,
+      },
+      {
+        label: 'Offer Acceptance',
+        value: `${summary.offerAcceptanceRate}%`,
+        helper: 'actual',
+        sub: 'Responded offers',
+        positive: true,
+      },
+      {
+        label: 'Cost per Hire',
+        value: new Intl.NumberFormat('vi-VN', {
+          style: 'currency',
+          currency: 'VND',
+          maximumFractionDigits: 0,
+        }).format(summary.costPerHire),
+        helper: 'actual',
+        sub: 'Estimated hiring cost',
+        positive: true,
+      },
+    ];
+  }, [report]);
+
+  const managers: ManagerPerformance[] = (report?.managerPerformance || []).map((manager) => ({
+    name: manager.name,
+    requests: manager.requests,
+    avgProcessing: `${manager.averageProcessingDays}d`,
+    fillRate: manager.fillRate,
+    efficiencyPath: `M0 18 L20 ${Math.max(2, 18 - manager.fillRate / 8)} L40 ${Math.max(2, 17 - manager.fillRate / 9)} L60 ${Math.max(2, 15 - manager.fillRate / 10)} L80 ${Math.max(2, 20 - manager.fillRate / 5)}`,
+  }));
+  const stages = report?.timeToHireByStage || [];
+  const stageTotal = stages.reduce((sum, stage) => sum + stage.days, 0);
+  const longestStage = stages.reduce<{ stage: string; days: number } | null>(
+    (longest, stage) => (!longest || stage.days > longest.days ? stage : longest),
+    null,
+  );
+
+  const chartPaths = useMemo(() => {
+    const opened = report?.summary.monthlyRequests || [];
+    const filled = report?.summary.monthlyFilled || [];
+    const max = Math.max(1, ...opened, ...filled);
+    const path = (values: number[]) =>
+      values
+        .map((value, index) => {
+          const x = values.length <= 1 ? 0 : (index / (values.length - 1)) * 100;
+          const y = 95 - (value / max) * 85;
+          return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
+        })
+        .join(' ');
+    return { opened: path(opened), filled: path(filled) };
+  }, [report]);
+
+  const handleExportPDF = async () => {
+    setApiError('');
+    try {
+      const response = await fetch(
+        `/api/v1/reports/annual/export?year=${selectedYear}&format=pdf`,
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        },
+      );
+      if (!response.ok) throw new Error(`Export failed (${response.status})`);
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `annual-report-${selectedYear}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Unable to export the report');
+    }
   };
 
   return (
@@ -270,6 +428,16 @@ export const AdminAnnualReport: React.FC = () => {
           </button>
         </div>
       </div>
+      {apiError && (
+        <div className="rounded-lg border border-rejected/30 bg-error-container px-4 py-3 text-sm text-rejected">
+          {apiError}
+        </div>
+      )}
+      {loading && (
+        <div className="rounded-lg border border-border-warm bg-clean-surface px-4 py-3 text-sm text-secondary">
+          Loading annual report...
+        </div>
+      )}
 
       {/* Top Row: Summary Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -321,7 +489,7 @@ export const AdminAnnualReport: React.FC = () => {
                 Monthly Hiring Trend
               </h3>
               <p className="font-body-sm text-body-sm text-secondary">
-                Recruitment activity flow (Jan - May {selectedYear})
+                Recruitment activity flow (Jan - Dec {selectedYear})
               </p>
             </div>
             <div className="flex gap-4">
@@ -352,7 +520,7 @@ export const AdminAnnualReport: React.FC = () => {
             >
               {/* Opened Line (Solid) */}
               <path
-                d="M 0 60 L 25 40 L 50 45 L 75 25 L 100 35"
+                d={chartPaths.opened}
                 fill="none"
                 stroke="#0D9488"
                 strokeWidth="2"
@@ -360,26 +528,22 @@ export const AdminAnnualReport: React.FC = () => {
               />
               {/* Filled Line (Dashed) */}
               <path
-                d="M 0 75 L 25 65 L 50 60 L 75 40 L 100 45"
+                d={chartPaths.filled}
                 fill="none"
                 stroke="#0D9488"
                 strokeDasharray="6,4"
                 strokeWidth="2"
                 vectorEffect="non-scaling-stroke"
               />
-              {/* Area Fills */}
-              <path
-                d="M 0 60 L 25 40 L 50 45 L 75 25 L 100 35 L 100 100 L 0 100 Z"
-                fill="#0D9488"
-                fillOpacity="0.05"
-              />
             </svg>
             <div className="absolute -bottom-7 w-full flex justify-between px-2 font-data-mono text-label-sm text-outline">
               <span>JAN</span>
-              <span>FEB</span>
               <span>MAR</span>
-              <span>APR</span>
               <span>MAY</span>
+              <span>JUL</span>
+              <span>SEP</span>
+              <span>NOV</span>
+              <span>DEC</span>
             </div>
           </div>
         </div>
@@ -391,8 +555,7 @@ export const AdminAnnualReport: React.FC = () => {
               Hiring by Department
             </h3>
             <p className="font-body-sm text-body-sm text-secondary mb-6">
-              Distribution of total{' '}
-              {selectedYear === '2026' ? '52' : selectedYear === '2025' ? '45' : '42'} requests
+              Distribution of total {report?.summary.totalRequests || 0} requests
             </p>
             <div className="flex items-center justify-center mb-6 relative h-48">
               <div className="w-40 h-40 rounded-full border-[12px] border-teal-command/20 flex items-center justify-center relative">
@@ -410,7 +573,7 @@ export const AdminAnnualReport: React.FC = () => {
                 />
                 <div className="text-center">
                   <p className="font-headline-lg text-headline-lg text-teal-command font-semibold">
-                    {selectedYear === '2026' ? '52' : selectedYear === '2025' ? '45' : '42'}
+                    {report?.summary.totalRequests || 0}
                   </p>
                   <p className="font-label-sm text-label-sm text-outline uppercase">Total</p>
                 </div>
@@ -418,73 +581,27 @@ export const AdminAnnualReport: React.FC = () => {
             </div>
           </div>
           <div className="space-y-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-teal-command"></span>
-                <span className="font-body-sm text-body-sm text-deep-charcoal">
-                  IT &amp; Engineering
-                </span>
-              </div>
-              <span className="font-data-mono text-label-md text-slate-ink">
-                {selectedYear === '2026'
-                  ? '18 (35%)'
-                  : selectedYear === '2025'
-                    ? '16 (35%)'
-                    : '15 (35%)'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-teal-command/80"></span>
-                <span className="font-body-sm text-body-sm text-deep-charcoal">Marketing</span>
-              </div>
-              <span className="font-data-mono text-label-md text-slate-ink">
-                {selectedYear === '2026'
-                  ? '10 (20%)'
-                  : selectedYear === '2025'
-                    ? '9 (20%)'
-                    : '8 (20%)'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-teal-command/60"></span>
-                <span className="font-body-sm text-body-sm text-deep-charcoal">Finance</span>
-              </div>
-              <span className="font-data-mono text-label-md text-slate-ink">
-                {selectedYear === '2026'
-                  ? '9 (18%)'
-                  : selectedYear === '2025'
-                    ? '8 (18%)'
-                    : '7 (18%)'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-teal-command/40"></span>
-                <span className="font-body-sm text-body-sm text-deep-charcoal">Design</span>
-              </div>
-              <span className="font-data-mono text-label-md text-slate-ink">
-                {selectedYear === '2026'
-                  ? '8 (15%)'
-                  : selectedYear === '2025'
-                    ? '7 (15%)'
-                    : '6 (15%)'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-teal-command/20"></span>
-                <span className="font-body-sm text-body-sm text-deep-charcoal">HR &amp; Admin</span>
-              </div>
-              <span className="font-data-mono text-label-md text-slate-ink">
-                {selectedYear === '2026'
-                  ? '7 (12%)'
-                  : selectedYear === '2025'
-                    ? '5 (12%)'
-                    : '6 (12%)'}
-              </span>
-            </div>
+            {(report?.departmentBreakdown || []).map((department, index) => {
+              const total = report?.summary.totalRequests || 0;
+              const percentage =
+                total > 0 ? Math.round((department.totalRequests / total) * 100) : 0;
+              return (
+                <div className="flex items-center justify-between" key={department.departmentId}>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="w-2 h-2 rounded-full bg-teal-command"
+                      style={{ opacity: Math.max(0.25, 1 - index * 0.15) }}
+                    ></span>
+                    <span className="font-body-sm text-body-sm text-deep-charcoal">
+                      {department.departmentName}
+                    </span>
+                  </div>
+                  <span className="font-data-mono text-label-md text-slate-ink">
+                    {department.totalRequests} ({percentage}%)
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -562,92 +679,49 @@ export const AdminAnnualReport: React.FC = () => {
                   Time-to-Hire by Stage
                 </h3>
                 <p className="font-body-sm text-body-sm text-secondary">
-                  Breakdown of the 28-day average
+                  Breakdown of the {Math.round(stageTotal)}-day average
                 </p>
               </div>
               <div className="text-right">
                 <p className="font-headline-lg text-headline-lg text-teal-command font-semibold">
-                  28
+                  {Math.round(stageTotal)}
                 </p>
                 <p className="font-label-sm text-label-sm text-outline uppercase">Total Days</p>
               </div>
             </div>
             <div className="space-y-8 mt-4">
               <div className="flex w-full h-10 rounded-lg overflow-hidden shadow-sm">
-                <div
-                  className="bg-teal-command flex items-center justify-center font-label-sm text-label-sm text-white"
-                  style={{ width: '17.8%' }}
-                  title="Screening: 5 days"
-                >
-                  5d
-                </div>
-                <div
-                  className="bg-teal-command/80 flex items-center justify-center font-label-sm text-label-sm text-white"
-                  style={{ width: '28.5%' }}
-                  title="Interview: 8 days"
-                >
-                  8d
-                </div>
-                <div
-                  className="bg-teal-command/60 flex items-center justify-center font-label-sm text-label-sm text-white"
-                  style={{ width: '10.7%' }}
-                  title="Decision: 3 days"
-                >
-                  3d
-                </div>
-                <div
-                  className="bg-teal-command/40 flex items-center justify-center font-label-sm text-label-sm text-deep-charcoal"
-                  style={{ width: '14.2%' }}
-                  title="Offer Process: 4 days"
-                >
-                  4d
-                </div>
-                <div
-                  className="bg-teal-command/20 flex items-center justify-center font-label-sm text-label-sm text-deep-charcoal"
-                  style={{ width: '28.5%' }}
-                  title="Onboarding Prep: 8 days"
-                >
-                  8d
-                </div>
+                {stages.map((stage, index) => (
+                  <div
+                    className="bg-teal-command flex items-center justify-center font-label-sm text-label-sm text-white"
+                    key={stage.stage}
+                    style={{
+                      width: `${stageTotal > 0 ? (stage.days / stageTotal) * 100 : 20}%`,
+                      opacity: Math.max(0.25, 1 - index * 0.15),
+                    }}
+                    title={`${stage.stage}: ${stage.days} days`}
+                  >
+                    {Math.round(stage.days)}d
+                  </div>
+                ))}
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-center gap-3">
-                  <span className="w-3 h-3 bg-teal-command rounded-sm"></span>
-                  <div>
-                    <p className="font-label-md text-label-md text-deep-charcoal">Screening</p>
-                    <p className="font-body-sm text-body-sm text-outline">5 days average</p>
+                {stages.map((stage, index) => (
+                  <div className="flex items-center gap-3" key={stage.stage}>
+                    <span
+                      className="w-3 h-3 bg-teal-command rounded-sm"
+                      style={{ opacity: Math.max(0.25, 1 - index * 0.15) }}
+                    ></span>
+                    <div>
+                      <p className="font-label-md text-label-md text-deep-charcoal">
+                        {stage.stage}
+                      </p>
+                      <p className="font-body-sm text-body-sm text-outline">
+                        {stage.days} days average
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="w-3 h-3 bg-teal-command/80 rounded-sm"></span>
-                  <div>
-                    <p className="font-label-md text-label-md text-deep-charcoal">Interview</p>
-                    <p className="font-body-sm text-body-sm text-outline">8 days average</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="w-3 h-3 bg-teal-command/60 rounded-sm"></span>
-                  <div>
-                    <p className="font-label-md text-label-md text-deep-charcoal">Decision</p>
-                    <p className="font-body-sm text-body-sm text-outline">3 days average</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="w-3 h-3 bg-teal-command/40 rounded-sm"></span>
-                  <div>
-                    <p className="font-label-md text-label-md text-deep-charcoal">Offer Process</p>
-                    <p className="font-body-sm text-body-sm text-outline">4 days average</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="w-3 h-3 bg-teal-command/20 rounded-sm"></span>
-                  <div>
-                    <p className="font-label-md text-label-md text-deep-charcoal">
-                      Onboarding Prep
-                    </p>
-                    <p className="font-body-sm text-body-sm text-outline">8 days average</p>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
           </div>
@@ -655,8 +729,9 @@ export const AdminAnnualReport: React.FC = () => {
             <div className="bg-surface-container p-4 rounded-lg flex items-center gap-3">
               <span className="material-symbols-outlined text-teal-command select-none">info</span>
               <p className="font-body-sm text-body-sm text-slate-ink">
-                Interview stage remains the longest bottleneck. Consider technical screening
-                automation to reduce by 2 days.
+                {longestStage
+                  ? `${longestStage.stage} is currently the longest stage at ${longestStage.days} days on average.`
+                  : 'No completed hiring timeline is available for this year.'}
               </p>
             </div>
           </div>

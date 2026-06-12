@@ -4,7 +4,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagg
 import { SERVICE_TOKENS } from '../constants';
 import { firstValueFrom } from 'rxjs';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { OfferResponse, UserRole } from '@wr/contracts';
+import { HiringDecision, OfferResponse, UserRole } from '@wr/contracts';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { IsUUID, IsString, IsOptional, IsDateString, IsNotEmpty, IsEnum } from 'class-validator';
 
@@ -126,6 +126,44 @@ export class AssignRecruitmentRequestDto {
   hrManagerId!: string;
 }
 
+enum AdminRequestDecision {
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+}
+
+export class DecideRecruitmentRequestDto {
+  @ApiProperty({ enum: AdminRequestDecision })
+  @IsEnum(AdminRequestDecision)
+  decision!: AdminRequestDecision;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  comments?: string;
+}
+
+export class HiringDecisionDto {
+  @ApiProperty({ enum: HiringDecision })
+  @IsEnum(HiringDecision)
+  decision!: HiringDecision;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  notes!: string;
+}
+
+export class RequestHiringInfoDto {
+  @ApiProperty()
+  @IsUUID()
+  candidateId!: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  notes!: string;
+}
+
 /**
  * Thin proxy controller for Recruiting service (roles, applications, invites, evaluations).
  */
@@ -155,6 +193,60 @@ export class RecruitingController {
         id,
         hrManagerId: body.hrManagerId,
         assignedById: userId,
+      }),
+    );
+  }
+
+  @Patch('recruitment-requests/:id/decision')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Approve or reject a pending recruitment request' })
+  decideRecruitmentRequest(
+    @Param('id') id: string,
+    @Body() body: DecideRecruitmentRequestDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruitment-requests.admin.decide', {
+        id,
+        decision: body.decision,
+        comments: body.comments,
+        adminId: userId,
+      }),
+    );
+  }
+
+  @Post('hiring-decisions/:requestId')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Make the final hiring decision after interviews' })
+  makeHiringDecision(
+    @Param('requestId') requestId: string,
+    @Body() body: HiringDecisionDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruiting.hiring_decision.decide', {
+        requestId,
+        decision: body.decision,
+        notes: body.notes,
+        adminId: userId,
+      }),
+    );
+  }
+
+  @Post('hiring-decisions/:requestId/request-info')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Request more information before a final hiring decision' })
+  requestHiringInfo(
+    @Param('requestId') requestId: string,
+    @Body() body: RequestHiringInfoDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruiting.hiring_decision.request_info', {
+        requestId,
+        candidateId: body.candidateId,
+        notes: body.notes,
+        adminId: userId,
       }),
     );
   }
@@ -366,6 +458,17 @@ export class RecruitingController {
     const parsedYear = year ? parseInt(year, 10) : new Date().getFullYear();
     return firstValueFrom(
       this.recruitingClient.send('recruiting.annual_report', { year: parsedYear }),
+    );
+  }
+
+  @Get('reports/departments')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get department recruitment statistics' })
+  getDepartmentStats(@Query('range') range?: '30d' | 'quarter' | 'year') {
+    return firstValueFrom(
+      this.recruitingClient.send('recruiting.department_stats', {
+        range: range || '30d',
+      }),
     );
   }
 
