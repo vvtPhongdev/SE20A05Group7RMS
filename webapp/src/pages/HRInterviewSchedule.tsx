@@ -1,6 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../lib/api';
 
-type InterviewStatus = 'Scheduled' | 'Rescheduled' | 'Cancelled' | 'Completed' | 'Awaiting';
+type InterviewStatus = 'Scheduled' | 'Rescheduled' | 'Completed';
 
 type Interview = {
   id: string;
@@ -20,100 +22,71 @@ type WeekSlot = {
   items: Array<{ time: string; candidate: string; role: string; tone: InterviewStatus }>;
 };
 
-const kpis = [
-  { label: 'Scheduled This Week', value: '24', helper: '+3 from last week', tone: 'text-approved' },
-  { label: 'Awaiting Confirmation', value: '08', helper: 'Action needed', tone: 'text-revision' },
-  { label: 'Reschedule Requests', value: '03', helper: 'Urgent', tone: 'text-error' },
-  { label: 'Invitations Sent', value: '42', helper: 'Total this month', tone: 'text-slate-ink/70' },
-];
+interface RecruitmentRequestApiItem {
+  id: string;
+  position: string;
+}
 
-const interviews: Interview[] = [
-  {
-    id: 'H-2401',
-    candidate: 'Sarah Jenkins',
-    initials: 'SJ',
-    position: 'Product Designer',
-    campaign: 'Growth Campaign',
-    time: '10/23 09:00',
-    duration: '60 mins',
-    status: 'Scheduled',
-    action: 'Edit',
-  },
-  {
-    id: 'H-2405',
-    candidate: 'Elena Fisher',
-    initials: 'EF',
-    position: 'UX Researcher',
-    campaign: 'Product Ops',
-    time: '10/25 16:00',
-    duration: '60 mins',
-    status: 'Rescheduled',
-    action: 'Details',
-  },
-  {
-    id: 'H-2402',
-    candidate: 'Lydia Chuo',
-    initials: 'LC',
-    position: 'Lead Developer',
-    campaign: 'Core Platform',
-    time: '10/24 11:00',
-    duration: '30 mins',
-    status: 'Cancelled',
-    action: 'Restore',
-  },
-  {
-    id: 'H-2398',
-    candidate: 'Alan Turing',
-    initials: 'AT',
-    position: 'AI Architect',
-    campaign: 'Innovate-24',
-    time: '10/20 14:00',
-    duration: '90 mins',
-    status: 'Completed',
-    action: 'Feedback',
-  },
-];
+interface RecruitmentRequestListResponse {
+  data: RecruitmentRequestApiItem[];
+}
 
-const weekSlots: WeekSlot[] = [
-  {
-    day: 'MON',
-    date: 'OCT 23',
-    items: [
-      {
-        time: '09:00 - 10:00',
-        candidate: 'Sarah Jenkins',
-        role: 'Product Designer',
-        tone: 'Scheduled',
-      },
-      { time: '14:30 - 15:30', candidate: 'Marcus Vane', role: 'Senior FE Dev', tone: 'Scheduled' },
-    ],
-  },
-  {
-    day: 'TUE',
-    date: 'OCT 24',
-    items: [
-      { time: '11:00 - 12:00', candidate: 'Lydia Chuo', role: 'Cancelled', tone: 'Cancelled' },
-    ],
-  },
-  {
-    day: 'WED',
-    date: 'OCT 25',
-    items: [
-      {
-        time: '10:00 - 11:30',
-        candidate: 'Jonathan Reeve',
-        role: 'Marketing Lead',
-        tone: 'Scheduled',
-      },
-      {
-        time: '16:00 - 17:00',
-        candidate: 'Elena Fisher',
-        role: 'Rescheduled',
-        tone: 'Rescheduled',
-      },
-    ],
-  },
-];
+interface InterviewSchedule {
+  id: string;
+  requestId: string;
+  candidateId: string;
+  scheduledAt: string;
+  duration: number;
+  location: string;
+  interviewers: string[];
+  status: string;
+}
+
+interface ScheduleWithPosition extends InterviewSchedule {
+  position: string;
+}
+
+const STATUS_MAP: Record<string, InterviewStatus> = {
+  SCHEDULED: 'Scheduled',
+  RESCHEDULED: 'Rescheduled',
+  COMPLETED: 'Completed',
+};
+
+const ACTION_MAP: Record<InterviewStatus, string> = {
+  Scheduled: 'Edit',
+  Rescheduled: 'Details',
+  Completed: 'Feedback',
+};
+
+const formatDateLabel = (date: Date) =>
+  date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+const getWeekDays = () => {
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+
+  return Array.from({ length: 5 }, (_, index) => {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + index);
+    return {
+      day: date.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase(),
+      date: formatDateLabel(date).toUpperCase(),
+    };
+  });
+};
+
+const getWeekRange = () => {
+  const now = new Date();
+  const startOfWeek = new Date(now);
+  const day = startOfWeek.getDay();
+  startOfWeek.setDate(startOfWeek.getDate() - (day === 0 ? 6 : day - 1));
+  startOfWeek.setHours(0, 0, 0, 0);
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(endOfWeek.getDate() + 7);
+  return { startOfWeek, endOfWeek };
+};
 
 const panel = [
   {
@@ -168,27 +141,146 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
 const statusClass: Record<InterviewStatus, string> = {
   Scheduled: 'bg-teal-command/10 text-teal-command',
   Rescheduled: 'bg-revision/10 text-revision',
-  Cancelled: 'bg-rejected/10 text-rejected',
   Completed: 'bg-slate-ink/10 text-slate-ink',
-  Awaiting: 'bg-pending/10 text-pending',
 };
 
 const slotClass: Record<InterviewStatus, string> = {
   Scheduled: 'border-teal-command/20 bg-teal-command/5 text-teal-command',
   Rescheduled: 'border-revision/20 bg-revision/5 text-revision',
-  Cancelled: 'border-border-warm bg-surface-container-lowest text-error opacity-60',
   Completed: 'border-slate-ink/20 bg-slate-ink/5 text-slate-ink',
-  Awaiting: 'border-pending/20 bg-pending/5 text-pending',
 };
 
 export const HRInterviewSchedule: React.FC = () => {
+  const { token } = useAuth();
   const [filter, setFilter] = useState<InterviewStatus | 'All'>('All');
   const [checking, setChecking] = useState(false);
+  const [schedules, setSchedules] = useState<ScheduleWithPosition[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
+
+  useEffect(() => {
+    const loadSchedules = async () => {
+      setLoading(true);
+      setApiError('');
+      try {
+        const response = await apiRequest<RecruitmentRequestListResponse>(
+          '/recruitment-requests?limit=100',
+          token,
+        );
+        const scheduleLists = await Promise.all(
+          response.data.map((request) =>
+            apiRequest<InterviewSchedule[]>(`/interviews/requests/${request.id}/schedules`, token)
+              .then((list) =>
+                list.map((schedule) => ({ ...schedule, position: request.position })),
+              )
+              .catch(() => [] as ScheduleWithPosition[]),
+          ),
+        );
+        setSchedules(scheduleLists.flat().filter((schedule) => schedule.status !== 'CANCELLED'));
+      } catch (loadError) {
+        setApiError(loadError instanceof Error ? loadError.message : 'Unable to load interviews');
+      } finally {
+        setLoading(false);
+      }
+    };
+    void loadSchedules();
+  }, [token]);
+
+  const interviews: Interview[] = useMemo(
+    () =>
+      schedules.map((schedule) => {
+        const status = STATUS_MAP[schedule.status] ?? 'Scheduled';
+        const date = new Date(schedule.scheduledAt);
+        return {
+          id: schedule.id,
+          candidate: `Candidate ${schedule.candidateId.slice(0, 8)}`,
+          initials: schedule.id.slice(0, 2).toUpperCase(),
+          position: schedule.position,
+          campaign: schedule.position,
+          time: `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')} ${date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`,
+          duration: `${schedule.duration} mins`,
+          status,
+          action: ACTION_MAP[status],
+        };
+      }),
+    [schedules],
+  );
 
   const visibleInterviews = useMemo(() => {
     if (filter === 'All') return interviews;
     return interviews.filter((interview) => interview.status === filter);
-  }, [filter]);
+  }, [filter, interviews]);
+
+  const kpis = useMemo(() => {
+    const { startOfWeek, endOfWeek } = getWeekRange();
+    const now = new Date();
+
+    const scheduledThisWeek = schedules.filter((schedule) => {
+      const date = new Date(schedule.scheduledAt);
+      return (
+        date >= startOfWeek &&
+        date < endOfWeek &&
+        (schedule.status === 'SCHEDULED' || schedule.status === 'RESCHEDULED')
+      );
+    }).length;
+
+    const rescheduleRequests = schedules.filter((schedule) => schedule.status === 'RESCHEDULED')
+      .length;
+
+    const awaitingConfirmation = schedules.filter(
+      (schedule) => schedule.status === 'SCHEDULED' && new Date(schedule.scheduledAt) > now,
+    ).length;
+
+    return [
+      {
+        label: 'Scheduled This Week',
+        value: String(scheduledThisWeek).padStart(2, '0'),
+        helper: 'Across all requests',
+        tone: 'text-approved',
+      },
+      {
+        label: 'Awaiting Confirmation',
+        value: String(awaitingConfirmation).padStart(2, '0'),
+        helper: 'Action needed',
+        tone: 'text-revision',
+      },
+      {
+        label: 'Reschedule Requests',
+        value: String(rescheduleRequests).padStart(2, '0'),
+        helper: 'Urgent',
+        tone: 'text-error',
+      },
+      {
+        label: 'Invitations Sent',
+        value: String(schedules.length).padStart(2, '0'),
+        helper: 'Total scheduled',
+        tone: 'text-slate-ink/70',
+      },
+    ];
+  }, [schedules]);
+
+  const weekSlots: WeekSlot[] = useMemo(() => {
+    const days = getWeekDays();
+    return days.map((day) => ({
+      day: day.day,
+      date: day.date,
+      items: schedules
+        .filter((schedule) => {
+          const date = new Date(schedule.scheduledAt);
+          return formatDateLabel(date).toUpperCase() === day.date;
+        })
+        .map((schedule) => {
+          const date = new Date(schedule.scheduledAt);
+          const end = new Date(date.getTime() + schedule.duration * 60000);
+          return {
+            time: `${date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`,
+            candidate: `Candidate ${schedule.candidateId.slice(0, 8)}`,
+            role: schedule.position,
+            tone: STATUS_MAP[schedule.status] ?? 'Scheduled',
+          };
+        }),
+    }));
+  }, [schedules]);
 
   const handleAvailability = () => {
     setChecking(true);
@@ -217,6 +309,18 @@ export const HRInterviewSchedule: React.FC = () => {
           Quick Schedule
         </button>
       </header>
+
+      {apiError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-rejected">
+          {apiError}
+        </div>
+      )}
+
+      {loading && (
+        <div className="rounded-lg border border-border-warm bg-clean-surface px-4 py-3 text-sm text-on-surface-variant">
+          Loading interviews...
+        </div>
+      )}
 
       <section
         className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4"
@@ -282,6 +386,9 @@ export const HRInterviewSchedule: React.FC = () => {
                       <p className="text-xs text-slate-ink">{item.role}</p>
                     </article>
                   ))}
+                  {day.items.length === 0 && (
+                    <p className="px-2 text-xs text-on-surface-variant">No interviews</p>
+                  )}
                 </div>
               </div>
             ))}
@@ -295,22 +402,20 @@ export const HRInterviewSchedule: React.FC = () => {
                 Active Interview Queue
               </h2>
               <div className="flex flex-wrap gap-2">
-                {(['All', 'Scheduled', 'Rescheduled', 'Cancelled', 'Completed'] as const).map(
-                  (status) => (
-                    <button
-                      className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition active:scale-[0.98] ${
-                        filter === status
-                          ? 'border-teal-command bg-teal-command text-white'
-                          : 'border-border-warm bg-workflow-ivory text-slate-ink hover:border-teal-command/40'
-                      }`}
-                      key={status}
-                      onClick={() => setFilter(status)}
-                      type="button"
-                    >
-                      {status}
-                    </button>
-                  ),
-                )}
+                {(['All', 'Scheduled', 'Rescheduled', 'Completed'] as const).map((status) => (
+                  <button
+                    className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition active:scale-[0.98] ${
+                      filter === status
+                        ? 'border-teal-command bg-teal-command text-white'
+                        : 'border-border-warm bg-workflow-ivory text-slate-ink hover:border-teal-command/40'
+                    }`}
+                    key={status}
+                    onClick={() => setFilter(status)}
+                    type="button"
+                  >
+                    {status}
+                  </button>
+                ))}
                 <button
                   className="inline-flex items-center gap-2 rounded-lg border border-border-warm px-3 py-1.5 text-xs font-semibold transition hover:bg-surface-container"
                   type="button"
@@ -346,7 +451,9 @@ export const HRInterviewSchedule: React.FC = () => {
                             <p className="text-sm font-semibold text-deep-charcoal">
                               {interview.candidate}
                             </p>
-                            <p className="font-mono text-xs text-slate-ink">{interview.id}</p>
+                            <p className="font-mono text-xs text-slate-ink">
+                              {interview.id.slice(0, 8)}
+                            </p>
                           </div>
                         </div>
                       </td>
@@ -367,15 +474,19 @@ export const HRInterviewSchedule: React.FC = () => {
                         </span>
                       </td>
                       <td className="p-4">
-                        <button
-                          className="text-sm font-semibold text-teal-command transition hover:underline"
-                          type="button"
-                        >
+                        <span className="text-sm font-semibold text-on-surface-variant">
                           {interview.action}
-                        </button>
+                        </span>
                       </td>
                     </tr>
                   ))}
+                  {visibleInterviews.length === 0 && !loading && (
+                    <tr>
+                      <td className="p-4 text-sm text-on-surface-variant" colSpan={5}>
+                        No interviews found.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

@@ -271,6 +271,13 @@ export class ProfilesController {
 
   // ─── Candidate Profiles ──────────────────────────────────────────
 
+  @Get('candidate-profiles')
+  @Roles(UserRole.ADMIN, UserRole.HR_MANAGER)
+  @ApiOperation({ summary: 'List candidate profiles (talent pool)' })
+  listCandidates(@Query() query: { q?: string; page?: string; pageSize?: string }) {
+    return firstValueFrom(this.profilesClient.send('profiles.list', query));
+  }
+
   @Get('candidate-profiles/:id')
   @Roles(UserRole.ADMIN, UserRole.HR_MANAGER, UserRole.DEPARTMENT_HEAD)
   @ApiOperation({ summary: 'Get candidate profile' })

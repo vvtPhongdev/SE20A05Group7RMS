@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-type PlanStatus = 'PENDING_APPROVAL' | 'APPROVED' | 'DRAFT' | 'REVISION_REQUIRED';
+import { useAuth } from '../context/AuthContext';
+import { apiRequest, ApiError } from '../lib/api';
+import { mapPlanStatus, type OverallPlanSummary, type PlanStatus } from '../lib/planStatus';
 
 type Campaign = {
   id: string;
@@ -15,84 +16,74 @@ type Campaign = {
   budget: string;
   taskCount: number;
   adminNote: string;
+  planId: string | null;
+  approverName: string;
+  updatedAt: string | null;
 };
 
-const campaigns: Campaign[] = [
-  {
-    id: 'REQ-2024-041',
-    position: 'Senior Backend Engineer',
-    department: 'Engineering',
-    headcount: 2,
-    status: 'PENDING_APPROVAL',
-    window: 'Oct 15 - Nov 30',
-    progress: 30,
-    owner: 'Sarah Jenkins',
-    budget: '$15,000',
-    taskCount: 14,
-    adminNote:
-      'Please ensure the technical screening phase includes the new security compliance module before submitting for final approval.',
-  },
-  {
-    id: 'REQ-2024-038',
-    position: 'Product Marketing Manager',
-    department: 'Marketing',
-    headcount: 1,
-    status: 'APPROVED',
-    window: 'Oct 01 - Nov 15',
-    progress: 65,
-    owner: 'Minh Tran',
-    budget: '$8,500',
-    taskCount: 10,
-    adminNote: 'Campaign approved. Proceed with job posting and CV collection phases immediately.',
-  },
-  {
-    id: 'REQ-2024-045',
-    position: 'UX Researcher',
-    department: 'Design',
-    headcount: 1,
-    status: 'DRAFT',
-    window: 'TBD',
-    progress: 10,
-    owner: 'Lan Pham',
-    budget: '$6,000',
-    taskCount: 6,
-    adminNote: 'Draft plan not yet submitted for review.',
-  },
-  {
-    id: 'REQ-2024-032',
-    position: 'Sales Director - EMEA',
-    department: 'Sales',
-    headcount: 1,
-    status: 'REVISION_REQUIRED',
-    window: 'Sep 15 - Oct 31',
-    progress: 45,
-    owner: 'Bao Nguyen',
-    budget: '$22,000',
-    taskCount: 18,
-    adminNote:
-      'The salary range listed does not align with the approved headcount budget. Please revise and resubmit.',
-  },
-  {
-    id: 'REQ-2024-050',
-    position: 'Cloud Security Specialist',
-    department: 'Infrastructure',
-    headcount: 2,
-    status: 'APPROVED',
-    window: 'Nov 01 - Dec 20',
-    progress: 52,
-    owner: 'Hoang Bui',
-    budget: '$18,400',
-    taskCount: 12,
-    adminNote: 'Security clearance checklist has been approved for the campaign.',
-  },
-];
+interface RecruitmentRequestApiItem {
+  id: string;
+  position: string;
+  department: { id: string; name: string; code: string } | null;
+  reviewedBy: { id: string; displayName: string } | null;
+  status: string;
+  headcount: number;
+  skillRequirements: Record<string, unknown> | null;
+  overallPlan: OverallPlanSummary | null;
+}
 
-const metricCards = [
-  { label: 'Plans Draft', value: 12, tone: 'draft' },
-  { label: 'Pending Approval', value: 4, tone: 'pending' },
-  { label: 'Approved Active', value: 8, tone: 'approved' },
-  { label: 'Revision Required', value: 2, tone: 'revision' },
-] as const;
+interface RecruitmentRequestListResponse {
+  data: RecruitmentRequestApiItem[];
+}
+
+const EXCLUDED_CAMPAIGN_STATUSES = new Set([
+  'DRAFT',
+  'PENDING_REVIEW',
+  'REJECTED',
+  'REVISION_NEEDED',
+  'CANCELLED',
+]);
+
+const formatDate = (value: string) =>
+  new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(value));
+
+// Best-effort placeholder, computed from plan status only (no N+1 task fetch here).
+// See Campaign Detail page for the accurate task-completion-based progress.
+const PROGRESS_BY_STATUS: Record<PlanStatus, number> = {
+  DRAFT: 0,
+  PENDING_APPROVAL: 10,
+  APPROVED: 50,
+  REVISION_REQUIRED: 30,
+};
+
+const mapCampaign = (item: RecruitmentRequestApiItem): Campaign => {
+  const plan = item.overallPlan;
+  const status = mapPlanStatus(plan);
+  const skills = (item.skillRequirements ?? {}) as Record<string, unknown>;
+  const salaryMin = skills.salaryMin as string | number | undefined;
+  const salaryMax = skills.salaryMax as string | number | undefined;
+  let budget = 'N/A';
+  if (salaryMin || salaryMax) {
+    budget = salaryMax ? `${salaryMin ?? ''}-${salaryMax}`.replace(/^-/, '') : `${salaryMin}`;
+  }
+
+  return {
+    id: item.id,
+    position: item.position,
+    department: item.department?.name ?? 'Unassigned',
+    headcount: item.headcount,
+    status,
+    window: plan ? `${formatDate(plan.startDate)} - ${formatDate(plan.endDate)}` : 'TBD',
+    progress: PROGRESS_BY_STATUS[status],
+    owner: plan?.createdBy?.displayName ?? item.reviewedBy?.displayName ?? 'Unassigned',
+    budget,
+    taskCount: plan?._count.tasks ?? 0,
+    adminNote: plan?.revisionNotes ?? '',
+    planId: plan?.id ?? null,
+    approverName: plan?.approvedBy?.displayName ?? 'Pending review',
+    updatedAt: plan?.updatedAt ?? null,
+  };
+};
 
 const statusConfig: Record<
   PlanStatus,
@@ -173,9 +164,60 @@ const StatusBadge = ({ status }: { status: PlanStatus }) => {
 
 export const HRCampaigns: React.FC = () => {
   const navigate = useNavigate();
+  const { token } = useAuth();
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<PlanStatus | 'All'>('All');
-  const [selectedId, setSelectedId] = useState('REQ-2024-041');
+  const [selectedId, setSelectedId] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [actionSubmitting, setActionSubmitting] = useState(false);
+
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createRequestId, setCreateRequestId] = useState('');
+  const [createStart, setCreateStart] = useState('');
+  const [createEnd, setCreateEnd] = useState('');
+  const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [createError, setCreateError] = useState('');
+
+  const loadCampaigns = async () => {
+    setLoading(true);
+    setApiError('');
+    try {
+      const response = await apiRequest<RecruitmentRequestListResponse>(
+        '/recruitment-requests?limit=100',
+        token,
+      );
+      const mapped = response.data
+        .filter((item) => !EXCLUDED_CAMPAIGN_STATUSES.has(item.status))
+        .map(mapCampaign);
+      setCampaigns(mapped);
+      setSelectedId((current) => current || mapped[0]?.id || '');
+    } catch (loadError) {
+      setApiError(loadError instanceof Error ? loadError.message : 'Unable to load campaigns');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadCampaigns();
+  }, [token]);
+
+  const metricCards = useMemo(
+    () =>
+      [
+        { label: 'Plans Draft', status: 'DRAFT' as PlanStatus, tone: 'draft' },
+        { label: 'Pending Approval', status: 'PENDING_APPROVAL' as PlanStatus, tone: 'pending' },
+        { label: 'Approved Active', status: 'APPROVED' as PlanStatus, tone: 'approved' },
+        { label: 'Revision Required', status: 'REVISION_REQUIRED' as PlanStatus, tone: 'revision' },
+      ].map((card) => ({
+        ...card,
+        value: campaigns.filter((campaign) => campaign.status === card.status).length,
+      })),
+    [campaigns],
+  );
 
   const visibleCampaigns = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -190,10 +232,64 @@ export const HRCampaigns: React.FC = () => {
 
       return matchesStatus && matchesQuery;
     });
-  }, [query, status]);
+  }, [campaigns, query, status]);
 
   const selected =
     campaigns.find((campaign) => campaign.id === selectedId) ?? visibleCampaigns[0] ?? null;
+
+  const draftCampaigns = useMemo(
+    () => campaigns.filter((campaign) => campaign.status === 'DRAFT'),
+    [campaigns],
+  );
+
+  const createOverallPlan = async () => {
+    if (!createRequestId || !createStart || !createEnd) return;
+
+    setCreateSubmitting(true);
+    setCreateError('');
+    try {
+      await apiRequest('/overall-plan', token, {
+        method: 'POST',
+        body: JSON.stringify({
+          hiringRequestId: createRequestId,
+          startDate: new Date(createStart).toISOString(),
+          endDate: new Date(createEnd).toISOString(),
+        }),
+      });
+      setShowCreateModal(false);
+      setCreateRequestId('');
+      setCreateStart('');
+      setCreateEnd('');
+      setSelectedId(createRequestId);
+      await loadCampaigns();
+    } catch (createErr) {
+      setCreateError(
+        createErr instanceof ApiError ? createErr.message : 'Unable to create overall plan',
+      );
+    } finally {
+      setCreateSubmitting(false);
+    }
+  };
+
+  const resubmitPlan = async () => {
+    if (!selected?.planId) return;
+
+    setActionSubmitting(true);
+    setActionError('');
+    try {
+      await apiRequest(`/overall-plan/${selected.planId}/resubmit`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({}),
+      });
+      await loadCampaigns();
+    } catch (resubmitErr) {
+      setActionError(
+        resubmitErr instanceof ApiError ? resubmitErr.message : 'Unable to resubmit plan',
+      );
+    } finally {
+      setActionSubmitting(false);
+    }
+  };
 
   return (
     <div className="mx-auto grid max-w-[1440px] gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
@@ -211,13 +307,36 @@ export const HRCampaigns: React.FC = () => {
             </p>
           </div>
           <button
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={draftCampaigns.length === 0}
+            onClick={() => {
+              setCreateRequestId(draftCampaigns[0]?.id ?? '');
+              setCreateError('');
+              setShowCreateModal(true);
+            }}
+            title={
+              draftCampaigns.length === 0
+                ? 'No approved requests are awaiting an overall plan'
+                : undefined
+            }
             type="button"
           >
             <Icon className="h-4 w-4" name="add" />
             Create Overall Plan
           </button>
         </header>
+
+        {apiError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-rejected">
+            {apiError}
+          </div>
+        )}
+
+        {loading && (
+          <div className="rounded-lg border border-border-warm bg-clean-surface px-4 py-3 text-sm text-on-surface-variant">
+            Loading campaigns...
+          </div>
+        )}
 
         <section
           className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4"
@@ -314,12 +433,15 @@ export const HRCampaigns: React.FC = () => {
                     <tr
                       className={`cursor-pointer transition ${selectedRow ? 'bg-teal-command/5 hover:bg-teal-command/10' : 'hover:bg-workflow-ivory/70'}`}
                       key={campaign.id}
-                      onClick={() => setSelectedId(campaign.id)}
+                      onClick={() => {
+                        setSelectedId(campaign.id);
+                        setActionError('');
+                      }}
                     >
                       <td
                         className={`px-5 py-4 font-mono text-sm ${selectedRow ? 'text-teal-command' : 'text-slate-ink'}`}
                       >
-                        #{campaign.id}
+                        #{campaign.id.slice(0, 8)}
                       </td>
                       <td className="px-5 py-4 text-sm font-semibold text-deep-charcoal">
                         {campaign.position}
@@ -356,7 +478,7 @@ export const HRCampaigns: React.FC = () => {
             </table>
           </div>
 
-          {visibleCampaigns.length === 0 ? (
+          {!loading && visibleCampaigns.length === 0 ? (
             <div className="border-t border-border-warm px-6 py-12 text-center">
               <p className="text-sm font-semibold text-deep-charcoal">
                 No campaigns match this view.
@@ -374,7 +496,9 @@ export const HRCampaigns: React.FC = () => {
           <>
             <div className="flex items-start justify-between gap-4 border-b border-border-warm bg-workflow-ivory/50 p-5">
               <div>
-                <p className="font-mono text-sm font-semibold text-teal-command">#{selected.id}</p>
+                <p className="font-mono text-sm font-semibold text-teal-command">
+                  #{selected.id.slice(0, 8)}
+                </p>
                 <h2 className="mt-1 text-xl font-semibold text-deep-charcoal">Campaign Details</h2>
               </div>
               <button
@@ -437,32 +561,49 @@ export const HRCampaigns: React.FC = () => {
                 <div className="mt-3 rounded-lg border border-border-warm bg-workflow-ivory p-3">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-xs font-semibold text-deep-charcoal">
-                      David Chen (Admin)
+                      {selected.approverName}
                     </span>
-                    <span className="text-[11px] text-on-surface-variant">Yesterday, 2:30 PM</span>
+                    <span className="text-[11px] text-on-surface-variant">
+                      {selected.updatedAt ? formatDate(selected.updatedAt) : '-'}
+                    </span>
                   </div>
                   <p className="mt-2 text-sm leading-6 text-on-surface-variant">
-                    {selected.adminNote}
+                    {selected.adminNote || 'No notes yet.'}
                   </p>
                 </div>
               </div>
             </div>
 
             <div className="space-y-3 border-t border-border-warm bg-workflow-ivory/50 p-5">
-              {selected.status !== 'APPROVED' ? (
+              {actionError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-rejected">
+                  {actionError}
+                </div>
+              )}
+              {selected.status === 'REVISION_REQUIRED' ? (
                 <button
-                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
+                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={actionSubmitting}
+                  onClick={() => void resubmitPlan()}
                   type="button"
                 >
                   <Icon className="h-4 w-4" name="send" />
-                  {selected.status === 'REVISION_REQUIRED'
-                    ? 'Resubmit for Approval'
-                    : 'Submit for Approval'}
+                  {actionSubmitting ? 'Resubmitting...' : 'Resubmit for Approval'}
                 </button>
+              ) : selected.status === 'PENDING_APPROVAL' ? (
+                <div className="rounded-lg border border-border-warm bg-clean-surface px-4 py-2 text-center text-xs font-semibold text-on-surface-variant">
+                  Awaiting Admin Approval
+                </div>
+              ) : selected.status === 'DRAFT' ? (
+                <div className="rounded-lg border border-border-warm bg-clean-surface px-4 py-2 text-center text-xs text-on-surface-variant">
+                  Use "Create Overall Plan" to start this campaign's plan.
+                </div>
               ) : null}
               <div className="grid grid-cols-2 gap-3">
                 <button
-                  className="h-10 rounded-lg border border-teal-command text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98]"
+                  className="h-10 rounded-lg border border-border-warm text-sm font-semibold text-on-surface-variant transition disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled
+                  title="Editing an existing plan is not yet supported"
                   type="button"
                 >
                   Edit Plan
@@ -485,6 +626,88 @@ export const HRCampaigns: React.FC = () => {
           </div>
         )}
       </aside>
+
+      {showCreateModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-deep-charcoal/40 p-4 backdrop-blur-sm">
+          <section className="w-full max-w-[480px] overflow-hidden rounded-xl border border-border-warm bg-clean-surface shadow-2xl">
+            <header className="flex items-center justify-between border-b border-border-warm bg-workflow-ivory/60 px-6 py-4">
+              <h2 className="font-semibold text-deep-charcoal">Create Overall Plan</h2>
+              <button
+                className="rounded-full p-1.5 text-on-surface-variant transition hover:bg-surface-variant hover:text-deep-charcoal"
+                onClick={() => setShowCreateModal(false)}
+                type="button"
+              >
+                <span className="sr-only">Close create plan modal</span>
+                <Icon className="h-4 w-4" name="close" />
+              </button>
+            </header>
+            <div className="space-y-4 p-6">
+              {createError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-rejected">
+                  {createError}
+                </div>
+              )}
+              <label className="block">
+                <span className="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">
+                  Recruitment Request
+                </span>
+                <select
+                  className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                  onChange={(event) => setCreateRequestId(event.target.value)}
+                  value={createRequestId}
+                >
+                  {draftCampaigns.map((campaign) => (
+                    <option key={campaign.id} value={campaign.id}>
+                      #{campaign.id.slice(0, 8)} - {campaign.position}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">
+                    Start Date
+                  </span>
+                  <input
+                    className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                    onChange={(event) => setCreateStart(event.target.value)}
+                    type="date"
+                    value={createStart}
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">
+                    End Date
+                  </span>
+                  <input
+                    className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                    onChange={(event) => setCreateEnd(event.target.value)}
+                    type="date"
+                    value={createEnd}
+                  />
+                </label>
+              </div>
+            </div>
+            <footer className="flex justify-end gap-3 border-t border-border-warm bg-workflow-ivory/60 px-6 py-4">
+              <button
+                className="h-10 rounded-lg border border-border-warm px-4 text-sm font-semibold text-secondary transition hover:bg-surface-variant/40 active:scale-[0.98]"
+                onClick={() => setShowCreateModal(false)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="h-10 rounded-lg bg-teal-command px-5 text-sm font-bold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!createRequestId || !createStart || !createEnd || createSubmitting}
+                onClick={() => void createOverallPlan()}
+                type="button"
+              >
+                {createSubmitting ? 'Creating...' : 'Create Plan'}
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 };

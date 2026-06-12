@@ -187,6 +187,78 @@ export class OverallPlanService {
     return updated;
   }
 
+  /**
+   * Phase 2a: Resubmit a rejected plan for approval (REJECTED -> PENDING_APPROVAL).
+   */
+  async resubmit(payload: {
+    id: string;
+    performedById: string;
+    startDate?: string;
+    endDate?: string;
+  }) {
+    const { id, performedById, startDate, endDate } = payload;
+
+    const plan = await this.prisma.overallPlan.findUnique({ where: { id } });
+    if (!plan) throw new NotFoundException(`OverallPlan ${id} not found`);
+    if (plan.status !== PlanStatus.REJECTED) {
+      throw new BadRequestException(
+        `Cannot resubmit a plan in status "${plan.status}". Plan must be REJECTED.`,
+      );
+    }
+
+    const data: {
+      status: PlanStatus;
+      approvedById: null;
+      revisionNotes: null;
+      startDate?: Date;
+      endDate?: Date;
+    } = {
+      status: PlanStatus.PENDING_APPROVAL,
+      approvedById: null,
+      revisionNotes: null,
+    };
+
+    if (startDate !== undefined || endDate !== undefined) {
+      const start = startDate ? new Date(startDate) : plan.startDate;
+      const end = endDate ? new Date(endDate) : plan.endDate;
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        throw new BadRequestException('startDate and endDate must be valid dates');
+      }
+      if (end <= start) {
+        throw new BadRequestException('endDate must be after startDate');
+      }
+      data.startDate = start;
+      data.endDate = end;
+    }
+
+    const updated = await this.prisma.overallPlan.update({
+      where: { id },
+      data,
+      include: {
+        createdBy: { select: { id: true, displayName: true } },
+        approvedBy: { select: { id: true, displayName: true } },
+        tasks: {
+          include: { assignedTo: { select: { id: true, displayName: true } } },
+          orderBy: { startDate: 'asc' },
+        },
+      },
+    });
+
+    this.auditLog
+      .log({
+        entityType: AuditEntityType.PLAN,
+        entityId: id,
+        action: AuditAction.PLAN_RESUBMITTED,
+        fromStatus: PlanStatus.REJECTED,
+        toStatus: PlanStatus.PENDING_APPROVAL,
+        performedById,
+        metadata: { previousRevisionNotes: plan.revisionNotes },
+      })
+      .catch((err) => console.error('Failed to write audit log for PLAN_RESUBMITTED:', err));
+
+    return updated;
+  }
+
   async get(id: string) {
     const plan = await this.prisma.overallPlan.findUnique({
       where: { id },

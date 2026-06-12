@@ -1,5 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { apiRequest, ApiError } from '../lib/api';
 
 type RequestUrgency = 'Critical' | 'High' | 'Normal' | 'Low';
 type QueueStatus = 'PENDING' | 'UNDER_REVIEW' | 'FORWARDED' | 'RETURNED';
@@ -20,179 +22,71 @@ type RecruitmentRequest = {
   skillsRequired: string[];
 };
 
-const initialRequests: RecruitmentRequest[] = [
-  {
-    id: 'REQ-2024-041',
-    position: 'Senior Backend Engineer',
-    department: 'IT Dept',
-    requestedBy: 'Dr. Nguyen Van B.',
-    submittedDate: 'May 27',
-    headcount: 2,
-    type: 'Full-time',
-    budget: 'VND 25M/person',
-    budgetLabel: 'Monthly Budget',
-    urgency: 'Critical',
-    status: 'PENDING',
-    justification:
-      'Critical backfill needed to support the upcoming microservice migration phase. The candidate will own database optimization and API gateway security compliance.',
-    skillsRequired: ['Go', 'Rust', 'Kubernetes', 'gRPC'],
-  },
-  {
-    id: 'REQ-2024-045',
-    position: 'Product Designer',
-    department: 'Design & UX Dept',
-    requestedBy: 'Ms. Tran Thi C.',
-    submittedDate: 'May 27',
-    headcount: 1,
-    type: 'Full-time',
-    budget: 'VND 22M/person',
-    budgetLabel: 'Monthly Budget',
-    urgency: 'High',
-    status: 'PENDING',
-    justification:
-      'Required for applicant portal redesign. The designer will collaborate with engineering teams to conduct usability testing and build reusable design components.',
-    skillsRequired: ['Figma', 'Design Systems', 'Usability Testing', 'Prototyping'],
-  },
-  {
-    id: 'REQ-2024-049',
-    position: 'Marketing Specialist',
-    department: 'Marketing Dept',
-    requestedBy: 'Mr. Vu Huy D.',
-    submittedDate: 'May 26',
-    headcount: 1,
-    type: 'Full-time',
-    budget: 'VND 18M/person',
-    budgetLabel: 'Monthly Budget',
-    urgency: 'Normal',
-    status: 'PENDING',
-    justification:
-      'Drive growth campaigns and manage social branding across local and regional channels.',
-    skillsRequired: ['SEO', 'Content Writing', 'Google Ads', 'Analytics'],
-  },
-  {
-    id: 'REQ-2024-052',
-    position: 'HR Coordinator',
-    department: 'Human Resources',
-    requestedBy: 'Ms. Ly Minh E.',
-    submittedDate: 'May 25',
-    headcount: 1,
-    type: 'Full-time',
-    budget: 'VND 15M/person',
-    budgetLabel: 'Monthly Budget',
-    urgency: 'Normal',
-    status: 'PENDING',
-    justification:
-      'Manage onboarding documentation, interview scheduling coordination, and employee records maintenance.',
-    skillsRequired: ['HR Administration', 'Onboarding', 'Communication', 'Scheduling'],
-  },
-  {
-    id: 'REQ-2024-055',
-    position: 'Data Analyst Intern',
-    department: 'Data Intelligence',
-    requestedBy: 'Mr. Pham Minh F.',
-    submittedDate: 'May 24',
-    headcount: 3,
-    type: 'Internship',
-    budget: 'VND 6M/person',
-    budgetLabel: 'Monthly Stipend',
-    urgency: 'Low',
-    status: 'PENDING',
-    justification:
-      'Support data cleaning and dashboard building for department performance reporting.',
-    skillsRequired: ['SQL', 'Excel', 'Tableau', 'Data Cleaning'],
-  },
-  {
-    id: 'REQ-2024-039',
-    position: 'Fullstack Developer',
-    department: 'IT Dept',
-    requestedBy: 'Dr. Nguyen Van B.',
-    submittedDate: 'May 20',
-    headcount: 1,
-    type: 'Full-time',
-    budget: 'VND 24M/person',
-    budgetLabel: 'Monthly Budget',
-    urgency: 'High',
-    status: 'UNDER_REVIEW',
-    justification: 'Build frontend dashboards and connect backend services for the RMS project.',
-    skillsRequired: ['React', 'TypeScript', 'Node.js', 'PostgreSQL'],
-  },
-  {
-    id: 'REQ-2024-042',
-    position: 'Solutions Architect',
-    department: 'Infrastructure',
-    requestedBy: 'Mr. Hoang Van G.',
-    submittedDate: 'May 21',
-    headcount: 1,
-    type: 'Full-time',
-    budget: 'VND 35M/person',
-    budgetLabel: 'Monthly Budget',
-    urgency: 'Critical',
-    status: 'UNDER_REVIEW',
-    justification: 'Design highly available cloud architecture matching security frameworks.',
-    skillsRequired: ['AWS Certified', 'Enterprise Architecture', 'Terraform', 'Kubernetes'],
-  },
-  {
-    id: 'REQ-2024-030',
-    position: 'Security Auditor',
-    department: 'Compliance',
-    requestedBy: 'Mr. Tran Van X.',
-    submittedDate: 'May 15',
-    headcount: 1,
-    type: 'Full-time',
-    budget: 'VND 30M/person',
-    budgetLabel: 'Monthly Budget',
-    urgency: 'High',
-    status: 'FORWARDED',
-    justification:
-      'Verify regulatory compliance frameworks and run internal vulnerability auditing.',
-    skillsRequired: ['CISSP', 'Network Security', 'ISO 27001', 'Penetration Testing'],
-  },
-  {
-    id: 'REQ-2024-031',
-    position: 'Product Owner',
-    department: 'Product Strategy',
-    requestedBy: 'Ms. Le Thi Y.',
-    submittedDate: 'May 16',
-    headcount: 1,
-    type: 'Full-time',
-    budget: 'VND 26M/person',
-    budgetLabel: 'Monthly Budget',
-    urgency: 'Normal',
-    status: 'FORWARDED',
-    justification: 'Define feature backlog and coordinate sprint planning across engineering pods.',
-    skillsRequired: ['Agile', 'Scrum', 'Jira', 'Product Roadmap'],
-  },
-  {
-    id: 'REQ-2024-025',
-    position: 'Graphic Designer',
-    department: 'Design & UX Dept',
-    requestedBy: 'Ms. Tran Thi C.',
-    submittedDate: 'May 10',
-    headcount: 2,
-    type: 'Full-time',
-    budget: 'VND 15M/person',
-    budgetLabel: 'Monthly Budget',
-    urgency: 'Normal',
-    status: 'RETURNED',
-    justification: 'Returned because the salary budget range was outside design benchmarks.',
-    skillsRequired: ['Illustrator', 'Photoshop', 'Typography'],
-  },
-  {
-    id: 'REQ-2024-026',
-    position: 'Technical Writer',
-    department: 'IT Dept',
-    requestedBy: 'Dr. Nguyen Van B.',
-    submittedDate: 'May 11',
-    headcount: 1,
-    type: 'Full-time',
-    budget: 'VND 14M/person',
-    budgetLabel: 'Monthly Budget',
-    urgency: 'Low',
-    status: 'RETURNED',
-    justification: 'Returned because justification needs more detail on workload alignment.',
-    skillsRequired: ['Markdown', 'Git', 'API Documentation'],
-  },
-];
+interface RecruitmentRequestApiItem {
+  id: string;
+  position: string;
+  department: { id: string; name: string; code: string } | null;
+  requester: { id: string; displayName: string } | null;
+  owner: { id: string; displayName: string } | null;
+  status: string;
+  urgency: string;
+  headcount: number;
+  filledHeadcount: number;
+  jobDescription: string;
+  skillRequirements: Record<string, unknown> | null;
+  justification: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface RecruitmentRequestListResponse {
+  data: RecruitmentRequestApiItem[];
+  meta: { total: number; page: number; limit: number; totalPages: number };
+}
+
+const URGENCY_MAP: Record<string, RequestUrgency> = {
+  CRITICAL: 'Critical',
+  HIGH: 'High',
+  MEDIUM: 'Normal',
+  LOW: 'Low',
+};
+
+const formatDate = (value: string) =>
+  new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(value));
+
+const mapRequest = (item: RecruitmentRequestApiItem): RecruitmentRequest => {
+  const skills = (item.skillRequirements ?? {}) as Record<string, unknown>;
+  const employmentType = skills.employmentType === 'Internship' ? 'Internship' : 'Full-time';
+  const salaryMin = skills.salaryMin as string | number | undefined;
+  const salaryMax = skills.salaryMax as string | number | undefined;
+
+  let budget = 'N/A';
+  let budgetLabel = 'Monthly Budget';
+  if (salaryMin || salaryMax) {
+    budget = salaryMax ? `${salaryMin ?? ''}-${salaryMax}`.replace(/^-/, '') : `${salaryMin}`;
+    budgetLabel = employmentType === 'Internship' ? 'Monthly Stipend' : 'Monthly Budget';
+  }
+
+  let status: QueueStatus = 'FORWARDED';
+  if (item.status === 'PENDING_REVIEW') status = 'PENDING';
+  else if (item.status === 'REVISION_NEEDED') status = 'RETURNED';
+
+  return {
+    id: item.id,
+    position: item.position,
+    department: item.department?.name ?? 'Unknown',
+    requestedBy: item.requester?.displayName ?? 'Unknown',
+    submittedDate: formatDate(item.createdAt),
+    headcount: item.headcount,
+    type: employmentType,
+    budget,
+    budgetLabel,
+    urgency: URGENCY_MAP[item.urgency] ?? 'Normal',
+    status,
+    justification: item.justification,
+    skillsRequired: Array.isArray(skills.skills) ? (skills.skills as string[]) : [],
+  };
+};
 
 const statusTabs: Array<{ key: QueueStatus; label: string }> = [
   { key: 'PENDING', label: 'Pending Review' },
@@ -260,12 +154,36 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
 
 export const HRRequestQueue: React.FC = () => {
   const navigate = useNavigate();
-  const [requests, setRequests] = useState<RecruitmentRequest[]>(initialRequests);
+  const { token } = useAuth();
+  const [requests, setRequests] = useState<RecruitmentRequest[]>([]);
   const [activeTab, setActiveTab] = useState<QueueStatus>('PENDING');
   const [query, setQuery] = useState('');
   const [selectedRequest, setSelectedRequest] = useState<RecruitmentRequest | null>(null);
   const [revisionTarget, setRevisionTarget] = useState<RecruitmentRequest | null>(null);
   const [revisionFeedback, setRevisionFeedback] = useState('');
+  const [revisionError, setRevisionError] = useState('');
+  const [revisionSubmitting, setRevisionSubmitting] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
+
+  useEffect(() => {
+    const loadRequests = async () => {
+      setLoading(true);
+      setApiError('');
+      try {
+        const response = await apiRequest<RecruitmentRequestListResponse>(
+          '/recruitment-requests?limit=100',
+          token,
+        );
+        setRequests(response.data.map(mapRequest));
+      } catch (loadError) {
+        setApiError(loadError instanceof Error ? loadError.message : 'Unable to load requests');
+      } finally {
+        setLoading(false);
+      }
+    };
+    void loadRequests();
+  }, [token]);
 
   const counts = useMemo(
     () =>
@@ -301,6 +219,8 @@ export const HRRequestQueue: React.FC = () => {
   const openReview = (request: RecruitmentRequest) => {
     setSelectedRequest(request);
     if (request.status === 'PENDING') {
+      // Local-only transition: HR Manager is now reviewing this request.
+      // Not persisted to backend (no UNDER_REVIEW status), resets on reload.
       setRequests((current) =>
         current.map((item) =>
           item.id === request.id ? { ...item, status: 'UNDER_REVIEW' } : item,
@@ -310,6 +230,8 @@ export const HRRequestQueue: React.FC = () => {
   };
 
   const forwardToAdmin = (id: string) => {
+    // Local-only transition: request stays PENDING_REVIEW on the backend,
+    // awaiting Admin's decision. No backend call to make here.
     setRequests((current) =>
       current.map((item) => (item.id === id ? { ...item, status: 'FORWARDED' } : item)),
     );
@@ -317,24 +239,39 @@ export const HRRequestQueue: React.FC = () => {
     setActiveTab('FORWARDED');
   };
 
-  const returnForRevision = () => {
+  const returnForRevision = async () => {
     if (!revisionTarget || !revisionFeedback.trim()) return;
 
-    setRequests((current) =>
-      current.map((item) =>
-        item.id === revisionTarget.id
-          ? {
-              ...item,
-              status: 'RETURNED',
-              justification: `${item.justification} HR feedback: ${revisionFeedback.trim()}`,
-            }
-          : item,
-      ),
-    );
-    setRevisionTarget(null);
-    setSelectedRequest(null);
-    setRevisionFeedback('');
-    setActiveTab('RETURNED');
+    setRevisionSubmitting(true);
+    setRevisionError('');
+    try {
+      await apiRequest(`/recruitment-requests/${revisionTarget.id}/return-for-revision`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ feedback: revisionFeedback.trim() }),
+      });
+
+      setRequests((current) =>
+        current.map((item) =>
+          item.id === revisionTarget.id
+            ? {
+                ...item,
+                status: 'RETURNED',
+                justification: `${item.justification} HR feedback: ${revisionFeedback.trim()}`,
+              }
+            : item,
+        ),
+      );
+      setRevisionTarget(null);
+      setSelectedRequest(null);
+      setRevisionFeedback('');
+      setActiveTab('RETURNED');
+    } catch (returnError) {
+      setRevisionError(
+        returnError instanceof ApiError ? returnError.message : 'Unable to return request',
+      );
+    } finally {
+      setRevisionSubmitting(false);
+    }
   };
 
   return (
@@ -390,6 +327,18 @@ export const HRRequestQueue: React.FC = () => {
           </div>
         </header>
 
+        {apiError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-rejected">
+            {apiError}
+          </div>
+        )}
+
+        {loading && (
+          <div className="rounded-lg border border-border-warm bg-clean-surface px-4 py-3 text-sm text-on-surface-variant">
+            Loading requests...
+          </div>
+        )}
+
         <section className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="overflow-x-auto">
             <nav className="flex min-w-max gap-8 border-b border-border-warm">
@@ -437,7 +386,7 @@ export const HRRequestQueue: React.FC = () => {
                       >
                         {urgency.label}
                       </span>
-                      <span className="text-xs text-secondary">ID: #{request.id}</span>
+                      <span className="text-xs text-secondary">ID: #{request.id.slice(0, 8)}</span>
                     </div>
                     <h2 className="text-xl font-semibold text-deep-charcoal transition group-hover:text-teal-command">
                       {request.position}
@@ -610,7 +559,7 @@ export const HRRequestQueue: React.FC = () => {
             <header className="flex items-center justify-between border-b border-border-warm bg-workflow-ivory/60 px-6 py-4">
               <div>
                 <p className="font-mono text-xs font-semibold text-teal-command">
-                  #{selectedRequest.id}
+                  #{selectedRequest.id.slice(0, 8)}
                 </p>
                 <h2 className="mt-0.5 text-base font-semibold text-deep-charcoal">
                   Recruitment Requisition
@@ -725,6 +674,7 @@ export const HRRequestQueue: React.FC = () => {
                 onClick={() => {
                   setRevisionTarget(null);
                   setRevisionFeedback('');
+                  setRevisionError('');
                 }}
                 type="button"
               >
@@ -735,8 +685,13 @@ export const HRRequestQueue: React.FC = () => {
             <div className="space-y-4 p-6">
               <p className="text-sm leading-6 text-secondary">
                 Provide clear instructions for the Department Head before HR planning continues for
-                #{revisionTarget.id}.
+                #{revisionTarget.id.slice(0, 8)}.
               </p>
+              {revisionError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-rejected">
+                  {revisionError}
+                </div>
+              )}
               <label className="block">
                 <span className="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">
                   Revision Feedback Notes
@@ -756,6 +711,7 @@ export const HRRequestQueue: React.FC = () => {
                 onClick={() => {
                   setRevisionTarget(null);
                   setRevisionFeedback('');
+                  setRevisionError('');
                 }}
                 type="button"
               >
@@ -763,11 +719,11 @@ export const HRRequestQueue: React.FC = () => {
               </button>
               <button
                 className="h-10 rounded-lg bg-rejected px-5 text-sm font-bold text-white transition hover:bg-red-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!revisionFeedback.trim()}
-                onClick={returnForRevision}
+                disabled={!revisionFeedback.trim() || revisionSubmitting}
+                onClick={() => void returnForRevision()}
                 type="button"
               >
-                Return to Dept Head
+                {revisionSubmitting ? 'Returning...' : 'Return to Dept Head'}
               </button>
             </footer>
           </section>

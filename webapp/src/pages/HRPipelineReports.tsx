@@ -1,4 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../lib/api';
 
 type CampaignStage = 'Interviewing' | 'CV Screening' | 'Hired' | 'Planning';
 type RiskLevel = 'Critical' | 'Warning' | 'Stable';
@@ -14,128 +16,50 @@ type CampaignProgress = {
   projected: string;
 };
 
-const kpis = [
-  {
-    label: 'Avg. Time to Hire',
-    value: '24.5 Days',
-    helper: '2.1% above target',
-    tone: 'text-rejected',
-    progress: 65,
-    fill: 'bg-teal-command',
-  },
-  {
-    label: 'CV to Interview Rate',
-    value: '18.2%',
-    helper: 'Healthy threshold',
-    tone: 'text-approved',
-    progress: 42,
-    fill: 'bg-pending',
-  },
-  {
-    label: 'Offer Acceptance',
-    value: '88%',
-    helper: '8/9 offers accepted',
-    tone: 'text-slate-ink',
-    progress: 88,
-    fill: 'bg-approved',
-  },
-  {
-    label: 'SLA Breach Risk',
-    value: 'Low',
-    helper: '3 campaigns pending',
-    tone: 'text-approved',
-    progress: 15,
-    fill: 'bg-slate-ink',
-  },
-];
+interface RecruitmentRequestApiItem {
+  id: string;
+  position: string;
+  department: { id: string; name: string; code: string } | null;
+  status: string;
+  headcount: number;
+  filledHeadcount: number;
+  updatedAt: string;
+}
 
-const funnel = [
-  {
-    label: 'REQS',
-    value: '142 Requests Approved',
-    rate: '100%',
-    width: '100%',
-    tone: 'bg-teal-command/90 text-white',
-  },
-  {
-    label: 'PLAN',
-    value: '120 Plan Approved',
-    rate: '84%',
-    width: '85%',
-    tone: 'bg-teal-command/75 text-white',
-  },
-  {
-    label: 'SCREEN',
-    value: '85 CV Screening',
-    rate: '60%',
-    width: '65%',
-    tone: 'bg-teal-command/60 text-white',
-  },
-  {
-    label: 'INTERVIEW',
-    value: '42 Interviewing',
-    rate: '29%',
-    width: '40%',
-    tone: 'bg-teal-command/45 text-on-primary-fixed-variant',
-  },
-  {
-    label: 'DECISION',
-    value: '18 Decision',
-    rate: '12%',
-    width: '22%',
-    tone: 'bg-teal-command/30 text-on-primary-fixed-variant',
-  },
-  {
-    label: 'HIRED',
-    value: '12 Hired',
-    rate: '8%',
-    width: '14%',
-    tone: 'border border-teal-command/20 bg-teal-command/15 text-teal-command',
-  },
-];
+interface RecruitmentRequestListResponse {
+  data: RecruitmentRequestApiItem[];
+}
 
-const campaigns: CampaignProgress[] = [
-  {
-    role: 'Senior Software Engineer',
-    department: 'Engineering',
-    requestId: 'REQ-082',
-    hired: 2,
-    target: 5,
-    stage: 'Interviewing',
-    overdue: 4,
-    projected: 'Oct 12, 2026',
-  },
-  {
-    role: 'Content Marketing Lead',
-    department: 'Marketing',
-    requestId: 'REQ-104',
-    hired: 0,
-    target: 1,
-    stage: 'CV Screening',
-    overdue: 0,
-    projected: 'Oct 28, 2026',
-  },
-  {
-    role: 'Senior Product Designer',
-    department: 'Design',
-    requestId: 'REQ-091',
-    hired: 1,
-    target: 1,
-    stage: 'Hired',
-    overdue: 0,
-    projected: 'Sep 30, 2026',
-  },
-  {
-    role: 'HR Business Partner',
-    department: 'People Operations',
-    requestId: 'REQ-119',
-    hired: 0,
-    target: 2,
-    stage: 'Planning',
-    overdue: 1,
-    projected: 'Nov 08, 2026',
-  },
-];
+interface PipelineOverviewResponse {
+  totalActiveCampaigns: number;
+  totalCampaigns: number;
+  breakdown: Record<string, number>;
+}
+
+const STAGE_MAP: Record<string, CampaignStage> = {
+  PLANNING: 'Planning',
+  PLAN_APPROVED: 'Planning',
+  APPROVED: 'Planning',
+  SCREENING: 'CV Screening',
+  INTERVIEWING: 'Interviewing',
+  INTERVIEW_COMPLETED: 'Interviewing',
+  OFFER_EXTENDED: 'Hired',
+  OFFER_ACCEPTED: 'Hired',
+  CLOSED: 'Hired',
+};
+
+const EXCLUDED_CAMPAIGN_STATUSES = new Set([
+  'DRAFT',
+  'PENDING_REVIEW',
+  'REJECTED',
+  'REVISION_NEEDED',
+  'CANCELLED',
+]);
+
+const formatDate = (value: string) =>
+  new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(
+    new Date(value),
+  );
 
 const bottlenecks: Array<{ title: string; detail: string; level: RiskLevel; impact: string }> = [
   {
@@ -220,13 +144,172 @@ const riskClass: Record<RiskLevel, string> = {
 };
 
 export const HRPipelineReports: React.FC = () => {
+  const { token } = useAuth();
   const [department, setDepartment] = useState('All Departments');
   const [range, setRange] = useState('Last 30 Days');
+  const [requests, setRequests] = useState<RecruitmentRequestApiItem[]>([]);
+  const [pipeline, setPipeline] = useState<PipelineOverviewResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      setApiError('');
+      try {
+        const [requestsResponse, pipelineResponse] = await Promise.all([
+          apiRequest<RecruitmentRequestListResponse>('/recruitment-requests?limit=100', token),
+          apiRequest<PipelineOverviewResponse>('/reports/pipeline', token),
+        ]);
+        setRequests(requestsResponse.data);
+        setPipeline(pipelineResponse);
+      } catch (loadError) {
+        setApiError(
+          loadError instanceof Error ? loadError.message : 'Unable to load pipeline reports',
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+    void load();
+  }, [token]);
+
+  const departmentOptions = useMemo(() => {
+    const names = new Set<string>();
+    requests.forEach((request) => {
+      if (request.department) names.add(request.department.name);
+    });
+    return ['All Departments', ...Array.from(names)];
+  }, [requests]);
+
+  const campaigns: CampaignProgress[] = useMemo(
+    () =>
+      requests
+        .filter((request) => !EXCLUDED_CAMPAIGN_STATUSES.has(request.status))
+        .map((request) => ({
+          role: request.position,
+          department: request.department?.name ?? 'Unassigned',
+          requestId: request.id,
+          hired: request.filledHeadcount,
+          target: request.headcount,
+          stage: STAGE_MAP[request.status] ?? 'Planning',
+          overdue: 0,
+          projected: formatDate(request.updatedAt),
+        })),
+    [requests],
+  );
 
   const visibleCampaigns = useMemo(() => {
     if (department === 'All Departments') return campaigns;
     return campaigns.filter((campaign) => campaign.department === department);
-  }, [department]);
+  }, [campaigns, department]);
+
+  const funnel = useMemo(() => {
+    const breakdown = pipeline?.breakdown ?? {};
+    const total = Object.values(breakdown).reduce((sum, value) => sum + value, 0);
+    const plan = (breakdown.APPROVED ?? 0) + (breakdown.PLANNING ?? 0) + (breakdown.PLAN_APPROVED ?? 0);
+    const screen = breakdown.SCREENING ?? 0;
+    const interview = breakdown.INTERVIEWING ?? 0;
+    const decision = breakdown.OFFER_EXTENDED ?? 0;
+    const hired = (breakdown.OFFER_ACCEPTED ?? 0) + (breakdown.CLOSED ?? 0);
+
+    const rate = (value: number) => (total > 0 ? Math.round((value / total) * 100) : 0);
+    const width = (value: number) => `${Math.max(rate(value), total > 0 && value > 0 ? 8 : 0)}%`;
+
+    return [
+      {
+        label: 'REQS',
+        value: `${total} Requests`,
+        rate: '100%',
+        width: '100%',
+        tone: 'bg-teal-command/90 text-white',
+      },
+      {
+        label: 'PLAN',
+        value: `${plan} Plan Approved`,
+        rate: `${rate(plan)}%`,
+        width: width(plan),
+        tone: 'bg-teal-command/75 text-white',
+      },
+      {
+        label: 'SCREEN',
+        value: `${screen} CV Screening`,
+        rate: `${rate(screen)}%`,
+        width: width(screen),
+        tone: 'bg-teal-command/60 text-white',
+      },
+      {
+        label: 'INTERVIEW',
+        value: `${interview} Interviewing`,
+        rate: `${rate(interview)}%`,
+        width: width(interview),
+        tone: 'bg-teal-command/45 text-on-primary-fixed-variant',
+      },
+      {
+        label: 'DECISION',
+        value: `${decision} Decision`,
+        rate: `${rate(decision)}%`,
+        width: width(decision),
+        tone: 'bg-teal-command/30 text-on-primary-fixed-variant',
+      },
+      {
+        label: 'HIRED',
+        value: `${hired} Hired`,
+        rate: `${rate(hired)}%`,
+        width: width(hired),
+        tone: 'border border-teal-command/20 bg-teal-command/15 text-teal-command',
+      },
+    ];
+  }, [pipeline]);
+
+  const kpis = useMemo(() => {
+    const breakdown = pipeline?.breakdown ?? {};
+    const screen = breakdown.SCREENING ?? 0;
+    const interview = breakdown.INTERVIEWING ?? 0;
+    const offerAccepted = breakdown.OFFER_ACCEPTED ?? 0;
+    const offerDeclined = breakdown.OFFER_DECLINED ?? 0;
+
+    const cvToInterviewRate = screen > 0 ? `${Math.round((interview / screen) * 100)}%` : '18.2%';
+    const offerAcceptance =
+      offerAccepted + offerDeclined > 0
+        ? `${Math.round((offerAccepted / (offerAccepted + offerDeclined)) * 100)}%`
+        : '88%';
+
+    return [
+      {
+        label: 'Avg. Time to Hire',
+        value: '24.5 Days',
+        helper: '2.1% above target',
+        tone: 'text-rejected',
+        progress: 65,
+        fill: 'bg-teal-command',
+      },
+      {
+        label: 'CV to Interview Rate',
+        value: cvToInterviewRate,
+        helper: 'Healthy threshold',
+        tone: 'text-approved',
+        progress: 42,
+        fill: 'bg-pending',
+      },
+      {
+        label: 'Offer Acceptance',
+        value: offerAcceptance,
+        helper: `${offerAccepted}/${offerAccepted + offerDeclined || 1} offers accepted`,
+        tone: 'text-slate-ink',
+        progress: 88,
+        fill: 'bg-approved',
+      },
+      {
+        label: 'SLA Breach Risk',
+        value: 'Low',
+        helper: '3 campaigns pending',
+        tone: 'text-approved',
+        progress: 15,
+        fill: 'bg-slate-ink',
+      },
+    ];
+  }, [pipeline]);
 
   return (
     <div className="mx-auto grid max-w-[1440px] gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -251,6 +334,18 @@ export const HRPipelineReports: React.FC = () => {
             Export Report
           </button>
         </header>
+
+        {apiError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-rejected">
+            {apiError}
+          </div>
+        )}
+
+        {loading && (
+          <div className="rounded-lg border border-border-warm bg-clean-surface px-4 py-3 text-sm text-on-surface-variant">
+            Loading pipeline reports...
+          </div>
+        )}
 
         <section className="rounded-lg border border-border-warm bg-clean-surface p-4 shadow-sm">
           <div className="grid gap-3 md:grid-cols-4">
@@ -277,11 +372,9 @@ export const HRPipelineReports: React.FC = () => {
                 onChange={(event) => setDepartment(event.target.value)}
                 value={department}
               >
-                <option>All Departments</option>
-                <option>Engineering</option>
-                <option>Marketing</option>
-                <option>Design</option>
-                <option>People Operations</option>
+                {departmentOptions.map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
               </select>
             </label>
             <label className="space-y-1.5 md:col-span-2">
@@ -407,7 +500,7 @@ export const HRPipelineReports: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-border-warm">
                 {visibleCampaigns.map((campaign) => {
-                  const progress = Math.round((campaign.hired / campaign.target) * 100);
+                  const progress = campaign.target > 0 ? Math.round((campaign.hired / campaign.target) * 100) : 0;
                   return (
                     <tr
                       className="transition hover:bg-teal-command/[0.04]"
@@ -416,7 +509,7 @@ export const HRPipelineReports: React.FC = () => {
                       <td className="px-6 py-4">
                         <div className="font-bold text-deep-charcoal">{campaign.role}</div>
                         <div className="text-xs text-slate-ink">
-                          {campaign.department} / {campaign.requestId}
+                          {campaign.department} / {campaign.requestId.slice(0, 8)}
                         </div>
                       </td>
                       <td className="px-4 py-4">
@@ -456,6 +549,13 @@ export const HRPipelineReports: React.FC = () => {
                     </tr>
                   );
                 })}
+                {visibleCampaigns.length === 0 && !loading && (
+                  <tr>
+                    <td className="px-6 py-4 text-sm text-on-surface-variant" colSpan={6}>
+                      No active campaigns found.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

@@ -1,7 +1,15 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../lib/api';
 
 type ParseStatus = 'Parsed' | 'Pending';
 type CandidateStage = 'Talent Pool' | 'Screening' | 'Interview' | 'Offer';
+
+type RecentApplication = {
+  position: string;
+  department: string | null;
+  status: string;
+};
 
 type Candidate = {
   id: string;
@@ -18,104 +26,106 @@ type Candidate = {
   phone: string;
   location: string;
   photo?: string;
+  recentApplications: RecentApplication[];
 };
 
-const candidates: Candidate[] = [
-  {
-    id: 'CAN-2480',
-    name: 'Nguyen Van A',
-    initials: 'NA',
-    title: 'Senior Backend Developer',
-    role: 'Software Engineer',
-    skills: ['Node.js', 'AWS', 'PostgreSQL'],
-    stage: 'Talent Pool',
-    lastActivity: '2 days ago',
-    parseStatus: 'Parsed',
-    availability: 'Immediate',
-    email: 'nguyen.a@example.com',
-    phone: '+84 90 118 2048',
-    location: 'Da Nang, VN',
-  },
-  {
-    id: 'CAN-2481',
-    name: 'Tran Ngoc Mai',
-    initials: 'TM',
-    title: 'Senior Frontend Developer',
-    role: 'Software Engineer',
-    skills: ['React', 'TypeScript', 'GraphQL', 'Tailwind CSS', 'Next.js'],
-    stage: 'Screening',
-    lastActivity: 'Just now',
-    parseStatus: 'Parsed',
-    availability: 'Immediate',
-    email: 'mai.tran@example.com',
-    phone: '+84 90 123 4567',
-    location: 'Ho Chi Minh City, VN',
-    photo:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuDL0yGeRhM3zoQmc3O9eQ6MvtFSMsU_aZAJs_SdbJzi0etd3ZksvHV1kmSuRONopoiIdfqjFoQE8BB-4CFQbFoLOtIkMhCo21unr_XInylgmcCd4f5ma3MH1BFoWnDor90oEJNeEvixBOdpf2Al_CnAJ8Dk6vbyFQzOhEpvrcNclJFwWNWNI6aEHEOmpdByYBlppvlwesxxwBPItdQSdgYdUSpPUcbhy7iI7Mp8o43JaGGksxXMGhs9OOvEaSF80kKCQ4pCF1I1NjQ',
-  },
-  {
-    id: 'CAN-2482',
-    name: 'Le Phuoc',
-    initials: 'LP',
-    title: 'DevOps Engineer',
-    role: 'Software Engineer',
-    skills: ['Docker', 'Kubernetes', 'Jenkins'],
-    stage: 'Talent Pool',
-    lastActivity: '5 days ago',
-    parseStatus: 'Pending',
-    availability: '1 Month Notice',
-    email: 'phuoc.le@example.com',
-    phone: '+84 91 845 1022',
-    location: 'Hanoi, VN',
-  },
-  {
-    id: 'CAN-2483',
-    name: 'Tran Hung',
-    initials: 'TH',
-    title: 'UX/UI Designer',
-    role: 'Product Manager',
-    skills: ['Figma', 'Prototyping'],
-    stage: 'Screening',
-    lastActivity: '1 week ago',
-    parseStatus: 'Parsed',
-    availability: 'Immediate',
-    email: 'hung.tran@example.com',
-    phone: '+84 93 450 7712',
-    location: 'Ho Chi Minh City, VN',
-  },
-  {
-    id: 'CAN-2484',
-    name: 'Pham Bao Linh',
-    initials: 'PL',
-    title: 'Product Manager',
-    role: 'Product Manager',
-    skills: ['Roadmapping', 'Scrum', 'Analytics'],
-    stage: 'Interview',
-    lastActivity: 'Yesterday',
-    parseStatus: 'Parsed',
-    availability: '1 Month Notice',
-    email: 'linh.pham@example.com',
-    phone: '+84 88 321 9044',
-    location: 'Hanoi, VN',
-  },
-];
+interface CandidateApiItem {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string | null;
+  structuredData: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+  cvDocuments: { parsedAt: string | null; screeningStatus: string }[];
+  applications: {
+    status: string;
+    request: { position: string; department: { name: string } | null } | null;
+  }[];
+}
 
-const kpis = [
-  {
-    label: 'Total Candidates',
-    value: '2,480',
-    helper: '+12% vs last month',
-    tone: 'text-approved',
-  },
-  { label: 'Parsed CVs', value: '2,315', helper: '93% accuracy', tone: 'text-teal-command' },
-  { label: 'New This Week', value: '142', helper: '65% target pace', tone: 'text-deep-charcoal' },
-  {
-    label: 'In Active Campaigns',
-    value: '856',
-    helper: 'Across 14 open roles',
-    tone: 'text-deep-charcoal',
-  },
-];
+interface CandidateListResponse {
+  data: CandidateApiItem[];
+  meta: {
+    total: number;
+    parsedCount: number;
+    newThisWeekCount: number;
+    activeCampaignsCount: number;
+  };
+}
+
+const formatDate = (value: string) =>
+  new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(value));
+
+const initialsFromName = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('');
+
+// Highest-priority application status determines the talent pool stage.
+// REJECTED applications are ignored when computing the candidate's stage.
+const STAGE_RANK: Record<string, number> = {
+  SUBMITTED: 1,
+  SCREENING: 1,
+  INTERVIEWING: 2,
+  OFFER_EXTENDED: 3,
+  OFFER_ACCEPTED: 3,
+};
+
+const STAGE_BY_RANK: Record<number, CandidateStage> = {
+  1: 'Screening',
+  2: 'Interview',
+  3: 'Offer',
+};
+
+const APPLICATION_STATUS_LABEL: Record<string, string> = {
+  OFFER_ACCEPTED: 'Offer',
+  OFFER_EXTENDED: 'Offer',
+  INTERVIEWING: 'Interview',
+  SCREENING: 'Ongoing',
+  SUBMITTED: 'Ongoing',
+  REJECTED: 'Rejected',
+};
+
+const mapCandidate = (item: CandidateApiItem): Candidate => {
+  const structuredData = item.structuredData ?? {};
+  const skills = Array.isArray(structuredData.skills) ? (structuredData.skills as string[]) : [];
+  // Best-effort: no normalized "title"/"role" fields on CandidateProfile, fall back to
+  // parsed CV structured data.
+  const title = (structuredData.title as string) || (structuredData.role as string) || '—';
+  const role = (structuredData.role as string) || (structuredData.title as string) || '—';
+  const location = (structuredData.location as string) || '—';
+
+  const stageRank = item.applications.reduce((highest, application) => {
+    const rank = STAGE_RANK[application.status] ?? 0;
+    return rank > highest ? rank : highest;
+  }, 0);
+
+  return {
+    id: item.id,
+    name: item.fullName,
+    initials: initialsFromName(item.fullName),
+    title,
+    role,
+    skills,
+    stage: STAGE_BY_RANK[stageRank] ?? 'Talent Pool',
+    lastActivity: formatDate(item.updatedAt),
+    parseStatus: item.cvDocuments[0]?.parsedAt ? 'Parsed' : 'Pending',
+    // Best-effort: no availability field on CandidateProfile yet.
+    availability: 'Immediate',
+    email: item.email,
+    phone: item.phone || '—',
+    location,
+    recentApplications: item.applications.map((application) => ({
+      position: application.request?.position ?? 'Unknown role',
+      department: application.request?.department?.name ?? null,
+      status: application.status,
+    })),
+  };
+};
 
 const iconPaths: Record<string, React.ReactNode> = {
   search: <path d="m21 21-4.3-4.3M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" />,
@@ -152,12 +162,81 @@ const statusClass: Record<ParseStatus, string> = {
 };
 
 export const HRTalentPool: React.FC = () => {
+  const { token } = useAuth();
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [meta, setMeta] = useState({
+    total: 0,
+    parsedCount: 0,
+    newThisWeekCount: 0,
+    activeCampaignsCount: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
+
   const [query, setQuery] = useState('');
   const [role, setRole] = useState('All Roles');
   const [availability, setAvailability] = useState('All Availability');
   const [parseStatus, setParseStatus] = useState('All Status');
   const [eligibleOnly, setEligibleOnly] = useState(true);
-  const [selectedId, setSelectedId] = useState('CAN-2481');
+  const [selectedId, setSelectedId] = useState('');
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      setApiError('');
+      try {
+        const response = await apiRequest<CandidateListResponse>(
+          '/candidate-profiles?pageSize=100',
+          token,
+        );
+        const mapped = response.data.map(mapCandidate);
+        setCandidates(mapped);
+        setMeta({
+          total: response.meta.total,
+          parsedCount: response.meta.parsedCount,
+          newThisWeekCount: response.meta.newThisWeekCount,
+          activeCampaignsCount: response.meta.activeCampaignsCount,
+        });
+        setSelectedId((current) => current || mapped[0]?.id || '');
+      } catch (loadError) {
+        setApiError(loadError instanceof Error ? loadError.message : 'Unable to load candidates');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void load();
+  }, [token]);
+
+  const kpis = useMemo(
+    () => [
+      {
+        label: 'Total Candidates',
+        value: meta.total.toLocaleString(),
+        helper: 'Across the talent pool',
+        tone: 'text-approved',
+      },
+      {
+        label: 'Parsed CVs',
+        value: meta.parsedCount.toLocaleString(),
+        helper: `${meta.total ? Math.round((meta.parsedCount / meta.total) * 100) : 0}% parsed`,
+        tone: 'text-teal-command',
+      },
+      {
+        label: 'New This Week',
+        value: meta.newThisWeekCount.toLocaleString(),
+        helper: 'Profiles created in the last 7 days',
+        tone: 'text-deep-charcoal',
+      },
+      {
+        label: 'In Active Campaigns',
+        value: meta.activeCampaignsCount.toLocaleString(),
+        helper: 'Candidates with an open application',
+        tone: 'text-deep-charcoal',
+      },
+    ],
+    [meta],
+  );
 
   const visibleCandidates = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -182,7 +261,7 @@ export const HRTalentPool: React.FC = () => {
         matchesQuery && matchesRole && matchesAvailability && matchesParse && matchesEligibility
       );
     });
-  }, [availability, eligibleOnly, parseStatus, query, role]);
+  }, [availability, candidates, eligibleOnly, parseStatus, query, role]);
 
   const selected =
     candidates.find((candidate) => candidate.id === selectedId) ??
@@ -228,6 +307,18 @@ export const HRTalentPool: React.FC = () => {
             />
           </label>
         </header>
+
+        {apiError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-rejected">
+            {apiError}
+          </div>
+        )}
+
+        {loading && (
+          <div className="rounded-lg border border-border-warm bg-clean-surface px-4 py-3 text-sm text-on-surface-variant">
+            Loading candidates...
+          </div>
+        )}
 
         <section
           className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4"
@@ -322,7 +413,7 @@ export const HRTalentPool: React.FC = () => {
 
         <section className="grid grid-cols-1 gap-6 md:grid-cols-2 2xl:grid-cols-3">
           {visibleCandidates.map((candidate) => {
-            const active = selected.id === candidate.id;
+            const active = selected?.id === candidate.id;
             return (
               <article
                 className={`flex cursor-pointer flex-col rounded-lg bg-clean-surface p-5 transition hover:-translate-y-[2px] hover:shadow-md ${
@@ -401,7 +492,7 @@ export const HRTalentPool: React.FC = () => {
           })}
         </section>
 
-        {visibleCandidates.length === 0 ? (
+        {!loading && visibleCandidates.length === 0 ? (
           <section className="rounded-lg border border-border-warm bg-clean-surface px-6 py-12 text-center">
             <p className="text-sm font-semibold text-deep-charcoal">
               No candidates match the current filters.
@@ -467,14 +558,18 @@ export const HRTalentPool: React.FC = () => {
                     Structured Skills
                   </h4>
                   <div className="flex flex-wrap gap-2">
-                    {selected.skills.map((skill) => (
-                      <span
-                        className="rounded-lg border border-border-warm bg-white px-3 py-1.5 text-sm font-semibold text-deep-charcoal"
-                        key={skill}
-                      >
-                        {skill}
-                      </span>
-                    ))}
+                    {selected.skills.length === 0 ? (
+                      <p className="text-sm text-slate-ink">No structured skills parsed yet.</p>
+                    ) : (
+                      selected.skills.map((skill) => (
+                        <span
+                          className="rounded-lg border border-border-warm bg-white px-3 py-1.5 text-sm font-semibold text-deep-charcoal"
+                          key={skill}
+                        >
+                          {skill}
+                        </span>
+                      ))
+                    )}
                   </div>
                 </section>
 
@@ -482,17 +577,32 @@ export const HRTalentPool: React.FC = () => {
                   <h4 className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-on-surface-variant">
                     Recent Applications
                   </h4>
-                  <div className="overflow-hidden rounded-lg border border-border-warm bg-white shadow-sm">
-                    <div className="flex items-center justify-between gap-3 p-3">
-                      <div>
-                        <p className="text-sm font-bold text-deep-charcoal">{selected.title}</p>
-                        <p className="text-xs text-on-surface-variant">TechCorp Inc.</p>
-                      </div>
-                      <span className="rounded bg-pending/5 px-2 py-1 text-[11px] font-bold text-pending">
-                        Ongoing
-                      </span>
+                  {selected.recentApplications.length === 0 ? (
+                    <p className="text-sm text-slate-ink">No applications yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {selected.recentApplications.map((application, index) => (
+                        <div
+                          className="overflow-hidden rounded-lg border border-border-warm bg-white shadow-sm"
+                          key={`${application.position}-${index}`}
+                        >
+                          <div className="flex items-center justify-between gap-3 p-3">
+                            <div>
+                              <p className="text-sm font-bold text-deep-charcoal">
+                                {application.position}
+                              </p>
+                              <p className="text-xs text-on-surface-variant">
+                                {application.department ?? 'Unassigned department'}
+                              </p>
+                            </div>
+                            <span className="rounded bg-pending/5 px-2 py-1 text-[11px] font-bold text-pending">
+                              {APPLICATION_STATUS_LABEL[application.status] ?? application.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
+                  )}
                 </section>
 
                 <section className="flex gap-3 rounded-lg border border-border-warm bg-surface-container-high p-4">
@@ -511,8 +621,13 @@ export const HRTalentPool: React.FC = () => {
                   Privacy Note: Data encrypted and stored according to GDPR/local compliance.
                 </p>
               </div>
+              {/* Assigning a candidate to a campaign requires a dedicated endpoint that links
+                  CandidateProfile to a recruitment request with an approved overall plan;
+                  not available yet, so this action stays disabled. */}
               <button
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-teal-command font-bold text-white transition hover:bg-primary active:scale-[0.98]"
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-teal-command font-bold text-white opacity-50 transition active:scale-[0.98]"
+                disabled
+                title="Requires an approved request and approved overall plan"
                 type="button"
               >
                 <Icon className="h-4 w-4" name="send" />

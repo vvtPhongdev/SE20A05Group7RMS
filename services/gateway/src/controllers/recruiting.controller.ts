@@ -4,7 +4,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagg
 import { SERVICE_TOKENS } from '../constants';
 import { firstValueFrom } from 'rxjs';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { HiringDecision, OfferResponse, Urgency, UserRole } from '@wr/contracts';
+import { HiringDecision, OfferResponse, TaskStatus, TaskType, Urgency, UserRole } from '@wr/contracts';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import {
   IsUUID,
@@ -174,6 +174,63 @@ export class AssignRecruitmentRequestDto {
   hrManagerId!: string;
 }
 
+export class ReturnForRevisionDto {
+  @ApiProperty({ example: 'Please clarify the budget for this position.' })
+  @IsString()
+  @IsNotEmpty()
+  feedback!: string;
+}
+
+export class CreateOverallPlanDto {
+  @ApiProperty({ example: 'uuid-of-recruitment-request' })
+  @IsUUID()
+  hiringRequestId!: string;
+
+  @ApiProperty({ example: '2026-07-01T00:00:00.000Z' })
+  @IsDateString()
+  startDate!: string;
+
+  @ApiProperty({ example: '2026-08-15T00:00:00.000Z' })
+  @IsDateString()
+  endDate!: string;
+}
+
+export class ResubmitOverallPlanDto {
+  @ApiProperty({ example: '2026-07-01T00:00:00.000Z', required: false })
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @ApiProperty({ example: '2026-08-15T00:00:00.000Z', required: false })
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
+}
+
+export class CreateTaskPlanDto {
+  @ApiProperty({ example: 'uuid-of-overall-plan' })
+  @IsUUID()
+  overallPlanId!: string;
+
+  @ApiProperty({ enum: TaskType })
+  @IsEnum(TaskType)
+  taskType!: TaskType;
+
+  @ApiProperty({ example: '2026-07-01T00:00:00.000Z' })
+  @IsDateString()
+  startDate!: string;
+
+  @ApiProperty({ example: '2026-07-08T00:00:00.000Z' })
+  @IsDateString()
+  endDate!: string;
+}
+
+export class UpdateTaskPlanStatusDto {
+  @ApiProperty({ enum: TaskStatus })
+  @IsEnum(TaskStatus)
+  status!: TaskStatus;
+}
+
 enum AdminRequestDecision {
   APPROVED = 'APPROVED',
   REJECTED = 'REJECTED',
@@ -222,10 +279,14 @@ export class RecruitingController {
   constructor(@Inject(SERVICE_TOKENS.RECRUITING) private readonly recruitingClient: ClientProxy) {}
 
   @Get('recruitment-requests')
-  @Roles(UserRole.ADMIN)
-  @ApiOperation({ summary: 'List recruitment requests for admin oversight' })
-  listRecruitmentRequests(@Query() query: any) {
-    return firstValueFrom(this.recruitingClient.send('recruitment-requests.admin.list', query));
+  @Roles(UserRole.ADMIN, UserRole.HR_MANAGER)
+  @ApiOperation({ summary: 'List recruitment requests for admin/HR oversight' })
+  listRecruitmentRequests(@Query() query: any, @CurrentUser() user: any) {
+    const payload = { ...query };
+    if (user.role === UserRole.HR_MANAGER) {
+      payload.reviewedById = user.sub;
+    }
+    return firstValueFrom(this.recruitingClient.send('recruitment-requests.admin.list', payload));
   }
 
   @Post('recruitment-requests')
@@ -269,6 +330,23 @@ export class RecruitingController {
     );
   }
 
+  @Patch('recruitment-requests/:id/return-for-revision')
+  @Roles(UserRole.HR_MANAGER)
+  @ApiOperation({ summary: 'Return a recruitment request to the department head for revision' })
+  returnRecruitmentRequestForRevision(
+    @Param('id') id: string,
+    @Body() body: ReturnForRevisionDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruitment-requests.hr.return_for_revision', {
+        id,
+        hrManagerId: userId,
+        feedback: body.feedback,
+      }),
+    );
+  }
+
   @Patch('recruitment-requests/:id/decision')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Approve or reject a pending recruitment request' })
@@ -283,6 +361,69 @@ export class RecruitingController {
         decision: body.decision,
         comments: body.comments,
         adminId: userId,
+      }),
+    );
+  }
+
+  // ─── Overall Plan / Task Plan ──────────────────────────────────────
+
+  @Post('overall-plan')
+  @Roles(UserRole.HR_MANAGER)
+  @ApiOperation({ summary: 'Create an overall plan for an approved recruitment request' })
+  createOverallPlan(@Body() body: CreateOverallPlanDto, @CurrentUser('sub') userId: string) {
+    return firstValueFrom(
+      this.recruitingClient.send('overall-plan.create', { ...body, createdById: userId }),
+    );
+  }
+
+  @Get('overall-plan/by-request/:requestId')
+  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get the overall plan for a recruitment request' })
+  getOverallPlanByRequest(@Param('requestId') requestId: string) {
+    return firstValueFrom(
+      this.recruitingClient.send('overall-plan.getByRequest', { hiringRequestId: requestId }),
+    );
+  }
+
+  @Patch('overall-plan/:id/resubmit')
+  @Roles(UserRole.HR_MANAGER)
+  @ApiOperation({ summary: 'Resubmit a rejected overall plan for approval' })
+  resubmitOverallPlan(
+    @Param('id') id: string,
+    @Body() body: ResubmitOverallPlanDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('overall-plan.resubmit', { id, performedById: userId, ...body }),
+    );
+  }
+
+  @Post('task-plan')
+  @Roles(UserRole.HR_MANAGER)
+  @ApiOperation({ summary: 'Create (assign) a task within an overall plan' })
+  createTaskPlan(@Body() body: CreateTaskPlanDto, @CurrentUser('sub') userId: string) {
+    return firstValueFrom(
+      this.recruitingClient.send('task-plan.create', {
+        ...body,
+        assignedToId: userId,
+        performedById: userId,
+      }),
+    );
+  }
+
+  @Patch('task-plan/:id/status')
+  @Roles(UserRole.HR_MANAGER)
+  @ApiOperation({ summary: 'Update a task plan status' })
+  updateTaskPlanStatus(
+    @Param('id') id: string,
+    @Body() body: UpdateTaskPlanStatusDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('task-plan.updateStatus', {
+        id,
+        status: body.status,
+        performedById: userId,
       }),
     );
   }
