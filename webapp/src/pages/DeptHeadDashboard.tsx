@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../lib/api';
 
 type IconName =
   | 'assignment'
@@ -59,139 +61,79 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: IconName; className?: str
   );
 };
 
-const metrics = [
-  {
-    label: 'Active Requests',
-    value: '24',
-    helper: '8 reaching deadline soon',
-    icon: 'assignment' as IconName,
-    iconClass: 'bg-surface-container-high text-teal-command',
-    trend: '+12%',
-    trendClass: 'text-approved',
-  },
-  {
-    label: 'Pending Approval',
-    value: '06',
-    helper: 'Avg. wait time: 2.4 days',
-    icon: 'pending' as IconName,
-    iconClass: 'bg-error-container text-error',
-    trend: 'Action req.',
-    trendClass: 'text-revision',
-  },
-  {
-    label: 'Interviews Today',
-    value: '08',
-    helper: 'Next at 11:30 AM',
-    icon: 'event' as IconName,
-    iconClass: 'bg-surface-container-high text-pending',
-    trend: 'Today',
-    trendClass: 'rounded-full bg-pending/10 px-2 py-0.5 text-[10px] font-bold uppercase text-pending',
-  },
-  {
-    label: 'Quarterly Hires',
-    value: '32',
-    helper: '71% reached',
-    icon: 'personAdd' as IconName,
-    iconClass: 'bg-surface-container-high text-approved',
-    trend: 'Goal: 45',
-    trendClass: 'text-on-surface-variant',
-  },
+interface RealtimeTrackingItem {
+  id: string;
+  position: string;
+  targetHeadcount: number;
+  filledHeadcount: number;
+  status: string;
+  createdBy: string;
+  handler: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface InterviewSchedule {
+  id: string;
+  requestId: string;
+  candidateId: string;
+  scheduledAt: string;
+  duration: number;
+  location: string;
+  interviewers: string[];
+  status: string;
+}
+
+interface UpcomingInterview extends InterviewSchedule {
+  position: string;
+}
+
+const TERMINAL_STATUSES = ['DRAFT', 'REJECTED', 'CANCELLED', 'CLOSED'];
+
+const STATUS_DISPLAY: Record<string, { label: string; statusClass: string; dotClass: string }> = {
+  DRAFT: { label: 'Draft', statusClass: 'bg-surface-container-high text-on-surface-variant', dotClass: 'bg-on-surface-variant' },
+  PENDING_REVIEW: { label: 'Pending Review', statusClass: 'bg-pending/10 text-pending', dotClass: 'bg-pending' },
+  APPROVED: { label: 'Approved', statusClass: 'bg-approved/10 text-approved', dotClass: 'bg-approved' },
+  REJECTED: { label: 'Rejected', statusClass: 'bg-rejected/10 text-rejected', dotClass: 'bg-rejected' },
+  REVISION_NEEDED: { label: 'Revision Needed', statusClass: 'bg-revision/10 text-revision', dotClass: 'bg-revision' },
+  PLANNING: { label: 'Planning', statusClass: 'bg-teal-command/10 text-teal-command', dotClass: 'bg-teal-command' },
+  PLAN_APPROVED: { label: 'Plan Approved', statusClass: 'bg-teal-command/10 text-teal-command', dotClass: 'bg-teal-command' },
+  SCREENING: { label: 'Screening', statusClass: 'bg-pending/10 text-pending', dotClass: 'bg-pending' },
+  INTERVIEWING: { label: 'Interviewing', statusClass: 'bg-pending/10 text-pending', dotClass: 'bg-pending' },
+  INTERVIEW_COMPLETED: { label: 'Interview Completed', statusClass: 'bg-approved/10 text-approved', dotClass: 'bg-approved' },
+  OFFER_EXTENDED: { label: 'Offer Extended', statusClass: 'bg-approved/10 text-approved', dotClass: 'bg-approved' },
+  OFFER_ACCEPTED: { label: 'Offer Accepted', statusClass: 'bg-approved/10 text-approved', dotClass: 'bg-approved' },
+  OFFER_DECLINED: { label: 'Offer Declined', statusClass: 'bg-rejected/10 text-rejected', dotClass: 'bg-rejected' },
+  CLOSED: { label: 'Closed', statusClass: 'bg-approved/10 text-approved', dotClass: 'bg-approved' },
+  CANCELLED: { label: 'Cancelled', statusClass: 'bg-rejected/10 text-rejected', dotClass: 'bg-rejected' },
+};
+
+const PIPELINE_BUCKETS: { label: string; statuses: string[]; ring: string; text: string }[] = [
+  { label: 'Sourcing', statuses: ['PENDING_REVIEW', 'APPROVED', 'PLANNING', 'PLAN_APPROVED'], ring: 'border-teal-command/20', text: 'text-teal-command' },
+  { label: 'Screening', statuses: ['SCREENING'], ring: 'border-pending/20', text: 'text-pending' },
+  { label: 'Interviewing', statuses: ['INTERVIEWING', 'INTERVIEW_COMPLETED'], ring: 'border-revision/20', text: 'text-revision' },
+  { label: 'Offer Stage', statuses: ['OFFER_EXTENDED', 'OFFER_ACCEPTED', 'OFFER_DECLINED'], ring: 'border-approved/20', text: 'text-approved' },
 ];
 
-const pipelineStages = [
-  { label: 'Sourcing', value: '45', ring: 'border-teal-command/20', text: 'text-teal-command' },
-  { label: 'Screening', value: '28', ring: 'border-pending/20', text: 'text-pending' },
-  { label: 'Interviewing', value: '14', ring: 'border-revision/20', text: 'text-revision' },
-  { label: 'Offer Stage', value: '05', ring: 'border-approved/20', text: 'text-approved' },
-];
+const getInitials = (name: string) =>
+  name
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
 
-const roles = [
-  {
-    id: 'REQ-2026-042',
-    role: 'Senior Frontend Engineer',
-    applicants: '12',
-    delta: '+2 today',
-    status: 'Interviewing',
-    statusClass: 'bg-pending/10 text-pending',
-    dotClass: 'bg-pending',
-    manager: 'Sarah Chen',
-    initials: 'SC',
-  },
-  {
-    id: 'REQ-2026-038',
-    role: 'Staff Product Designer',
-    applicants: '08',
-    delta: '',
-    status: 'Offer Stage',
-    statusClass: 'bg-approved/10 text-approved',
-    dotClass: 'bg-approved',
-    manager: 'Mike Ross',
-    initials: 'MR',
-  },
-];
-
-const interviews = [
-  {
-    day: '11',
-    month: 'JUN',
-    name: 'David Miller',
-    role: 'Senior DevOps Lead',
-    time: '11:30 AM - 12:30 PM',
-    border: 'border-teal-command',
-  },
-  {
-    day: '11',
-    month: 'JUN',
-    name: 'Elena Rodriguez',
-    role: 'Frontend Developer',
-    time: '02:00 PM - 03:00 PM',
-    border: 'border-pending',
-  },
-  {
-    day: '12',
-    month: 'JUN',
-    name: 'Jordan Smith',
-    role: 'QA Engineer',
-    time: '09:00 AM - 10:00 AM',
-    border: 'border-revision',
-  },
-];
-
-const activity = [
-  {
-    icon: 'check' as IconName,
-    iconClass: 'bg-approved',
-    text: (
-      <>
-        <span className="font-bold">Request #REQ-2026-001</span> has been{' '}
-        <span className="font-medium text-approved">approved</span> by VP Operations.
-      </>
-    ),
-    time: '2 hours ago',
-  },
-  {
-    icon: 'person' as IconName,
-    iconClass: 'bg-pending',
-    text: (
-      <>
-        <span className="font-bold">New application</span> received for{' '}
-        <span className="italic">Senior Developer</span> from Marc Jacobs.
-      </>
-    ),
-    time: '4 hours ago',
-  },
-  {
-    icon: 'calendar' as IconName,
-    iconClass: 'bg-revision',
-    text: (
-      <>
-        Interview for <span className="font-bold">Candidate: Anna Lee</span> rescheduled to
-        tomorrow at 10 AM.
-      </>
-    ),
-    time: 'Yesterday, 4:15 PM',
-  },
-];
+const formatRelativeTime = (iso: string) => {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? '' : 's'} ago`;
+};
 
 const Card = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
   <section
@@ -203,6 +145,182 @@ const Card = ({ children, className = '' }: { children: React.ReactNode; classNa
 
 export const DeptHeadDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { token, user } = useAuth();
+  const [requests, setRequests] = useState<RealtimeTrackingItem[]>([]);
+  const [schedules, setSchedules] = useState<UpcomingInterview[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
+
+  useEffect(() => {
+    const loadDashboard = async () => {
+      setLoading(true);
+      setApiError('');
+      try {
+        const data = await apiRequest<RealtimeTrackingItem[]>('/reports/realtime-tracking', token);
+        setRequests(data);
+
+        const activeRequests = data.filter((item) => !TERMINAL_STATUSES.includes(item.status));
+        const scheduleLists = await Promise.all(
+          activeRequests.map((item) =>
+            apiRequest<InterviewSchedule[]>(`/interviews/requests/${item.id}/schedules`, token)
+              .then((list) => list.map((schedule) => ({ ...schedule, position: item.position })))
+              .catch(() => [] as UpcomingInterview[]),
+          ),
+        );
+        setSchedules(scheduleLists.flat());
+      } catch (loadError) {
+        setApiError(loadError instanceof Error ? loadError.message : 'Unable to load dashboard');
+      } finally {
+        setLoading(false);
+      }
+    };
+    void loadDashboard();
+  }, [token]);
+
+  const activeRequests = useMemo(
+    () => requests.filter((item) => !TERMINAL_STATUSES.includes(item.status)),
+    [requests],
+  );
+
+  const pendingCount = useMemo(
+    () => requests.filter((item) => item.status === 'PENDING_REVIEW').length,
+    [requests],
+  );
+
+  const quarterlyHires = useMemo(
+    () => requests.reduce((sum, item) => sum + item.filledHeadcount, 0),
+    [requests],
+  );
+
+  const targetHeadcount = useMemo(
+    () => requests.reduce((sum, item) => sum + item.targetHeadcount, 0),
+    [requests],
+  );
+
+  const hiresPercent = targetHeadcount > 0 ? Math.round((quarterlyHires / targetHeadcount) * 100) : 0;
+
+  const interviewsToday = useMemo(() => {
+    const today = new Date().toDateString();
+    return schedules.filter((schedule) => new Date(schedule.scheduledAt).toDateString() === today)
+      .length;
+  }, [schedules]);
+
+  const metrics = [
+    {
+      label: 'Active Requests',
+      value: String(activeRequests.length).padStart(2, '0'),
+      helper: `${pendingCount} pending approval`,
+      icon: 'assignment' as IconName,
+      iconClass: 'bg-surface-container-high text-teal-command',
+      trend: '',
+      trendClass: 'text-approved',
+    },
+    {
+      label: 'Pending Approval',
+      value: String(pendingCount).padStart(2, '0'),
+      helper: 'Awaiting review',
+      icon: 'pending' as IconName,
+      iconClass: 'bg-error-container text-error',
+      trend: pendingCount > 0 ? 'Action req.' : '',
+      trendClass: 'text-revision',
+    },
+    {
+      label: 'Interviews Today',
+      value: String(interviewsToday).padStart(2, '0'),
+      helper: interviewsToday > 0 ? 'Check your calendar' : 'No interviews scheduled',
+      icon: 'event' as IconName,
+      iconClass: 'bg-surface-container-high text-pending',
+      trend: interviewsToday > 0 ? 'Today' : '',
+      trendClass: 'rounded-full bg-pending/10 px-2 py-0.5 text-[10px] font-bold uppercase text-pending',
+    },
+    {
+      label: 'Quarterly Hires',
+      value: String(quarterlyHires).padStart(2, '0'),
+      helper: `${hiresPercent}% of target reached`,
+      icon: 'personAdd' as IconName,
+      iconClass: 'bg-surface-container-high text-approved',
+      trend: `Goal: ${targetHeadcount}`,
+      trendClass: 'text-on-surface-variant',
+    },
+  ];
+
+  const pipelineStages = PIPELINE_BUCKETS.map((bucket) => ({
+    label: bucket.label,
+    value: String(requests.filter((item) => bucket.statuses.includes(item.status)).length).padStart(2, '0'),
+    ring: bucket.ring,
+    text: bucket.text,
+  }));
+
+  const roles = activeRequests.slice(0, 5).map((item) => {
+    const display = STATUS_DISPLAY[item.status] ?? STATUS_DISPLAY.APPROVED;
+    return {
+      id: item.id,
+      role: item.position,
+      applicants: `${item.filledHeadcount}/${item.targetHeadcount}`,
+      status: display!.label,
+      statusClass: display!.statusClass,
+      dotClass: display!.dotClass,
+      manager: item.handler,
+      initials: getInitials(item.handler),
+    };
+  });
+
+  const upcomingInterviews = useMemo(() => {
+    const now = new Date();
+    const borders = ['border-teal-command', 'border-pending', 'border-revision'];
+    return schedules
+      .filter((schedule) => schedule.status !== 'CANCELLED' && new Date(schedule.scheduledAt) >= now)
+      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+      .slice(0, 3)
+      .map((schedule, index) => {
+        const start = new Date(schedule.scheduledAt);
+        const end = new Date(start.getTime() + schedule.duration * 60000);
+        return {
+          id: schedule.id,
+          day: String(start.getDate()).padStart(2, '0'),
+          month: start.toLocaleDateString(undefined, { month: 'short' }).toUpperCase(),
+          name: `Candidate ${schedule.candidateId.slice(0, 8)}`,
+          role: schedule.position,
+          time: `${start.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`,
+          border: borders[index % borders.length],
+        };
+      });
+  }, [schedules]);
+
+  const recentActivity = useMemo(
+    () =>
+      [...requests]
+        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+        .slice(0, 3)
+        .map((item) => {
+          const display = STATUS_DISPLAY[item.status] ?? STATUS_DISPLAY.APPROVED;
+          const icon: IconName =
+            item.status === 'OFFER_ACCEPTED' || item.status === 'CLOSED'
+              ? 'check'
+              : item.status === 'INTERVIEWING' || item.status === 'INTERVIEW_COMPLETED'
+                ? 'calendar'
+                : 'person';
+          const iconClass =
+            item.status === 'OFFER_ACCEPTED' || item.status === 'CLOSED'
+              ? 'bg-approved'
+              : item.status === 'REVISION_NEEDED' || item.status === 'REJECTED'
+                ? 'bg-revision'
+                : 'bg-pending';
+          return {
+            id: item.id,
+            icon,
+            iconClass,
+            text: (
+              <>
+                <span className="font-bold">{item.position}</span> request is now{' '}
+                <span className="font-medium">{display!.label}</span>.
+              </>
+            ),
+            time: formatRelativeTime(item.updatedAt),
+          };
+        }),
+    [requests],
+  );
 
   return (
     <div className="mx-auto flex max-w-[1440px] flex-col gap-6">
@@ -225,12 +343,31 @@ export const DeptHeadDashboard: React.FC = () => {
         </div>
       </section>
 
+      {apiError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-rejected">
+          {apiError}
+        </div>
+      )}
+
+      {loading && (
+        <div className="rounded-lg border border-border-warm bg-clean-surface px-4 py-3 text-sm text-on-surface-variant">
+          Loading dashboard...
+        </div>
+      )}
+
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h2 className="text-[32px] font-semibold leading-tight tracking-tight text-on-surface">
-            Good morning, Sarah
+            Good morning, {user?.displayName ?? 'there'}
           </h2>
-          <p className="mt-1 text-sm text-on-surface-variant">Thursday, June 11, 2026</p>
+          <p className="mt-1 text-sm text-on-surface-variant">
+            {new Date().toLocaleDateString(undefined, {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            })}
+          </p>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
           <button
@@ -257,14 +394,19 @@ export const DeptHeadDashboard: React.FC = () => {
               <span className={`rounded-lg p-2 ${metric.iconClass}`}>
                 <Icon name={metric.icon} />
               </span>
-              <span className={`text-xs font-semibold ${metric.trendClass}`}>{metric.trend}</span>
+              {metric.trend && (
+                <span className={`text-xs font-semibold ${metric.trendClass}`}>{metric.trend}</span>
+              )}
             </div>
             <p className="mb-1 text-sm font-medium text-on-surface-variant">{metric.label}</p>
             <h3 className="text-[32px] font-semibold leading-none text-on-surface">{metric.value}</h3>
             {metric.label === 'Quarterly Hires' ? (
               <>
                 <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-surface-container-high">
-                  <div className="h-full w-[71%] rounded-full bg-teal-command" />
+                  <div
+                    className="h-full rounded-full bg-teal-command"
+                    style={{ width: `${Math.min(100, hiresPercent)}%` }}
+                  />
                 </div>
                 <p className="mt-2 text-right text-xs font-semibold text-outline">{metric.helper}</p>
               </>
@@ -331,11 +473,6 @@ export const DeptHeadDashboard: React.FC = () => {
                     <td className="px-2 py-4">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-on-surface">{role.applicants}</span>
-                        {role.delta && (
-                          <span className="rounded bg-approved/10 px-1.5 text-[10px] text-approved">
-                            {role.delta}
-                          </span>
-                        )}
                       </div>
                     </td>
                     <td className="px-2 py-4">
@@ -356,6 +493,13 @@ export const DeptHeadDashboard: React.FC = () => {
                     </td>
                   </tr>
                 ))}
+                {roles.length === 0 && !loading && (
+                  <tr>
+                    <td className="px-2 py-6 text-sm text-on-surface-variant" colSpan={4}>
+                      No active recruitment requests yet.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -373,10 +517,10 @@ export const DeptHeadDashboard: React.FC = () => {
             </button>
           </div>
           <div className="space-y-4">
-            {interviews.map((interview) => (
+            {upcomingInterviews.map((interview) => (
               <div
                 className={`group flex items-center justify-between rounded-lg border-l-4 bg-workflow-ivory p-4 transition-all hover:shadow-sm ${interview.border}`}
-                key={`${interview.name}-${interview.time}`}
+                key={interview.id}
               >
                 <div className="flex items-center gap-3">
                   <div className="min-w-[40px] text-center">
@@ -394,12 +538,16 @@ export const DeptHeadDashboard: React.FC = () => {
                 </div>
                 <button
                   className="rounded-full p-2 text-teal-command opacity-0 transition-all hover:bg-teal-command/10 group-hover:opacity-100"
+                  onClick={() => navigate('/dept-head/interviews')}
                   type="button"
                 >
                   <Icon className="h-4 w-4" name="arrow" />
                 </button>
               </div>
             ))}
+            {upcomingInterviews.length === 0 && !loading && (
+              <p className="text-sm text-on-surface-variant">No upcoming interviews scheduled.</p>
+            )}
           </div>
 
           <div className="mt-6 border-t border-border-warm pt-6">
@@ -424,8 +572,8 @@ export const DeptHeadDashboard: React.FC = () => {
       <Card className="p-6">
         <h2 className="mb-6 text-xl font-semibold text-on-surface">Recent Activity</h2>
         <div className="relative space-y-6 before:absolute before:bottom-2 before:left-[11px] before:top-2 before:w-0.5 before:bg-border-warm">
-          {activity.map((item) => (
-            <div className="relative pl-8" key={item.time}>
+          {recentActivity.map((item) => (
+            <div className="relative pl-8" key={item.id}>
               <div
                 className={`absolute left-0 top-1 flex h-6 w-6 items-center justify-center rounded-full border-4 border-clean-surface ${item.iconClass}`}
               >
@@ -445,6 +593,9 @@ export const DeptHeadDashboard: React.FC = () => {
               </div>
             </div>
           ))}
+          {recentActivity.length === 0 && !loading && (
+            <p className="text-sm text-on-surface-variant">No recent activity yet.</p>
+          )}
         </div>
       </Card>
 

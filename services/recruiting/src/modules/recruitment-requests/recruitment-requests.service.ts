@@ -1,5 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
+import { Prisma } from '@prisma/client';
 import { RecruitmentRequestStatus, UserRole } from '@wr/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
 
@@ -124,6 +125,101 @@ export class RecruitmentRequestsService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  async createForDepartmentHead(payload: {
+    positionTitle: string;
+    headcount: number;
+    jobDescription: string;
+    justification: string;
+    urgency: string;
+    skillRequirements?: Record<string, unknown>;
+    createdById: string;
+    submit?: boolean;
+  }) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.createdById },
+      select: { departmentId: true },
+    });
+
+    if (!user?.departmentId) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'Your account is not assigned to a department',
+      });
+    }
+
+    const status = payload.submit
+      ? RecruitmentRequestStatus.PENDING_REVIEW
+      : RecruitmentRequestStatus.DRAFT;
+
+    const created = await this.prisma.recruitmentRequest.create({
+      data: {
+        departmentId: user.departmentId,
+        createdById: payload.createdById,
+        position: payload.positionTitle,
+        headcount: payload.headcount,
+        jobDescription: payload.jobDescription,
+        skillRequirements: (payload.skillRequirements ?? {}) as Prisma.InputJsonValue,
+        justification: payload.justification,
+        urgency: payload.urgency,
+        status,
+      },
+    });
+
+    await this.prisma.requestLog.create({
+      data: {
+        requestId: created.id,
+        action: 'CREATED',
+        toStatus: status,
+        performedById: payload.createdById,
+      },
+    });
+
+    return created;
+  }
+
+  async submitDraft(payload: { id: string; userId: string }) {
+    const request = await this.prisma.recruitmentRequest.findUnique({
+      where: { id: payload.id },
+    });
+
+    if (!request) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Recruitment request with ID ${payload.id} not found`,
+      });
+    }
+    if (request.createdById !== payload.userId) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'You can only submit your own recruitment requests',
+      });
+    }
+    if (request.status !== RecruitmentRequestStatus.DRAFT) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: `Only requests in ${RecruitmentRequestStatus.DRAFT} status can be submitted`,
+      });
+    }
+
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.recruitmentRequest.update({
+        where: { id: payload.id },
+        data: { status: RecruitmentRequestStatus.PENDING_REVIEW },
+      }),
+      this.prisma.requestLog.create({
+        data: {
+          requestId: payload.id,
+          action: 'SUBMITTED_FOR_REVIEW',
+          fromStatus: RecruitmentRequestStatus.DRAFT,
+          toStatus: RecruitmentRequestStatus.PENDING_REVIEW,
+          performedById: payload.userId,
+        },
+      }),
+    ]);
+
+    return updated;
   }
 
   async assignToHr(payload: { id: string; hrManagerId: string; assignedById: string }) {

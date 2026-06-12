@@ -1,4 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../lib/api';
 
 type ViewMode = 'This Week' | 'This Month';
 type SortKey = 'earliest' | 'position';
@@ -9,6 +11,7 @@ interface CalendarEvent {
   id: string;
   day: string;
   date: string;
+  scheduledAt: string;
   time: string;
   round: string;
   position: string;
@@ -20,72 +23,44 @@ interface CalendarEvent {
   tone: InterviewTone;
 }
 
-const calendarDays = [
-  { day: 'Mon', date: 'May 26' },
-  { day: 'Tue', date: 'May 27' },
-  { day: 'Wed', date: 'May 28' },
-  { day: 'Thu', date: 'May 29' },
-  { day: 'Fri', date: 'May 30' },
-];
+interface RealtimeTrackingItem {
+  id: string;
+  position: string;
+  status: string;
+}
 
-const events: CalendarEvent[] = [
-  {
-    id: 'INT-DH-001',
-    day: 'Mon',
-    date: 'May 26',
-    time: '10:00',
-    round: 'Round 1',
-    position: 'Senior Developer',
-    location: 'Room 301',
-    locationType: 'room',
-    candidates: ['Nguyen Van A', 'Tran Ngoc Mai', 'Le Hoang Quan'],
-    panel: ['Vo Minh Tu', 'Le Thi Hang'],
-    status: 'Confirmed',
-    tone: 'teal',
-  },
-  {
-    id: 'INT-DH-002',
-    day: 'Mon',
-    date: 'May 26',
-    time: '14:00',
-    round: 'Technical',
-    position: 'Marketing Specialist',
-    location: 'Zoom Meeting Link',
-    locationType: 'video',
-    candidates: ['Phan Bao Ngoc', 'Le Quoc Huy'],
-    panel: ['Tran Van C'],
-    status: 'Pending Confirmation',
-    tone: 'cyan',
-  },
-  {
-    id: 'INT-DH-003',
-    day: 'Tue',
-    date: 'May 27',
-    time: '09:00',
-    round: 'Final Round',
-    position: 'DevOps Engineer',
-    location: 'Room 502',
-    locationType: 'room',
-    candidates: ['Hoang Thanh Tung'],
-    panel: ['Admin', 'HR'],
-    status: 'Confirmed',
-    tone: 'amber',
-  },
-  {
-    id: 'INT-DH-004',
-    day: 'Thu',
-    date: 'May 29',
-    time: '11:30',
-    round: 'Portfolio Review',
-    position: 'Junior Designer',
-    location: 'Room 201',
-    locationType: 'room',
-    candidates: ['Mai Anh', 'Doan Nhat Linh', 'Pham Thuy Vy', 'Nguyen Bao Chau'],
-    panel: ['Creative Lead', 'Dept Head'],
-    status: 'Confirmed',
-    tone: 'slate',
-  },
-];
+interface InterviewSchedule {
+  id: string;
+  requestId: string;
+  candidateId: string;
+  scheduledAt: string;
+  duration: number;
+  location: string;
+  interviewers: string[];
+  status: string;
+}
+
+const TERMINAL_STATUSES = ['DRAFT', 'REJECTED', 'CANCELLED', 'CLOSED'];
+const TONES: InterviewTone[] = ['teal', 'cyan', 'amber', 'slate'];
+
+const formatDateLabel = (date: Date) =>
+  date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+const getWeekDays = () => {
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+
+  return Array.from({ length: 5 }, (_, index) => {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + index);
+    return {
+      day: date.toLocaleDateString(undefined, { weekday: 'short' }),
+      date: formatDateLabel(date),
+    };
+  });
+};
 
 const toneStyles: Record<InterviewTone, string> = {
   teal: 'border-teal-command bg-primary-container/10 text-teal-command',
@@ -129,8 +104,64 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
 };
 
 export const DeptHeadInterviews: React.FC = () => {
+  const { token } = useAuth();
   const [viewMode, setViewMode] = useState<ViewMode>('This Week');
   const [sortKey, setSortKey] = useState<SortKey>('earliest');
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
+
+  const calendarDays = useMemo(() => getWeekDays(), []);
+
+  useEffect(() => {
+    const loadInterviews = async () => {
+      setLoading(true);
+      setApiError('');
+      try {
+        const requests = await apiRequest<RealtimeTrackingItem[]>('/reports/realtime-tracking', token);
+        const activeRequests = requests.filter((request) => !TERMINAL_STATUSES.includes(request.status));
+
+        const scheduleLists = await Promise.all(
+          activeRequests.map((request) =>
+            apiRequest<InterviewSchedule[]>(`/interviews/requests/${request.id}/schedules`, token)
+              .then((schedules) => schedules.map((schedule) => ({ schedule, position: request.position })))
+              .catch(() => [] as { schedule: InterviewSchedule; position: string }[]),
+          ),
+        );
+
+        const mapped = scheduleLists
+          .flat()
+          .filter(({ schedule }) => schedule.status !== 'CANCELLED')
+          .map(({ schedule, position }, index): CalendarEvent => {
+            const date = new Date(schedule.scheduledAt);
+            const isVideo = /https?:\/\/|zoom|meet/i.test(schedule.location);
+
+            return {
+              id: schedule.id,
+              day: date.toLocaleDateString(undefined, { weekday: 'short' }),
+              date: formatDateLabel(date),
+              scheduledAt: schedule.scheduledAt,
+              time: date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
+              round: 'Interview',
+              position,
+              location: schedule.location,
+              locationType: isVideo ? 'video' : 'room',
+              candidates: [`Candidate ${schedule.candidateId.slice(0, 8)}`],
+              panel: schedule.interviewers.map((id) => `Interviewer ${id.slice(0, 8)}`),
+              status: schedule.status === 'SCHEDULED' ? 'Confirmed' : 'Pending Confirmation',
+              tone: TONES[index % TONES.length] ?? 'teal',
+            };
+          });
+
+        setEvents(mapped);
+      } catch (loadError) {
+        setApiError(loadError instanceof Error ? loadError.message : 'Unable to load interviews');
+      } finally {
+        setLoading(false);
+      }
+    };
+    void loadInterviews();
+  }, [token]);
 
   const sortedEvents = useMemo(() => {
     return [...events].sort((left, right) => {
@@ -138,11 +169,9 @@ export const DeptHeadInterviews: React.FC = () => {
         return left.position.localeCompare(right.position);
       }
 
-      const leftDate = `${left.date} ${left.time}`;
-      const rightDate = `${right.date} ${right.time}`;
-      return leftDate.localeCompare(rightDate);
+      return new Date(left.scheduledAt).getTime() - new Date(right.scheduledAt).getTime();
     });
-  }, [sortKey]);
+  }, [events, sortKey]);
 
   return (
     <div className="mx-auto flex max-w-[1440px] flex-col gap-7">
@@ -191,10 +220,22 @@ export const DeptHeadInterviews: React.FC = () => {
         </div>
       </header>
 
+      {apiError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-rejected">
+          {apiError}
+        </div>
+      )}
+
+      {loading && (
+        <div className="rounded-lg border border-border-warm bg-clean-surface px-4 py-3 text-sm text-on-surface-variant">
+          Loading interviews...
+        </div>
+      )}
+
       <section aria-label={`${viewMode} calendar`}>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
           {calendarDays.map((day) => {
-            const dayEvents = events.filter((event) => event.day === day.day);
+            const dayEvents = events.filter((event) => event.date === day.date);
 
             return (
               <div className="flex min-h-[220px] flex-col gap-3" key={`${day.day}-${day.date}`}>
@@ -340,6 +381,9 @@ export const DeptHeadInterviews: React.FC = () => {
               </div>
             </article>
           ))}
+          {sortedEvents.length === 0 && !loading && (
+            <p className="text-sm text-on-surface-variant">No interviews scheduled.</p>
+          )}
         </div>
       </section>
     </div>

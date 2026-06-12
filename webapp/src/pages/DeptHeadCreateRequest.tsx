@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { ApiError, apiRequest } from '../lib/api';
 
 type Priority = 'Low' | 'Medium' | 'High' | 'Critical';
 
@@ -109,10 +111,13 @@ const Section = ({
 
 export const DeptHeadCreateRequest: React.FC = () => {
   const navigate = useNavigate();
+  const { token } = useAuth();
   const [form, setForm] = useState<FormState>(initialForm);
   const [skills, setSkills] = useState(['React', 'TypeScript', 'Node.js']);
   const [notice, setNotice] = useState<string | null>(null);
+  const [noticeIsError, setNoticeIsError] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
 
   const readiness = useMemo(() => {
     const complete = [
@@ -134,6 +139,7 @@ export const DeptHeadCreateRequest: React.FC = () => {
       return next;
     });
     setNotice(null);
+    setNoticeIsError(false);
   };
 
   const addSkill = () => {
@@ -158,24 +164,72 @@ export const DeptHeadCreateRequest: React.FC = () => {
     return Object.keys(nextErrors).length === 0;
   };
 
-  const saveDraft = () => {
+  const buildPayload = (submitForReview: boolean) => ({
+    positionTitle: form.positionTitle,
+    headcount: form.headcount,
+    jobDescription: form.description,
+    justification: form.notes || form.description,
+    urgency: form.priority.toUpperCase(),
+    skillRequirements: {
+      skills,
+      jobLevel: form.jobLevel,
+      employmentType: form.employmentType,
+      experience: form.experience,
+      education: form.education,
+      salaryMin: form.salaryMin,
+      salaryMax: form.salaryMax,
+      startDate: form.startDate,
+    },
+    submit: submitForReview,
+  });
+
+  const saveDraft = async () => {
     if (!form.positionTitle.trim()) {
       setErrors({ positionTitle: 'Position title is required before saving a draft.' });
       setNotice(null);
+      setNoticeIsError(false);
       return;
     }
 
     setErrors({});
-    setNotice('Draft saved for this recruitment request.');
+    setSubmitting(true);
+    try {
+      await apiRequest('/recruitment-requests', token, {
+        method: 'POST',
+        body: JSON.stringify(buildPayload(false)),
+      });
+      setNoticeIsError(false);
+      setNotice('Draft saved for this recruitment request.');
+    } catch (saveError) {
+      setNoticeIsError(true);
+      setNotice(saveError instanceof ApiError ? saveError.message : 'Unable to save draft.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (!validate()) {
       setNotice(null);
+      setNoticeIsError(false);
       return;
     }
 
-    setNotice('Recruitment request submitted for approval.');
+    setSubmitting(true);
+    try {
+      await apiRequest('/recruitment-requests', token, {
+        method: 'POST',
+        body: JSON.stringify(buildPayload(true)),
+      });
+      setNoticeIsError(false);
+      setNotice('Recruitment request submitted for approval.');
+      navigate('/dept-head/requests');
+    } catch (submitError) {
+      setNoticeIsError(true);
+      setNotice(submitError instanceof ApiError ? submitError.message : 'Unable to submit request.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -214,7 +268,13 @@ export const DeptHeadCreateRequest: React.FC = () => {
       </header>
 
       {notice && (
-        <div className="mb-5 rounded-lg border border-teal-command/20 bg-teal-command/5 px-4 py-3 text-sm font-semibold text-teal-command">
+        <div
+          className={`mb-5 rounded-lg border px-4 py-3 text-sm font-semibold ${
+            noticeIsError
+              ? 'border-red-200 bg-red-50 text-rejected'
+              : 'border-teal-command/20 bg-teal-command/5 text-teal-command'
+          }`}
+        >
           {notice}
         </div>
       )}
@@ -480,14 +540,16 @@ export const DeptHeadCreateRequest: React.FC = () => {
             <span className="font-mono">{readiness}%</span>
           </div>
           <button
-            className="rounded-lg border border-teal-command px-6 py-2.5 text-sm font-semibold text-teal-command transition hover:bg-surface-container-low active:scale-[0.98]"
+            className="rounded-lg border border-teal-command px-6 py-2.5 text-sm font-semibold text-teal-command transition hover:bg-surface-container-low active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={submitting}
             onClick={saveDraft}
             type="button"
           >
             Save as Draft
           </button>
           <button
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-command px-8 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary active:scale-[0.98]"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-command px-8 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={submitting}
             onClick={submit}
             type="button"
           >
