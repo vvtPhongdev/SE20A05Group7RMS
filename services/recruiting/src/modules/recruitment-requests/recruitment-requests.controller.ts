@@ -11,6 +11,28 @@ export class RecruitmentRequestsController {
     return this.service.listForAdmin(payload);
   }
 
+  @MessagePattern('recruitment-requests.depthead.create')
+  createForDepartmentHead(
+    @Payload()
+    payload: {
+      positionTitle: string;
+      headcount: number;
+      jobDescription: string;
+      justification: string;
+      urgency: string;
+      skillRequirements?: Record<string, unknown>;
+      createdById: string;
+      submit?: boolean;
+    },
+  ) {
+    return this.service.createForDepartmentHead(payload);
+  }
+
+  @MessagePattern('recruitment-requests.depthead.submit')
+  submitDraft(@Payload() payload: { id: string; userId: string }) {
+    return this.service.submitDraft(payload);
+  }
+
   @MessagePattern('recruitment-requests.admin.assign')
   assignToHr(
     @Payload()

@@ -1,7 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { ApiError, apiRequest } from '../lib/api';
 
-type RequestStatus = 'Draft' | 'Pending' | 'Approved' | 'Revision Required' | 'Completed';
+type RequestStatus = 'Draft' | 'Pending' | 'Approved' | 'Revision Required' | 'Completed' | 'Rejected';
 type Priority = 'Low' | 'Medium' | 'High' | 'Critical';
 type FilterKey = 'All' | 'Pending' | 'Approved' | 'Revision' | 'Completed';
 type SortKey = 'submitted' | 'priority' | 'status' | 'quantity';
@@ -10,68 +12,25 @@ interface DeptRequest {
   id: string;
   position: string;
   quantity: number;
+  filledHeadcount: number;
   priority: Priority;
   submitted: string;
   submittedAt: string;
   status: RequestStatus;
 }
 
-const initialRequests: DeptRequest[] = [
-  {
-    id: 'REQ-2026-001',
-    position: 'Senior Developer',
-    quantity: 2,
-    priority: 'High',
-    submitted: 'May 15, 2026',
-    submittedAt: '2026-05-15',
-    status: 'Approved',
-  },
-  {
-    id: 'REQ-2026-002',
-    position: 'Marketing Specialist',
-    quantity: 1,
-    priority: 'Medium',
-    submitted: 'May 18, 2026',
-    submittedAt: '2026-05-18',
-    status: 'Pending',
-  },
-  {
-    id: 'REQ-2026-003',
-    position: 'Data Analyst',
-    quantity: 3,
-    priority: 'High',
-    submitted: 'May 20, 2026',
-    submittedAt: '2026-05-20',
-    status: 'Revision Required',
-  },
-  {
-    id: 'REQ-2026-004',
-    position: 'UX Designer',
-    quantity: 1,
-    priority: 'Low',
-    submitted: 'May 22, 2026',
-    submittedAt: '2026-05-22',
-    status: 'Draft',
-  },
-  {
-    id: 'REQ-2026-005',
-    position: 'DevOps Engineer',
-    quantity: 2,
-    priority: 'Critical',
-    submitted: 'May 25, 2026',
-    submittedAt: '2026-05-25',
-    status: 'Pending',
-  },
-  {
-    id: 'REQ-2026-006',
-    position: 'Product Manager',
-    quantity: 1,
-    priority: 'Medium',
-    submitted: 'May 10, 2026',
-    submittedAt: '2026-05-10',
-    status: 'Completed',
-  },
-];
+interface RealtimeTrackingItem {
+  id: string;
+  position: string;
+  targetHeadcount: number;
+  filledHeadcount: number;
+  status: string;
+  createdBy: string;
+  handler: string;
+  createdAt: string;
+  updatedAt: string;
+  urgency?: string;
+}
 
 const filterOptions: FilterKey[] = ['All', 'Pending', 'Approved', 'Revision', 'Completed'];
 
@@ -88,7 +47,56 @@ const statusStyles: Record<RequestStatus, string> = {
   'Revision Required': 'border-amber-200 bg-amber-50 text-revision',
   Draft: 'border-stone-200 bg-stone-100 text-draft',
   Completed: 'border-green-200 bg-green-50 text-approved',
+  Rejected: 'border-red-200 bg-red-50 text-rejected',
 };
+
+const priorityFromUrgency = (urgency?: string): Priority => {
+  switch ((urgency ?? '').toUpperCase()) {
+    case 'CRITICAL':
+      return 'Critical';
+    case 'HIGH':
+      return 'High';
+    case 'LOW':
+      return 'Low';
+    default:
+      return 'Medium';
+  }
+};
+
+const statusFromApi = (status: string, filledHeadcount: number, targetHeadcount: number): RequestStatus => {
+  switch (status) {
+    case 'DRAFT':
+      return 'Draft';
+    case 'PENDING_REVIEW':
+      return 'Pending';
+    case 'REVISION_NEEDED':
+      return 'Revision Required';
+    case 'REJECTED':
+    case 'CANCELLED':
+      return 'Rejected';
+    case 'CLOSED':
+      return 'Completed';
+    case 'OFFER_ACCEPTED':
+      return filledHeadcount >= targetHeadcount ? 'Completed' : 'Approved';
+    default:
+      return 'Approved';
+  }
+};
+
+const mapRequest = (item: RealtimeTrackingItem): DeptRequest => ({
+  id: item.id,
+  position: item.position,
+  quantity: item.targetHeadcount,
+  filledHeadcount: item.filledHeadcount,
+  priority: priorityFromUrgency(item.urgency),
+  submitted: new Date(item.createdAt).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }),
+  submittedAt: item.createdAt,
+  status: statusFromApi(item.status, item.filledHeadcount, item.targetHeadcount),
+});
 
 const priorityStyles: Record<Priority, string> = {
   Critical: 'text-rejected',
@@ -135,11 +143,32 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
 
 export const DeptHeadRequests: React.FC = () => {
   const navigate = useNavigate();
-  const [requests, setRequests] = useState(initialRequests);
+  const { token } = useAuth();
+  const [requests, setRequests] = useState<DeptRequest[]>([]);
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey>('All');
   const [sortKey, setSortKey] = useState<SortKey>('submitted');
-  const [selectedRequestId, setSelectedRequestId] = useState(initialRequests[0]?.id ?? '');
+  const [selectedRequestId, setSelectedRequestId] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
+
+  useEffect(() => {
+    const loadRequests = async () => {
+      setLoading(true);
+      setApiError('');
+      try {
+        const data = await apiRequest<RealtimeTrackingItem[]>('/reports/realtime-tracking', token);
+        const mapped = data.map(mapRequest);
+        setRequests(mapped);
+        setSelectedRequestId((current) => current || mapped[0]?.id || '');
+      } catch (loadError) {
+        setApiError(loadError instanceof Error ? loadError.message : 'Unable to load requests');
+      } finally {
+        setLoading(false);
+      }
+    };
+    void loadRequests();
+  }, [token]);
 
   const visibleRequests = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -173,22 +202,32 @@ export const DeptHeadRequests: React.FC = () => {
       });
   }, [activeFilter, query, requests, sortKey]);
 
-  const submitDraft = (id: string) => {
-    setRequests((current) =>
-      current.map((request) =>
-        request.id === id ? { ...request, status: 'Pending' as RequestStatus } : request,
-      ),
-    );
+  const submitDraft = async (id: string) => {
+    setApiError('');
+    try {
+      await apiRequest(`/recruitment-requests/${id}/submit`, token, { method: 'PATCH' });
+      setRequests((current) =>
+        current.map((request) =>
+          request.id === id ? { ...request, status: 'Pending' as RequestStatus } : request,
+        ),
+      );
+    } catch (submitError) {
+      setApiError(
+        submitError instanceof ApiError ? submitError.message : 'Unable to submit request',
+      );
+    }
   };
 
   const selectedRequest =
     requests.find((request) => request.id === selectedRequestId) ?? visibleRequests[0];
 
-  const totalRequests = 24;
-  const pendingCount = requests.filter((request) => request.status === 'Pending').length + 3;
-  const approvedActiveCount = 8;
-  const filledCount = 11;
-  const completionPercent = 45;
+  const totalRequests = requests.length;
+  const pendingCount = requests.filter((request) => request.status === 'Pending').length;
+  const approvedActiveCount = requests.filter((request) => request.status === 'Approved').length;
+  const targetHeadcountSum = requests.reduce((sum, request) => sum + request.quantity, 0);
+  const filledCount = requests.reduce((sum, request) => sum + request.filledHeadcount, 0);
+  const completionPercent =
+    targetHeadcountSum > 0 ? Math.round((filledCount / targetHeadcountSum) * 100) : 0;
   const circumference = 2 * Math.PI * 24;
   const strokeOffset = circumference - (completionPercent / 100) * circumference;
 
@@ -242,9 +281,21 @@ export const DeptHeadRequests: React.FC = () => {
         </div>
       </header>
 
+      {apiError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-rejected">
+          {apiError}
+        </div>
+      )}
+
+      {loading && (
+        <div className="rounded-lg border border-border-warm bg-clean-surface px-4 py-3 text-sm text-on-surface-variant">
+          Loading requests...
+        </div>
+      )}
+
       <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4" aria-label="Request metrics">
         <MetricCard icon="assignment" label="Total Requests" value={totalRequests} />
-        <MetricCard icon="hourglass" label="Pending Approval" value={pendingCount} note="+2 this week" noteClassName="text-pending" />
+        <MetricCard icon="hourglass" label="Pending Approval" value={pendingCount} />
         <MetricCard icon="check" label="Approved & Active" value={approvedActiveCount} />
         <div className="flex items-center justify-between rounded-xl border border-border-warm bg-clean-surface p-5 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]">
           <div>

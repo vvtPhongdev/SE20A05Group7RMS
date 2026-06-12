@@ -4,9 +4,19 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagg
 import { SERVICE_TOKENS } from '../constants';
 import { firstValueFrom } from 'rxjs';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { HiringDecision, OfferResponse, UserRole } from '@wr/contracts';
+import { HiringDecision, OfferResponse, Urgency, UserRole } from '@wr/contracts';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { IsUUID, IsString, IsOptional, IsDateString, IsNotEmpty, IsEnum } from 'class-validator';
+import {
+  IsUUID,
+  IsString,
+  IsOptional,
+  IsDateString,
+  IsNotEmpty,
+  IsEnum,
+  IsInt,
+  IsBoolean,
+  Min,
+} from 'class-validator';
 
 export class CreateJobPostingDto {
   @ApiProperty({ example: 'uuid-of-recruitment-request', description: 'Recruitment Request ID' })
@@ -120,6 +130,44 @@ export class OfferResponseDto {
   response!: OfferResponse;
 }
 
+export class CreateRecruitmentRequestDto {
+  @ApiProperty({ example: 'Senior Frontend Engineer' })
+  @IsString()
+  @IsNotEmpty()
+  positionTitle!: string;
+
+  @ApiProperty({ example: 2 })
+  @IsInt()
+  @Min(1)
+  headcount!: number;
+
+  @ApiProperty({ example: 'Build and maintain customer-facing web apps...' })
+  @IsString()
+  @IsNotEmpty()
+  jobDescription!: string;
+
+  @ApiProperty({ example: 'Team is understaffed for the upcoming product launch.' })
+  @IsString()
+  @IsNotEmpty()
+  justification!: string;
+
+  @ApiProperty({ enum: Urgency, example: Urgency.MEDIUM })
+  @IsEnum(Urgency)
+  urgency!: Urgency;
+
+  @ApiProperty({ required: false, description: 'Additional structured requirements (JSON)' })
+  @IsOptional()
+  skillRequirements?: Record<string, unknown>;
+
+  @ApiProperty({
+    required: false,
+    description: 'If true, submit directly for review instead of saving as draft',
+  })
+  @IsOptional()
+  @IsBoolean()
+  submit?: boolean;
+}
+
 export class AssignRecruitmentRequestDto {
   @ApiProperty({ example: 'uuid-of-hr-manager' })
   @IsUUID()
@@ -178,6 +226,30 @@ export class RecruitingController {
   @ApiOperation({ summary: 'List recruitment requests for admin oversight' })
   listRecruitmentRequests(@Query() query: any) {
     return firstValueFrom(this.recruitingClient.send('recruitment-requests.admin.list', query));
+  }
+
+  @Post('recruitment-requests')
+  @Roles(UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'Create a recruitment request (department head)' })
+  createRecruitmentRequest(
+    @Body() body: CreateRecruitmentRequestDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruitment-requests.depthead.create', {
+        ...body,
+        createdById: userId,
+      }),
+    );
+  }
+
+  @Patch('recruitment-requests/:id/submit')
+  @Roles(UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'Submit a draft recruitment request for review' })
+  submitRecruitmentRequest(@Param('id') id: string, @CurrentUser('sub') userId: string) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruitment-requests.depthead.submit', { id, userId }),
+    );
   }
 
   @Patch('recruitment-requests/:id/assign')
