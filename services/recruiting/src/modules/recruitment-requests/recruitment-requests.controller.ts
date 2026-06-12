@@ -22,4 +22,17 @@ export class RecruitmentRequestsController {
   ) {
     return this.service.assignToHr(payload);
   }
+
+  @MessagePattern('recruitment-requests.admin.decide')
+  decide(
+    @Payload()
+    payload: {
+      id: string;
+      decision: 'APPROVED' | 'REJECTED';
+      comments?: string;
+      adminId: string;
+    },
+  ) {
+    return this.service.decide(payload);
+  }
 }

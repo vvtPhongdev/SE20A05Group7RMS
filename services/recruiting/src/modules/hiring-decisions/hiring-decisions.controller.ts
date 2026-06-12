@@ -19,4 +19,17 @@ export class HiringDecisionsController {
   ) {
     return this.service.decide(payload.requestId, payload.decision, payload.notes, payload.adminId);
   }
+
+  @MessagePattern('recruiting.hiring_decision.request_info')
+  requestInfo(
+    @Payload()
+    payload: {
+      requestId: string;
+      candidateId: string;
+      notes: string;
+      adminId: string;
+    },
+  ) {
+    return this.service.requestInfo(payload);
+  }
 }

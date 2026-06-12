@@ -38,6 +38,8 @@ interface RecruitmentRequest {
   initials: string;
 }
 
+/*
+ * Mock recruitment requests retained for UI reference only.
 const initialRequests: RecruitmentRequest[] = [
   {
     id: 'RMS-9428',
@@ -376,7 +378,7 @@ const generateAllMockRequests = (): RecruitmentRequest[] => {
   return base.sort((a, b) => b.id.localeCompare(a.id));
 };
 
-void generateAllMockRequests;
+*/
 
 type SortField =
   | 'id'

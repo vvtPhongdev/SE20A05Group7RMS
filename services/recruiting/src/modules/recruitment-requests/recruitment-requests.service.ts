@@ -169,4 +169,66 @@ export class RecruitmentRequestsService {
 
     return updated;
   }
+
+  async decide(payload: {
+    id: string;
+    decision: 'APPROVED' | 'REJECTED';
+    comments?: string;
+    adminId: string;
+  }) {
+    const request = await this.prisma.recruitmentRequest.findUnique({
+      where: { id: payload.id },
+    });
+
+    if (!request) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Recruitment request with ID ${payload.id} not found`,
+      });
+    }
+    if (request.status !== RecruitmentRequestStatus.PENDING_REVIEW) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: `Only requests in ${RecruitmentRequestStatus.PENDING_REVIEW} can be decided`,
+      });
+    }
+    if (payload.decision === 'REJECTED' && !payload.comments?.trim()) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'Rejection comments are required',
+      });
+    }
+
+    const comments = payload.comments?.trim() || null;
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.recruitmentRequest.update({
+        where: { id: payload.id },
+        data: {
+          status: payload.decision,
+          approvedById: payload.adminId,
+          rejectionReason: payload.decision === 'REJECTED' ? comments : null,
+        },
+      }),
+      this.prisma.approvalRecord.create({
+        data: {
+          requestId: payload.id,
+          approverId: payload.adminId,
+          decision: payload.decision,
+          comments,
+        },
+      }),
+      this.prisma.requestLog.create({
+        data: {
+          requestId: payload.id,
+          action: 'ADMIN_REQUEST_DECISION',
+          fromStatus: request.status,
+          toStatus: payload.decision,
+          performedById: payload.adminId,
+          metadata: { comments },
+        },
+      }),
+    ]);
+
+    return updated;
+  }
 }

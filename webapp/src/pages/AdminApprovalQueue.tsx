@@ -1,4 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../lib/api';
 
 type ApprovalStatus = 'Pending' | 'Approved' | 'Rejected' | 'Draft';
 type Priority = 'High' | 'Medium' | 'Low';
@@ -18,6 +20,8 @@ interface ApprovalRequest {
   documents: string[];
 }
 
+/*
+ * Mock approval queue retained for UI reference only.
 const initialRequests: ApprovalRequest[] = [
   {
     id: 'RMS-9421',
@@ -149,10 +153,25 @@ const generateMockRequests = (): ApprovalRequest[] => {
   // Sort by id descending
   return base.sort((a, b) => b.id.localeCompare(a.id));
 };
+*/
 
 const filters: FilterKey[] = ['All', 'Pending', 'Approved', 'Rejected', 'Draft'];
 
+interface RecruitmentRequestApi {
+  id: string;
+  position: string;
+  department: { name: string };
+  requester: { displayName: string };
+  status: string;
+  urgency: string;
+  headcount: number;
+  jobDescription: string;
+  justification: string;
+  createdAt: string;
+}
+
 export const AdminApprovalQueue: React.FC = () => {
+  const { token } = useAuth();
   const [requests, setRequests] = useState<ApprovalRequest[]>([]);
   const [filter, setFilter] = useState<FilterKey>('All');
   const [department, setDepartment] = useState('All');
@@ -163,11 +182,61 @@ export const AdminApprovalQueue: React.FC = () => {
   // Selected request for detail drawer
   const [selectedRequest, setSelectedRequest] = useState<ApprovalRequest | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
 
-  // Initialize mock data
   useEffect(() => {
-    setRequests(generateMockRequests());
-  }, []);
+    let cancelled = false;
+    const loadRequests = async () => {
+      setLoading(true);
+      setApiError('');
+      try {
+        const response = await apiRequest<{ data: RecruitmentRequestApi[] }>(
+          '/recruitment-requests?limit=100',
+          token,
+        );
+        if (cancelled) return;
+        setRequests(
+          response.data.map((request) => ({
+            id: request.id,
+            position: request.position,
+            department: request.department.name,
+            requestedBy: request.requester.displayName,
+            headcount: request.headcount,
+            priority:
+              request.urgency === 'HIGH' || request.urgency === 'CRITICAL'
+                ? 'High'
+                : request.urgency === 'MEDIUM'
+                  ? 'Medium'
+                  : 'Low',
+            status:
+              request.status === 'PENDING_REVIEW'
+                ? 'Pending'
+                : request.status === 'APPROVED'
+                  ? 'Approved'
+                  : request.status === 'REJECTED'
+                    ? 'Rejected'
+                    : 'Draft',
+            submitted: new Date(request.createdAt).toLocaleDateString(),
+            salaryRange: 'Not provided',
+            description: request.jobDescription || request.justification,
+            documents: [],
+          })),
+        );
+      } catch (error) {
+        if (!cancelled) {
+          setApiError(error instanceof Error ? error.message : 'Unable to load requests');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void loadRequests();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   // Reset page when filter, query, or department changes
   useEffect(() => {
@@ -221,20 +290,31 @@ export const AdminApprovalQueue: React.FC = () => {
     setIsDrawerOpen(false);
   };
 
-  const handleApprove = (id: string) => {
-    setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status: 'Approved' } : r)));
-    if (selectedRequest && selectedRequest.id === id) {
-      setSelectedRequest((prev) => (prev ? { ...prev, status: 'Approved' } : null));
-    }
-    setIsDrawerOpen(false);
-  };
+  const handleDecision = async (id: string, decision: 'APPROVED' | 'REJECTED') => {
+    const comments =
+      decision === 'REJECTED'
+        ? window.prompt('Enter the rejection reason:')
+        : window.prompt('Approval notes (optional):', '');
+    if (comments === null || (decision === 'REJECTED' && !comments.trim())) return;
 
-  const handleReject = (id: string) => {
-    setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status: 'Rejected' } : r)));
-    if (selectedRequest && selectedRequest.id === id) {
-      setSelectedRequest((prev) => (prev ? { ...prev, status: 'Rejected' } : null));
+    setSubmittingId(id);
+    setApiError('');
+    try {
+      await apiRequest(`/recruitment-requests/${id}/decision`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ decision, comments: comments.trim() || undefined }),
+      });
+      const status: ApprovalStatus = decision === 'APPROVED' ? 'Approved' : 'Rejected';
+      setRequests((prev) =>
+        prev.map((request) => (request.id === id ? { ...request, status } : request)),
+      );
+      setSelectedRequest((prev) => (prev?.id === id ? { ...prev, status } : prev));
+      setIsDrawerOpen(false);
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Unable to save the decision');
+    } finally {
+      setSubmittingId(null);
     }
-    setIsDrawerOpen(false);
   };
 
   return (
@@ -271,6 +351,11 @@ export const AdminApprovalQueue: React.FC = () => {
           </div>
         </div>
       </header>
+      {apiError && (
+        <div className="rounded-lg border border-rejected/30 bg-error-container px-4 py-3 text-sm text-rejected">
+          {apiError}
+        </div>
+      )}
 
       {/* Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
@@ -522,7 +607,9 @@ export const AdminApprovalQueue: React.FC = () => {
                     <span className="material-symbols-outlined text-4xl block mb-2 text-slate-ink">
                       search_off
                     </span>
-                    No requests found matching the current search parameters and filters.
+                    {loading
+                      ? 'Loading recruitment requests...'
+                      : 'No requests found matching the current search parameters and filters.'}
                   </td>
                 </tr>
               )}
@@ -693,12 +780,13 @@ export const AdminApprovalQueue: React.FC = () => {
 
             {/* Actions for Review */}
             <div className="p-6 border-t border-border-warm bg-workflow-ivory flex flex-col gap-3">
-              {selectedRequest.status === 'Pending' || selectedRequest.status === 'Draft' ? (
+              {selectedRequest.status === 'Pending' ? (
                 <>
                   <button
                     className="w-full bg-teal-command hover:bg-primary text-white py-3 rounded-lg font-label-md font-semibold transition-all flex items-center justify-center gap-2 shadow-sm active:scale-[0.98]"
                     type="button"
-                    onClick={() => handleApprove(selectedRequest.id)}
+                    disabled={submittingId === selectedRequest.id}
+                    onClick={() => void handleDecision(selectedRequest.id, 'APPROVED')}
                   >
                     <span className="material-symbols-outlined">check</span>
                     Approve Request
@@ -706,7 +794,8 @@ export const AdminApprovalQueue: React.FC = () => {
                   <button
                     className="w-full border border-rejected hover:bg-error-container text-rejected py-3 rounded-lg font-label-md font-semibold transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
                     type="button"
-                    onClick={() => handleReject(selectedRequest.id)}
+                    disabled={submittingId === selectedRequest.id}
+                    onClick={() => void handleDecision(selectedRequest.id, 'REJECTED')}
                   >
                     <span className="material-symbols-outlined">close</span>
                     Reject Request

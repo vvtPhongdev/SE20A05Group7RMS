@@ -289,4 +289,58 @@ export class HiringDecisionService {
       communicationQueued: request.applications.length,
     };
   }
+
+  async requestInfo(payload: {
+    requestId: string;
+    candidateId: string;
+    notes: string;
+    adminId: string;
+  }) {
+    if (!payload.notes?.trim()) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'Information request notes are required',
+      });
+    }
+
+    const request = await this.prisma.recruitmentRequest.findUnique({
+      where: { id: payload.requestId },
+      include: {
+        interviews: {
+          where: { candidateId: payload.candidateId },
+        },
+      },
+    });
+
+    if (!request) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Recruitment request ${payload.requestId} not found`,
+      });
+    }
+    if (request.status !== RecruitmentRequestStatus.INTERVIEW_COMPLETED) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: 'Additional information can only be requested after interviews are completed',
+      });
+    }
+    if (request.interviews.length === 0) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: 'No interview was found for this candidate and request',
+      });
+    }
+
+    return this.prisma.requestLog.create({
+      data: {
+        requestId: payload.requestId,
+        action: 'FINAL_DECISION_INFO_REQUESTED',
+        performedById: payload.adminId,
+        metadata: {
+          candidateId: payload.candidateId,
+          notes: payload.notes.trim(),
+        },
+      },
+    });
+  }
 }

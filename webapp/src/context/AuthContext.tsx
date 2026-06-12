@@ -74,7 +74,8 @@ export const useAuth = () => {
   return context;
 };
 
-// Predefined mock users for quick UI evaluation
+/*
+ * Mock users retained for local UI reference only. Authentication must use the API gateway.
 const MOCK_USERS: Record<string, User> = {
   'admin@acme.com': {
     id: '11111111-1111-1111-1111-111111111111',
@@ -105,6 +106,7 @@ const MOCK_USERS: Record<string, User> = {
     organizationId: 'org-uuid-1234',
   },
 };
+*/
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -154,8 +156,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string, rememberMe = false) => {
     setLoading(true);
-    let isApiConnected = false;
-
     try {
       // 1. Try to hit actual login endpoint in the gateway
       const response = await fetch('/api/v1/auth/login', {
@@ -163,8 +163,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-
-      isApiConnected = true;
 
       if (response.ok) {
         const data = await response.json();
@@ -186,21 +184,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || `Login failed (${response.status})`);
     } catch (err) {
-      if (!isApiConnected) {
-        console.warn('API connection failed, falling back to mock authentication:', err);
-
-        // 2. Mock fallback is only available when the API cannot be reached.
-        const mockUser = MOCK_USERS[email.toLowerCase()];
-        if (mockUser && password === 'Password123!') {
-          const mockToken = `mock-jwt-token-for-${mockUser.role}`;
-          storeAuth(mockToken, mockUser, undefined, rememberMe);
-          setToken(mockToken);
-          setUser(mockUser);
-          setLoading(false);
-          return mockUser;
-        }
-      }
-
       setLoading(false);
       throw err instanceof Error ? err : new Error('Invalid email or password');
     }

@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiRequest } from '../lib/api';
 
+/*
+ * Mock dashboard data retained for UI reference only.
 const kpis = [
   {
     label: 'Active Requests',
@@ -122,7 +124,7 @@ const activityFeed = [
   },
 ];
 
-void [kpis, approvalQueue, pipelineStages, departmentActivity, activityFeed];
+*/
 
 const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: string }) => {
   const paths: Record<string, React.ReactNode> = {

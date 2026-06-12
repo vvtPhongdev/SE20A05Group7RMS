@@ -39,4 +39,9 @@ export class ReportsController {
   async getAdminDashboard() {
     return this.reportsService.getAdminDashboard();
   }
+
+  @MessagePattern('recruiting.department_stats')
+  async getDepartmentStats(@Payload() payload: { range?: '30d' | 'quarter' | 'year' }) {
+    return this.reportsService.getDepartmentStats(payload);
+  }
 }

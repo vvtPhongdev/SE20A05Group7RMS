@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { apiRequest } from '../lib/api';
 
 interface DepartmentCardData {
   name: string;
@@ -35,6 +38,8 @@ interface HeadActivity {
   avatarBg: string;
 }
 
+/*
+ * Mock department statistics retained for UI reference only.
 const mockData: Record<
   'Last 30 days' | 'Quarter' | 'Year',
   {
@@ -330,11 +335,49 @@ const mockData: Record<
     ],
   },
 };
+*/
 
 export const AdminDeptStats: React.FC = () => {
+  const { token } = useAuth();
   const [range, setRange] = useState<'Last 30 days' | 'Quarter' | 'Year'>('Last 30 days');
+  const [data, setData] = useState<{
+    cards: DepartmentCardData[];
+    chart: PerformanceBar[];
+    pending: PendingApproval[];
+    activity: HeadActivity[];
+  }>({ cards: [], chart: [], pending: [], activity: [] });
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
+  const { cards, chart, pending, activity } = data;
 
-  const { cards, chart, pending, activity } = mockData[range];
+  useEffect(() => {
+    let cancelled = false;
+    const loadStats = async () => {
+      setLoading(true);
+      setApiError('');
+      const rangeParam = range === 'Quarter' ? 'quarter' : range === 'Year' ? 'year' : '30d';
+      try {
+        const response = await apiRequest<typeof data>(
+          `/reports/departments?range=${rangeParam}`,
+          token,
+        );
+        if (!cancelled) setData(response);
+      } catch (error) {
+        if (!cancelled) {
+          setApiError(
+            error instanceof Error ? error.message : 'Unable to load department statistics',
+          );
+          setData({ cards: [], chart: [], pending: [], activity: [] });
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void loadStats();
+    return () => {
+      cancelled = true;
+    };
+  }, [range, token]);
 
   // We find max value dynamically to compute relative percentage heights for chart bars
   const maxVal = Math.max(...chart.flatMap((c) => [c.requested, c.inProgress, c.filled]), 20);
@@ -370,6 +413,16 @@ export const AdminDeptStats: React.FC = () => {
           ))}
         </div>
       </div>
+      {apiError && (
+        <div className="rounded-lg border border-rejected/30 bg-error-container px-4 py-3 text-sm text-rejected">
+          {apiError}
+        </div>
+      )}
+      {loading && (
+        <div className="rounded-lg border border-border-warm bg-clean-surface px-4 py-3 text-sm text-secondary">
+          Loading department statistics...
+        </div>
+      )}
 
       {/* Department Metrics Cards Row */}
       <div className="flex gap-margin-md overflow-x-auto no-scrollbar pb-4 text-on-surface">
@@ -506,9 +559,12 @@ export const AdminDeptStats: React.FC = () => {
               <h3 className="font-headline-md text-headline-md text-deep-charcoal font-semibold">
                 Pending Approvals by Department
               </h3>
-              <button className="text-teal-command text-label-md font-semibold hover:underline transition-all active:scale-[0.98]">
+              <Link
+                to="/admin/approval-queue"
+                className="text-teal-command text-label-md font-semibold hover:underline transition-all active:scale-[0.98]"
+              >
                 View All
-              </button>
+              </Link>
             </div>
             <table className="w-full text-left">
               <thead className="bg-surface-container-low text-label-sm text-secondary">
@@ -547,9 +603,12 @@ export const AdminDeptStats: React.FC = () => {
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      <a className="text-teal-command font-semibold hover:underline" href="#">
+                      <Link
+                        className="text-teal-command font-semibold hover:underline"
+                        to="/admin/approval-queue"
+                      >
                         Review
-                      </a>
+                      </Link>
                     </td>
                   </tr>
                 ))}

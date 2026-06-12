@@ -3,12 +3,15 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { UserRole } from '@wr/contracts';
 
+/*
+ * Mock login accounts retained for local UI reference only.
 const demoAccounts = [
   { label: 'Admin', email: 'admin@acme.com', accent: 'bg-[#1c5566]' },
   { label: 'Dept Head', email: 'depthead@acme.com', accent: 'bg-[#b5830a]' },
   { label: 'HR Manager', email: 'hr@acme.com', accent: 'bg-[#1a7a5c]' },
   { label: 'Candidate', email: 'candidate@acme.com', accent: 'bg-[#3b6fb5]' },
 ];
+*/
 
 const pipelineStages = [
   { label: 'Approved', value: '93.4%', width: '93.4%', tone: 'bg-[var(--wr-success)]' },
@@ -98,11 +101,6 @@ export const Login: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleQuickLogin = (mockEmail: string) => {
-    setEmail(mockEmail);
-    setPassword('Password123!');
   };
 
   return (
@@ -390,6 +388,7 @@ export const Login: React.FC = () => {
                 </button>
               </form>
 
+              {/* Mock demo-access controls are intentionally disabled.
               <div className="my-6 flex items-center gap-4">
                 <div className="h-px flex-1 bg-[var(--wr-border-subtle)]" />
                 <span className="text-xs font-semibold uppercase text-[var(--wr-text-muted)]">
@@ -411,6 +410,7 @@ export const Login: React.FC = () => {
                   </button>
                 ))}
               </div>
+              */}
 
               <div className="mt-8">
                 <Link

@@ -26,37 +26,101 @@ export class InterviewResultService {
     const schedules = await this.prisma.interviewSchedule.findMany({
       where: {
         status: { not: InterviewStatus.CANCELLED },
-        OR: [
-          { status: InterviewStatus.COMPLETED },
-          { scheduledAt: { lte: new Date() } }
-        ]
+        OR: [{ status: InterviewStatus.COMPLETED }, { scheduledAt: { lte: new Date() } }],
       },
       include: {
         candidate: true,
         request: {
           include: {
-            department: true
-          }
-        }
+            department: true,
+          },
+        },
+        results: {
+          include: {
+            evaluator: true,
+          },
+        },
       },
       orderBy: {
-        scheduledAt: 'desc'
-      }
+        scheduledAt: 'desc',
+      },
     });
 
-    return schedules.map(s => {
-      const status = (s.finalRecommendation || s.status === InterviewStatus.COMPLETED)
-        ? 'Recorded'
-        : 'Pending Recording';
+    const requestIds = [...new Set(schedules.map((schedule) => schedule.requestId))];
+    const infoRequestLogs =
+      requestIds.length > 0
+        ? await this.prisma.requestLog.findMany({
+            where: {
+              requestId: { in: requestIds },
+              action: 'FINAL_DECISION_INFO_REQUESTED',
+            },
+            orderBy: { createdAt: 'desc' },
+          })
+        : [];
 
-      const formattedTime = s.scheduledAt.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-      }) + ', ' + s.scheduledAt.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
+    return schedules.map((s) => {
+      const status =
+        s.finalRecommendation || s.status === InterviewStatus.COMPLETED
+          ? 'Recorded'
+          : 'Pending Recording';
+      const latestInfoRequest = infoRequestLogs.find((log) => {
+        if (log.requestId !== s.requestId || !log.metadata || typeof log.metadata !== 'object') {
+          return false;
+        }
+        const metadata = log.metadata as Record<string, unknown>;
+        return metadata.candidateId === s.candidateId;
       });
+      const decisionStatus =
+        s.request.status === RecruitmentRequestStatus.OFFER_EXTENDED ||
+        s.request.status === RecruitmentRequestStatus.OFFER_ACCEPTED
+          ? 'Approved'
+          : s.request.status === RecruitmentRequestStatus.REJECTED
+            ? 'Rejected'
+            : latestInfoRequest
+              ? 'Request Info'
+              : 'Awaiting Decision';
+      const resultsByEvaluator = new Map(s.results.map((result) => [result.evaluatorId, result]));
+      const feedbacks = s.interviewers.map((interviewerId) => {
+        const result = resultsByEvaluator.get(interviewerId);
+        return {
+          name: result?.evaluator?.displayName || 'Panel member',
+          role: result?.evaluator?.role || 'Interviewer',
+          status: result ? result.result : 'PENDING',
+          ratings: result
+            ? {
+                tech: result.technical || 0,
+                comm: result.communication || 0,
+                fit: result.culture || 0,
+              }
+            : undefined,
+          comment: result?.notes || 'Feedback has not been recorded.',
+        };
+      });
+      const recordedResults = s.results.filter(
+        (result) =>
+          result.technical !== null && result.communication !== null && result.culture !== null,
+      );
+      const average = (field: 'technical' | 'communication' | 'culture') =>
+        recordedResults.length > 0
+          ? Number(
+              (
+                recordedResults.reduce((sum, result) => sum + (result[field] || 0), 0) /
+                recordedResults.length
+              ).toFixed(1),
+            )
+          : 0;
+
+      const formattedTime =
+        s.scheduledAt.toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+        }) +
+        ', ' +
+        s.scheduledAt.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        });
 
       return {
         id: s.id,
@@ -65,6 +129,21 @@ export class InterviewResultService {
         department: s.request.department.name,
         time: formattedTime,
         status,
+        candidateId: s.candidateId,
+        requestId: s.requestId,
+        interviewDate: s.scheduledAt,
+        decisionStatus,
+        feedbacks,
+        passCount: s.results.filter((result) => result.result === 'PASS').length,
+        failCount: s.results.filter((result) => result.result === 'FAIL').length,
+        pendingCount: Math.max(0, s.interviewers.length - s.results.length),
+        scores: {
+          tech: average('technical'),
+          comm: average('communication'),
+          fit: average('culture'),
+        },
+        finalRecommendation: s.finalRecommendation || '',
+        summaryNotes: s.summaryNotes || '',
       };
     });
   }
@@ -79,15 +158,15 @@ export class InterviewResultService {
         candidate: true,
         request: {
           include: {
-            department: true
-          }
+            department: true,
+          },
         },
         results: {
           include: {
-            evaluator: true
-          }
-        }
-      }
+            evaluator: true,
+          },
+        },
+      },
     });
 
     if (!schedule) {
@@ -100,19 +179,19 @@ export class InterviewResultService {
     // Fetch details of all users listed in schedule.interviewers
     const interviewers = await this.prisma.user.findMany({
       where: {
-        id: { in: schedule.interviewers }
-      }
+        id: { in: schedule.interviewers },
+      },
     });
 
     // Map each interviewer in schedule.interviewers to their feedback (recorded or default empty)
-    const feedbacks = schedule.interviewers.map(interviewerId => {
-      const interviewer = interviewers.find(u => u.id === interviewerId);
-      const result = schedule.results.find(r => r.evaluatorId === interviewerId);
+    const feedbacks = schedule.interviewers.map((interviewerId) => {
+      const interviewer = interviewers.find((u) => u.id === interviewerId);
+      const result = schedule.results.find((r) => r.evaluatorId === interviewerId);
 
       const initials = interviewer
         ? interviewer.displayName
             .split(' ')
-            .map(n => n[0])
+            .map((n) => n[0])
             .join('')
             .toUpperCase()
         : 'U';
@@ -123,22 +202,29 @@ export class InterviewResultService {
         role: interviewer?.role || 'Interviewer',
         initials,
         decision: result ? (result.result as 'PASS' | 'FAIL') : 'PASS',
-        technical: result?.technical !== undefined && result?.technical !== null ? result.technical : 0,
-        communication: result?.communication !== undefined && result?.communication !== null ? result.communication : 0,
+        technical:
+          result?.technical !== undefined && result?.technical !== null ? result.technical : 0,
+        communication:
+          result?.communication !== undefined && result?.communication !== null
+            ? result.communication
+            : 0,
         culture: result?.culture !== undefined && result?.culture !== null ? result.culture : 0,
         notes: result?.notes || '',
-        isRecorded: !!result
+        isRecorded: !!result,
       };
     });
 
-    const formattedTime = schedule.scheduledAt.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    }) + ', ' + schedule.scheduledAt.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    });
+    const formattedTime =
+      schedule.scheduledAt.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      }) +
+      ', ' +
+      schedule.scheduledAt.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      });
 
     return {
       id: schedule.id,
@@ -146,16 +232,23 @@ export class InterviewResultService {
       role: schedule.request.position,
       department: schedule.request.department.name,
       time: formattedTime,
-      status: (schedule.finalRecommendation || schedule.status === InterviewStatus.COMPLETED) ? 'Recorded' : 'Pending Recording',
-      interviewers: interviewers.map(u => ({
+      status:
+        schedule.finalRecommendation || schedule.status === InterviewStatus.COMPLETED
+          ? 'Recorded'
+          : 'Pending Recording',
+      interviewers: interviewers.map((u) => ({
         id: u.id,
         name: u.displayName,
         role: u.role,
-        initials: u.displayName.split(' ').map(n => n[0]).join('').toUpperCase()
+        initials: u.displayName
+          .split(' ')
+          .map((n) => n[0])
+          .join('')
+          .toUpperCase(),
       })),
       feedbacks,
       finalRecommendation: schedule.finalRecommendation || '',
-      summaryNotes: schedule.summaryNotes || ''
+      summaryNotes: schedule.summaryNotes || '',
     };
   }
 
@@ -259,14 +352,14 @@ export class InterviewResultService {
 
     // Find existing interview results to see what needs to be created vs updated
     const existingResults = await this.prisma.interviewResult.findMany({
-      where: { interviewId }
+      where: { interviewId },
     });
 
     const transactions: any[] = [];
 
     // 1. Create or Update InterviewResult records for each panel member feedback
     for (const fb of feedbacks) {
-      const existing = existingResults.find(r => r.evaluatorId === fb.evaluatorId);
+      const existing = existingResults.find((r) => r.evaluatorId === fb.evaluatorId);
       if (existing) {
         transactions.push(
           this.prisma.interviewResult.update({
@@ -276,9 +369,9 @@ export class InterviewResultService {
               notes: fb.notes?.trim() || null,
               technical: fb.technical,
               communication: fb.communication,
-              culture: fb.culture
-            }
-          })
+              culture: fb.culture,
+            },
+          }),
         );
       } else {
         transactions.push(
@@ -290,9 +383,9 @@ export class InterviewResultService {
               notes: fb.notes?.trim() || null,
               technical: fb.technical,
               communication: fb.communication,
-              culture: fb.culture
-            }
-          })
+              culture: fb.culture,
+            },
+          }),
         );
       }
     }
@@ -304,9 +397,9 @@ export class InterviewResultService {
         data: {
           status: InterviewStatus.COMPLETED,
           finalRecommendation,
-          summaryNotes: summaryNotes?.trim() || null
+          summaryNotes: summaryNotes?.trim() || null,
         },
-      })
+      }),
     );
 
     // 3. Update Application Status if recommendation specifies a transition
@@ -315,7 +408,7 @@ export class InterviewResultService {
         this.prisma.application.update({
           where: { id: application.id },
           data: { status: nextAppStatus },
-        })
+        }),
       );
     }
 
@@ -324,11 +417,12 @@ export class InterviewResultService {
       this.prisma.requestLog.create({
         data: {
           requestId: schedule.requestId,
-          action: finalRecommendation === 'Recommend Hire'
-            ? 'CANDIDATE_PASSED_INTERVIEW'
-            : finalRecommendation === 'Recommend Reject'
-            ? 'CANDIDATE_FAILED_INTERVIEW'
-            : 'CANDIDATE_HOLD_INTERVIEW',
+          action:
+            finalRecommendation === 'Recommend Hire'
+              ? 'CANDIDATE_PASSED_INTERVIEW'
+              : finalRecommendation === 'Recommend Reject'
+                ? 'CANDIDATE_FAILED_INTERVIEW'
+                : 'CANDIDATE_HOLD_INTERVIEW',
           performedById: evaluatorId || 'SYSTEM',
           metadata: {
             interviewId,
@@ -337,7 +431,7 @@ export class InterviewResultService {
             summaryNotes: summaryNotes?.trim() || null,
           },
         },
-      })
+      }),
     );
 
     // 5. If all schedules are finished, transition RecruitmentRequest to INTERVIEW_COMPLETED
@@ -366,23 +460,31 @@ export class InterviewResultService {
 
     // Fetch updated results to log them in AuditLogs
     const updatedResults = await this.prisma.interviewResult.findMany({
-      where: { interviewId }
+      where: { interviewId },
     });
 
     for (const res of updatedResults) {
-      this.auditLog.log({
-        entityType: AuditEntityType.INTERVIEW_RESULT,
-        entityId: res.id,
-        action: AuditAction.INTERVIEW_RESULT_RECORDED,
-        toStatus: res.result,
-        performedById: evaluatorId || 'SYSTEM',
-        reason: res.notes,
-        metadata: { interviewId, candidateId: schedule.candidateId, evaluatorId: res.evaluatorId },
-      }).catch((err) => console.error('Failed to write audit log for INTERVIEW_RESULT_RECORDED:', err));
+      this.auditLog
+        .log({
+          entityType: AuditEntityType.INTERVIEW_RESULT,
+          entityId: res.id,
+          action: AuditAction.INTERVIEW_RESULT_RECORDED,
+          toStatus: res.result,
+          performedById: evaluatorId || 'SYSTEM',
+          reason: res.notes,
+          metadata: {
+            interviewId,
+            candidateId: schedule.candidateId,
+            evaluatorId: res.evaluatorId,
+          },
+        })
+        .catch((err) =>
+          console.error('Failed to write audit log for INTERVIEW_RESULT_RECORDED:', err),
+        );
     }
 
     // --- Next-step communications & workflows ---
-    
+
     // 1. If candidate was rejected, trigger rejection email and notification
     if (finalRecommendation === 'Recommend Reject') {
       const emailSubject = `Application Update: ${schedule.request.position}`;
@@ -431,16 +533,18 @@ export class InterviewResultService {
 
     // 2. If all interviews are completed and candidate is recommended for hire, notify Admins to review and make final decision (FR-15)
     if (isLastInterview && finalRecommendation === 'Recommend Hire') {
-      this.notificationClient.send('notification.send_to_role', {
-        role: UserRole.ADMIN,
-        title: 'Review Required: Interview Stage Completed',
-        body: `All scheduled interviews for "${schedule.request.position}" are completed. Please review results and make the final decision.`,
-        type: NotificationType.PLAN_UPDATE,
-        relatedEntityId: schedule.requestId,
-        relatedEntityType: 'RecruitmentRequest',
-      }).subscribe({
-        error: (err) => console.error('Failed to send Admin review notifications:', err),
-      });
+      this.notificationClient
+        .send('notification.send_to_role', {
+          role: UserRole.ADMIN,
+          title: 'Review Required: Interview Stage Completed',
+          body: `All scheduled interviews for "${schedule.request.position}" are completed. Please review results and make the final decision.`,
+          type: NotificationType.PLAN_UPDATE,
+          relatedEntityId: schedule.requestId,
+          relatedEntityType: 'RecruitmentRequest',
+        })
+        .subscribe({
+          error: (err) => console.error('Failed to send Admin review notifications:', err),
+        });
 
       this.notificationClient
         .send('notification.create_notification', {
