@@ -34,10 +34,11 @@ import {
   IsBoolean,
   IsObject,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 export class LoginDto {
   @ApiProperty({ example: 'admin@acme.com', description: 'User email' })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
   @IsEmail()
   email!: string;
 

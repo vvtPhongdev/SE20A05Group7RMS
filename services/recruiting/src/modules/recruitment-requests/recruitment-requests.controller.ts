@@ -28,6 +28,35 @@ export class RecruitmentRequestsController {
     return this.service.createForDepartmentHead(payload);
   }
 
+  @MessagePattern('recruitment-requests.get')
+  getById(
+    @Payload()
+    payload: {
+      id: string;
+      userId: string;
+      role: any;
+    },
+  ) {
+    return this.service.getByIdForActor(payload);
+  }
+
+  @MessagePattern('recruitment-requests.depthead.update')
+  updateForDepartmentHead(
+    @Payload()
+    payload: {
+      id: string;
+      userId: string;
+      positionTitle?: string;
+      headcount?: number;
+      jobDescription?: string;
+      justification?: string;
+      urgency?: string;
+      skillRequirements?: Record<string, unknown>;
+    },
+  ) {
+    return this.service.updateForDepartmentHead(payload);
+  }
+
   @MessagePattern('recruitment-requests.depthead.submit')
   submitDraft(@Payload() payload: { id: string; userId: string }) {
     return this.service.submitDraft(payload);
@@ -56,6 +85,17 @@ export class RecruitmentRequestsController {
     },
   ) {
     return this.service.decide(payload);
+  }
+
+  @MessagePattern('recruitment-requests.hr.forward_to_admin')
+  forwardToAdmin(
+    @Payload()
+    payload: {
+      id: string;
+      hrManagerId: string;
+    },
+  ) {
+    return this.service.forwardToAdmin(payload);
   }
 
   @MessagePattern('recruitment-requests.hr.return_for_revision')

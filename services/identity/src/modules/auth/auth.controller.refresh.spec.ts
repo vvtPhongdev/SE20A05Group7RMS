@@ -16,6 +16,7 @@ describe('AuthController - Refresh Message Pattern', () => {
       email: 'test@example.com',
       displayName: 'Test User',
       role: 'CANDIDATE',
+      organizationId: '00000000-0000-4000-8000-000000000001',
     },
   };
 
@@ -271,14 +272,26 @@ describe('AuthController - Refresh Message Pattern', () => {
         accessToken: 'first-access-token',
         refreshToken: 'first-refresh-token',
         expiresIn: 3600,
-        user: { id: 'uuid-1', email: 'user1@test.com', displayName: 'User One', role: 'CANDIDATE' },
+        user: {
+          id: 'uuid-1',
+          email: 'user1@test.com',
+          displayName: 'User One',
+          role: 'CANDIDATE',
+          organizationId: '00000000-0000-4000-8000-000000000001',
+        },
       };
 
       const secondResponse: AuthTokenResponse = {
         accessToken: 'second-access-token',
         refreshToken: 'second-refresh-token',
         expiresIn: 3600,
-        user: { id: 'uuid-2', email: 'user2@test.com', displayName: 'User Two', role: 'CANDIDATE' },
+        user: {
+          id: 'uuid-2',
+          email: 'user2@test.com',
+          displayName: 'User Two',
+          role: 'CANDIDATE',
+          organizationId: '00000000-0000-4000-8000-000000000002',
+        },
       };
 
       jest

@@ -7,7 +7,13 @@ import {
 } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { AuditLogService } from '@wr/database';
-import { AuditAction, AuditEntityType, NotificationType, PlanStatus } from '@wr/contracts';
+import {
+  AuditAction,
+  AuditEntityType,
+  NotificationType,
+  PlanStatus,
+  RecruitmentRequestStatus,
+} from '@wr/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
 
 @Injectable()
@@ -123,7 +129,14 @@ export class OverallPlanService {
   async approve(payload: { id: string; approvedById: string }) {
     const { id, approvedById } = payload;
 
-    const plan = await this.prisma.overallPlan.findUnique({ where: { id } });
+    const plan = await this.prisma.overallPlan.findUnique({
+      where: { id },
+      include: {
+        request: {
+          select: { id: true, position: true, status: true, createdById: true },
+        },
+      },
+    });
     if (!plan) throw new NotFoundException(`OverallPlan ${id} not found`);
     if (plan.status !== PlanStatus.PENDING_APPROVAL) {
       throw new BadRequestException(
@@ -131,10 +144,26 @@ export class OverallPlanService {
       );
     }
 
-    const updated = await this.prisma.overallPlan.update({
-      where: { id },
-      data: { status: PlanStatus.APPROVED, approvedById },
-    });
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.overallPlan.update({
+        where: { id },
+        data: { status: PlanStatus.APPROVED, approvedById },
+      }),
+      this.prisma.recruitmentRequest.update({
+        where: { id: plan.requestId },
+        data: { status: RecruitmentRequestStatus.PLAN_APPROVED },
+      }),
+      this.prisma.requestLog.create({
+        data: {
+          requestId: plan.requestId,
+          action: 'OVERALL_PLAN_APPROVED',
+          fromStatus: plan.request.status,
+          toStatus: RecruitmentRequestStatus.PLAN_APPROVED,
+          performedById: approvedById,
+          metadata: { overallPlanId: id },
+        },
+      }),
+    ]);
 
     this.auditLog
       .log({
@@ -146,6 +175,19 @@ export class OverallPlanService {
         performedById: approvedById,
       })
       .catch((err) => console.error('Failed to write audit log for PLAN_APPROVED:', err));
+
+    this.notificationClient
+      .send('notification.create_notification', {
+        userId: plan.request.createdById,
+        type: NotificationType.REQUEST_UPDATE,
+        title: 'Recruitment plan approved',
+        body: `The recruitment plan for ${plan.request.position} has been approved.`,
+        relatedEntityId: plan.requestId,
+        relatedEntityType: 'RecruitmentRequest',
+      })
+      .subscribe({
+        error: (err) => console.error('Failed to send plan approval notification:', err),
+      });
 
     return updated;
   }

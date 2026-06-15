@@ -301,6 +301,7 @@ export class AuthService implements OnModuleDestroy {
         email: user.email,
         displayName: user.displayName,
         role: user.role,
+        organizationId,
       },
     };
   }
@@ -368,6 +369,7 @@ export class AuthService implements OnModuleDestroy {
         email: user.email,
         displayName: user.displayName,
         role: user.role,
+        organizationId,
       },
     };
   }
@@ -617,6 +619,7 @@ export class AuthService implements OnModuleDestroy {
         email: user.email,
         displayName: user.displayName,
         role: user.role,
+        organizationId: user.organizationId,
       },
     };
   }

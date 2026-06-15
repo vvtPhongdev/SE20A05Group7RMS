@@ -8,12 +8,16 @@ describe('ReportsService - T-087 Annual Reports & Tracking', () => {
     interviewSchedule: {
       count: jest.fn(),
     },
+    requestLog: {
+      findMany: jest.fn(),
+    },
   };
   const service = new ReportsService(prisma as any);
 
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.interviewSchedule.count.mockResolvedValue(0);
+    prisma.requestLog.findMany.mockResolvedValue([]);
   });
 
   describe('getAnnualReport', () => {
@@ -29,7 +33,15 @@ describe('ReportsService - T-087 Annual Reports & Tracking', () => {
             headcount: 5,
             status: 'OFFER_ACCEPTED',
             createdAt: new Date('2026-03-01T00:00:00.000Z'),
-            applications: [{ status: 'OFFER_ACCEPTED', candidateId: 'c-1' }],
+            updatedAt: new Date('2026-03-11T00:00:00.000Z'),
+            applications: [
+              {
+                status: 'OFFER_ACCEPTED',
+                candidateId: 'c-1',
+                updatedAt: new Date('2026-03-11T00:00:00.000Z'),
+              },
+            ],
+            offers: [],
           },
         ])
         .mockResolvedValueOnce([
@@ -39,7 +51,15 @@ describe('ReportsService - T-087 Annual Reports & Tracking', () => {
             headcount: 2,
             status: 'CLOSED',
             createdAt: new Date('2025-05-01T00:00:00.000Z'),
-            applications: [{ status: 'OFFER_ACCEPTED', candidateId: 'c-2' }],
+            updatedAt: new Date('2025-05-11T00:00:00.000Z'),
+            applications: [
+              {
+                status: 'OFFER_ACCEPTED',
+                candidateId: 'c-2',
+                updatedAt: new Date('2025-05-11T00:00:00.000Z'),
+              },
+            ],
+            offers: [],
           },
         ]);
       prisma.interviewSchedule.count.mockResolvedValueOnce(5).mockResolvedValueOnce(2);
@@ -95,6 +115,7 @@ describe('ReportsService - T-087 Annual Reports & Tracking', () => {
           status: 'INTERVIEWING',
           createdBy: { displayName: 'Head' },
           reviewedBy: { displayName: 'HR Manager' },
+          department: { name: 'Engineering' },
           applications: [{ status: 'OFFER_ACCEPTED' }],
           createdAt: new Date(),
           updatedAt: new Date(),

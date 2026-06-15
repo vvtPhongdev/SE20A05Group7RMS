@@ -37,7 +37,7 @@ export const RegisterUserSchema = z.object({
 });
 
 export const LoginSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().email().transform((email) => email.toLowerCase()),
   password: z.string().min(1),
 });
 
@@ -76,6 +76,7 @@ export const AuthTokenResponseSchema = z.object({
     email: z.string().email(),
     displayName: z.string(),
     role: z.string(),
+    organizationId: z.string().uuid(),
   }),
 });
 
@@ -206,6 +207,76 @@ export const UpdateCandidateProfileSchema = CreateCandidateProfileSchema.partial
   userId: true,
 });
 
+export const ResumeMonthSchema = z
+  .string()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Date must use the YYYY-MM format');
+
+export const ResumeLinkSchema = z.object({
+  type: z.enum(['LINKEDIN', 'GITHUB', 'PORTFOLIO', 'OTHER']),
+  url: z.string().trim().url(),
+});
+
+export const ResumeLanguageSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  proficiency: z.string().trim().max(100).optional(),
+});
+
+export const ResumePersonalInfoSchema = z.object({
+  fullName: z.string().trim().min(2).max(100),
+  email: z.string().trim().email(),
+  phoneNumber: z.string().trim().min(8).max(20).optional(),
+  address: z.string().trim().max(200).optional(),
+  links: z.array(ResumeLinkSchema).max(10).default([]),
+});
+
+export const ResumeSkillsSchema = z.object({
+  technical: z.array(z.string().trim().min(1).max(100)).max(100).default([]),
+  softSkills: z.array(z.string().trim().min(1).max(100)).max(100).default([]),
+  languages: z.array(ResumeLanguageSchema).max(20).default([]),
+});
+
+export const ResumeWorkExperienceSchema = z.object({
+  company: z.string().trim().min(1).max(200),
+  position: z.string().trim().min(1).max(200),
+  startDate: ResumeMonthSchema,
+  endDate: ResumeMonthSchema.nullable().default(null),
+  isCurrent: z.boolean().default(false),
+  achievements: z.array(z.string().trim().min(1).max(500)).max(50).default([]),
+});
+
+export const ResumeEducationSchema = z.object({
+  school: z.string().trim().min(1).max(200),
+  major: z.string().trim().max(200).optional(),
+  degree: z.string().trim().max(100).optional(),
+  startDate: ResumeMonthSchema.optional(),
+  endDate: ResumeMonthSchema.optional(),
+});
+
+export const ResumeSchema = z.object({
+  personalInfo: ResumePersonalInfoSchema,
+  currentRole: z.string().trim().max(150).optional(),
+  summary: z.string().trim().max(2000).optional(),
+  skills: ResumeSkillsSchema,
+  workExperience: z.array(ResumeWorkExperienceSchema).max(50).default([]),
+  education: z.array(ResumeEducationSchema).max(20).default([]),
+});
+
+export const ResumeDraftSchema = z.object({
+  personalInfo: ResumePersonalInfoSchema.partial().optional(),
+  currentRole: z.string().trim().max(150).optional(),
+  summary: z.string().trim().max(2000).optional(),
+  skills: ResumeSkillsSchema.partial().optional(),
+  workExperience: z
+    .array(
+      ResumeWorkExperienceSchema.partial().extend({
+        achievements: z.array(z.string().trim().min(1).max(500)).max(50).optional(),
+      }),
+    )
+    .max(50)
+    .optional(),
+  education: z.array(ResumeEducationSchema.partial()).max(20).optional(),
+});
+
 export const CreateCandidateCVSchema = z.object({
   candidateId: z.string().uuid(),
   fileName: z.string().min(1).max(255),
@@ -220,6 +291,8 @@ export const UpdateCandidateCVSchema = CreateCandidateCVSchema.partial().extend(
 
 export type CreateCandidateProfileInput = z.infer<typeof CreateCandidateProfileSchema>;
 export type UpdateCandidateProfileInput = z.infer<typeof UpdateCandidateProfileSchema>;
+export type ResumeData = z.infer<typeof ResumeSchema>;
+export type ResumeDraftData = z.infer<typeof ResumeDraftSchema>;
 export type CreateCandidateCVInput = z.infer<typeof CreateCandidateCVSchema>;
 export type UpdateCandidateCVInput = z.infer<typeof UpdateCandidateCVSchema>;
 

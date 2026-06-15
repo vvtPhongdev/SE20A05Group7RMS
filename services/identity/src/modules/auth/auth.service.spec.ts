@@ -180,6 +180,7 @@ describe('AuthService', () => {
         email: user.email,
         displayName: user.displayName,
         role: user.role,
+        organizationId: user.organizationId,
       });
     });
 
@@ -229,7 +230,7 @@ describe('AuthService', () => {
         displayName: 'Test User',
         role: 'CANDIDATE',
         passwordHash: 'hashed-password',
-        organizationId: null as any,
+        organizationId: 'org-123',
       };
 
       mockPrismaService.user.findUnique.mockResolvedValueOnce(user);
@@ -254,7 +255,7 @@ describe('AuthService', () => {
         email: user.email,
         displayName: user.displayName,
         role: user.role,
-        organizationId: null,
+        organizationId: user.organizationId,
       });
       expect(result).toHaveProperty('accessToken', 'new-access-token');
       expect(result).toHaveProperty('refreshToken');
@@ -264,6 +265,7 @@ describe('AuthService', () => {
         email: user.email,
         displayName: user.displayName,
         role: user.role,
+        organizationId: user.organizationId,
       });
     });
 

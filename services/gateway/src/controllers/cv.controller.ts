@@ -21,6 +21,8 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { SERVICE_TOKENS } from '../constants';
 
+const MAX_CV_FILE_SIZE = 10 * 1024 * 1024;
+
 @ApiTags('Candidate CVs')
 @ApiBearerAuth()
 @Roles(UserRole.CANDIDATE)
@@ -50,6 +52,9 @@ export class CvController {
     const extension = extname(file.originalname).toLowerCase();
     if (!['.pdf', '.docx'].includes(extension)) {
       throw new BadRequestException('Only PDF and DOCX files are supported');
+    }
+    if (file.size > MAX_CV_FILE_SIZE) {
+      throw new BadRequestException('CV file must be 10MB or smaller');
     }
 
     const uploadDirectory = resolve(process.cwd(), 'uploads', 'cv');

@@ -16,6 +16,7 @@ describe('AuthController - Login Message Pattern', () => {
       email: 'test@example.com',
       displayName: 'Test User',
       role: 'CANDIDATE',
+      organizationId: '00000000-0000-4000-8000-000000000001',
     },
   };
 

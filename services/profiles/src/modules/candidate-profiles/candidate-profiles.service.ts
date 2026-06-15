@@ -1,7 +1,7 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { PrismaService } from '../../common/database/prisma.service';
-import { UserRole } from '@wr/contracts';
+import { ResumeDraftSchema, UserRole } from '@wr/contracts';
 
 @Injectable()
 export class CandidateProfilesService {
@@ -11,6 +11,27 @@ export class CandidateProfilesService {
     return value && typeof value === 'object' && !Array.isArray(value)
       ? (value as Record<string, any>)
       : {};
+  }
+
+  private validatedStructuredData(value: unknown): Record<string, any> {
+    const structuredData = this.structuredData(value);
+    if (structuredData.resume === undefined) return structuredData;
+
+    const result = ResumeDraftSchema.safeParse(structuredData.resume);
+    if (!result.success) {
+      const issue = result.error.issues[0];
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: `Invalid resume data at ${issue?.path.join('.') || 'resume'}: ${
+          issue?.message || 'validation failed'
+        }`,
+      });
+    }
+
+    return {
+      ...structuredData,
+      resume: result.data,
+    };
   }
 
   private async findStoredProfile(id: string) {
@@ -216,7 +237,7 @@ export class CandidateProfilesService {
         ? {
             structuredData: {
               ...currentStructuredData,
-              ...this.structuredData(data.structuredData),
+              ...this.validatedStructuredData(data.structuredData),
             },
           }
         : {}),

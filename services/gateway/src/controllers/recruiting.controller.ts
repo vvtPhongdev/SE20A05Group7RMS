@@ -168,6 +168,41 @@ export class CreateRecruitmentRequestDto {
   submit?: boolean;
 }
 
+export class UpdateRecruitmentRequestDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  positionTitle?: string;
+
+  @ApiProperty({ required: false, example: 2 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  headcount?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  jobDescription?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  justification?: string;
+
+  @ApiProperty({ required: false, enum: Urgency })
+  @IsOptional()
+  @IsEnum(Urgency)
+  urgency?: Urgency;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  skillRequirements?: Record<string, unknown>;
+}
+
 export class AssignRecruitmentRequestDto {
   @ApiProperty({ example: 'uuid-of-hr-manager' })
   @IsUUID()
@@ -205,6 +240,13 @@ export class ResubmitOverallPlanDto {
   @IsOptional()
   @IsDateString()
   endDate?: string;
+}
+
+export class RejectOverallPlanDto {
+  @ApiProperty({ example: 'Please adjust the campaign timeline.' })
+  @IsString()
+  @IsNotEmpty()
+  revisionNotes!: string;
 }
 
 export class CreateTaskPlanDto {
@@ -304,6 +346,36 @@ export class RecruitingController {
     );
   }
 
+  @Get('recruitment-requests/:id')
+  @Roles(UserRole.ADMIN, UserRole.HR_MANAGER, UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'Get a recruitment request visible to the current user' })
+  getRecruitmentRequest(@Param('id') id: string, @CurrentUser() user: any) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruitment-requests.get', {
+        id,
+        userId: user.sub,
+        role: user.role,
+      }),
+    );
+  }
+
+  @Patch('recruitment-requests/:id')
+  @Roles(UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'Update a draft or revision-needed recruitment request' })
+  updateRecruitmentRequest(
+    @Param('id') id: string,
+    @Body() body: UpdateRecruitmentRequestDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruitment-requests.depthead.update', {
+        id,
+        userId,
+        ...body,
+      }),
+    );
+  }
+
   @Patch('recruitment-requests/:id/submit')
   @Roles(UserRole.DEPARTMENT_HEAD)
   @ApiOperation({ summary: 'Submit a draft recruitment request for review' })
@@ -343,6 +415,21 @@ export class RecruitingController {
         id,
         hrManagerId: userId,
         feedback: body.feedback,
+      }),
+    );
+  }
+
+  @Patch('recruitment-requests/:id/forward-to-admin')
+  @Roles(UserRole.HR_MANAGER)
+  @ApiOperation({ summary: 'Forward an HR-reviewed recruitment request to Admin' })
+  forwardRecruitmentRequestToAdmin(
+    @Param('id') id: string,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruitment-requests.hr.forward_to_admin', {
+        id,
+        hrManagerId: userId,
       }),
     );
   }
@@ -395,6 +482,35 @@ export class RecruitingController {
   ) {
     return firstValueFrom(
       this.recruitingClient.send('overall-plan.resubmit', { id, performedById: userId, ...body }),
+    );
+  }
+
+  @Patch('overall-plan/:id/approve')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Approve an overall recruitment plan' })
+  approveOverallPlan(@Param('id') id: string, @CurrentUser('sub') userId: string) {
+    return firstValueFrom(
+      this.recruitingClient.send('overall-plan.approve', {
+        id,
+        approvedById: userId,
+      }),
+    );
+  }
+
+  @Patch('overall-plan/:id/reject')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Reject an overall recruitment plan for revision' })
+  rejectOverallPlan(
+    @Param('id') id: string,
+    @Body() body: RejectOverallPlanDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('overall-plan.reject', {
+        id,
+        approvedById: userId,
+        revisionNotes: body.revisionNotes,
+      }),
     );
   }
 
