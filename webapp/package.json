@@ -12,17 +12,20 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
+    "@wr/config": "*",
+    "@wr/contracts": "*",
+    "@wr/ui": "*",
+    "class-variance-authority": "^0.7.1",
+    "lucide-react": "^1.20.0",
+    "radix-ui": "^1.6.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-router-dom": "^7.6.0",
-    "@wr/ui": "*",
-    "@wr/contracts": "*",
-    "@wr/config": "*"
+    "react-router-dom": "^7.6.0"
   },
   "devDependencies": {
+    "@types/node": "^22.15.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/node": "^22.15.0",
     "@vitejs/plugin-react": "^4.4.0",
     "typescript": "^5.8.3",
     "vite": "^6.3.0"
