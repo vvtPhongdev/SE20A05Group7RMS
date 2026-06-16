@@ -29,6 +29,7 @@ import { SERVICE_TOKENS } from '../constants';
 import { firstValueFrom } from 'rxjs';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import { UserRole } from '@wr/contracts';
 import { randomUUID } from 'crypto';
 import { mkdir, readFile, unlink, writeFile } from 'fs/promises';
@@ -283,6 +284,33 @@ export class ProfilesController {
   @ApiOperation({ summary: 'Get candidate profile' })
   getProfile(@Param('id') id: string) {
     return firstValueFrom(this.profilesClient.send('profiles.get', { id }));
+  }
+
+  @Get('candidate-profiles/:id/avatar')
+  @Public()
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'Get candidate profile photo by candidate ID' })
+  async getCandidateAvatar(@Param('id') id: string) {
+    const avatar = await firstValueFrom(
+      this.profilesClient.send<{ fileName?: string; mimeType?: string } | null>(
+        'profiles.avatar.get',
+        { id },
+      ),
+    );
+
+    if (!avatar?.fileName) {
+      throw new NotFoundException('Profile photo not found');
+    }
+
+    try {
+      const file = await readFile(this.avatarPath(avatar.fileName));
+      return new StreamableFile(file, {
+        type: avatar.mimeType || 'application/octet-stream',
+        disposition: 'inline',
+      });
+    } catch (error) {
+      throw new NotFoundException('Profile photo not found');
+    }
   }
 
   @Patch('candidate-profiles/:id')

@@ -4,6 +4,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagg
 import { SERVICE_TOKENS } from '../constants';
 import { firstValueFrom } from 'rxjs';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import {
   HiringDecision,
   OfferResponse,
@@ -556,6 +557,19 @@ export class RecruitingController {
     );
   }
 
+  @Get('task-plan')
+  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'List campaign task plans' })
+  listTaskPlans(@Query() query: any, @CurrentUser() user: any) {
+    return firstValueFrom(
+      this.recruitingClient.send('task-plan.listAll', {
+        ...query,
+        role: user.role,
+        userId: user.sub,
+      }),
+    );
+  }
+
   @Patch('task-plan/:id/status')
   @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER)
   @ApiOperation({ summary: 'Update a task plan status' })
@@ -640,8 +654,12 @@ export class RecruitingController {
 
   @Post('applications')
   @ApiOperation({ summary: 'Apply to a role' })
-  createApplication(@Body() body: any) {
-    return firstValueFrom(this.recruitingClient.send('applications.create', body));
+  createApplication(@Body() body: any, @CurrentUser() user?: any) {
+    const payload =
+      user?.role === UserRole.CANDIDATE && !body.candidateId && !body.userId
+        ? { ...body, userId: user.sub }
+        : body;
+    return firstValueFrom(this.recruitingClient.send('applications.create', payload));
   }
 
   @Get('applications')
@@ -768,6 +786,20 @@ export class RecruitingController {
         ...query,
         userRole: user?.role,
         userDeptId: user?.departmentId,
+      }),
+    );
+  }
+
+  @Get('public/job-postings')
+  @Public()
+  @ApiOperation({ summary: 'List public published job postings' })
+  listPublicJobPostings(@Query() query: any) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruiting.job_posting.list', {
+        ...query,
+        status: 'PUBLISHED',
+        visibility: 'PUBLIC',
+        userRole: UserRole.CANDIDATE,
       }),
     );
   }

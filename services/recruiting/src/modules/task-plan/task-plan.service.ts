@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException, Inject } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { AuditLogService } from '@wr/database';
-import { AuditAction, AuditEntityType, TaskStatus, TaskType } from '@wr/contracts';
+import { AuditAction, AuditEntityType, TaskStatus, TaskType, UserRole } from '@wr/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
 
 @Injectable()
@@ -160,5 +160,49 @@ export class TaskPlanService {
       throw new NotFoundException(`No OverallPlan found for RecruitmentRequest ${hiringRequestId}`);
     }
     return this.list(plan.id);
+  }
+
+  async listAll(payload: {
+    role?: string;
+    userId?: string;
+    status?: string;
+    taskType?: string;
+    overallPlanId?: string;
+    requestId?: string;
+  }) {
+    const where: any = {};
+
+    if (payload.overallPlanId) where.overallPlanId = payload.overallPlanId;
+    if (payload.status) where.status = payload.status;
+    if (payload.taskType) where.taskType = payload.taskType;
+    if (payload.requestId) where.overallPlan = { requestId: payload.requestId };
+    if (payload.role === UserRole.HR_RECRUITER && payload.userId) {
+      where.assignedToId = payload.userId;
+    }
+
+    return this.prisma.taskPlan.findMany({
+      where,
+      include: {
+        assignedTo: { select: { id: true, displayName: true, email: true } },
+        overallPlan: {
+          select: {
+            id: true,
+            requestId: true,
+            startDate: true,
+            endDate: true,
+            status: true,
+            request: {
+              select: {
+                id: true,
+                position: true,
+                headcount: true,
+                department: { select: { id: true, name: true, code: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { startDate: 'asc' },
+    });
   }
 }

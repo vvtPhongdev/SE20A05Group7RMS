@@ -209,6 +209,14 @@ interface Education {
   year: string;
 }
 
+const initialsFromName = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('');
+
 export const CandidateProfile: React.FC = () => {
   const { token } = useAuth();
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -647,23 +655,29 @@ export const CandidateProfile: React.FC = () => {
                     type="button"
                     disabled={avatarUploading}
                     onClick={() => avatarInputRef.current?.click()}
-                    className="relative w-20 h-20 overflow-hidden bg-workflow-ivory border-2 border-dashed border-border-warm rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-surface-container-low transition-colors group disabled:cursor-wait"
+                    className="relative w-20 h-20 shrink-0 overflow-hidden bg-surface-container-lowest border-2 border-dashed border-border-warm rounded-full flex items-center justify-center cursor-pointer hover:border-teal-command/50 transition-all group disabled:cursor-wait shadow-sm"
                     aria-label={avatarUrl ? 'Change profile photo' : 'Upload profile photo'}
                   >
                     {avatarUrl ? (
                       <img
                         src={avatarUrl}
                         alt={`${fullName || 'Candidate'} profile`}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-cover transition-transform group-hover:scale-105 duration-300"
                       />
                     ) : (
-                      <>
-                        <Icons.camera />
-                        <span className="text-[10px] mt-1 font-semibold text-on-surface-variant">
-                          Upload
-                        </span>
-                      </>
+                      <span className="text-xl font-extrabold text-teal-command uppercase tracking-wide">
+                        {fullName ? initialsFromName(fullName) : (
+                          <span className="text-on-surface-variant group-hover:text-teal-command transition-colors">
+                            <Icons.camera />
+                          </span>
+                        )}
+                      </span>
                     )}
+                    {/* Dark overlay on hover */}
+                    <div className="absolute inset-0 bg-deep-charcoal/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[9px] font-semibold gap-0.5">
+                      <span className="scale-75"><Icons.camera /></span>
+                      <span>{avatarUrl ? 'Change' : 'Upload'}</span>
+                    </div>
                     {avatarUploading ? (
                       <span className="absolute inset-0 flex items-center justify-center bg-deep-charcoal/60">
                         <Icons.spinner />

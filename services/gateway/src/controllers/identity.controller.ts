@@ -408,11 +408,13 @@ export class IdentityController {
   // ─── Users ───────────────────────────────────────────────────────
 
   @Get('users')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List users with pagination and role filter' })
-  listUsers(@Query() query: ListUsersQueryDto) {
-    return firstValueFrom(this.identityClient.send('users.list', query));
+  listUsers(@Query() query: ListUsersQueryDto, @CurrentUser() user: JwtPayload) {
+    const scopedQuery =
+      user.role === UserRole.HR_LEADER ? { ...query, role: UserRole.HR_RECRUITER } : query;
+    return firstValueFrom(this.identityClient.send('users.list', scopedQuery));
   }
 
   @Get('users/:id')

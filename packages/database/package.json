@@ -18,6 +18,7 @@
     "generate": "prisma generate",
     "migrate:dev": "prisma migrate dev",
     "push": "prisma db push",
+    "seed:sample-cvs": "ts-node --skip-project --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\",\\\"moduleResolution\\\":\\\"node\\\"}\" prisma/seed-sample-cvs.ts",
     "studio": "prisma studio"
   },
   "dependencies": {

@@ -2,6 +2,11 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+const sampleEmbedding = (seed: number) =>
+  Array.from({ length: 384 }, (_, index) =>
+    Number((Math.sin((seed + 1) * (index + 1)) * 0.05).toFixed(6)),
+  );
+
 async function main() {
   console.log('🌱 Seeding Works Reruiter database with workflow-first models...');
 
@@ -20,13 +25,16 @@ async function main() {
   // In reverse order of dependencies
   await prisma.emailLog.deleteMany({});
   await prisma.notification.deleteMany({});
+  await prisma.offerLetter.deleteMany({});
   await prisma.interviewResult.deleteMany({});
   await prisma.interviewSchedule.deleteMany({});
   await prisma.cvEmbedding.deleteMany({});
   await prisma.candidateCV.deleteMany({});
+  await prisma.application.deleteMany({});
   await prisma.candidateProfile.deleteMany({});
   await prisma.taskPlan.deleteMany({});
   await prisma.overallPlan.deleteMany({});
+  await prisma.jobPosting.deleteMany({});
   await prisma.requestLog.deleteMany({});
   await prisma.approvalRecord.deleteMany({});
   await prisma.recruitmentRequest.deleteMany({});
@@ -88,9 +96,11 @@ async function main() {
 
   // Candidates
   const candidates = [
-    { email: 'candidate@acme.com', displayName: 'Alex Rivera' },
-    { email: 'candidate2@gmail.com', displayName: 'Priya Sharma' },
-    { email: 'candidate3@gmail.com', displayName: 'Tomás García' },
+    { email: 'candidate1@acme.com', displayName: 'Alex Rivera' },
+    { email: 'candidate2@acme.com', displayName: 'Priya Sharma' },
+    { email: 'candidate3@acme.com', displayName: 'Tomas Garcia' },
+    { email: 'candidate4@acme.com', displayName: 'Mina Nguyen' },
+    { email: 'candidate5@acme.com', displayName: 'Jordan Lee' },
   ];
 
   const createdCandidates = [];
@@ -141,14 +151,57 @@ async function main() {
     {
       phone: '123-456-7890',
       summary: 'Senior Full-Stack Developer with 8 years of experience in React and Node.js.',
+      structuredData: {
+        title: 'Senior TypeScript Engineer',
+        role: 'Backend Engineer',
+        location: 'Ho Chi Minh City',
+        skills: ['TypeScript', 'Node.js', 'React', 'PostgreSQL', 'Prisma', 'Microservices'],
+        experienceYears: 8,
+      },
     },
     {
       phone: '987-654-3210',
-      summary: 'ML Engineer and Data Scientist specializing in neural networks.',
+      summary: 'Backend engineer specializing in Go, PostgreSQL, Redis, and distributed systems.',
+      structuredData: {
+        title: 'Backend Engineer',
+        role: 'Backend Engineer',
+        location: 'Ha Noi',
+        skills: ['Go', 'PostgreSQL', 'Redis', 'Kafka', 'Docker', 'Kubernetes'],
+        experienceYears: 6,
+      },
     },
     {
       phone: '555-555-5555',
       summary: 'DevOps engineer with extensive AWS and Kubernetes experience.',
+      structuredData: {
+        title: 'DevOps Engineer',
+        role: 'Platform Engineer',
+        location: 'Da Nang',
+        skills: ['AWS', 'Kubernetes', 'Terraform', 'CI/CD', 'Linux', 'Monitoring'],
+        experienceYears: 7,
+      },
+    },
+    {
+      phone: '555-010-4444',
+      summary: 'Frontend engineer building accessible React and design-system experiences.',
+      structuredData: {
+        title: 'Frontend Engineer',
+        role: 'Frontend Engineer',
+        location: 'Ho Chi Minh City',
+        skills: ['React', 'TypeScript', 'Tailwind CSS', 'Accessibility', 'Design Systems'],
+        experienceYears: 5,
+      },
+    },
+    {
+      phone: '555-010-5555',
+      summary: 'QA automation engineer focused on Playwright, API testing, and release quality.',
+      structuredData: {
+        title: 'QA Automation Engineer',
+        role: 'QA Engineer',
+        location: 'Remote',
+        skills: ['Playwright', 'TypeScript', 'API Testing', 'Postman', 'CI/CD'],
+        experienceYears: 4,
+      },
     },
   ];
 
@@ -165,7 +218,7 @@ async function main() {
         email: c.email,
         phone: details.phone,
         summary: details.summary,
-        structuredData: { skills: ['JavaScript', 'TypeScript', 'Node.js', 'React'] },
+        structuredData: details.structuredData,
       },
     });
     createdProfiles.push(profile);
@@ -249,27 +302,98 @@ async function main() {
     },
   });
 
-  // 9. Candidate CV & CV Embedding (pgvector column is raw and separate)
-  const candidateCv = await prisma.candidateCV.create({
+  await prisma.jobPosting.create({
     data: {
-      candidateId: firstProfile.id,
-      fileName: 'alex_rivera_cv.pdf',
-      fileType: 'PDF',
-      filePath: '/storage/cvs/alex_rivera_cv.pdf',
-      rawText:
-        'Alex Rivera CV: Senior TypeScript Engineer. Skilled in React, Node, PostgreSQL, and Prisma.',
-      parsedAt: new Date(),
+      requestId: request.id,
+      title: request.position,
+      description: request.jobDescription,
+      requirements: request.skillRequirements as any,
+      visibility: 'PUBLIC',
+      status: 'PUBLISHED',
+      expireDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000),
     },
   });
 
-  await prisma.cvEmbedding.create({
-    data: {
-      cvDocumentId: candidateCv.id,
-      chunkIndex: 0,
-      chunkText:
-        'Alex Rivera CV: Senior TypeScript Engineer. Skilled in React, Node, PostgreSQL, and Prisma.',
+  // 9. Candidate CVs, applications & CV Embeddings (pgvector column is raw and separate)
+  const cvSamples = [
+    {
+      fileName: 'alex_rivera_cv.pdf',
+      filePath: 'services/gateway/uploads/cv/sample-alex-rivera.pdf',
+      rawText:
+        'Alex Rivera CV: Senior TypeScript Engineer with 8 years in TypeScript, Node.js, React, PostgreSQL, Prisma, and microservices. Led API platform migrations and mentored backend teams.',
+      status: 'INTERVIEWING',
     },
-  });
+    {
+      fileName: 'priya_sharma_cv.pdf',
+      filePath: 'services/gateway/uploads/cv/sample-priya-sharma.pdf',
+      rawText:
+        'Priya Sharma CV: Backend Engineer with 6 years in Go, PostgreSQL, Redis, Kafka, Docker, and Kubernetes. Built distributed fintech services and high-throughput data pipelines.',
+      status: 'SCREENING',
+    },
+    {
+      fileName: 'tomas_garcia_cv.pdf',
+      filePath: 'services/gateway/uploads/cv/sample-tomas-garcia.pdf',
+      rawText:
+        'Tomas Garcia CV: DevOps and Platform Engineer with AWS, Kubernetes, Terraform, Linux, monitoring, incident response, and CI/CD automation experience.',
+      status: 'SUBMITTED',
+    },
+    {
+      fileName: 'mina_nguyen_cv.pdf',
+      filePath: 'services/gateway/uploads/cv/sample-mina-nguyen.pdf',
+      rawText:
+        'Mina Nguyen CV: Frontend Engineer with React, TypeScript, Tailwind CSS, accessibility, design systems, and enterprise dashboard experience.',
+      status: 'SUBMITTED',
+    },
+    {
+      fileName: 'jordan_lee_cv.pdf',
+      filePath: 'services/gateway/uploads/cv/sample-jordan-lee.pdf',
+      rawText:
+        'Jordan Lee CV: QA Automation Engineer with Playwright, TypeScript, API testing, Postman, CI/CD quality gates, regression suites, and release validation.',
+      status: 'SCREENING',
+    },
+  ];
+
+  for (let i = 0; i < createdProfiles.length; i++) {
+    const profile = createdProfiles[i];
+    const cv = cvSamples[i];
+    if (!profile || !cv) continue;
+
+    await prisma.application.create({
+      data: {
+        requestId: request.id,
+        candidateId: profile.id,
+        status: cv.status,
+      },
+    });
+
+    const candidateCv = await prisma.candidateCV.create({
+      data: {
+        candidateId: profile.id,
+        fileName: cv.fileName,
+        fileType: 'PDF',
+        filePath: cv.filePath,
+        rawText: cv.rawText,
+        parsedAt: new Date(),
+        screeningStatus: cv.status === 'SUBMITTED' ? 'PENDING' : 'SHORTLISTED',
+      },
+    });
+
+    const embeddingRecord = await prisma.cvEmbedding.create({
+      data: {
+        cvDocumentId: candidateCv.id,
+        chunkIndex: 0,
+        chunkText: cv.rawText,
+      },
+      select: { id: true },
+    });
+
+    const vectorStr = `[${sampleEmbedding(i).join(',')}]`;
+    await prisma.$executeRawUnsafe(
+      `UPDATE cv_embeddings SET embedding = $1::vector WHERE id = $2`,
+      vectorStr,
+      embeddingRecord.id,
+    );
+  }
 
   // 10. Interview schedule and result
   const interview = await prisma.interviewSchedule.create({

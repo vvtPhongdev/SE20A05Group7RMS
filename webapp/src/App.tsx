@@ -26,7 +26,7 @@ import { HRDashBoard } from './pages/HRDashBoard';
 import { HRRequestQueue } from './pages/HRRequestQueue';
 import { HRCampaigns } from './pages/HRCampaigns';
 import { HRCampaignDetail } from './pages/HRCampaignDetail';
-import { TaskPlanner } from './pages/TaskPlanner';
+import { TaskPlanner } from './pages/HRTaskPlanner';
 import { HRTalentPool } from './pages/HRTalentPool';
 import { CandidateSearch } from './pages/CandidateSearch';
 import { HRInterviewSchedule } from './pages/HRInterviewSchedule';

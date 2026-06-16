@@ -16,6 +16,21 @@ export class TaskPlanController {
     return this.service.listByRequest(payload.hiringRequestId);
   }
 
+  @MessagePattern('task-plan.listAll')
+  listAll(
+    @Payload()
+    payload: {
+      role?: string;
+      userId?: string;
+      status?: string;
+      taskType?: string;
+      overallPlanId?: string;
+      requestId?: string;
+    },
+  ) {
+    return this.service.listAll(payload);
+  }
+
   @MessagePattern('task-plan.create')
   create(
     @Payload()

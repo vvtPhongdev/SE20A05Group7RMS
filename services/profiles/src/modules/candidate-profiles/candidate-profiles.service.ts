@@ -2,6 +2,7 @@ import { Injectable, HttpStatus } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { PrismaService } from '../../common/database/prisma.service';
 import { UserRole } from '@wr/contracts';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class CandidateProfilesService {
@@ -11,6 +12,24 @@ export class CandidateProfilesService {
     return value && typeof value === 'object' && !Array.isArray(value)
       ? (value as Record<string, any>)
       : {};
+  }
+
+  private avatarData(value: unknown): Record<string, string> | null {
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, string>)
+      : null;
+  }
+
+  private withUserAvatar<T extends { structuredData: unknown; user?: { avatar?: unknown } | null }>(
+    profile: T,
+  ) {
+    const structuredData = this.structuredData(profile.structuredData);
+    const avatar = this.avatarData(profile.user?.avatar) ?? this.avatarData(structuredData.avatar);
+
+    return {
+      ...profile,
+      structuredData: avatar ? { ...structuredData, avatar } : structuredData,
+    };
   }
 
   private async findStoredProfile(id: string) {
@@ -57,6 +76,9 @@ export class CandidateProfilesService {
         this.prisma.candidateProfile.findMany({
           where,
           include: {
+            user: {
+              select: { avatar: true },
+            },
             cvDocuments: {
               orderBy: { createdAt: 'desc' },
               take: 1,
@@ -66,6 +88,7 @@ export class CandidateProfilesService {
               orderBy: { createdAt: 'desc' },
               take: 3,
               select: {
+                requestId: true,
                 status: true,
                 request: {
                   select: {
@@ -92,7 +115,7 @@ export class CandidateProfilesService {
       ]);
 
     return {
-      data: candidates,
+      data: candidates.map((candidate) => this.withUserAvatar(candidate)),
       meta: {
         total,
         page,
@@ -111,6 +134,9 @@ export class CandidateProfilesService {
         OR: [{ id: id }, { userId: id }],
       },
       include: {
+        user: {
+          select: { avatar: true },
+        },
         cvDocuments: true,
         applications: {
           include: {
@@ -151,6 +177,9 @@ export class CandidateProfilesService {
             structuredData: {},
           },
           include: {
+            user: {
+              select: { avatar: true },
+            },
             cvDocuments: true,
             applications: {
               include: {
@@ -193,7 +222,7 @@ export class CandidateProfilesService {
     const interviewerMap = new Map(interviewers.map((user) => [user.id, user]));
 
     return {
-      ...profile,
+      ...this.withUserAvatar(profile),
       interviews: profile.interviews.map((interview) => ({
         ...interview,
         panel: interview.interviewers
@@ -230,27 +259,37 @@ export class CandidateProfilesService {
 
   async getAvatar(id: string) {
     const profile = await this.findStoredProfile(id);
-    return this.structuredData(profile.structuredData).avatar ?? null;
+    const user = await this.prisma.user.findUnique({
+      where: { id: profile.userId },
+      select: { avatar: true },
+    });
+    return this.avatarData(user?.avatar) ?? this.structuredData(profile.structuredData).avatar ?? null;
   }
 
   async setAvatar(id: string, avatar: Record<string, string>) {
     const profile = await this.findStoredProfile(id);
     const structuredData = this.structuredData(profile.structuredData);
-    const previousAvatar = structuredData.avatar ?? null;
-    const updatedProfile = await this.prisma.candidateProfile.update({
-      where: { id: profile.id },
-      data: {
-        structuredData: {
-          ...structuredData,
-          avatar,
-        },
-      },
+    const user = await this.prisma.user.findUnique({
+      where: { id: profile.userId },
+      select: { avatar: true },
     });
+    const previousAvatar = this.avatarData(user?.avatar) ?? structuredData.avatar ?? null;
+    const { avatar: _legacyAvatar, ...remainingData } = structuredData;
+    const [updatedUser] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: profile.userId },
+        data: { avatar },
+      }),
+      this.prisma.candidateProfile.update({
+        where: { id: profile.id },
+        data: { structuredData: remainingData },
+      }),
+    ]);
 
     return {
       avatar,
       previousAvatar,
-      updatedAt: updatedProfile.updatedAt,
+      updatedAt: updatedUser.updatedAt,
     };
   }
 
@@ -258,14 +297,24 @@ export class CandidateProfilesService {
     const profile = await this.findStoredProfile(id);
     const structuredData = this.structuredData(profile.structuredData);
     const { avatar: previousAvatar, ...remainingData } = structuredData;
-    const updatedProfile = await this.prisma.candidateProfile.update({
-      where: { id: profile.id },
-      data: { structuredData: remainingData },
+    const user = await this.prisma.user.findUnique({
+      where: { id: profile.userId },
+      select: { avatar: true },
     });
+    const [updatedUser] = await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: profile.userId },
+        data: { avatar: Prisma.JsonNull },
+      }),
+      this.prisma.candidateProfile.update({
+        where: { id: profile.id },
+        data: { structuredData: remainingData },
+      }),
+    ]);
 
     return {
-      previousAvatar: previousAvatar ?? null,
-      updatedAt: updatedProfile.updatedAt,
+      previousAvatar: this.avatarData(user?.avatar) ?? previousAvatar ?? null,
+      updatedAt: updatedUser.updatedAt,
     };
   }
 }

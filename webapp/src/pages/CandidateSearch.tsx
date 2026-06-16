@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { apiRequest } from '../lib/api';
+import { ApiError, apiRequest } from '../lib/api';
 
 type SearchResult = {
   id: string;
@@ -56,20 +56,22 @@ export const CandidateSearch: React.FC = () => {
   const [expandedTerms, setExpandedTerms] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState('');
+  const [shortlistingId, setShortlistingId] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
 
   useEffect(() => {
     type JobPosting = {
       requestId: string;
       title: string;
       status: string;
-      request: { position: string };
+      request?: { position: string } | null;
     };
     const loadCampaigns = async () => {
       try {
         const response = await apiRequest<JobPosting[]>('/job-postings', token);
         const mapped = response.map((posting) => ({
           requestId: posting.requestId,
-          label: `${posting.title || posting.request.position} (${posting.status})`,
+          label: `${posting.title || posting.request?.position || 'Recruitment campaign'} (${posting.status})`,
         }));
         setCampaigns(mapped);
         setCampaign(mapped[0]?.requestId ?? '');
@@ -80,6 +82,31 @@ export const CandidateSearch: React.FC = () => {
     };
     void loadCampaigns();
   }, [token]);
+
+  const handleShortlist = async (candidateId: string) => {
+    if (!campaign) {
+      setApiError('Select a campaign before shortlisting.');
+      return;
+    }
+    setShortlistingId(candidateId);
+    setActionMessage('');
+    setApiError('');
+    try {
+      await apiRequest('/applications', token, {
+        method: 'POST',
+        body: JSON.stringify({ requestId: campaign, candidateId }),
+      });
+      setActionMessage('Candidate successfully shortlisted for this campaign.');
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setActionMessage('Candidate is already in this campaign.');
+      } else {
+        setApiError(err instanceof Error ? err.message : 'Failed to shortlist candidate');
+      }
+    } finally {
+      setShortlistingId('');
+    }
+  };
 
   const handleSearch = async () => {
     if (!campaign || !query.trim()) return;
@@ -253,6 +280,12 @@ export const CandidateSearch: React.FC = () => {
           </p>
         ) : null}
 
+        {actionMessage ? (
+          <p className="rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm text-teal-command font-semibold">
+            {actionMessage}
+          </p>
+        ) : null}
+
         <section
           className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4"
           aria-label="Candidate search metrics"
@@ -365,13 +398,14 @@ export const CandidateSearch: React.FC = () => {
                     View CV
                   </button>
                   <button
-                    className="h-9 rounded-lg border border-teal-command px-4 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5"
-                    onClick={() =>
-                      setApiError('Shortlist API is not connected to a backend handler')
-                    }
+                    className={`h-9 rounded-lg border border-teal-command px-4 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 ${
+                      shortlistingId ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                    disabled={shortlistingId !== ''}
+                    onClick={() => void handleShortlist(result.id)}
                     type="button"
                   >
-                    Shortlist
+                    {shortlistingId === result.id ? 'Shortlisting...' : 'Shortlist'}
                   </button>
                   <button
                     className="h-9 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"

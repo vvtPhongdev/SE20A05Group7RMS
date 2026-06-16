@@ -23,6 +23,7 @@ export class UsersService {
       organizationId: true,
       departmentId: true,
       phone: true,
+      avatar: true,
       isActive: true,
       department: {
         select: {
