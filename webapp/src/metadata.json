@@ -8,9 +8,13 @@
       "expectedNavItems": 5,
       "description": "Dashboard, Create Request, My Requests, Interviews, Dept Settings"
     },
-    "HR_MANAGER": {
+    "HR_LEADER": {
       "expectedNavItems": 10,
       "description": "Dashboard, Request Queue, Campaigns, Task Planner, Talent Pool, Candidate Search, Interview Schedule, Interview Results, Pipeline Reports, System Notifications"
+    },
+    "HR_RECRUITER": {
+      "expectedNavItems": 8,
+      "description": "Dashboard, Campaigns, Task Planner, Talent Pool, Candidate Search, Interview Schedule, Interview Results, System Notifications"
     },
     "CANDIDATE": {
       "expectedNavItems": 5,
@@ -35,7 +39,7 @@
       { "label": "Interviews", "path": "/dept-head/interviews", "icon": "interviews" },
       { "label": "Dept Settings", "path": "/dept-head/settings", "icon": "settings" }
     ],
-    "HR_MANAGER": [
+    "HR_LEADER": [
       { "label": "Dashboard", "path": "/hr", "icon": "dashboard" },
       { "label": "Request Queue", "path": "/hr/requests", "icon": "queue" },
       { "label": "Campaigns", "path": "/hr/campaigns", "icon": "campaigns" },
@@ -45,6 +49,16 @@
       { "label": "Interview Schedule", "path": "/hr/interviews", "icon": "interviews" },
       { "label": "Interview Results", "path": "/hr/results", "icon": "queue" },
       { "label": "Pipeline Reports", "path": "/hr/reports", "icon": "reports" },
+      { "label": "System Notifications", "path": "/hr/notifications", "icon": "notifications" }
+    ],
+    "HR_RECRUITER": [
+      { "label": "Dashboard", "path": "/hr", "icon": "dashboard" },
+      { "label": "Campaigns", "path": "/hr/campaigns", "icon": "campaigns" },
+      { "label": "Task Planner", "path": "/hr/tasks", "icon": "tasks" },
+      { "label": "Talent Pool", "path": "/hr/candidates", "icon": "users" },
+      { "label": "Candidate Search", "path": "/hr/search", "icon": "search" },
+      { "label": "Interview Schedule", "path": "/hr/interviews", "icon": "interviews" },
+      { "label": "Interview Results", "path": "/hr/results", "icon": "queue" },
       { "label": "System Notifications", "path": "/hr/notifications", "icon": "notifications" }
     ],
     "CANDIDATE": [

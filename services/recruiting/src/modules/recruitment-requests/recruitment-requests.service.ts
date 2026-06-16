@@ -107,6 +107,23 @@ export class RecruitmentRequestsService {
               _count: { select: { tasks: true } },
             },
           },
+          logs: {
+            where: {
+              action: {
+                in: [
+                  'CREATED',
+                  'SUBMITTED_FOR_REVIEW',
+                  'RESUBMITTED_FOR_REVIEW',
+                  'HR_FORWARDED_TO_ADMIN',
+                ],
+              },
+            },
+            select: {
+              action: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
@@ -115,25 +132,37 @@ export class RecruitmentRequestsService {
     ]);
 
     return {
-      data: requests.map((request) => ({
-        id: request.id,
-        position: request.position,
-        department: request.department,
-        requester: request.createdBy,
-        owner: request.reviewedBy,
-        status: request.status,
-        urgency: request.urgency,
-        headcount: request.headcount,
-        filledHeadcount: request.applications.filter(
-          (application) => application.status === 'OFFER_ACCEPTED',
-        ).length,
-        jobDescription: request.jobDescription,
-        skillRequirements: request.skillRequirements,
-        justification: request.justification,
-        overallPlan: request.overallPlan,
-        createdAt: request.createdAt,
-        updatedAt: request.updatedAt,
-      })),
+      data: requests.map((request) => {
+        const latestSubmission = request.logs.find((log) =>
+          ['CREATED', 'SUBMITTED_FOR_REVIEW', 'RESUBMITTED_FOR_REVIEW'].includes(log.action),
+        );
+        const latestForward = request.logs.find((log) => log.action === 'HR_FORWARDED_TO_ADMIN');
+        const forwardedToAdmin = Boolean(
+          latestForward &&
+          (!latestSubmission || latestForward.createdAt > latestSubmission.createdAt),
+        );
+
+        return {
+          id: request.id,
+          position: request.position,
+          department: request.department,
+          requester: request.createdBy,
+          owner: request.reviewedBy,
+          status: request.status,
+          urgency: request.urgency,
+          headcount: request.headcount,
+          filledHeadcount: request.applications.filter(
+            (application) => application.status === 'OFFER_ACCEPTED',
+          ).length,
+          jobDescription: request.jobDescription,
+          skillRequirements: request.skillRequirements,
+          justification: request.justification,
+          overallPlan: request.overallPlan,
+          forwardedToAdmin,
+          createdAt: request.createdAt,
+          updatedAt: request.updatedAt,
+        };
+      }),
       meta: {
         total,
         page,
@@ -141,6 +170,49 @@ export class RecruitmentRequestsService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  async getByIdForActor(payload: { id: string; userId: string; role: UserRole }) {
+    const request = await this.prisma.recruitmentRequest.findUnique({
+      where: { id: payload.id },
+      include: {
+        department: {
+          select: { id: true, name: true, code: true },
+        },
+        createdBy: {
+          select: { id: true, displayName: true },
+        },
+        reviewedBy: {
+          select: { id: true, displayName: true },
+        },
+        overallPlan: true,
+        logs: {
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    if (!request) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Recruitment request with ID ${payload.id} not found`,
+      });
+    }
+
+    const canAccess =
+      payload.role === UserRole.ADMIN ||
+      (payload.role === UserRole.DEPARTMENT_HEAD && request.createdById === payload.userId) ||
+      (payload.role === UserRole.HR_LEADER && request.reviewedById === payload.userId) ||
+      payload.role === UserRole.HR_RECRUITER;
+
+    if (!canAccess) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'You do not have permission to view this recruitment request',
+      });
+    }
+
+    return request;
   }
 
   async createForDepartmentHead(payload: {
@@ -195,6 +267,89 @@ export class RecruitmentRequestsService {
     return created;
   }
 
+  async updateForDepartmentHead(payload: {
+    id: string;
+    userId: string;
+    role?: string;
+    positionTitle?: string;
+    headcount?: number;
+    jobDescription?: string;
+    justification?: string;
+    urgency?: string;
+    skillRequirements?: Record<string, unknown>;
+  }) {
+    const request = await this.prisma.recruitmentRequest.findUnique({
+      where: { id: payload.id },
+    });
+
+    if (!request) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Recruitment request with ID ${payload.id} not found`,
+      });
+    }
+
+    const isOwner = request.createdById === payload.userId;
+    const isHrLeader = payload.role === 'HR_LEADER';
+
+    if (!isOwner && !isHrLeader) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'You are not authorized to update this recruitment request',
+      });
+    }
+
+    if (isHrLeader) {
+      if (
+        request.status === RecruitmentRequestStatus.DRAFT ||
+        request.status === RecruitmentRequestStatus.APPROVED ||
+        request.status === RecruitmentRequestStatus.REJECTED ||
+        request.status === RecruitmentRequestStatus.CLOSED ||
+        request.status === RecruitmentRequestStatus.CANCELLED
+      ) {
+        throw new RpcException({
+          status: HttpStatus.CONFLICT,
+          message: `HR Leaders cannot update requests in status ${request.status}`,
+        });
+      }
+    } else {
+      if (
+        request.status !== RecruitmentRequestStatus.DRAFT &&
+        request.status !== RecruitmentRequestStatus.REVISION_NEEDED
+      ) {
+        throw new RpcException({
+          status: HttpStatus.CONFLICT,
+          message: 'Only draft requests or requests needing revision can be updated',
+        });
+      }
+    }
+
+    const updated = await this.prisma.recruitmentRequest.update({
+      where: { id: payload.id },
+      data: {
+        position: payload.positionTitle,
+        headcount: payload.headcount,
+        jobDescription: payload.jobDescription,
+        justification: payload.justification,
+        urgency: payload.urgency,
+        skillRequirements:
+          payload.skillRequirements === undefined
+            ? undefined
+            : (payload.skillRequirements as Prisma.InputJsonValue),
+      },
+    });
+
+    await this.prisma.requestLog.create({
+      data: {
+        requestId: payload.id,
+        action: 'UPDATED',
+        performedById: payload.userId,
+      },
+    });
+
+    return updated;
+  }
+
   async submitDraft(payload: { id: string; userId: string }) {
     const request = await this.prisma.recruitmentRequest.findUnique({
       where: { id: payload.id },
@@ -212,23 +367,33 @@ export class RecruitmentRequestsService {
         message: 'You can only submit your own recruitment requests',
       });
     }
-    if (request.status !== RecruitmentRequestStatus.DRAFT) {
+    if (
+      request.status !== RecruitmentRequestStatus.DRAFT &&
+      request.status !== RecruitmentRequestStatus.REVISION_NEEDED
+    ) {
       throw new RpcException({
         status: HttpStatus.CONFLICT,
-        message: `Only requests in ${RecruitmentRequestStatus.DRAFT} status can be submitted`,
+        message: 'Only draft requests or requests needing revision can be submitted',
       });
     }
 
+    const previousStatus = request.status as RecruitmentRequestStatus;
     const [updated] = await this.prisma.$transaction([
       this.prisma.recruitmentRequest.update({
         where: { id: payload.id },
-        data: { status: RecruitmentRequestStatus.PENDING_REVIEW },
+        data: {
+          status: RecruitmentRequestStatus.PENDING_REVIEW,
+          rejectionReason: null,
+        },
       }),
       this.prisma.requestLog.create({
         data: {
           requestId: payload.id,
-          action: 'SUBMITTED_FOR_REVIEW',
-          fromStatus: RecruitmentRequestStatus.DRAFT,
+          action:
+            previousStatus === RecruitmentRequestStatus.REVISION_NEEDED
+              ? 'RESUBMITTED_FOR_REVIEW'
+              : 'SUBMITTED_FOR_REVIEW',
+          fromStatus: previousStatus,
           toStatus: RecruitmentRequestStatus.PENDING_REVIEW,
           performedById: payload.userId,
         },
@@ -250,10 +415,10 @@ export class RecruitmentRequestsService {
         message: `Recruitment request with ID ${payload.id} not found`,
       });
     }
-    if (!hrManager || hrManager.role !== UserRole.HR_MANAGER || !hrManager.isActive) {
+    if (!hrManager || hrManager.role !== UserRole.HR_LEADER || !hrManager.isActive) {
       throw new RpcException({
         status: HttpStatus.BAD_REQUEST,
-        message: 'The selected user must be an active HR manager',
+        message: 'The selected user must be an active HR Leader',
       });
     }
 
@@ -287,6 +452,7 @@ export class RecruitmentRequestsService {
     decision: 'APPROVED' | 'REJECTED';
     comments?: string;
     adminId: string;
+    role?: string;
   }) {
     const request = await this.prisma.recruitmentRequest.findUnique({
       where: { id: payload.id },
@@ -304,6 +470,58 @@ export class RecruitmentRequestsService {
         message: `Only requests in ${RecruitmentRequestStatus.PENDING_REVIEW} can be decided`,
       });
     }
+    if (!request.reviewedById) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: 'The request must be assigned to an HR manager before an Admin decision',
+      });
+    }
+
+    const isHrLeader = payload.role === 'HR_LEADER';
+    if (isHrLeader) {
+      if (payload.decision !== 'REJECTED') {
+        throw new RpcException({
+          status: HttpStatus.BAD_REQUEST,
+          message: 'HR Leaders can only reject recruitment requests, not approve them directly',
+        });
+      }
+      if (request.reviewedById !== payload.adminId) {
+        throw new RpcException({
+          status: HttpStatus.FORBIDDEN,
+          message: 'You can only reject recruitment requests assigned to you',
+        });
+      }
+    } else {
+      const [latestSubmission, latestForward] = await Promise.all([
+        this.prisma.requestLog.findFirst({
+          where: {
+            requestId: payload.id,
+            action: {
+              in: ['CREATED', 'SUBMITTED_FOR_REVIEW', 'RESUBMITTED_FOR_REVIEW'],
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.requestLog.findFirst({
+          where: {
+            requestId: payload.id,
+            action: 'HR_FORWARDED_TO_ADMIN',
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+      ]);
+
+      if (
+        !latestForward ||
+        (latestSubmission && latestForward.createdAt <= latestSubmission.createdAt)
+      ) {
+        throw new RpcException({
+          status: HttpStatus.CONFLICT,
+          message: 'The assigned HR manager must forward the request before an Admin decision',
+        });
+      }
+    }
+
     if (payload.decision === 'REJECTED' && !payload.comments?.trim()) {
       throw new RpcException({
         status: HttpStatus.BAD_REQUEST,
@@ -317,7 +535,7 @@ export class RecruitmentRequestsService {
         where: { id: payload.id },
         data: {
           status: payload.decision,
-          approvedById: payload.adminId,
+          approvedById: isHrLeader ? null : payload.adminId,
           rejectionReason: payload.decision === 'REJECTED' ? comments : null,
         },
       }),
@@ -332,7 +550,7 @@ export class RecruitmentRequestsService {
       this.prisma.requestLog.create({
         data: {
           requestId: payload.id,
-          action: 'ADMIN_REQUEST_DECISION',
+          action: isHrLeader ? 'HR_REQUEST_DECISION' : 'ADMIN_REQUEST_DECISION',
           fromStatus: request.status,
           toStatus: payload.decision,
           performedById: payload.adminId,
@@ -342,6 +560,131 @@ export class RecruitmentRequestsService {
     ]);
 
     return updated;
+  }
+
+  async requestChanges(payload: {
+    id: string;
+    adminId: string;
+    feedback: string;
+    positionTitle?: string;
+    headcount?: number;
+    jobDescription?: string;
+    justification?: string;
+    urgency?: string;
+    skillRequirements?: Record<string, unknown>;
+  }) {
+    const request = await this.prisma.recruitmentRequest.findUnique({
+      where: { id: payload.id },
+    });
+
+    if (!request) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Recruitment request with ID ${payload.id} not found`,
+      });
+    }
+    if (request.status !== RecruitmentRequestStatus.PENDING_REVIEW) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: `Only requests in ${RecruitmentRequestStatus.PENDING_REVIEW} can be returned for changes`,
+      });
+    }
+    if (!payload.feedback?.trim()) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'Change request feedback is required',
+      });
+    }
+
+    const feedback = payload.feedback.trim();
+    const proposedChanges = {
+      positionTitle: payload.positionTitle,
+      headcount: payload.headcount,
+      jobDescription: payload.jobDescription,
+      justification: payload.justification,
+      urgency: payload.urgency,
+      skillRequirements: payload.skillRequirements,
+    };
+
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.recruitmentRequest.update({
+        where: { id: payload.id },
+        data: {
+          position: payload.positionTitle,
+          headcount: payload.headcount,
+          jobDescription: payload.jobDescription,
+          justification: payload.justification,
+          urgency: payload.urgency,
+          skillRequirements:
+            payload.skillRequirements === undefined
+              ? undefined
+              : (payload.skillRequirements as Prisma.InputJsonValue),
+          status: RecruitmentRequestStatus.REVISION_NEEDED,
+          rejectionReason: feedback,
+          approvedById: null,
+        },
+      }),
+      this.prisma.approvalRecord.create({
+        data: {
+          requestId: payload.id,
+          approverId: payload.adminId,
+          decision: RecruitmentRequestStatus.REVISION_NEEDED,
+          comments: feedback,
+        },
+      }),
+      this.prisma.requestLog.create({
+        data: {
+          requestId: payload.id,
+          action: 'ADMIN_REQUESTED_CHANGES',
+          fromStatus: RecruitmentRequestStatus.PENDING_REVIEW,
+          toStatus: RecruitmentRequestStatus.REVISION_NEEDED,
+          performedById: payload.adminId,
+          metadata: {
+            feedback,
+            proposedChanges: proposedChanges as any,
+          } as Prisma.InputJsonValue,
+        },
+      }),
+    ]);
+
+    return updated;
+  }
+
+  async forwardToAdmin(payload: { id: string; hrManagerId: string }) {
+    const request = await this.prisma.recruitmentRequest.findUnique({
+      where: { id: payload.id },
+    });
+
+    if (!request) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Recruitment request with ID ${payload.id} not found`,
+      });
+    }
+    if (request.reviewedById !== payload.hrManagerId) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'You can only forward recruitment requests assigned to you',
+      });
+    }
+    if (request.status !== RecruitmentRequestStatus.PENDING_REVIEW) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: `Only requests in ${RecruitmentRequestStatus.PENDING_REVIEW} status can be forwarded`,
+      });
+    }
+
+    await this.prisma.requestLog.create({
+      data: {
+        requestId: payload.id,
+        action: 'HR_FORWARDED_TO_ADMIN',
+        fromStatus: RecruitmentRequestStatus.PENDING_REVIEW,
+        toStatus: RecruitmentRequestStatus.PENDING_REVIEW,
+        performedById: payload.hrManagerId,
+      },
+    });
+
+    return request;
   }
 
   async returnForRevision(payload: { id: string; hrManagerId: string; feedback: string }) {

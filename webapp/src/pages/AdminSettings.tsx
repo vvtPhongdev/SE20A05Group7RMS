@@ -17,50 +17,7 @@ interface PipelineStage {
   color: string;
 }
 
-/*
- * Mock departments retained for UI reference only.
-const defaultDepartments: Department[] = [
-  {
-    name: 'IT & Engineering',
-    code: 'ENG',
-    head: 'Nguyen Van A',
-    headcount: 15,
-    activeRequests: 3,
-  },
-  {
-    name: 'Marketing',
-    code: 'MARKETING',
-    head: 'Tran Thi B',
-    headcount: 8,
-    activeRequests: 0,
-  },
-  {
-    name: 'Human Resources',
-    code: 'HR',
-    head: 'Le Van C',
-    headcount: 5,
-    activeRequests: 1,
-  },
-  {
-    name: 'Finance',
-    code: 'FINANCE',
-    head: 'Pham Van D',
-    headcount: 10,
-    activeRequests: 0,
-  },
-];
 
-*/
-
-/*
- * Mock pipeline stages retained for UI reference only.
-const defaultStages: PipelineStage[] = [
-  { name: 'Application Received', color: 'bg-blue-500' },
-  { name: 'Resume Screening', color: 'bg-cyan-500' },
-  { name: 'Technical Assessment', color: 'bg-amber-500' },
-  { name: 'Onboarding', color: 'bg-teal-command' },
-];
-*/
 
 export const AdminSettings: React.FC = () => {
   const { token } = useAuth();

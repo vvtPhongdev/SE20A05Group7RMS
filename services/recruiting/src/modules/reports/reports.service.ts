@@ -465,7 +465,7 @@ export class ReportsService {
     const where: any = {};
     if (role === UserRole.DEPARTMENT_HEAD) {
       where.createdById = userId;
-    } else if (role === UserRole.HR_MANAGER) {
+    } else if (role === UserRole.HR_LEADER || role === UserRole.HR_RECRUITER) {
       where.reviewedById = userId;
     }
 
@@ -498,6 +498,7 @@ export class ReportsService {
         status: req.status,
         createdBy: req.createdBy.displayName,
         handler: req.reviewedBy ? req.reviewedBy.displayName : 'Not Assigned',
+        rejectionReason: req.rejectionReason,
         createdAt: req.createdAt,
         updatedAt: req.updatedAt,
       };

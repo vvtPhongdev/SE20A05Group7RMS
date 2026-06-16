@@ -91,7 +91,7 @@ describe('UsersService', () => {
 
   describe('get', () => {
     it('should return a user if found by ID', async () => {
-      const user = { id: 'uuid-1', email: 'test@example.com', role: UserRole.HR_MANAGER };
+      const user = { id: 'uuid-1', email: 'test@example.com', role: UserRole.HR_LEADER };
       mockPrismaService.user.findUnique.mockResolvedValue(user);
 
       const result = await service.get({ id: 'uuid-1' });
@@ -319,7 +319,7 @@ describe('UsersService', () => {
         new RpcException({
           status: HttpStatus.BAD_REQUEST,
           message:
-            'Invalid role: INVALID_ROLE. Must be one of ADMIN, DEPARTMENT_HEAD, HR_MANAGER, CANDIDATE',
+            'Invalid role: INVALID_ROLE. Must be one of ADMIN, DEPARTMENT_HEAD, HR_LEADER, HR_RECRUITER, CANDIDATE',
         }),
       );
     });

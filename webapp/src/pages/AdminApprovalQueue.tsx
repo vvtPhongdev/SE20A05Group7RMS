@@ -2,9 +2,11 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { apiRequest } from '../lib/api';
 
-type ApprovalStatus = 'Pending' | 'Approved' | 'Rejected' | 'Draft';
+type ApprovalStatus = 'Pending' | 'Approved' | 'Rejected' | 'Revision' | 'Draft';
 type Priority = 'High' | 'Medium' | 'Low';
 type FilterKey = 'All' | ApprovalStatus;
+type ReviewAction = 'APPROVED' | 'REJECTED' | 'REQUEST_CHANGES';
+type ApprovalTypeFilter = 'ALL' | 'REQUEST' | 'PLAN';
 
 interface ApprovalRequest {
   id: string;
@@ -18,144 +20,21 @@ interface ApprovalRequest {
   salaryRange: string;
   description: string;
   documents: string[];
+  approvalType: 'REQUEST' | 'PLAN';
+  planId?: string;
+  urgency: string;
+  jobDescription: string;
+  justification: string;
+  skillRequirements: Record<string, unknown>;
+  rejectionReason?: string | null;
 }
-
-/*
- * Mock approval queue retained for UI reference only.
-const initialRequests: ApprovalRequest[] = [
-  {
-    id: 'RMS-9421',
-    position: 'Senior Frontend Engineer',
-    department: 'Phòng Kỹ Thuật',
-    requestedBy: 'Nguyễn Văn B',
-    headcount: 2,
-    priority: 'High',
-    status: 'Pending',
-    submitted: 'Oct 24, 2023',
-    salaryRange: '$2,500 - $3,800 USD',
-    description:
-      'We are looking for a Senior Frontend Engineer to lead the migration of our enterprise dashboard to a modern tech stack. Requires 5+ years of experience with React, TypeScript, and high-performance UI optimization.',
-    documents: ['JD_Senior_Frontend_Final.pdf', 'Budget_Approval_Q4.xlsx'],
-  },
-  {
-    id: 'RMS-9420',
-    position: 'Creative Content Lead',
-    department: 'Phòng Marketing',
-    requestedBy: 'Trần Thị C',
-    headcount: 1,
-    priority: 'Medium',
-    status: 'Approved',
-    submitted: 'Oct 23, 2023',
-    salaryRange: '$1,500 - $2,200 USD',
-    description:
-      'Lead our creative content team. Drive content strategy across all digital channels, manage content pipeline, and collaborate with product/design teams.',
-    documents: ['JD_Creative_Lead.pdf'],
-  },
-  {
-    id: 'RMS-9418',
-    position: 'Recruitment Coordinator',
-    department: 'Phòng Nhân Sự',
-    requestedBy: 'Phạm Minh D',
-    headcount: 1,
-    priority: 'Low',
-    status: 'Draft',
-    submitted: 'Oct 22, 2023',
-    salaryRange: '$1,000 - $1,500 USD',
-    description:
-      'Coordinate interview scheduling, communicate with candidates, manage applicant tracking system updates, and support onboarding logistics.',
-    documents: ['JD_Recruiter_Coord.pdf'],
-  },
-  {
-    id: 'RMS-9415',
-    position: 'DevOps Architect',
-    department: 'Phòng Kỹ Thuật',
-    requestedBy: 'Lê Hoàng E',
-    headcount: 1,
-    priority: 'High',
-    status: 'Pending',
-    submitted: 'Oct 21, 2023',
-    salaryRange: '$3,500 - $5,000 USD',
-    description:
-      'Design and optimize our multi-region AWS cloud infrastructure. Automate CI/CD pipelines, ensure high availability, and lead security compliance audits.',
-    documents: ['JD_DevOps_Architect.pdf', 'Infra_Budget_2024.xlsx'],
-  },
+const filters: FilterKey[] = ['All', 'Pending', 'Revision', 'Approved', 'Rejected', 'Draft'];
+const approvalTypeFilters: Array<{ key: ApprovalTypeFilter; label: string }> = [
+  { key: 'ALL', label: 'All Types' },
+  { key: 'REQUEST', label: 'Request Approval' },
+  { key: 'PLAN', label: 'Plan Approval' },
 ];
-
-// Generate the rest programmatically to reach exactly 45 total to match the HTML design stats
-const generateMockRequests = (): ApprovalRequest[] => {
-  const base = [...initialRequests];
-  const departments = [
-    'Phòng Kỹ Thuật',
-    'Phòng Marketing',
-    'Phòng Nhân Sự',
-    'Phòng Tài Chính',
-    'Phòng Kinh Doanh',
-  ];
-  const positions = [
-    'Backend Engineer',
-    'Product Manager',
-    'UX/UI Designer',
-    'QA Engineer',
-    'SEO Specialist',
-    'HR Business Partner',
-    'Financial Analyst',
-    'Sales Executive',
-  ];
-  const names = ['Nguyễn Văn X', 'Lê Thị Y', 'Trần Minh Z', 'Phạm Hoàng W', 'Vũ Đức V'];
-
-  let pendingNeeded = 3 - base.filter((r) => r.status === 'Pending').length; // 1
-  let approvedNeeded = 12 - base.filter((r) => r.status === 'Approved').length; // 11
-  let rejectedNeeded = 2 - base.filter((r) => r.status === 'Rejected').length; // 2
-  let draftNeeded = 28 - base.filter((r) => r.status === 'Draft').length; // 27
-
-  let idCounter = 9414;
-  while (pendingNeeded > 0 || approvedNeeded > 0 || rejectedNeeded > 0 || draftNeeded > 0) {
-    let status: ApprovalStatus = 'Draft';
-    if (pendingNeeded > 0) {
-      status = 'Pending';
-      pendingNeeded--;
-    } else if (approvedNeeded > 0) {
-      status = 'Approved';
-      approvedNeeded--;
-    } else if (rejectedNeeded > 0) {
-      status = 'Rejected';
-      rejectedNeeded--;
-    } else if (draftNeeded > 0) {
-      status = 'Draft';
-      draftNeeded--;
-    }
-
-    const priority: Priority =
-      idCounter % 3 === 0 ? 'High' : idCounter % 3 === 1 ? 'Medium' : 'Low';
-    const dept = departments[idCounter % departments.length];
-    const pos = positions[idCounter % positions.length];
-    const name = names[idCounter % names.length];
-    const headcount = (idCounter % 3) + 1;
-    const date = `Oct ${Math.max(1, idCounter % 28)}, 2023`;
-
-    base.push({
-      id: `RMS-${idCounter}`,
-      position: pos,
-      department: dept,
-      requestedBy: name,
-      headcount,
-      priority,
-      status,
-      submitted: date,
-      salaryRange: `$${1500 + (idCounter % 5) * 400} - $${2500 + (idCounter % 5) * 500} USD`,
-      description: `We are looking for a qualified ${pos} to join our team. Responsibilities include working on core platforms, optimizing workflow, and contributing to overall product quality.`,
-      documents: [`JD_${pos.replace(/ /g, '_')}_v1.pdf`],
-    });
-
-    idCounter--;
-  }
-
-  // Sort by id descending
-  return base.sort((a, b) => b.id.localeCompare(a.id));
-};
-*/
-
-const filters: FilterKey[] = ['All', 'Pending', 'Approved', 'Rejected', 'Draft'];
+const ADMIN_PLAN_STATUSES = new Set(['PENDING_APPROVAL', 'APPROVED', 'REJECTED']);
 
 interface RecruitmentRequestApi {
   id: string;
@@ -166,14 +45,23 @@ interface RecruitmentRequestApi {
   urgency: string;
   headcount: number;
   jobDescription: string;
+  skillRequirements?: Record<string, unknown> | null;
   justification: string;
+  rejectionReason?: string | null;
+  forwardedToAdmin?: boolean;
   createdAt: string;
+  overallPlan?: {
+    id: string;
+    status: string;
+    revisionNotes?: string | null;
+  } | null;
 }
 
 export const AdminApprovalQueue: React.FC = () => {
   const { token } = useAuth();
   const [requests, setRequests] = useState<ApprovalRequest[]>([]);
   const [filter, setFilter] = useState<FilterKey>('All');
+  const [approvalTypeFilter, setApprovalTypeFilter] = useState<ApprovalTypeFilter>('ALL');
   const [department, setDepartment] = useState('All');
   const [query, setQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -185,6 +73,16 @@ export const AdminApprovalQueue: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
   const [submittingId, setSubmittingId] = useState<string | null>(null);
+  const [reviewAction, setReviewAction] = useState<ReviewAction | null>(null);
+  const [reviewNotes, setReviewNotes] = useState('');
+  const [reviewForm, setReviewForm] = useState({
+    positionTitle: '',
+    headcount: 1,
+    jobDescription: '',
+    justification: '',
+    urgency: 'MEDIUM',
+    skills: '',
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -198,31 +96,55 @@ export const AdminApprovalQueue: React.FC = () => {
         );
         if (cancelled) return;
         setRequests(
-          response.data.map((request) => ({
-            id: request.id,
-            position: request.position,
-            department: request.department.name,
-            requestedBy: request.requester.displayName,
-            headcount: request.headcount,
-            priority:
-              request.urgency === 'HIGH' || request.urgency === 'CRITICAL'
-                ? 'High'
-                : request.urgency === 'MEDIUM'
-                  ? 'Medium'
-                  : 'Low',
-            status:
-              request.status === 'PENDING_REVIEW'
-                ? 'Pending'
-                : request.status === 'APPROVED'
-                  ? 'Approved'
-                  : request.status === 'REJECTED'
-                    ? 'Rejected'
-                    : 'Draft',
-            submitted: new Date(request.createdAt).toLocaleDateString(),
-            salaryRange: 'Not provided',
-            description: request.jobDescription || request.justification,
-            documents: [],
-          })),
+          response.data
+            .filter(
+              (request) =>
+                ADMIN_PLAN_STATUSES.has(request.overallPlan?.status ?? '') ||
+                request.forwardedToAdmin,
+            )
+            .map((request) => {
+              const planStatus = request.overallPlan?.status;
+              const isPlanApproval = ADMIN_PLAN_STATUSES.has(planStatus ?? '');
+              return {
+                id: request.id,
+                position: request.position,
+                department: request.department.name,
+                requestedBy: request.requester.displayName,
+                headcount: request.headcount,
+                priority:
+                  request.urgency === 'HIGH' || request.urgency === 'CRITICAL'
+                    ? 'High'
+                    : request.urgency === 'MEDIUM'
+                      ? 'Medium'
+                      : 'Low',
+                status: isPlanApproval
+                  ? planStatus === 'PENDING_APPROVAL'
+                    ? 'Pending'
+                    : planStatus === 'APPROVED'
+                      ? 'Approved'
+                      : 'Rejected'
+                  : request.status === 'PENDING_REVIEW'
+                    ? 'Pending'
+                    : request.status === 'REVISION_NEEDED'
+                      ? 'Revision'
+                      : request.status === 'APPROVED'
+                        ? 'Approved'
+                        : request.status === 'REJECTED'
+                          ? 'Rejected'
+                          : 'Draft',
+                submitted: new Date(request.createdAt).toLocaleDateString(),
+                salaryRange: 'Not provided',
+                description: request.jobDescription || request.justification,
+                documents: [],
+                approvalType: isPlanApproval ? 'PLAN' : 'REQUEST',
+                planId: request.overallPlan?.id,
+                urgency: request.urgency,
+                jobDescription: request.jobDescription,
+                justification: request.justification,
+                skillRequirements: request.skillRequirements ?? {},
+                rejectionReason: request.rejectionReason,
+              };
+            }),
         );
       } catch (error) {
         if (!cancelled) {
@@ -241,7 +163,7 @@ export const AdminApprovalQueue: React.FC = () => {
   // Reset page when filter, query, or department changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter, query, department]);
+  }, [approvalTypeFilter, filter, query, department]);
 
   const departments = useMemo(() => {
     return ['All', ...Array.from(new Set(requests.map((r) => r.department)))];
@@ -253,15 +175,27 @@ export const AdminApprovalQueue: React.FC = () => {
       Pending: requests.filter((r) => r.status === 'Pending').length,
       Approved: requests.filter((r) => r.status === 'Approved').length,
       Rejected: requests.filter((r) => r.status === 'Rejected').length,
+      Revision: requests.filter((r) => r.status === 'Revision').length,
       Draft: requests.filter((r) => r.status === 'Draft').length,
     };
   }, [requests]);
+
+  const typeCounts = useMemo(
+    () => ({
+      ALL: requests.length,
+      REQUEST: requests.filter((request) => request.approvalType === 'REQUEST').length,
+      PLAN: requests.filter((request) => request.approvalType === 'PLAN').length,
+    }),
+    [requests],
+  );
 
   const filteredRequests = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
     return requests.filter((request) => {
       const matchesFilter = filter === 'All' || request.status === filter;
+      const matchesApprovalType =
+        approvalTypeFilter === 'ALL' || request.approvalType === approvalTypeFilter;
       const matchesDepartment = department === 'All' || request.department === department;
       const matchesQuery =
         !normalizedQuery ||
@@ -270,9 +204,9 @@ export const AdminApprovalQueue: React.FC = () => {
         request.department.toLowerCase().includes(normalizedQuery) ||
         request.requestedBy.toLowerCase().includes(normalizedQuery);
 
-      return matchesFilter && matchesDepartment && matchesQuery;
+      return matchesFilter && matchesApprovalType && matchesDepartment && matchesQuery;
     });
-  }, [department, filter, query, requests]);
+  }, [approvalTypeFilter, department, filter, query, requests]);
 
   const totalPages = Math.ceil(filteredRequests.length / itemsPerPage) || 1;
 
@@ -290,25 +224,122 @@ export const AdminApprovalQueue: React.FC = () => {
     setIsDrawerOpen(false);
   };
 
-  const handleDecision = async (id: string, decision: 'APPROVED' | 'REJECTED') => {
-    const comments =
-      decision === 'REJECTED'
-        ? window.prompt('Enter the rejection reason:')
-        : window.prompt('Approval notes (optional):', '');
-    if (comments === null || (decision === 'REJECTED' && !comments.trim())) return;
+  const openReviewModal = (action: ReviewAction) => {
+    if (!selectedRequest) return;
+    const skills = selectedRequest.skillRequirements?.skills;
+    setReviewAction(action);
+    setReviewNotes('');
+    setReviewForm({
+      positionTitle: selectedRequest.position,
+      headcount: selectedRequest.headcount,
+      jobDescription: selectedRequest.jobDescription,
+      justification: selectedRequest.justification,
+      urgency: selectedRequest.urgency,
+      skills: Array.isArray(skills) ? skills.map(String).join(', ') : '',
+    });
+  };
 
+  const closeReviewModal = () => {
+    if (submittingId) return;
+    setReviewAction(null);
+    setReviewNotes('');
+  };
+
+  const submitReview = async () => {
+    if (!selectedRequest || !reviewAction) return;
+    if (reviewAction !== 'APPROVED' && !reviewNotes.trim()) {
+      setApiError('Please enter feedback before submitting this review.');
+      return;
+    }
+
+    const id = selectedRequest.id;
     setSubmittingId(id);
     setApiError('');
     try {
-      await apiRequest(`/recruitment-requests/${id}/decision`, token, {
-        method: 'PATCH',
-        body: JSON.stringify({ decision, comments: comments.trim() || undefined }),
-      });
-      const status: ApprovalStatus = decision === 'APPROVED' ? 'Approved' : 'Rejected';
+      if (reviewAction === 'REQUEST_CHANGES') {
+        const currentRequirements = selectedRequest.skillRequirements;
+        await apiRequest(`/recruitment-requests/${id}/request-changes`, token, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            feedback: reviewNotes.trim(),
+            positionTitle: reviewForm.positionTitle.trim(),
+            headcount: reviewForm.headcount,
+            jobDescription: reviewForm.jobDescription.trim(),
+            justification: reviewForm.justification.trim(),
+            urgency: reviewForm.urgency,
+            skillRequirements: {
+              ...currentRequirements,
+              skills: reviewForm.skills
+                .split(',')
+                .map((skill) => skill.trim())
+                .filter(Boolean),
+            },
+          }),
+        });
+      } else if (selectedRequest.approvalType === 'PLAN' && selectedRequest.planId) {
+        await apiRequest(
+          `/overall-plan/${selectedRequest.planId}/${
+            reviewAction === 'APPROVED' ? 'approve' : 'reject'
+          }`,
+          token,
+          {
+            method: 'PATCH',
+            body: JSON.stringify(
+              reviewAction === 'REJECTED' ? { revisionNotes: reviewNotes.trim() } : {},
+            ),
+          },
+        );
+      } else {
+        await apiRequest(`/recruitment-requests/${id}/decision`, token, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            decision: reviewAction,
+            comments: reviewNotes.trim() || undefined,
+          }),
+        });
+      }
+
+      const status: ApprovalStatus =
+        reviewAction === 'APPROVED'
+          ? 'Approved'
+          : reviewAction === 'REJECTED'
+            ? 'Rejected'
+            : 'Revision';
       setRequests((prev) =>
-        prev.map((request) => (request.id === id ? { ...request, status } : request)),
+        prev.map((request) =>
+          request.id === id
+            ? {
+                ...request,
+                status,
+                rejectionReason: reviewAction !== 'APPROVED' ? reviewNotes.trim() : null,
+                position:
+                  reviewAction === 'REQUEST_CHANGES'
+                    ? reviewForm.positionTitle.trim()
+                    : request.position,
+                headcount:
+                  reviewAction === 'REQUEST_CHANGES' ? reviewForm.headcount : request.headcount,
+                jobDescription:
+                  reviewAction === 'REQUEST_CHANGES'
+                    ? reviewForm.jobDescription.trim()
+                    : request.jobDescription,
+                justification:
+                  reviewAction === 'REQUEST_CHANGES'
+                    ? reviewForm.justification.trim()
+                    : request.justification,
+              }
+            : request,
+        ),
       );
-      setSelectedRequest((prev) => (prev?.id === id ? { ...prev, status } : prev));
+      setSelectedRequest((prev) =>
+        prev?.id === id
+          ? {
+              ...prev,
+              status,
+              rejectionReason: reviewAction !== 'APPROVED' ? reviewNotes.trim() : null,
+            }
+          : prev,
+      );
+      setReviewAction(null);
       setIsDrawerOpen(false);
     } catch (error) {
       setApiError(error instanceof Error ? error.message : 'Unable to save the decision');
@@ -457,30 +488,67 @@ export const AdminApprovalQueue: React.FC = () => {
         {/* Table Action Bar */}
         <div className="px-6 py-4 border-b border-border-warm flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center bg-workflow-ivory/50">
           {/* Tab Filter Navigation */}
-          <div className="flex flex-wrap gap-1">
-            {filters.map((item) => (
-              <button
-                key={item}
-                className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition active:scale-[0.98] ${
-                  filter === item
-                    ? 'bg-teal-command text-white shadow-sm'
-                    : 'text-slate-ink hover:bg-surface-container-high'
-                }`}
-                type="button"
-                onClick={() => setFilter(item)}
-              >
-                {item === 'All' ? 'All Requests' : item}
-                <span
-                  className={`ml-2 text-xs py-0.5 px-1.5 rounded-full ${
-                    filter === item
-                      ? 'bg-white/20 text-white'
-                      : 'bg-surface-container-highest text-slate-ink'
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap gap-1">
+              {approvalTypeFilters.map((item) => (
+                <button
+                  key={item.key}
+                  className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-semibold transition active:scale-[0.98] ${
+                    approvalTypeFilter === item.key
+                      ? item.key === 'PLAN'
+                        ? 'bg-deep-charcoal text-white shadow-sm'
+                        : 'bg-teal-command text-white shadow-sm'
+                      : 'text-slate-ink hover:bg-surface-container-high'
                   }`}
+                  type="button"
+                  onClick={() => setApprovalTypeFilter(item.key)}
                 >
-                  {counts[item as keyof typeof counts] ?? counts.All}
-                </span>
-              </button>
-            ))}
+                  {item.key === 'PLAN' ? (
+                    <span className="material-symbols-outlined text-[18px]">assignment</span>
+                  ) : item.key === 'REQUEST' ? (
+                    <span className="material-symbols-outlined text-[18px]">fact_check</span>
+                  ) : (
+                    <span className="material-symbols-outlined text-[18px]">view_list</span>
+                  )}
+                  {item.label}
+                  <span
+                    className={`text-xs py-0.5 px-1.5 rounded-full ${
+                      approvalTypeFilter === item.key
+                        ? 'bg-white/20 text-white'
+                        : 'bg-surface-container-highest text-slate-ink'
+                    }`}
+                  >
+                    {typeCounts[item.key]}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap gap-1">
+              {filters.map((item) => (
+                <button
+                  key={item}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition active:scale-[0.98] ${
+                    filter === item
+                      ? 'bg-teal-command text-white shadow-sm'
+                      : 'text-slate-ink hover:bg-surface-container-high'
+                  }`}
+                  type="button"
+                  onClick={() => setFilter(item)}
+                >
+                  {item === 'All' ? 'All Statuses' : item}
+                  <span
+                    className={`ml-2 text-xs py-0.5 px-1.5 rounded-full ${
+                      filter === item
+                        ? 'bg-white/20 text-white'
+                        : 'bg-surface-container-highest text-slate-ink'
+                    }`}
+                  >
+                    {counts[item as keyof typeof counts] ?? counts.All}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex gap-2 self-end sm:self-auto">
@@ -512,6 +580,7 @@ export const AdminApprovalQueue: React.FC = () => {
             <thead>
               <tr className="bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm border-b border-border-warm">
                 <th className="px-6 py-4 font-semibold uppercase tracking-wider">Request ID</th>
+                <th className="px-6 py-4 font-semibold uppercase tracking-wider">Approval Type</th>
                 <th className="px-6 py-4 font-semibold uppercase tracking-wider">Department</th>
                 <th className="px-6 py-4 font-semibold uppercase tracking-wider">Position</th>
                 <th className="px-6 py-4 font-semibold uppercase tracking-wider">Quantity</th>
@@ -532,6 +601,20 @@ export const AdminApprovalQueue: React.FC = () => {
                 >
                   <td className="px-6 py-4 font-data-mono text-data-mono text-teal-command font-semibold">
                     #{request.id}
+                  </td>
+                  <td className="px-6 py-4">
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold ${
+                        request.approvalType === 'PLAN'
+                          ? 'border-deep-charcoal/20 bg-deep-charcoal/5 text-deep-charcoal'
+                          : 'border-teal-command/20 bg-teal-command/5 text-teal-command'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[16px]">
+                        {request.approvalType === 'PLAN' ? 'assignment' : 'fact_check'}
+                      </span>
+                      {request.approvalType === 'PLAN' ? 'Plan Approval' : 'Request Approval'}
+                    </span>
                   </td>
                   <td className="px-6 py-4">{request.department}</td>
                   <td className="px-6 py-4 font-medium text-deep-charcoal">{request.position}</td>
@@ -563,7 +646,9 @@ export const AdminApprovalQueue: React.FC = () => {
                             ? 'bg-surface-container-high text-rejected'
                             : request.status === 'Pending'
                               ? 'bg-surface-container-high text-pending'
-                              : 'bg-surface-container-high text-draft'
+                              : request.status === 'Revision'
+                                ? 'bg-revision/10 text-revision'
+                                : 'bg-surface-container-high text-draft'
                       }`}
                     >
                       <span
@@ -574,7 +659,9 @@ export const AdminApprovalQueue: React.FC = () => {
                               ? 'bg-rejected'
                               : request.status === 'Pending'
                                 ? 'bg-pending'
-                                : 'bg-draft'
+                                : request.status === 'Revision'
+                                  ? 'bg-revision'
+                                  : 'bg-draft'
                         }`}
                       ></span>
                       {request.status}
@@ -587,7 +674,7 @@ export const AdminApprovalQueue: React.FC = () => {
                         className="px-4 py-1.5 border border-teal-command text-teal-command rounded-lg font-label-md hover:bg-teal-command hover:text-white transition-all font-semibold"
                         onClick={() => handleOpenDrawer(request)}
                       >
-                        Review
+                        Review {request.approvalType === 'PLAN' ? 'Plan' : 'Request'}
                       </button>
                     ) : (
                       <button
@@ -665,7 +752,9 @@ export const AdminApprovalQueue: React.FC = () => {
       >
         <div className="p-6 border-b border-border-warm flex justify-between items-center bg-workflow-ivory/50">
           <h3 className="font-headline-md text-headline-md font-semibold text-deep-charcoal">
-            Request Details
+            {selectedRequest?.approvalType === 'PLAN'
+              ? 'Plan Approval Details'
+              : 'Request Approval Details'}
           </h3>
           <button
             className="p-2 hover:bg-surface-container-low rounded-full transition-colors flex items-center justify-center"
@@ -678,6 +767,32 @@ export const AdminApprovalQueue: React.FC = () => {
         {selectedRequest && (
           <>
             <div className="flex-grow p-6 overflow-y-auto custom-scrollbar space-y-6">
+              <div
+                className={`rounded-lg border p-4 ${
+                  selectedRequest.approvalType === 'PLAN'
+                    ? 'border-deep-charcoal/15 bg-deep-charcoal/5 text-deep-charcoal'
+                    : 'border-teal-command/20 bg-teal-command/5 text-teal-command'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <span className="material-symbols-outlined text-[22px]">
+                    {selectedRequest.approvalType === 'PLAN' ? 'assignment' : 'fact_check'}
+                  </span>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.16em]">
+                      {selectedRequest.approvalType === 'PLAN'
+                        ? 'Plan Approval'
+                        : 'Request Approval'}
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-on-surface-variant">
+                      {selectedRequest.approvalType === 'PLAN'
+                        ? 'Review HR overall recruitment plan before execution begins.'
+                        : 'Review the department hiring request after HR has validated and forwarded it.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Department Block */}
               <div className="flex items-center gap-4 p-4 bg-workflow-ivory rounded-lg border border-border-warm shadow-sm">
                 <div className="p-3 bg-teal-command/10 text-teal-command rounded-lg">
@@ -786,19 +901,30 @@ export const AdminApprovalQueue: React.FC = () => {
                     className="w-full bg-teal-command hover:bg-primary text-white py-3 rounded-lg font-label-md font-semibold transition-all flex items-center justify-center gap-2 shadow-sm active:scale-[0.98]"
                     type="button"
                     disabled={submittingId === selectedRequest.id}
-                    onClick={() => void handleDecision(selectedRequest.id, 'APPROVED')}
+                    onClick={() => openReviewModal('APPROVED')}
                   >
                     <span className="material-symbols-outlined">check</span>
-                    Approve Request
+                    Approve {selectedRequest.approvalType === 'PLAN' ? 'Plan' : 'Request'}
                   </button>
+                  {selectedRequest.approvalType === 'REQUEST' && (
+                    <button
+                      className="w-full border border-revision bg-revision/5 hover:bg-revision/10 text-revision py-3 rounded-lg font-label-md font-semibold transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+                      type="button"
+                      disabled={submittingId === selectedRequest.id}
+                      onClick={() => openReviewModal('REQUEST_CHANGES')}
+                    >
+                      <span className="material-symbols-outlined">edit_note</span>
+                      Request Changes
+                    </button>
+                  )}
                   <button
                     className="w-full border border-rejected hover:bg-error-container text-rejected py-3 rounded-lg font-label-md font-semibold transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
                     type="button"
                     disabled={submittingId === selectedRequest.id}
-                    onClick={() => void handleDecision(selectedRequest.id, 'REJECTED')}
+                    onClick={() => openReviewModal('REJECTED')}
                   >
                     <span className="material-symbols-outlined">close</span>
-                    Reject Request
+                    Reject {selectedRequest.approvalType === 'PLAN' ? 'Plan' : 'Request'}
                   </button>
                 </>
               ) : (
@@ -820,6 +946,211 @@ export const AdminApprovalQueue: React.FC = () => {
           id="drawerOverlay"
           onClick={handleCloseDrawer}
         ></div>
+      )}
+
+      {selectedRequest && reviewAction && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-deep-charcoal/55 p-4 backdrop-blur-sm">
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-border-warm bg-clean-surface shadow-2xl">
+            <div className="flex items-start justify-between border-b border-border-warm px-6 py-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-command">
+                  {selectedRequest.approvalType === 'PLAN' ? 'Plan Review' : 'Request Review'}
+                </p>
+                <h3 className="mt-1 text-xl font-semibold text-deep-charcoal">
+                  {reviewAction === 'APPROVED'
+                    ? 'Approve'
+                    : reviewAction === 'REJECTED'
+                      ? 'Reject'
+                      : 'Edit and Return for Changes'}
+                </h3>
+                <p className="mt-1 text-sm text-on-surface-variant">{selectedRequest.position}</p>
+              </div>
+              <button
+                className="rounded-full p-2 text-on-surface-variant hover:bg-surface-container-low"
+                onClick={closeReviewModal}
+                type="button"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-5 px-6 py-5">
+              <div
+                className={`rounded-lg border px-4 py-3 text-sm ${
+                  selectedRequest.approvalType === 'PLAN'
+                    ? 'border-deep-charcoal/15 bg-deep-charcoal/5 text-deep-charcoal'
+                    : 'border-teal-command/20 bg-teal-command/5 text-teal-command'
+                }`}
+              >
+                <span className="font-bold">
+                  {selectedRequest.approvalType === 'PLAN'
+                    ? 'This decision applies to the HR overall plan.'
+                    : 'This decision applies to the recruitment request.'}
+                </span>
+              </div>
+
+              {reviewAction === 'REQUEST_CHANGES' && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="md:col-span-2">
+                    <span className="mb-1.5 block text-sm font-semibold text-deep-charcoal">
+                      Position Title
+                    </span>
+                    <input
+                      className="w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 py-2.5 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                      value={reviewForm.positionTitle}
+                      onChange={(event) =>
+                        setReviewForm((current) => ({
+                          ...current,
+                          positionTitle: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span className="mb-1.5 block text-sm font-semibold text-deep-charcoal">
+                      Headcount
+                    </span>
+                    <input
+                      className="w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 py-2.5 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                      min={1}
+                      type="number"
+                      value={reviewForm.headcount}
+                      onChange={(event) =>
+                        setReviewForm((current) => ({
+                          ...current,
+                          headcount: Math.max(1, Number(event.target.value) || 1),
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span className="mb-1.5 block text-sm font-semibold text-deep-charcoal">
+                      Priority
+                    </span>
+                    <select
+                      className="w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 py-2.5 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                      value={reviewForm.urgency}
+                      onChange={(event) =>
+                        setReviewForm((current) => ({
+                          ...current,
+                          urgency: event.target.value,
+                        }))
+                      }
+                    >
+                      <option value="LOW">Low</option>
+                      <option value="MEDIUM">Medium</option>
+                      <option value="HIGH">High</option>
+                      <option value="CRITICAL">Critical</option>
+                    </select>
+                  </label>
+                  <label className="md:col-span-2">
+                    <span className="mb-1.5 block text-sm font-semibold text-deep-charcoal">
+                      Required Skills
+                    </span>
+                    <input
+                      className="w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 py-2.5 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                      placeholder="TypeScript, NestJS, PostgreSQL"
+                      value={reviewForm.skills}
+                      onChange={(event) =>
+                        setReviewForm((current) => ({
+                          ...current,
+                          skills: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="md:col-span-2">
+                    <span className="mb-1.5 block text-sm font-semibold text-deep-charcoal">
+                      Job Description
+                    </span>
+                    <textarea
+                      className="min-h-28 w-full resize-y rounded-lg border border-border-warm bg-workflow-ivory px-3 py-2.5 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                      value={reviewForm.jobDescription}
+                      onChange={(event) =>
+                        setReviewForm((current) => ({
+                          ...current,
+                          jobDescription: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="md:col-span-2">
+                    <span className="mb-1.5 block text-sm font-semibold text-deep-charcoal">
+                      Business Justification
+                    </span>
+                    <textarea
+                      className="min-h-24 w-full resize-y rounded-lg border border-border-warm bg-workflow-ivory px-3 py-2.5 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                      value={reviewForm.justification}
+                      onChange={(event) =>
+                        setReviewForm((current) => ({
+                          ...current,
+                          justification: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+              )}
+
+              <label>
+                <span className="mb-1.5 block text-sm font-semibold text-deep-charcoal">
+                  {reviewAction === 'APPROVED'
+                    ? 'Approval Notes (optional)'
+                    : reviewAction === 'REJECTED'
+                      ? 'Rejection Reason'
+                      : 'Instructions for Department Head'}
+                </span>
+                <textarea
+                  className="min-h-28 w-full resize-y rounded-lg border border-border-warm bg-workflow-ivory px-3 py-2.5 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                  placeholder={
+                    reviewAction === 'REQUEST_CHANGES'
+                      ? 'Explain what was changed and what the Department Head still needs to review.'
+                      : 'Add review notes...'
+                  }
+                  value={reviewNotes}
+                  onChange={(event) => setReviewNotes(event.target.value)}
+                />
+              </label>
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-border-warm bg-workflow-ivory px-6 py-4 sm:flex-row sm:justify-end">
+              <button
+                className="rounded-lg border border-border-warm px-5 py-2.5 text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low"
+                onClick={closeReviewModal}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className={`rounded-lg px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 ${
+                  reviewAction === 'APPROVED'
+                    ? 'bg-teal-command hover:bg-primary'
+                    : reviewAction === 'REJECTED'
+                      ? 'bg-rejected hover:bg-rejected/90'
+                      : 'bg-revision hover:bg-revision/90'
+                }`}
+                disabled={
+                  submittingId === selectedRequest.id ||
+                  (reviewAction !== 'APPROVED' && !reviewNotes.trim()) ||
+                  (reviewAction === 'REQUEST_CHANGES' &&
+                    (!reviewForm.positionTitle.trim() ||
+                      !reviewForm.jobDescription.trim() ||
+                      !reviewForm.justification.trim()))
+                }
+                onClick={() => void submitReview()}
+                type="button"
+              >
+                {submittingId === selectedRequest.id
+                  ? 'Submitting...'
+                  : reviewAction === 'APPROVED'
+                    ? 'Confirm Approval'
+                    : reviewAction === 'REJECTED'
+                      ? 'Confirm Rejection'
+                      : 'Send Changes to Dept Head'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -14,9 +14,14 @@ const accountTypes = [
     description: 'Request roles and review interview outcomes.',
   },
   {
-    value: 'hr-manager',
-    label: 'HR Manager',
-    description: 'Plan campaigns, screen candidates, and schedule panels.',
+    value: 'hr-leader',
+    label: 'HR Leader',
+    description: 'Plan campaigns, delegate tasks, and oversee pipeline.',
+  },
+  {
+    value: 'hr-recruiter',
+    label: 'HR Recruiter',
+    description: 'Work on assigned recruitment tasks and candidates.',
   },
 ];
 
@@ -261,8 +266,10 @@ export const SignUp: React.FC = () => {
       switch (frontendRole) {
         case 'department-head':
           return 'DEPARTMENT_HEAD';
-        case 'hr-manager':
-          return 'HR_MANAGER';
+        case 'hr-leader':
+          return 'HR_LEADER';
+        case 'hr-recruiter':
+          return 'HR_RECRUITER';
         case 'candidate':
           return 'CANDIDATE';
         default:

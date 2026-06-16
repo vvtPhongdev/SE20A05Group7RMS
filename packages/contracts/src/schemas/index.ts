@@ -218,10 +218,79 @@ export const UpdateCandidateCVSchema = CreateCandidateCVSchema.partial().extend(
   parsedAt: z.string().datetime().optional().nullable(),
 });
 
+export const ResumeLinkSchema = z.object({
+  type: z.enum(['LINKEDIN', 'GITHUB', 'PORTFOLIO', 'OTHER']),
+  url: z.string().min(1).max(500),
+});
+
+export const ResumeLanguageSchema = z.object({
+  name: z.string().min(1).max(100),
+  proficiency: z.string().max(100).optional(),
+});
+
+export const ResumePersonalInfoDraftSchema = z
+  .object({
+    fullName: z.string().min(1).max(255).optional(),
+    email: z.string().email().optional(),
+    phoneNumber: z.string().max(30).optional(),
+    address: z.string().max(500).optional(),
+    links: z.array(ResumeLinkSchema).optional(),
+  })
+  .passthrough();
+
+export const ResumeSkillsDraftSchema = z
+  .object({
+    technical: z.array(z.string().min(1).max(100)).optional(),
+    softSkills: z.array(z.string().min(1).max(100)).optional(),
+    languages: z.array(ResumeLanguageSchema).optional(),
+  })
+  .passthrough();
+
+export const ResumeWorkExperienceDraftSchema = z
+  .object({
+    company: z.string().min(1).max(255).optional(),
+    position: z.string().min(1).max(255).optional(),
+    startDate: z.string().max(50).optional(),
+    endDate: z.string().max(50).optional().nullable(),
+    isCurrent: z.boolean().optional(),
+    achievements: z.array(z.string().min(1).max(1000)).optional(),
+  })
+  .passthrough();
+
+export const ResumeEducationDraftSchema = z
+  .object({
+    school: z.string().min(1).max(255).optional(),
+    major: z.string().max(255).optional(),
+    degree: z.string().max(255).optional(),
+    startDate: z.string().max(50).optional(),
+    endDate: z.string().max(50).optional().nullable(),
+  })
+  .passthrough();
+
+export const ResumeDraftSchema = z
+  .object({
+    personalInfo: ResumePersonalInfoDraftSchema.optional(),
+    currentRole: z.string().max(255).optional(),
+    summary: z.string().max(5000).optional(),
+    skills: ResumeSkillsDraftSchema.optional(),
+    workExperience: z.array(ResumeWorkExperienceDraftSchema).optional(),
+    education: z.array(ResumeEducationDraftSchema).optional(),
+  })
+  .passthrough();
+
+export const ResumeSchema = ResumeDraftSchema.extend({
+  personalInfo: ResumePersonalInfoDraftSchema.extend({
+    fullName: z.string().min(1).max(255),
+    email: z.string().email(),
+  }),
+});
+
 export type CreateCandidateProfileInput = z.infer<typeof CreateCandidateProfileSchema>;
 export type UpdateCandidateProfileInput = z.infer<typeof UpdateCandidateProfileSchema>;
 export type CreateCandidateCVInput = z.infer<typeof CreateCandidateCVSchema>;
 export type UpdateCandidateCVInput = z.infer<typeof UpdateCandidateCVSchema>;
+export type ResumeDraftData = z.infer<typeof ResumeDraftSchema>;
+export type ResumeData = z.infer<typeof ResumeSchema>;
 
 // ─── Interview Schemas ─────────────────────────────────────────────
 

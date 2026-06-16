@@ -17,6 +17,7 @@ interface DeptRequest {
   submitted: string;
   submittedAt: string;
   status: RequestStatus;
+  rejectionReason?: string | null;
 }
 
 interface RealtimeTrackingItem {
@@ -30,6 +31,7 @@ interface RealtimeTrackingItem {
   createdAt: string;
   updatedAt: string;
   urgency?: string;
+  rejectionReason?: string | null;
 }
 
 const filterOptions: FilterKey[] = ['All', 'Pending', 'Approved', 'Revision', 'Completed'];
@@ -96,6 +98,7 @@ const mapRequest = (item: RealtimeTrackingItem): DeptRequest => ({
   }),
   submittedAt: item.createdAt,
   status: statusFromApi(item.status, item.filledHeadcount, item.targetHeadcount),
+  rejectionReason: item.rejectionReason,
 });
 
 const priorityStyles: Record<Priority, string> = {
@@ -121,6 +124,7 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
     history: <path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 7v5l3 2" />,
     hourglass: <path d="M6 3h12M6 21h12M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9" />,
     notification: <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />,
+    close: <path d="M18 6 6 18M6 6l12 12" />,
     search: <path d="M11 19a8 8 0 1 1 5.66-2.34L21 21" />,
     sort: <path d="M8 7h10M8 12h7M8 17h4M4 7h.01M4 12h.01M4 17h.01" />,
   };
@@ -151,6 +155,9 @@ export const DeptHeadRequests: React.FC = () => {
   const [selectedRequestId, setSelectedRequestId] = useState('');
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [selectedRequestDetails, setSelectedRequestDetails] = useState<any | null>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
   useEffect(() => {
     const loadRequests = async () => {
@@ -169,6 +176,30 @@ export const DeptHeadRequests: React.FC = () => {
     };
     void loadRequests();
   }, [token]);
+
+  useEffect(() => {
+    if (!selectedRequestId) {
+      setSelectedRequestDetails(null);
+      return;
+    }
+    let cancelled = false;
+    const loadDetails = async () => {
+      setLoadingDetails(true);
+      try {
+        const data = await apiRequest<any>(`/recruitment-requests/${selectedRequestId}`, token);
+        if (cancelled) return;
+        setSelectedRequestDetails(data);
+      } catch (err) {
+        console.error('Error loading request details:', err);
+      } finally {
+        if (!cancelled) setLoadingDetails(false);
+      }
+    };
+    void loadDetails();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedRequestId, token]);
 
   const visibleRequests = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -397,10 +428,14 @@ export const DeptHeadRequests: React.FC = () => {
               <tbody className="divide-y divide-border-warm">
                 {visibleRequests.map((request, index) => (
                   <tr
-                    className={`transition hover:bg-teal-command/5 ${
+                    className={`transition hover:bg-teal-command/5 cursor-pointer ${
                       index % 2 === 1 ? 'bg-workflow-ivory/60' : 'bg-clean-surface'
                     }`}
                     key={request.id}
+                    onClick={() => {
+                      setSelectedRequestId(request.id);
+                      setIsViewModalOpen(true);
+                    }}
                   >
                     <td className="px-6 py-4 font-mono text-sm text-teal-command">{request.id}</td>
                     <td className="px-6 py-4 text-sm font-semibold text-deep-charcoal">
@@ -425,13 +460,13 @@ export const DeptHeadRequests: React.FC = () => {
                         {request.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end gap-3">
                         {request.status === 'Draft' && (
                           <>
                             <button
                               className="text-xs font-semibold text-teal-command transition hover:underline active:scale-[0.98]"
-                              onClick={() => navigate('/dept-head/create-request')}
+                              onClick={() => navigate(`/dept-head/create-request?requestId=${request.id}`)}
                               type="button"
                             >
                               Edit
@@ -448,7 +483,7 @@ export const DeptHeadRequests: React.FC = () => {
                         {request.status === 'Revision Required' && (
                           <button
                             className="text-xs font-semibold text-teal-command transition hover:underline active:scale-[0.98]"
-                            onClick={() => navigate('/dept-head/create-request')}
+                            onClick={() => navigate(`/dept-head/create-request?requestId=${request.id}`)}
                             type="button"
                           >
                             Edit
@@ -456,7 +491,10 @@ export const DeptHeadRequests: React.FC = () => {
                         )}
                         <button
                           className="text-xs font-semibold text-teal-command transition hover:underline active:scale-[0.98]"
-                          onClick={() => setSelectedRequestId(request.id)}
+                          onClick={() => {
+                            setSelectedRequestId(request.id);
+                            setIsViewModalOpen(true);
+                          }}
                           type="button"
                         >
                           View
@@ -551,6 +589,14 @@ export const DeptHeadRequests: React.FC = () => {
             </div>
 
             <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              {selectedRequest.status === 'Revision Required' && selectedRequest.rejectionReason && (
+                <div className="lg:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-900 mb-1">
+                    Feedback / Revision Instructions
+                  </p>
+                  <p className="leading-relaxed font-semibold">{selectedRequest.rejectionReason}</p>
+                </div>
+              )}
               <div className="rounded-lg border border-border-warm p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
                   Status summary
@@ -604,6 +650,202 @@ export const DeptHeadRequests: React.FC = () => {
           </div>
         )}
       </section>
+
+      {isViewModalOpen && selectedRequest && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-deep-charcoal/55 p-4 backdrop-blur-sm">
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-border-warm bg-clean-surface shadow-2xl flex flex-col">
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-border-warm px-6 py-5 bg-workflow-ivory/50">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-command">
+                  Recruitment Request Details
+                </p>
+                <h3 className="mt-1 text-xl font-semibold text-deep-charcoal">
+                  {selectedRequest.position}
+                </h3>
+                <p className="mt-1 text-xs text-on-surface-variant font-mono">
+                  ID: #{selectedRequest.id}
+                </p>
+              </div>
+              <button
+                className="rounded-full p-2 text-on-surface-variant hover:bg-surface-container-low"
+                onClick={() => setIsViewModalOpen(false)}
+                type="button"
+              >
+                <Icon className="h-5 w-5" name="close" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-grow p-6 overflow-y-auto custom-scrollbar space-y-6">
+              {/* Revision feedback banner if status is Revision Required */}
+              {selectedRequest.status === 'Revision Required' && selectedRequest.rejectionReason && (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-900 mb-1">
+                    Feedback / Revision Instructions
+                  </p>
+                  <p className="leading-relaxed font-semibold">{selectedRequest.rejectionReason}</p>
+                </div>
+              )}
+
+              {/* Status and urgency section */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-workflow-ivory rounded-lg border border-border-warm shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant mb-1">
+                    Request Status
+                  </p>
+                  <span
+                    className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${statusStyles[selectedRequest.status]}`}
+                  >
+                    {selectedRequest.status}
+                  </span>
+                </div>
+                <div className="p-4 bg-workflow-ivory rounded-lg border border-border-warm shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant mb-1">
+                    Urgency / Priority
+                  </p>
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-xs font-bold uppercase ${priorityStyles[selectedRequest.priority]}`}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                    {selectedRequest.priority}
+                  </span>
+                </div>
+              </div>
+
+              {/* Headcount, Salary & Start Date */}
+              {loadingDetails ? (
+                <div className="py-12 text-center text-sm text-on-surface-variant">
+                  Loading detailed request specifications...
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div className="rounded-lg border border-border-warm p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                        Target Quantity
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-deep-charcoal">
+                        {selectedRequestDetails?.headcount || selectedRequest.quantity} Persons
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border-warm p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                        Job Level
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-deep-charcoal">
+                        {selectedRequestDetails?.skillRequirements?.jobLevel || 'Not specified'}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border-warm p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                        Employment Type
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-deep-charcoal">
+                        {selectedRequestDetails?.skillRequirements?.employmentType || 'Not specified'}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border-warm p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                        Salary Range
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-teal-command">
+                        {selectedRequestDetails?.skillRequirements?.salaryMin && selectedRequestDetails?.skillRequirements?.salaryMax
+                          ? `${Number(selectedRequestDetails.skillRequirements.salaryMin).toLocaleString()} - ${Number(selectedRequestDetails.skillRequirements.salaryMax).toLocaleString()} VND`
+                          : 'Not specified'}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border-warm p-4 col-span-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                        Expected Start Date
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-deep-charcoal">
+                        {selectedRequestDetails?.skillRequirements?.startDate
+                          ? new Date(selectedRequestDetails.skillRequirements.startDate).toLocaleDateString()
+                          : 'Not specified'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Skills tags */}
+                  {selectedRequestDetails?.skillRequirements?.skills && selectedRequestDetails.skillRequirements.skills.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant mb-2">
+                        Required Skills
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedRequestDetails.skillRequirements.skills.map((skill: string) => (
+                          <span
+                            key={skill}
+                            className="inline-flex items-center rounded-full bg-secondary-container px-3 py-1 text-xs font-semibold text-on-secondary-container"
+                          >
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Job Description */}
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                      Job Description
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-ink whitespace-pre-wrap border border-border-warm rounded-lg p-3 bg-workflow-ivory/40">
+                      {selectedRequestDetails?.jobDescription || 'No description available.'}
+                    </p>
+                  </div>
+
+                  {/* Business Justification */}
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                      Business Justification
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-ink whitespace-pre-wrap border border-border-warm rounded-lg p-3 bg-workflow-ivory/40">
+                      {selectedRequestDetails?.justification || 'No justification available.'}
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex flex-col-reverse gap-3 border-t border-border-warm bg-workflow-ivory px-6 py-4 sm:flex-row sm:justify-end">
+              <button
+                className="rounded-lg border border-border-warm px-5 py-2.5 text-sm font-semibold text-on-surface-variant hover:bg-surface-container-low"
+                onClick={() => setIsViewModalOpen(false)}
+                type="button"
+              >
+                Close
+              </button>
+              {(selectedRequest.status === 'Draft' || selectedRequest.status === 'Revision Required') && (
+                <button
+                  className="rounded-lg bg-teal-command hover:bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition active:scale-[0.98]"
+                  onClick={() => {
+                    setIsViewModalOpen(false);
+                    navigate(`/dept-head/create-request?requestId=${selectedRequest.id}`);
+                  }}
+                  type="button"
+                >
+                  Edit Request
+                </button>
+              )}
+              {selectedRequest.status === 'Draft' && (
+                <button
+                  className="rounded-lg bg-teal-command hover:bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition active:scale-[0.98]"
+                  onClick={() => {
+                    void submitDraft(selectedRequest.id);
+                    setIsViewModalOpen(false);
+                  }}
+                  type="button"
+                >
+                  Submit Request
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

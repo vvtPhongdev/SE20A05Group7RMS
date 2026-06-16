@@ -1,4 +1,5 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Inject } from '@nestjs/common';
+import { ClientProxy } from '@nestjs/microservices';
 import { AuditLogService } from '@wr/database';
 import { AuditAction, AuditEntityType, TaskStatus, TaskType } from '@wr/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
@@ -8,6 +9,7 @@ export class TaskPlanService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
+    @Inject('NOTIFICATION_SERVICE') private readonly notificationClient: ClientProxy,
   ) {}
 
   /**
@@ -50,7 +52,7 @@ export class TaskPlanService {
         endDate: end,
         status: TaskStatus.PENDING,
       },
-      include: { assignedTo: { select: { id: true, displayName: true } } },
+      include: { assignedTo: { select: { id: true, displayName: true, email: true } } },
     });
 
     this.auditLog
@@ -63,6 +65,41 @@ export class TaskPlanService {
         metadata: { overallPlanId, taskType, assignedToId },
       })
       .catch((err) => console.error('Failed to write audit log for TASK_PLAN_ASSIGNED:', err));
+
+    if (task.assignedTo?.email) {
+      const formattedStartDate = start.toLocaleDateString('en-US', {
+        dateStyle: 'long',
+      });
+      const formattedEndDate = end.toLocaleDateString('en-US', {
+        dateStyle: 'long',
+      });
+
+      const emailBody = [
+        `Dear ${task.assignedTo.displayName},`,
+        '',
+        `You have been assigned a new task: ${taskType}.`,
+        '',
+        `Details:`,
+        `- Start Date: ${formattedStartDate}`,
+        `- Deadline (End Date): ${formattedEndDate}`,
+        '',
+        `Please log in to the recruitment portal to view more details.`,
+        '',
+        `Best regards,`,
+        `HR Management System`,
+      ].join('\n');
+
+      this.notificationClient
+        .send('notification.send_email', {
+          userId: task.assignedToId,
+          toEmail: task.assignedTo.email,
+          subject: `[Works Recruiter] New Task Assigned: ${taskType}`,
+          body: emailBody,
+        })
+        .subscribe({
+          error: (err) => console.error('Failed to send task assignment email:', err),
+        });
+    }
 
     return task;
   }

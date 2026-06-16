@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { apiRequest, ApiError } from '../lib/api';
 
 type RequestUrgency = 'Critical' | 'High' | 'Normal' | 'Low';
-type QueueStatus = 'PENDING' | 'UNDER_REVIEW' | 'FORWARDED' | 'RETURNED';
+type QueueStatus = 'PENDING' | 'UNDER_REVIEW' | 'FORWARDED' | 'APPROVED' | 'RETURNED';
 
 type RecruitmentRequest = {
   id: string;
@@ -19,7 +19,10 @@ type RecruitmentRequest = {
   urgency: RequestUrgency;
   status: QueueStatus;
   justification: string;
+  jobDescription: string;
   skillsRequired: string[];
+  ownerId?: string | null;
+  ownerName?: string | null;
 };
 
 interface RecruitmentRequestApiItem {
@@ -28,6 +31,7 @@ interface RecruitmentRequestApiItem {
   department: { id: string; name: string; code: string } | null;
   requester: { id: string; displayName: string } | null;
   owner: { id: string; displayName: string } | null;
+  reviewedBy?: { id: string; displayName: string } | null;
   status: string;
   urgency: string;
   headcount: number;
@@ -35,6 +39,7 @@ interface RecruitmentRequestApiItem {
   jobDescription: string;
   skillRequirements: Record<string, unknown> | null;
   justification: string;
+  forwardedToAdmin?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -68,7 +73,9 @@ const mapRequest = (item: RecruitmentRequestApiItem): RecruitmentRequest => {
   }
 
   let status: QueueStatus = 'FORWARDED';
-  if (item.status === 'PENDING_REVIEW') status = 'PENDING';
+  if (item.status === 'APPROVED') status = 'APPROVED';
+  else if (item.status === 'PENDING_REVIEW')
+    status = item.forwardedToAdmin ? 'FORWARDED' : 'PENDING';
   else if (item.status === 'REVISION_NEEDED') status = 'RETURNED';
 
   return {
@@ -84,7 +91,10 @@ const mapRequest = (item: RecruitmentRequestApiItem): RecruitmentRequest => {
     urgency: URGENCY_MAP[item.urgency] ?? 'Normal',
     status,
     justification: item.justification,
+    jobDescription: item.jobDescription,
     skillsRequired: Array.isArray(skills.skills) ? (skills.skills as string[]) : [],
+    ownerId: item.owner?.id ?? item.reviewedBy?.id ?? null,
+    ownerName: item.owner?.displayName ?? item.reviewedBy?.displayName ?? null,
   };
 };
 
@@ -92,6 +102,7 @@ const statusTabs: Array<{ key: QueueStatus; label: string }> = [
   { key: 'PENDING', label: 'Pending Review' },
   { key: 'UNDER_REVIEW', label: 'Under Review' },
   { key: 'FORWARDED', label: 'Forwarded to Admin' },
+  { key: 'APPROVED', label: 'Approved' },
   { key: 'RETURNED', label: 'Returned' },
 ];
 
@@ -154,7 +165,7 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
 
 export const HRRequestQueue: React.FC = () => {
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [requests, setRequests] = useState<RecruitmentRequest[]>([]);
   const [activeTab, setActiveTab] = useState<QueueStatus>('PENDING');
   const [query, setQuery] = useState('');
@@ -166,22 +177,42 @@ export const HRRequestQueue: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
 
+  // Claim, Edit and Reject State variables
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    positionTitle: '',
+    headcount: 1,
+    justification: '',
+    jobDescription: '',
+    urgency: 'MEDIUM',
+    skills: '',
+  });
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  const [rejectionTarget, setRejectionTarget] = useState<RecruitmentRequest | null>(null);
+  const [rejectionComments, setRejectionComments] = useState('');
+  const [rejectionSubmitting, setRejectionSubmitting] = useState(false);
+  const [rejectionError, setRejectionError] = useState('');
+  const [claimSubmittingId, setClaimSubmittingId] = useState<string | null>(null);
+
+  const loadRequests = async () => {
+    setLoading(true);
+    setApiError('');
+    try {
+      const response = await apiRequest<RecruitmentRequestListResponse>(
+        '/recruitment-requests?limit=100',
+        token,
+      );
+      setRequests(response.data.map(mapRequest));
+    } catch (loadError) {
+      setApiError(loadError instanceof Error ? loadError.message : 'Unable to load requests');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const loadRequests = async () => {
-      setLoading(true);
-      setApiError('');
-      try {
-        const response = await apiRequest<RecruitmentRequestListResponse>(
-          '/recruitment-requests?limit=100',
-          token,
-        );
-        setRequests(response.data.map(mapRequest));
-      } catch (loadError) {
-        setApiError(loadError instanceof Error ? loadError.message : 'Unable to load requests');
-      } finally {
-        setLoading(false);
-      }
-    };
     void loadRequests();
   }, [token]);
 
@@ -219,8 +250,6 @@ export const HRRequestQueue: React.FC = () => {
   const openReview = (request: RecruitmentRequest) => {
     setSelectedRequest(request);
     if (request.status === 'PENDING') {
-      // Local-only transition: HR Manager is now reviewing this request.
-      // Not persisted to backend (no UNDER_REVIEW status), resets on reload.
       setRequests((current) =>
         current.map((item) =>
           item.id === request.id ? { ...item, status: 'UNDER_REVIEW' } : item,
@@ -229,14 +258,154 @@ export const HRRequestQueue: React.FC = () => {
     }
   };
 
-  const forwardToAdmin = (id: string) => {
-    // Local-only transition: request stays PENDING_REVIEW on the backend,
-    // awaiting Admin's decision. No backend call to make here.
-    setRequests((current) =>
-      current.map((item) => (item.id === id ? { ...item, status: 'FORWARDED' } : item)),
-    );
-    setSelectedRequest(null);
-    setActiveTab('FORWARDED');
+  const openCreatePlan = (requestId: string) => {
+    navigate(`/hr/campaigns?createRequestId=${encodeURIComponent(requestId)}`);
+  };
+
+  const forwardToAdmin = async (id: string) => {
+    setApiError('');
+    try {
+      await apiRequest(`/recruitment-requests/${id}/forward-to-admin`, token, {
+        method: 'PATCH',
+      });
+      setRequests((current) =>
+        current.map((item) => (item.id === id ? { ...item, status: 'FORWARDED' } : item)),
+      );
+      setSelectedRequest(null);
+      setActiveTab('FORWARDED');
+    } catch (forwardError) {
+      setApiError(
+        forwardError instanceof ApiError
+          ? forwardError.message
+          : 'Unable to forward request to Admin',
+      );
+    }
+  };
+
+  const claimRequest = async (id: string, sourceRequest?: RecruitmentRequest) => {
+    if (!user?.id) {
+      setApiError('Unable to claim request because your HR account is not loaded.');
+      return;
+    }
+
+    setClaimSubmittingId(id);
+    setApiError('');
+    try {
+      const updated = await apiRequest<RecruitmentRequestApiItem>(
+        `/recruitment-requests/${id}/assign`,
+        token,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ hrManagerId: user.id }),
+        },
+      );
+      const assignee = updated.owner ?? updated.reviewedBy ?? user;
+      const markClaimed = (request: RecruitmentRequest): RecruitmentRequest => ({
+        ...request,
+        ownerId: assignee.id,
+        ownerName: assignee.displayName,
+      });
+
+      setRequests((current) => current.map((item) => (item.id === id ? markClaimed(item) : item)));
+
+      const requestToRefresh =
+        selectedRequest?.id === id
+          ? selectedRequest
+          : sourceRequest?.id === id
+            ? sourceRequest
+            : null;
+      if (requestToRefresh) {
+        setSelectedRequest(markClaimed(requestToRefresh));
+      }
+    } catch (err) {
+      setApiError(err instanceof ApiError ? err.message : 'Unable to claim request');
+    } finally {
+      setClaimSubmittingId(null);
+    }
+  };
+
+  const startEditing = () => {
+    if (!selectedRequest) return;
+    const urgencyEnumMap: Record<RequestUrgency, string> = {
+      Critical: 'CRITICAL',
+      High: 'HIGH',
+      Normal: 'MEDIUM',
+      Low: 'LOW',
+    };
+    setEditForm({
+      positionTitle: selectedRequest.position,
+      headcount: selectedRequest.headcount,
+      justification: selectedRequest.justification,
+      jobDescription: selectedRequest.jobDescription,
+      urgency: urgencyEnumMap[selectedRequest.urgency] ?? 'MEDIUM',
+      skills: selectedRequest.skillsRequired.join(', '),
+    });
+    setEditError('');
+    setIsEditing(true);
+  };
+
+  const saveEdit = async () => {
+    if (!selectedRequest) return;
+    setEditSubmitting(true);
+    setEditError('');
+    try {
+      const skillsArray = editForm.skills
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      const updated = await apiRequest<RecruitmentRequestApiItem>(
+        `/recruitment-requests/${selectedRequest.id}`,
+        token,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            positionTitle: editForm.positionTitle,
+            headcount: editForm.headcount,
+            justification: editForm.justification,
+            jobDescription: editForm.jobDescription,
+            urgency: editForm.urgency,
+            skillRequirements: {
+              skills: skillsArray,
+            },
+          }),
+        },
+      );
+
+      const mapped = mapRequest(updated);
+      setRequests((current) =>
+        current.map((item) => (item.id === selectedRequest.id ? mapped : item)),
+      );
+      setSelectedRequest(mapped);
+      setIsEditing(false);
+    } catch (err) {
+      setEditError(err instanceof ApiError ? err.message : 'Unable to save request changes');
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  const rejectRequest = async () => {
+    if (!rejectionTarget || !rejectionComments.trim()) return;
+    setRejectionSubmitting(true);
+    setRejectionError('');
+    try {
+      await apiRequest(`/recruitment-requests/${rejectionTarget.id}/decision`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          decision: 'REJECTED',
+          comments: rejectionComments.trim(),
+        }),
+      });
+      await loadRequests();
+      setRejectionTarget(null);
+      setSelectedRequest(null);
+      setRejectionComments('');
+    } catch (err) {
+      setRejectionError(err instanceof ApiError ? err.message : 'Unable to reject request');
+    } finally {
+      setRejectionSubmitting(false);
+    }
   };
 
   const returnForRevision = async () => {
@@ -394,6 +563,20 @@ export const HRRequestQueue: React.FC = () => {
                     <p className="mt-1 text-sm text-secondary">
                       {request.department} / Requested by:{' '}
                       <span className="font-semibold text-on-surface">{request.requestedBy}</span>
+                      {request.ownerId ? (
+                        <>
+                          {' '}
+                          • Assigned to:{' '}
+                          <span className="font-semibold text-teal-command">
+                            {request.ownerId === user?.id ? 'You' : request.ownerName}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          {' '}
+                          • <span className="text-amber-600 font-medium">Unassigned</span>
+                        </>
+                      )}
                     </p>
                   </div>
                   <div className="text-left lg:text-right">
@@ -421,20 +604,61 @@ export const HRRequestQueue: React.FC = () => {
                     <span className="text-xs text-secondary">{request.budgetLabel}</span>
                   </div>
                   <div className="flex flex-col gap-3 sm:flex-row">
-                    <button
-                      className="h-10 rounded-lg border border-teal-command px-4 text-sm font-semibold text-teal-command transition hover:bg-teal-command hover:text-white active:scale-[0.98]"
-                      onClick={() => setRevisionTarget(request)}
-                      type="button"
-                    >
-                      Return for Revision
-                    </button>
-                    <button
-                      className="h-10 rounded-lg bg-teal-command px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-primary active:scale-[0.98]"
-                      onClick={() => openReview(request)}
-                      type="button"
-                    >
-                      Review
-                    </button>
+                    {!request.ownerId ? (
+                      <>
+                        <button
+                          className="h-10 rounded-lg border border-teal-command px-4 text-sm font-semibold text-teal-command transition hover:bg-teal-command hover:text-white active:scale-[0.98] disabled:opacity-50"
+                          onClick={() => void claimRequest(request.id, request)}
+                          disabled={claimSubmittingId === request.id}
+                          type="button"
+                        >
+                          {claimSubmittingId === request.id ? 'Claiming...' : 'Claim Request'}
+                        </button>
+                        <button
+                          className="h-10 rounded-lg bg-teal-command px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-primary active:scale-[0.98]"
+                          onClick={() => openReview(request)}
+                          type="button"
+                        >
+                          Review
+                        </button>
+                      </>
+                    ) : request.ownerId === user?.id ? (
+                      <>
+                        {request.status === 'APPROVED' ? (
+                          <button
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary active:scale-[0.98]"
+                            onClick={() => openCreatePlan(request.id)}
+                            type="button"
+                          >
+                            <Icon className="h-4 w-4" name="campaign" />
+                            Create Plan
+                          </button>
+                        ) : request.status !== 'RETURNED' ? (
+                          <button
+                            className="h-10 rounded-lg border border-teal-command px-4 text-sm font-semibold text-teal-command transition hover:bg-teal-command hover:text-white active:scale-[0.98]"
+                            onClick={() => setRevisionTarget(request)}
+                            type="button"
+                          >
+                            Return for Revision
+                          </button>
+                        ) : null}
+                        <button
+                          className="h-10 rounded-lg bg-teal-command px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-primary active:scale-[0.98]"
+                          onClick={() => openReview(request)}
+                          type="button"
+                        >
+                          Review
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        className="h-10 rounded-lg bg-teal-command px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-primary active:scale-[0.98]"
+                        onClick={() => openReview(request)}
+                        type="button"
+                      >
+                        Review
+                      </button>
+                    )}
                   </div>
                 </div>
               </article>
@@ -567,7 +791,10 @@ export const HRRequestQueue: React.FC = () => {
               </div>
               <button
                 className="rounded-full p-1.5 text-on-surface-variant transition hover:bg-surface-variant hover:text-deep-charcoal"
-                onClick={() => setSelectedRequest(null)}
+                onClick={() => {
+                  setSelectedRequest(null);
+                  setIsEditing(false);
+                }}
                 type="button"
               >
                 <span className="sr-only">Close review drawer</span>
@@ -576,89 +803,299 @@ export const HRRequestQueue: React.FC = () => {
             </header>
 
             <div className="flex-1 space-y-6 overflow-y-auto p-6">
-              <div>
-                <span
-                  className={`rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${urgencyConfig[selectedRequest.urgency].badge}`}
-                >
-                  {selectedRequest.urgency} Priority
-                </span>
-                <h3 className="mt-2 text-xl font-bold text-deep-charcoal">
-                  {selectedRequest.position}
-                </h3>
-                <p className="mt-1 text-xs text-secondary">
-                  Department:{' '}
-                  <span className="font-semibold text-on-surface">
-                    {selectedRequest.department}
-                  </span>
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 rounded-lg border border-border-warm bg-workflow-ivory p-4">
-                {[
-                  ['Requested By', selectedRequest.requestedBy],
-                  ['Headcount Plan', `${selectedRequest.headcount} candidates`],
-                  ['Job Category', selectedRequest.type],
-                  ['Monthly Allocation', selectedRequest.budget],
-                ].map(([label, value]) => (
-                  <div key={label}>
-                    <p className="text-[11px] font-semibold text-secondary">{label}</p>
-                    <p className="mt-1 text-sm font-semibold text-deep-charcoal">{value}</p>
-                  </div>
-                ))}
-              </div>
-
-              <div>
-                <h4 className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">
-                  Justification & Sourcing Brief
-                </h4>
-                <p className="rounded-lg border border-border-warm/60 bg-workflow-ivory/50 p-4 text-sm leading-6 text-slate-ink">
-                  {selectedRequest.justification}
-                </p>
-              </div>
-
-              <div>
-                <h4 className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">
-                  Key Technical Competencies
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {selectedRequest.skillsRequired.map((skill) => (
-                    <span
-                      className="rounded-full border border-teal-command/20 bg-teal-command/5 px-3 py-1 text-xs font-semibold text-teal-command"
-                      key={skill}
+              {!selectedRequest.ownerId ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold">This request is unclaimed.</p>
+                      <p className="text-xs text-amber-700 mt-1">
+                        You must claim this request before you can edit or review it.
+                      </p>
+                    </div>
+                    <button
+                      className="rounded bg-amber-600 px-3 py-1 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-50"
+                      onClick={() => void claimRequest(selectedRequest.id, selectedRequest)}
+                      disabled={claimSubmittingId === selectedRequest.id}
+                      type="button"
                     >
-                      {skill}
-                    </span>
-                  ))}
+                      {claimSubmittingId === selectedRequest.id ? 'Claiming...' : 'Claim Now'}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : selectedRequest.ownerId !== user?.id ? (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                  <p>
+                    This request is assigned to{' '}
+                    <span className="font-semibold text-slate-900">
+                      {selectedRequest.ownerName || 'another HR manager'}
+                    </span>
+                    .
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 flex justify-between items-center">
+                  <p>You have claimed this request.</p>
+                  {isEditing ? (
+                    <span className="text-xs font-bold bg-emerald-200 text-emerald-800 px-2 py-0.5 rounded">
+                      Editing Mode
+                    </span>
+                  ) : null}
+                </div>
+              )}
+
+              {isEditing ? (
+                <form
+                  className="space-y-4"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void saveEdit();
+                  }}
+                >
+                  {editError && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-rejected">
+                      {editError}
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal mb-2">
+                      Position Title
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.positionTitle}
+                      onChange={(e) => setEditForm({ ...editForm, positionTitle: e.target.value })}
+                      className="w-full rounded-lg border border-border-warm bg-clean-surface p-3 text-sm outline-none transition focus:border-teal-command"
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal mb-2">
+                        Headcount
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={editForm.headcount}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, headcount: parseInt(e.target.value, 10) || 1 })
+                        }
+                        className="w-full rounded-lg border border-border-warm bg-clean-surface p-3 text-sm outline-none transition focus:border-teal-command"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal mb-2">
+                        Urgency
+                      </label>
+                      <select
+                        value={editForm.urgency}
+                        onChange={(e) => setEditForm({ ...editForm, urgency: e.target.value })}
+                        className="w-full rounded-lg border border-border-warm bg-clean-surface p-3 text-sm outline-none transition focus:border-teal-command"
+                      >
+                        <option value="LOW">Low</option>
+                        <option value="MEDIUM">Normal</option>
+                        <option value="HIGH">High</option>
+                        <option value="CRITICAL">Critical</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal mb-2">
+                      Job Description
+                    </label>
+                    <textarea
+                      value={editForm.jobDescription}
+                      onChange={(e) => setEditForm({ ...editForm, jobDescription: e.target.value })}
+                      className="w-full h-32 rounded-lg border border-border-warm bg-clean-surface p-3 text-sm outline-none transition focus:border-teal-command"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal mb-2">
+                      Justification
+                    </label>
+                    <textarea
+                      value={editForm.justification}
+                      onChange={(e) => setEditForm({ ...editForm, justification: e.target.value })}
+                      className="w-full h-24 rounded-lg border border-border-warm bg-clean-surface p-3 text-sm outline-none transition focus:border-teal-command"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal mb-2">
+                      Key Skills (comma-separated)
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.skills}
+                      onChange={(e) => setEditForm({ ...editForm, skills: e.target.value })}
+                      placeholder="e.g. React, TypeScript, Node.js"
+                      className="w-full rounded-lg border border-border-warm bg-clean-surface p-3 text-sm outline-none transition focus:border-teal-command"
+                    />
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <div>
+                    <span
+                      className={`rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${urgencyConfig[selectedRequest.urgency]?.badge || ''}`}
+                    >
+                      {selectedRequest.urgency} Priority
+                    </span>
+                    <h3 className="mt-2 text-xl font-bold text-deep-charcoal">
+                      {selectedRequest.position}
+                    </h3>
+                    <p className="mt-1 text-xs text-secondary">
+                      Department:{' '}
+                      <span className="font-semibold text-on-surface">
+                        {selectedRequest.department}
+                      </span>
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 rounded-lg border border-border-warm bg-workflow-ivory p-4">
+                    {[
+                      ['Requested By', selectedRequest.requestedBy],
+                      ['Headcount Plan', `${selectedRequest.headcount} candidates`],
+                      ['Job Category', selectedRequest.type],
+                      ['Monthly Allocation', selectedRequest.budget],
+                    ].map(([label, value]) => (
+                      <div key={label}>
+                        <p className="text-[11px] font-semibold text-secondary">{label}</p>
+                        <p className="mt-1 text-sm font-semibold text-deep-charcoal">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div>
+                    <h4 className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">
+                      Justification & Sourcing Brief
+                    </h4>
+                    <p className="rounded-lg border border-border-warm/60 bg-workflow-ivory/50 p-4 text-sm leading-6 text-slate-ink">
+                      {selectedRequest.justification}
+                    </p>
+                  </div>
+
+                  <div>
+                    <h4 className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">
+                      Job Description
+                    </h4>
+                    <p className="rounded-lg border border-border-warm/60 bg-workflow-ivory/50 p-4 text-sm leading-6 text-slate-ink whitespace-pre-wrap">
+                      {selectedRequest.jobDescription}
+                    </p>
+                  </div>
+
+                  <div>
+                    <h4 className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">
+                      Key Technical Competencies
+                    </h4>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedRequest.skillsRequired.length > 0 ? (
+                        selectedRequest.skillsRequired.map((skill) => (
+                          <span
+                            className="rounded-full border border-teal-command/20 bg-teal-command/5 px-3 py-1 text-xs font-semibold text-teal-command"
+                            key={skill}
+                          >
+                            {skill}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-sm text-secondary italic">None specified</span>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             <footer className="space-y-3 border-t border-border-warm bg-workflow-ivory/60 p-6">
-              <button
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-teal-command text-sm font-semibold text-white shadow-sm transition hover:bg-primary active:scale-[0.98]"
-                onClick={() => navigate('/hr/campaigns')}
-                type="button"
-              >
-                <Icon className="h-4 w-4" name="campaign" />
-                Approve & Create Campaign Plan
-              </button>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  className="h-10 rounded-lg border border-border-warm bg-clean-surface text-sm font-semibold text-slate-ink transition hover:border-teal-command hover:text-teal-command active:scale-[0.98]"
-                  onClick={() => setRevisionTarget(selectedRequest)}
-                  type="button"
-                >
-                  Return for Revision
-                </button>
-                <button
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-deep-charcoal text-sm font-semibold text-white transition hover:bg-slate-ink active:scale-[0.98]"
-                  onClick={() => forwardToAdmin(selectedRequest.id)}
-                  type="button"
-                >
-                  <Icon className="h-4 w-4" name="send" />
-                  Forward to Admin
-                </button>
-              </div>
+              {isEditing ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    className="h-10 rounded-lg border border-border-warm bg-clean-surface text-sm font-semibold text-slate-ink transition hover:border-teal-command hover:text-teal-command active:scale-[0.98]"
+                    onClick={() => setIsEditing(false)}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="h-10 rounded-lg bg-teal-command text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:opacity-50"
+                    onClick={() => void saveEdit()}
+                    disabled={editSubmitting}
+                    type="button"
+                  >
+                    {editSubmitting ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {selectedRequest.ownerId === user?.id ? (
+                    <>
+                      {selectedRequest.status === 'APPROVED' ? (
+                        <button
+                          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-teal-command text-sm font-semibold text-white shadow-sm transition hover:bg-primary active:scale-[0.98]"
+                          onClick={() => openCreatePlan(selectedRequest.id)}
+                          type="button"
+                        >
+                          <Icon className="h-4 w-4" name="campaign" />
+                          Create Plan
+                        </button>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-2 gap-3">
+                            <button
+                              className="h-10 rounded-lg border border-teal-command px-4 text-sm font-semibold text-teal-command transition hover:bg-teal-command hover:text-white active:scale-[0.98]"
+                              onClick={startEditing}
+                              type="button"
+                            >
+                              Edit Details
+                            </button>
+                            <button
+                              className="h-10 rounded-lg bg-rejected text-sm font-semibold text-white transition hover:bg-red-700 active:scale-[0.98]"
+                              onClick={() => setRejectionTarget(selectedRequest)}
+                              type="button"
+                            >
+                              Reject Request
+                            </button>
+                          </div>
+                          <div
+                            className={`grid gap-3 ${
+                              selectedRequest.status === 'RETURNED' ? 'grid-cols-1' : 'grid-cols-2'
+                            }`}
+                          >
+                            {selectedRequest.status !== 'RETURNED' ? (
+                              <button
+                                className="h-10 rounded-lg border border-border-warm bg-clean-surface text-sm font-semibold text-slate-ink transition hover:border-teal-command hover:text-teal-command active:scale-[0.98]"
+                                onClick={() => setRevisionTarget(selectedRequest)}
+                                type="button"
+                              >
+                                Return for Revision
+                              </button>
+                            ) : null}
+                            <button
+                              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-deep-charcoal text-sm font-semibold text-white transition hover:bg-slate-ink active:scale-[0.98]"
+                              onClick={() => forwardToAdmin(selectedRequest.id)}
+                              type="button"
+                            >
+                              <Icon className="h-4 w-4" name="send" />
+                              Forward to Admin
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <button
+                      className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface text-sm font-semibold text-slate-ink transition hover:border-teal-command hover:text-teal-command active:scale-[0.98]"
+                      onClick={() => setSelectedRequest(null)}
+                      type="button"
+                    >
+                      Close
+                    </button>
+                  )}
+                </>
+              )}
             </footer>
           </section>
         </div>
@@ -724,6 +1161,72 @@ export const HRRequestQueue: React.FC = () => {
                 type="button"
               >
                 {revisionSubmitting ? 'Returning...' : 'Return to Dept Head'}
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
+
+      {rejectionTarget ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-deep-charcoal/40 p-4 backdrop-blur-sm">
+          <section className="w-full max-w-[480px] overflow-hidden rounded-xl border border-border-warm bg-clean-surface shadow-2xl">
+            <header className="flex items-center justify-between border-b border-border-warm bg-workflow-ivory/60 px-6 py-4">
+              <h2 className="font-semibold text-deep-charcoal">Reject Recruitment Request</h2>
+              <button
+                className="rounded-full p-1.5 text-on-surface-variant transition hover:bg-surface-variant hover:text-deep-charcoal"
+                onClick={() => {
+                  setRejectionTarget(null);
+                  setRejectionComments('');
+                  setRejectionError('');
+                }}
+                type="button"
+              >
+                <span className="sr-only">Close rejection modal</span>
+                <Icon className="h-4 w-4" name="close" />
+              </button>
+            </header>
+            <div className="space-y-4 p-6">
+              <p className="text-sm leading-6 text-secondary">
+                Please provide rejection comments for request #{rejectionTarget.id.slice(0, 8)}.
+                These comments will be recorded in the decision log.
+              </p>
+              {rejectionError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-rejected">
+                  {rejectionError}
+                </div>
+              )}
+              <label className="block">
+                <span className="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">
+                  Rejection Comments
+                </span>
+                <textarea
+                  className="w-full resize-none rounded-lg border border-border-warm bg-clean-surface p-3 text-sm outline-none transition placeholder:text-on-surface-variant focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                  onChange={(event) => setRejectionComments(event.target.value)}
+                  placeholder="Provide comments explaining the rejection reasons..."
+                  rows={4}
+                  value={rejectionComments}
+                />
+              </label>
+            </div>
+            <footer className="flex justify-end gap-3 border-t border-border-warm bg-workflow-ivory/60 px-6 py-4">
+              <button
+                className="h-10 rounded-lg border border-border-warm px-4 text-sm font-semibold text-secondary transition hover:bg-surface-variant/40 active:scale-[0.98]"
+                onClick={() => {
+                  setRejectionTarget(null);
+                  setRejectionComments('');
+                  setRejectionError('');
+                }}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="h-10 rounded-lg bg-rejected px-5 text-sm font-bold text-white transition hover:bg-red-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={!rejectionComments.trim() || rejectionSubmitting}
+                onClick={() => void rejectRequest()}
+                type="button"
+              >
+                {rejectionSubmitting ? 'Rejecting...' : 'Reject Request'}
               </button>
             </footer>
           </section>

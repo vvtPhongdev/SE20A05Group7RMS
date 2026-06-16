@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { apiRequest } from '../lib/api';
 
-type RoleKey = 'Admin' | 'Department Head' | 'HR Manager' | 'Candidate';
+type RoleKey = 'Admin' | 'Department Head' | 'HR Leader' | 'HR Recruiter' | 'Candidate';
 type UserStatus = 'Active' | 'Inactive' | 'Pending';
 
 interface ManagedUser {
@@ -17,164 +17,6 @@ interface ManagedUser {
 }
 
 type UserForm = Omit<ManagedUser, 'id' | 'lastLogin'>;
-
-/*
- * Mock users retained for UI reference only.
-const getInitialUsers = (): ManagedUser[] => {
-  const list: ManagedUser[] = [
-    {
-      id: 'USR-001',
-      name: 'Nguyen Van An',
-      email: 'an.nguyen@rms.vn',
-      role: 'Admin',
-      department: 'Management',
-      status: 'Active',
-      lastLogin: '2024-05-29 14:30',
-      avatarUrl:
-        'https://lh3.googleusercontent.com/aida-public/AB6AXuB17BiN4bnjWR_KZgkn_VFbqUa3K1Vz1M8XCYTk4xBoBEorBJAlElYxj2hzdjXN52k06t2qxYVVJRUfFbY1ig8ougqZ-Q3cu_Sezo4Nhw5T-LWbBwblZZxh-9D3BcVeHzkVGxSbV_e9dAqOZPI6PYnXYdkO_wsNVpTjDZs6sAWjDz-oPQpvsm9an_3xmf_qaMjEaxAFicYEs6e-XqKLyaXtNRotBP660ZkSdYo_5cpmH_jYM2UvGH2NX6PnZRV9liBMercVNBUU2ys',
-    },
-    {
-      id: 'USR-002',
-      name: 'Tran Thi Binh',
-      email: 'binh.tran@rms.vn',
-      role: 'HR Manager',
-      department: 'Human Resources',
-      status: 'Active',
-      lastLogin: '2024-05-29 12:15',
-      avatarUrl:
-        'https://lh3.googleusercontent.com/aida-public/AB6AXuCwiQBSGS5GX3llR0GMK9snbHFaYrPK0OyxBoQ4p6p2ZDbesdgxvCbAGSgqI_7KIof3bSSsghOjYTEX5dgYjr6aQZrSZcmDtBYLPyCGDZfFH5TXI2e2VmWVD8OrnlrqtE7XLSZ_5BKDGpbUb11KiCXfXEO-ap80enLVE4Fi_6OSezpvlarOsgTWe_FDrhwnn6DCCByiKG-X5Fq3dMbeKtp7e42bNCeuUgVDIL-GOKgrWZoP4u-dikZxRhs47xhFAj5LMmB7igJ_Ujw',
-    },
-    {
-      id: 'USR-003',
-      name: 'Le Van Cuong',
-      email: 'cuong.le@rms.vn',
-      role: 'Department Head',
-      department: 'Engineering',
-      status: 'Pending',
-      lastLogin: '2024-05-28 09:45',
-      avatarUrl:
-        'https://lh3.googleusercontent.com/aida-public/AB6AXuDOtZ4Zkmz7uN_YTlA5IELXMVlwFIJpSY-J6s9SDAo9j4FFfOF1lkJPQjPn4EquYDt0bBEo9Pq3na7GJ7lBFBA_o4SQFGOJ00UnPcYEYtb6bp5rE-lup_UoF43BKALZjpf-T-2WjtUyPXaNPaiRkrtyjmduL1ZQfCSHP8HdzaQRzTypR7E7vp-yBJEqftbcJQmMPq-xhS7EbkOY_we60KAJd0f2FbxMSMyvk75LY1rzGc8QP6WQvoPQdr5hKgFXnnIVnL76zum2q3c',
-    },
-    {
-      id: 'USR-004',
-      name: 'Pham Minh Duc',
-      email: 'duc.pham@gmail.com',
-      role: 'Candidate',
-      department: '-',
-      status: 'Inactive',
-      lastLogin: '2024-05-20 16:20',
-      avatarUrl:
-        'https://lh3.googleusercontent.com/aida-public/AB6AXuBHSkOyHLTzwQNc3WmVZIq0INpvIy55Kk9gHUieB-FJro63rQJYfhukTWQ12UdhwspBJYhtL9i7AIKKj94XMVHf7mDz5uIgECQdtrkVN5XxJjGGDzJpiAFC8fmUUcKKvBB4Vg_dbZpm_x_untpeXfCgZXuuxLd9wp_7_u7jR7QSZMNA_YCyge7dnbYC-mNYN5A_nt7VsirUFalJqWDO-dDeTlieAx1NvFbR05PPyji2K9pJemKdhE07Xur0cD8y1iaqnofJ6QKTQfY',
-    },
-    {
-      id: 'USR-005',
-      name: 'Hoang Lan Anh',
-      email: 'anh.hl@rms.vn',
-      role: 'HR Manager',
-      department: 'Human Resources',
-      status: 'Active',
-      lastLogin: '2024-05-29 15:45',
-      avatarUrl:
-        'https://lh3.googleusercontent.com/aida-public/AB6AXuDhOMXOKfo4rw-zXs2fHnU-OtrL8yXViB_yQzFdZWOFpiZa-mEuChwtN9pqkapPa2v_QpJ2W1sAsUUKuNLjtivwzaTWHlaNPlBxfFS5YPNaCL8nlQk_us7qbczmHJhUpH5BosTgkgifYmIRytjfuH7iZS9EZWZurlCHO9_Rss5SulGalSqUMJW8U0acwvSRO09wgnZ1X2xdmP3lodrRpid5nlCOt8gE9g-BCPKW01O2OVZeQALG2cEUifeSlJIAuLPOLN3t088yqvE',
-    },
-  ];
-
-  // We need to generate the rest:
-  // Admins: need 11 more (12 - 1 = 11)
-  // HR Managers: need 6 more (8 - 2 = 6)
-  // Dept Heads: need 14 more (15 - 1 = 14)
-  // Candidates: need 51 more (52 - 1 = 51)
-  // Total to generate = 82 users, starting from index 6
-
-  const firstNames = [
-    'Viet',
-    'Tuan',
-    'Phuong',
-    'Thao',
-    'Trang',
-    'Huy',
-    'Lan',
-    'Quynh',
-    'Duy',
-    'Nam',
-    'Hoang',
-    'An',
-    'Minh',
-    'Khoa',
-    'Linh',
-    'Bao',
-    'Chi',
-    'Huong',
-    'Diep',
-    'Hai',
-    'Phong',
-    'Thanh',
-    'Son',
-    'Lam',
-  ];
-  const middleNames = ['Van', 'Thi', 'Minh', 'Gia', 'Duc', 'Anh', 'Khanh', 'Ngoc', 'Bao', 'Quoc'];
-  const lastNames = [
-    'Nguyen',
-    'Tran',
-    'Le',
-    'Pham',
-    'Hoang',
-    'Huynh',
-    'Phan',
-    'Vu',
-    'Vo',
-    'Dang',
-    'Bui',
-    'Do',
-    'Ho',
-    'Ngo',
-    'Duong',
-    'Ly',
-  ];
-
-  let idCounter = 6;
-
-  const addUsersForRole = (role: RoleKey, count: number, defaultDepts: string[]) => {
-    for (let i = 0; i < count; i++) {
-      const idx = idCounter;
-      const ln = lastNames[idx % lastNames.length];
-      const mn = middleNames[(idx + 2) % middleNames.length];
-      const fn = firstNames[(idx + 5) % firstNames.length];
-      const name = `${ln} ${mn} ${fn}`;
-      const email = `${fn.toLowerCase()}.${ln.toLowerCase()}${idx}@rms.vn`;
-      const department = defaultDepts[idx % defaultDepts.length];
-
-      let status: UserStatus = 'Active';
-      if (idx % 7 === 0) {
-        status = 'Pending';
-      } else if (idx % 11 === 0) {
-        status = 'Inactive';
-      }
-
-      list.push({
-        id: `USR-${String(idx).padStart(3, '0')}`,
-        name,
-        email,
-        role,
-        department,
-        status,
-        lastLogin: `2024-05-${String(20 + (idx % 10)).padStart(2, '0')} ${String(9 + (idx % 8)).padStart(2, '0')}:${String(10 + (idx % 45)).padStart(2, '0')}`,
-      });
-
-      idCounter++;
-    }
-  };
-
-  addUsersForRole('Admin', 11, ['Management', 'Operations', 'IT Support']);
-  addUsersForRole('HR Manager', 6, ['Human Resources', 'Talent Acquisition']);
-  addUsersForRole('Department Head', 14, ['Engineering', 'Marketing', 'Finance', 'Operations']);
-  addUsersForRole('Candidate', 51, ['-']);
-
-  return list;
-};
-
-*/
-
 const emptyForm: UserForm = {
   name: '',
   email: '',
@@ -187,7 +29,8 @@ const roles: Array<RoleKey | 'All'> = [
   'All',
   'Admin',
   'Department Head',
-  'HR Manager',
+  'HR Leader',
+  'HR Recruiter',
   'Candidate',
 ];
 const statuses: Array<UserStatus | 'All'> = ['All', 'Active', 'Inactive'];
@@ -232,7 +75,8 @@ export const AdminUsers: React.FC = () => {
   const mapRole = (role: string): RoleKey => {
     if (role === 'ADMIN') return 'Admin';
     if (role === 'DEPARTMENT_HEAD') return 'Department Head';
-    if (role === 'HR_MANAGER') return 'HR Manager';
+    if (role === 'HR_LEADER') return 'HR Leader';
+    if (role === 'HR_RECRUITER') return 'HR Recruiter';
     return 'Candidate';
   };
 
@@ -240,7 +84,8 @@ export const AdminUsers: React.FC = () => {
     ({
       Admin: 'ADMIN',
       'Department Head': 'DEPARTMENT_HEAD',
-      'HR Manager': 'HR_MANAGER',
+      'HR Leader': 'HR_LEADER',
+      'HR Recruiter': 'HR_RECRUITER',
       Candidate: 'CANDIDATE',
     })[role];
 
@@ -297,7 +142,8 @@ export const AdminUsers: React.FC = () => {
     return {
       total: users.length,
       admins: users.filter((u) => u.role === 'Admin').length,
-      hrManagers: users.filter((u) => u.role === 'HR Manager').length,
+      hrLeaders: users.filter((u) => u.role === 'HR Leader').length,
+      hrRecruiters: users.filter((u) => u.role === 'HR Recruiter').length,
       deptHeads: users.filter((u) => u.role === 'Department Head').length,
       candidates: users.filter((u) => u.role === 'Candidate').length,
     };
@@ -635,7 +481,11 @@ export const AdminUsers: React.FC = () => {
         </div>
         <div className="flex items-center px-4 py-2 bg-clean-surface border border-border-warm rounded-full gap-2">
           <span className="w-2 h-2 rounded-full bg-teal-command"></span>
-          <span className="font-label-md text-on-surface">{counts.hrManagers} HR Managers</span>
+          <span className="font-label-md text-on-surface">{counts.hrLeaders} HR Leaders</span>
+        </div>
+        <div className="flex items-center px-4 py-2 bg-clean-surface border border-border-warm rounded-full gap-2">
+          <span className="w-2 h-2 rounded-full bg-teal-command"></span>
+          <span className="font-label-md text-on-surface">{counts.hrRecruiters} HR Recruiters</span>
         </div>
         <div className="flex items-center px-4 py-2 bg-clean-surface border border-border-warm rounded-full gap-2">
           <span className="w-2 h-2 rounded-full bg-revision"></span>
@@ -669,7 +519,8 @@ export const AdminUsers: React.FC = () => {
           <option value="All">Role</option>
           <option value="Admin">Admin</option>
           <option value="Department Head">Department Head</option>
-          <option value="HR Manager">HR Manager</option>
+          <option value="HR Leader">HR Leader</option>
+          <option value="HR Recruiter">HR Recruiter</option>
           <option value="Candidate">Candidate</option>
         </select>
         <select
@@ -754,7 +605,7 @@ export const AdminUsers: React.FC = () => {
                       className={`inline-flex items-center px-3 py-1 rounded-full text-[12px] font-semibold text-white ${
                         user.role === 'Admin'
                           ? 'bg-deep-charcoal'
-                          : user.role === 'HR Manager'
+                          : user.role === 'HR Leader' || user.role === 'HR Recruiter'
                             ? 'bg-teal-command'
                             : user.role === 'Department Head'
                               ? 'bg-revision'

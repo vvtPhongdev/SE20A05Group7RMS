@@ -18,11 +18,20 @@ describe('TaskPlanService', () => {
     log: jest.fn().mockResolvedValue(undefined),
   };
 
-  const service = new TaskPlanService(prisma as any, auditLog as any);
+  const notificationClient = {
+    send: jest.fn().mockReturnValue({
+      subscribe: jest.fn(),
+    }),
+  };
+
+  const service = new TaskPlanService(prisma as any, auditLog as any, notificationClient as any);
 
   beforeEach(() => {
     jest.clearAllMocks();
     auditLog.log.mockResolvedValue(undefined);
+    notificationClient.send.mockReturnValue({
+      subscribe: jest.fn(),
+    });
   });
 
   describe('create', () => {
@@ -106,6 +115,39 @@ describe('TaskPlanService', () => {
       expect(auditLog.log).toHaveBeenCalledWith(
         expect.objectContaining({ performedById: 'manager-1' }),
       );
+    });
+
+    it('sends an email notification if the assigned user has an email address', async () => {
+      prisma.overallPlan.findUnique.mockResolvedValue({ id: 'plan-1' });
+      prisma.taskPlan.create.mockResolvedValue({
+        id: 'task-1',
+        status: TaskStatus.PENDING,
+        assignedToId: 'user-1',
+        assignedTo: { id: 'user-1', displayName: 'Lisa Thompson', email: 'recruiter1@acme.com' },
+      });
+
+      const subscribeMock = jest.fn();
+      notificationClient.send.mockReturnValue({
+        subscribe: subscribeMock,
+      });
+
+      await service.create({
+        overallPlanId: 'plan-1',
+        taskType: TaskType.JOB_POSTING,
+        assignedToId: 'user-1',
+        startDate: '2026-07-01',
+        endDate: '2026-07-10',
+      });
+
+      expect(notificationClient.send).toHaveBeenCalledWith(
+        'notification.send_email',
+        expect.objectContaining({
+          userId: 'user-1',
+          toEmail: 'recruiter1@acme.com',
+          subject: expect.stringContaining(TaskType.JOB_POSTING),
+        }),
+      );
+      expect(subscribeMock).toHaveBeenCalled();
     });
   });
 
