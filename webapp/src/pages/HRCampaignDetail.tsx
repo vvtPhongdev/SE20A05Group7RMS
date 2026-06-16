@@ -38,6 +38,7 @@ type TaskItem = {
   title: string;
   done: boolean;
   dueDate: string;
+  assigneeName?: string;
 };
 
 type CampaignData = {
@@ -301,7 +302,7 @@ const fallbackCampaign = (id: string): CampaignData => ({
 
 export const HRCampaignDetail: React.FC = () => {
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const campaignId = id?.replace(/^#/, '') ?? '';
 
@@ -322,6 +323,19 @@ export const HRCampaignDetail: React.FC = () => {
   const [newTaskType, setNewTaskType] = useState('JOB_POSTING');
   const [newTaskDue, setNewTaskDue] = useState('');
   const [addTaskSubmitting, setAddTaskSubmitting] = useState(false);
+
+  const [recruiters, setRecruiters] = useState<Array<{ id: string; name: string }>>([]);
+  const [newTaskAssigneeId, setNewTaskAssigneeId] = useState('');
+
+  useEffect(() => {
+    if (showAddTask && user?.role === 'HR_LEADER') {
+      apiRequest<{ data: Array<{ id: string; displayName: string }> }>('/users?role=HR_RECRUITER&limit=100', token)
+        .then((res) => {
+          setRecruiters(res.data.map((u) => ({ id: u.id, name: u.displayName })));
+        })
+        .catch((err) => console.error('Failed to load recruiters:', err));
+    }
+  }, [showAddTask, user?.role, token]);
 
   const loadCampaign = async () => {
     setLoading(true);
@@ -365,6 +379,7 @@ export const HRCampaignDetail: React.FC = () => {
         title: TASK_TYPE_LABELS[task.taskType] ?? task.taskType,
         done: task.status === 'COMPLETED',
         dueDate: formatDate(task.endDate),
+        assigneeName: task.assignedTo?.displayName || '',
       })),
     [plan],
   );
@@ -561,10 +576,12 @@ export const HRCampaignDetail: React.FC = () => {
           taskType: newTaskType,
           startDate: new Date().toISOString(),
           endDate: new Date(newTaskDue).toISOString(),
+          assignedToId: newTaskAssigneeId || undefined,
         }),
       });
       setShowAddTask(false);
       setNewTaskDue('');
+      setNewTaskAssigneeId('');
       await loadCampaign();
     } catch (taskErr) {
       setTaskActionError(taskErr instanceof ApiError ? taskErr.message : 'Unable to add task');
@@ -840,6 +857,11 @@ export const HRCampaignDetail: React.FC = () => {
                       className={`flex-1 text-sm ${task.done ? 'text-on-surface-variant line-through' : 'font-medium text-deep-charcoal'}`}
                     >
                       {task.title}
+                      {task.assigneeName && (
+                        <span className="ml-2 text-xs font-normal text-slate-ink/80 bg-workflow-ivory px-2 py-0.5 rounded-full border border-border-warm">
+                          {task.assigneeName}
+                        </span>
+                      )}
                     </p>
                     <span
                       className={`font-mono text-xs ${task.done ? 'text-on-surface-variant' : 'text-slate-ink'}`}
@@ -894,6 +916,25 @@ export const HRCampaignDetail: React.FC = () => {
                         value={newTaskDue}
                       />
                     </label>
+                    {user?.role === 'HR_LEADER' && recruiters.length > 0 && (
+                      <label className="block">
+                        <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                          Assignee
+                        </span>
+                        <select
+                          className="h-10 w-full min-w-[180px] rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                          onChange={(event) => setNewTaskAssigneeId(event.target.value)}
+                          value={newTaskAssigneeId}
+                        >
+                          <option value="">Assign to myself</option>
+                          {recruiters.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
                     <div className="flex gap-2">
                       <button
                         className="h-10 rounded-lg bg-teal-command px-4 text-sm font-bold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"

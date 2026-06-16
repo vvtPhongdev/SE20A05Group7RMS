@@ -136,12 +136,20 @@ export class AuthService implements OnModuleDestroy {
       }
       // If user exists but is not active, update their information
       const passwordHash = await bcrypt.hash(parsed.password, 12);
+      let departmentId = existing.departmentId;
+      if (!departmentId && parsed.role === 'DEPARTMENT_HEAD') {
+        const defaultDept = await this.prisma.department.findFirst();
+        if (defaultDept) {
+          departmentId = defaultDept.id;
+        }
+      }
       await this.prisma.user.update({
         where: { id: existing.id },
         data: {
           displayName: parsed.displayName,
           passwordHash,
           role: parsed.role,
+          departmentId,
         },
       });
     } else {
@@ -159,6 +167,17 @@ export class AuthService implements OnModuleDestroy {
         });
       }
 
+      // Find a default department for the new Department Head
+      let departmentId: string | undefined;
+      if (parsed.role === 'DEPARTMENT_HEAD') {
+        const defaultDept = await this.prisma.department.findFirst({
+          where: { organizationId: organization.id },
+        });
+        if (defaultDept) {
+          departmentId = defaultDept.id;
+        }
+      }
+
       // 4. Create user in database (inactive by default)
       await this.prisma.user.create({
         data: {
@@ -167,6 +186,7 @@ export class AuthService implements OnModuleDestroy {
           role: parsed.role,
           passwordHash,
           organizationId: organization.id,
+          departmentId,
           isActive: false,
         },
       });

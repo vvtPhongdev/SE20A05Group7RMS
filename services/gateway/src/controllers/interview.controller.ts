@@ -16,7 +16,7 @@ export class InterviewController {
   // ─── Schedules ────────────────────────────────────────────────────
 
   @Post('schedules')
-  @Roles(UserRole.HR_MANAGER)
+  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER)
   @ApiOperation({
     summary: 'FR-12 + FR-07: Create interview schedule (plan-locked, conflict-checked)',
   })
@@ -35,21 +35,21 @@ export class InterviewController {
   }
 
   @Get('schedules/:id')
-  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
+  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
   @ApiOperation({ summary: 'Get interview schedule by ID' })
   getSchedule(@Param('id') id: string) {
     return firstValueFrom(this.interviewClient.send('interview.get_schedule', { id }));
   }
 
   @Get('requests/:requestId/schedules')
-  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
+  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
   @ApiOperation({ summary: 'List all interview schedules for a recruitment request' })
   listSchedules(@Param('requestId') requestId: string) {
     return firstValueFrom(this.interviewClient.send('interview.list_schedules', { requestId }));
   }
 
   @Patch('schedules/:id/reschedule')
-  @Roles(UserRole.HR_MANAGER)
+  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER)
   @ApiOperation({ summary: 'T-051: Reschedule interview — conflict-checked, notifies all parties' })
   rescheduleSchedule(
     @Param('id') id: string,
@@ -68,7 +68,7 @@ export class InterviewController {
   }
 
   @Patch('schedules/:id/cancel')
-  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN)
+  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN)
   @ApiOperation({
     summary: 'T-052: Cancel interview with reason — notifies parties, logs to request timeline',
   })
@@ -79,7 +79,7 @@ export class InterviewController {
   // ─── Invitations (FR-13) ──────────────────────────────────────────
 
   @Post('schedules/:id/invitations')
-  @Roles(UserRole.HR_MANAGER)
+  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER)
   @ApiOperation({ summary: 'FR-13: Send interview invitations to candidate and panel' })
   sendInvitations(
     @Param('id') interviewId: string,
@@ -94,7 +94,7 @@ export class InterviewController {
   }
 
   @Get('schedules/:id/email-logs')
-  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN)
+  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Get invitation email delivery logs for an interview' })
   getEmailLogs(@Param('id') interviewId: string) {
     return firstValueFrom(this.interviewClient.send('interview.get_email_logs', { interviewId }));
@@ -103,21 +103,21 @@ export class InterviewController {
   // ─── Results (FR-14) ──────────────────────────────────────────────
 
   @Get('completed')
-  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
+  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
   @ApiOperation({ summary: 'List completed or past interviews' })
   listCompleted() {
     return firstValueFrom(this.interviewClient.send('interview.list_completed', {}));
   }
 
   @Get(':id/details')
-  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
+  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
   @ApiOperation({ summary: 'Get completed interview details with panel feedbacks' })
   getDetails(@Param('id') id: string) {
     return firstValueFrom(this.interviewClient.send('interview.get_details', { id }));
   }
 
   @Post('schedules/:id/results')
-  @Roles(UserRole.HR_MANAGER)
+  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER)
   @ApiOperation({ summary: 'FR-14: Record detailed panel feedbacks and final recommendation (Legacy path)' })
   recordResultLegacy(
     @Param('id') interviewId: string,
@@ -146,7 +146,7 @@ export class InterviewController {
   }
 
   @Post(':id/results')
-  @Roles(UserRole.HR_MANAGER)
+  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER)
   @ApiOperation({ summary: 'FR-14: Record detailed panel feedbacks and final recommendation' })
   recordResult(
     @Param('id') interviewId: string,

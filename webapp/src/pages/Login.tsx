@@ -3,15 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { UserRole } from '@wr/contracts';
 
-/*
- * Mock login accounts retained for local UI reference only.
-const demoAccounts = [
-  { label: 'Admin', email: 'admin@acme.com', accent: 'bg-[#1c5566]' },
-  { label: 'Dept Head', email: 'depthead@acme.com', accent: 'bg-[#b5830a]' },
-  { label: 'HR Manager', email: 'hr@acme.com', accent: 'bg-[#1a7a5c]' },
-  { label: 'Candidate', email: 'candidate@acme.com', accent: 'bg-[#3b6fb5]' },
-];
-*/
 
 const pipelineStages = [
   { label: 'Approved', value: '93.4%', width: '93.4%', tone: 'bg-[var(--wr-success)]' },
@@ -69,7 +60,8 @@ const getRoleHomePath = (role: UserRole) => {
       return '/admin';
     case UserRole.DEPARTMENT_HEAD:
       return '/dept-head';
-    case UserRole.HR_MANAGER:
+    case UserRole.HR_LEADER:
+    case UserRole.HR_RECRUITER:
       return '/hr';
     case UserRole.CANDIDATE:
       return '/candidate';
@@ -388,29 +380,6 @@ export const Login: React.FC = () => {
                 </button>
               </form>
 
-              {/* Mock demo-access controls are intentionally disabled.
-              <div className="my-6 flex items-center gap-4">
-                <div className="h-px flex-1 bg-[var(--wr-border-subtle)]" />
-                <span className="text-xs font-semibold uppercase text-[var(--wr-text-muted)]">
-                  Demo access
-                </span>
-                <div className="h-px flex-1 bg-[var(--wr-border-subtle)]" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                {demoAccounts.map((account) => (
-                  <button
-                    key={account.email}
-                    className="group flex h-11 items-center gap-3 rounded-[var(--wr-radius-lg)] border border-[var(--wr-border-default)] bg-[#fefdfb] px-3 text-left text-sm font-medium text-[var(--wr-text-primary)] transition duration-200 ease-out hover:-translate-y-[1px] hover:border-[var(--wr-border-strong)] hover:bg-[var(--wr-bg-elevated)] active:translate-y-0 active:scale-[0.98]"
-                    type="button"
-                    onClick={() => handleQuickLogin(account.email)}
-                  >
-                    <span className={`h-2.5 w-2.5 rounded-full ${account.accent}`} />
-                    <span className="truncate">{account.label}</span>
-                  </button>
-                ))}
-              </div>
-              */}
 
               <div className="mt-8">
                 <Link

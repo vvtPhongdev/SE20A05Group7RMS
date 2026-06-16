@@ -4,7 +4,14 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagg
 import { SERVICE_TOKENS } from '../constants';
 import { firstValueFrom } from 'rxjs';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { HiringDecision, OfferResponse, TaskStatus, TaskType, Urgency, UserRole } from '@wr/contracts';
+import {
+  HiringDecision,
+  OfferResponse,
+  TaskStatus,
+  TaskType,
+  Urgency,
+  UserRole,
+} from '@wr/contracts';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import {
   IsUUID,
@@ -168,8 +175,43 @@ export class CreateRecruitmentRequestDto {
   submit?: boolean;
 }
 
+export class UpdateRecruitmentRequestDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  positionTitle?: string;
+
+  @ApiProperty({ required: false, example: 2 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  headcount?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  jobDescription?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  justification?: string;
+
+  @ApiProperty({ required: false, enum: Urgency })
+  @IsOptional()
+  @IsEnum(Urgency)
+  urgency?: Urgency;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  skillRequirements?: Record<string, unknown>;
+}
+
 export class AssignRecruitmentRequestDto {
-  @ApiProperty({ example: 'uuid-of-hr-manager' })
+  @ApiProperty({ example: 'uuid-of-hr-leader' })
   @IsUUID()
   hrManagerId!: string;
 }
@@ -179,6 +221,46 @@ export class ReturnForRevisionDto {
   @IsString()
   @IsNotEmpty()
   feedback!: string;
+}
+
+export class RequestRecruitmentChangesDto {
+  @ApiProperty({ example: 'Please revise the headcount and budget notes.' })
+  @IsString()
+  @IsNotEmpty()
+  feedback!: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  positionTitle?: string;
+
+  @ApiProperty({ required: false, example: 2 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  headcount?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  jobDescription?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  justification?: string;
+
+  @ApiProperty({ required: false, enum: Urgency })
+  @IsOptional()
+  @IsEnum(Urgency)
+  urgency?: Urgency;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  skillRequirements?: Record<string, unknown>;
 }
 
 export class CreateOverallPlanDto {
@@ -223,6 +305,11 @@ export class CreateTaskPlanDto {
   @ApiProperty({ example: '2026-07-08T00:00:00.000Z' })
   @IsDateString()
   endDate!: string;
+
+  @ApiProperty({ example: 'uuid-of-assigned-recruiter', required: false })
+  @IsOptional()
+  @IsUUID()
+  assignedToId?: string;
 }
 
 export class UpdateTaskPlanStatusDto {
@@ -279,13 +366,10 @@ export class RecruitingController {
   constructor(@Inject(SERVICE_TOKENS.RECRUITING) private readonly recruitingClient: ClientProxy) {}
 
   @Get('recruitment-requests')
-  @Roles(UserRole.ADMIN, UserRole.HR_MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER)
   @ApiOperation({ summary: 'List recruitment requests for admin/HR oversight' })
   listRecruitmentRequests(@Query() query: any, @CurrentUser() user: any) {
-    const payload = { ...query };
-    if (user.role === UserRole.HR_MANAGER) {
-      payload.reviewedById = user.sub;
-    }
+    const payload = { ...query, role: user.role, userId: user.sub };
     return firstValueFrom(this.recruitingClient.send('recruitment-requests.admin.list', payload));
   }
 
@@ -304,6 +388,37 @@ export class RecruitingController {
     );
   }
 
+  @Get('recruitment-requests/:id')
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'Get a recruitment request visible to the current user' })
+  getRecruitmentRequest(@Param('id') id: string, @CurrentUser() user: any) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruitment-requests.get', {
+        id,
+        userId: user.sub,
+        role: user.role,
+      }),
+    );
+  }
+
+  @Patch('recruitment-requests/:id')
+  @Roles(UserRole.DEPARTMENT_HEAD, UserRole.HR_LEADER)
+  @ApiOperation({ summary: 'Update a recruitment request' })
+  updateRecruitmentRequest(
+    @Param('id') id: string,
+    @Body() body: UpdateRecruitmentRequestDto,
+    @CurrentUser() user: any,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruitment-requests.depthead.update', {
+        id,
+        userId: user.sub,
+        role: user.role,
+        ...body,
+      }),
+    );
+  }
+
   @Patch('recruitment-requests/:id/submit')
   @Roles(UserRole.DEPARTMENT_HEAD)
   @ApiOperation({ summary: 'Submit a draft recruitment request for review' })
@@ -314,7 +429,7 @@ export class RecruitingController {
   }
 
   @Patch('recruitment-requests/:id/assign')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER)
   @ApiOperation({ summary: 'Assign a recruitment request to an HR manager' })
   assignRecruitmentRequest(
     @Param('id') id: string,
@@ -331,7 +446,7 @@ export class RecruitingController {
   }
 
   @Patch('recruitment-requests/:id/return-for-revision')
-  @Roles(UserRole.HR_MANAGER)
+  @Roles(UserRole.HR_LEADER)
   @ApiOperation({ summary: 'Return a recruitment request to the department head for revision' })
   returnRecruitmentRequestForRevision(
     @Param('id') id: string,
@@ -347,20 +462,50 @@ export class RecruitingController {
     );
   }
 
-  @Patch('recruitment-requests/:id/decision')
+  @Patch('recruitment-requests/:id/request-changes')
   @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Request changes to an HR-forwarded recruitment request' })
+  requestRecruitmentRequestChanges(
+    @Param('id') id: string,
+    @Body() body: RequestRecruitmentChangesDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruitment-requests.admin.request_changes', {
+        id,
+        adminId: userId,
+        ...body,
+      }),
+    );
+  }
+
+  @Patch('recruitment-requests/:id/forward-to-admin')
+  @Roles(UserRole.HR_LEADER)
+  @ApiOperation({ summary: 'Forward an HR-reviewed recruitment request to Admin' })
+  forwardRecruitmentRequestToAdmin(@Param('id') id: string, @CurrentUser('sub') userId: string) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruitment-requests.hr.forward_to_admin', {
+        id,
+        hrManagerId: userId,
+      }),
+    );
+  }
+
+  @Patch('recruitment-requests/:id/decision')
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER)
   @ApiOperation({ summary: 'Approve or reject a pending recruitment request' })
   decideRecruitmentRequest(
     @Param('id') id: string,
     @Body() body: DecideRecruitmentRequestDto,
-    @CurrentUser('sub') userId: string,
+    @CurrentUser() user: any,
   ) {
     return firstValueFrom(
       this.recruitingClient.send('recruitment-requests.admin.decide', {
         id,
         decision: body.decision,
         comments: body.comments,
-        adminId: userId,
+        adminId: user.sub,
+        role: user.role,
       }),
     );
   }
@@ -368,7 +513,7 @@ export class RecruitingController {
   // ─── Overall Plan / Task Plan ──────────────────────────────────────
 
   @Post('overall-plan')
-  @Roles(UserRole.HR_MANAGER)
+  @Roles(UserRole.HR_LEADER)
   @ApiOperation({ summary: 'Create an overall plan for an approved recruitment request' })
   createOverallPlan(@Body() body: CreateOverallPlanDto, @CurrentUser('sub') userId: string) {
     return firstValueFrom(
@@ -377,7 +522,7 @@ export class RecruitingController {
   }
 
   @Get('overall-plan/by-request/:requestId')
-  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN)
+  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Get the overall plan for a recruitment request' })
   getOverallPlanByRequest(@Param('requestId') requestId: string) {
     return firstValueFrom(
@@ -386,7 +531,7 @@ export class RecruitingController {
   }
 
   @Patch('overall-plan/:id/resubmit')
-  @Roles(UserRole.HR_MANAGER)
+  @Roles(UserRole.HR_LEADER)
   @ApiOperation({ summary: 'Resubmit a rejected overall plan for approval' })
   resubmitOverallPlan(
     @Param('id') id: string,
@@ -399,20 +544,20 @@ export class RecruitingController {
   }
 
   @Post('task-plan')
-  @Roles(UserRole.HR_MANAGER)
+  @Roles(UserRole.HR_LEADER)
   @ApiOperation({ summary: 'Create (assign) a task within an overall plan' })
   createTaskPlan(@Body() body: CreateTaskPlanDto, @CurrentUser('sub') userId: string) {
     return firstValueFrom(
       this.recruitingClient.send('task-plan.create', {
         ...body,
-        assignedToId: userId,
+        assignedToId: body.assignedToId || userId,
         performedById: userId,
       }),
     );
   }
 
   @Patch('task-plan/:id/status')
-  @Roles(UserRole.HR_MANAGER)
+  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER)
   @ApiOperation({ summary: 'Update a task plan status' })
   updateTaskPlanStatus(
     @Param('id') id: string,
@@ -518,7 +663,7 @@ export class RecruitingController {
   }
 
   @Post('offers')
-  @Roles(UserRole.HR_MANAGER)
+  @Roles(UserRole.HR_LEADER)
   @ApiOperation({ summary: 'FR-17: Generate an offer letter for review' })
   generateOffer(@Body() body: CreateOfferDto, @CurrentUser() user: any) {
     return firstValueFrom(
@@ -530,14 +675,14 @@ export class RecruitingController {
   }
 
   @Get('offers/:id')
-  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN, UserRole.CANDIDATE)
+  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN, UserRole.CANDIDATE)
   @ApiOperation({ summary: 'Review an offer letter' })
   getOffer(@Param('id') id: string) {
     return firstValueFrom(this.recruitingClient.send('recruiting.offers.get', { id }));
   }
 
   @Post('offers/:id/send')
-  @Roles(UserRole.HR_MANAGER)
+  @Roles(UserRole.HR_LEADER)
   @ApiOperation({ summary: 'Send a reviewed offer letter' })
   sendOffer(@Param('id') id: string, @CurrentUser() user: any) {
     return firstValueFrom(
@@ -609,7 +754,7 @@ export class RecruitingController {
   // ─── Job Postings ────────────────────────────────────────────────
 
   @Post('job-postings')
-  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN)
+  @Roles(UserRole.HR_LEADER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Create job posting from approved recruitment request' })
   createJobPosting(@Body() body: CreateJobPostingDto) {
     return firstValueFrom(this.recruitingClient.send('recruiting.job_posting.create', body));
@@ -640,7 +785,7 @@ export class RecruitingController {
   }
 
   @Patch('job-postings/:id')
-  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN)
+  @Roles(UserRole.HR_LEADER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Update job posting details' })
   updateJobPosting(@Param('id') id: string, @Body() body: UpdateJobPostingDto) {
     return firstValueFrom(
@@ -649,14 +794,14 @@ export class RecruitingController {
   }
 
   @Post('job-postings/:id/publish')
-  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN)
+  @Roles(UserRole.HR_LEADER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Publish job posting' })
   publishJobPosting(@Param('id') id: string) {
     return firstValueFrom(this.recruitingClient.send('recruiting.job_posting.publish', { id }));
   }
 
   @Post('job-postings/:id/close')
-  @Roles(UserRole.HR_MANAGER, UserRole.ADMIN)
+  @Roles(UserRole.HR_LEADER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Close job posting' })
   closeJobPosting(@Param('id') id: string) {
     return firstValueFrom(this.recruitingClient.send('recruiting.job_posting.close', { id }));
@@ -706,7 +851,7 @@ export class RecruitingController {
   }
 
   @Get('reports/pipeline')
-  @Roles(UserRole.ADMIN, UserRole.HR_MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER)
   @ApiOperation({ summary: 'Get recruitment pipeline overview' })
   getPipelineOverview() {
     return firstValueFrom(this.recruitingClient.send('recruiting.pipeline_overview', {}));
@@ -741,7 +886,7 @@ export class RecruitingController {
   }
 
   @Get('reports/realtime-tracking')
-  @Roles(UserRole.ADMIN, UserRole.HR_MANAGER, UserRole.DEPARTMENT_HEAD)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
   @ApiOperation({ summary: 'FR-20: Real-time recruitment requests status tracking dashboard' })
   getRealtimeTracking(@CurrentUser() user: any) {
     return firstValueFrom(

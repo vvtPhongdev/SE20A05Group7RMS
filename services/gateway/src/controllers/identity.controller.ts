@@ -237,7 +237,7 @@ export class CreateUserDto {
   displayName!: string;
 
   @ApiProperty({
-    example: 'HR_MANAGER',
+    example: 'HR_LEADER',
     enum: UserRole,
     description: 'User role',
   })
@@ -289,7 +289,7 @@ export class UpdateUserDto {
 
 export class UpdateUserRoleDto {
   @ApiProperty({
-    example: 'HR_MANAGER',
+    example: 'HR_LEADER',
     enum: UserRole,
     description: 'User role',
   })
@@ -510,7 +510,7 @@ export class IdentityController {
   }
 
   @Get('departments')
-  @Roles(UserRole.ADMIN, UserRole.HR_MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List departments with organization filtering' })
   listDepartments(@Query() query: ListDepartmentsQueryDto) {
@@ -518,7 +518,7 @@ export class IdentityController {
   }
 
   @Get('departments/:id')
-  @Roles(UserRole.ADMIN, UserRole.HR_MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get department by ID' })
   getDepartment(@Param('id') id: string) {

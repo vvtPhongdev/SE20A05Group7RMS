@@ -73,41 +73,6 @@ export const useAuth = () => {
   }
   return context;
 };
-
-/*
- * Mock users retained for local UI reference only. Authentication must use the API gateway.
-const MOCK_USERS: Record<string, User> = {
-  'admin@acme.com': {
-    id: '11111111-1111-1111-1111-111111111111',
-    email: 'admin@acme.com',
-    displayName: 'System Admin',
-    role: UserRole.ADMIN,
-    organizationId: 'org-uuid-1234',
-  },
-  'depthead@acme.com': {
-    id: '22222222-2222-2222-2222-222222222222',
-    email: 'depthead@acme.com',
-    displayName: 'Trưởng Phòng ENG',
-    role: UserRole.DEPARTMENT_HEAD,
-    organizationId: 'org-uuid-1234',
-  },
-  'hr@acme.com': {
-    id: '33333333-3333-3333-3333-333333333333',
-    email: 'hr@acme.com',
-    displayName: 'HR Manager',
-    role: UserRole.HR_MANAGER,
-    organizationId: 'org-uuid-1234',
-  },
-  'candidate@acme.com': {
-    id: '44444444-4444-4444-4444-444444444444',
-    email: 'candidate@acme.com',
-    displayName: 'Nguyễn Văn Ứng Viên',
-    role: UserRole.CANDIDATE,
-    organizationId: 'org-uuid-1234',
-  },
-};
-*/
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);

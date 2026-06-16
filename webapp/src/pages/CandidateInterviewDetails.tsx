@@ -16,15 +16,6 @@ type CandidateInterview = {
   };
 };
 
-/*
- * Mock preparation checklist retained for UI reference only.
-const preparationItems = [
-  { label: 'Review the job description', done: true },
-  { label: 'Prepare portfolio/code samples', done: true },
-  { label: 'Test your Zoom connection', done: false },
-  { label: 'Bring your ID card', done: false },
-];
-*/
 const preparationItems: Array<{ label: string; done: boolean }> = [];
 
 const iconPaths: Record<string, React.ReactNode> = {

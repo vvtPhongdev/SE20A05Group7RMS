@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiRequest, ApiError } from '../lib/api';
 import { mapPlanStatus, type OverallPlanSummary, type PlanStatus } from '../lib/planStatus';
@@ -164,6 +164,7 @@ const StatusBadge = ({ status }: { status: PlanStatus }) => {
 
 export const HRCampaigns: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { token } = useAuth();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
@@ -204,6 +205,25 @@ export const HRCampaigns: React.FC = () => {
   useEffect(() => {
     void loadCampaigns();
   }, [token]);
+
+  useEffect(() => {
+    const createRequestIdParam = searchParams.get('createRequestId');
+    if (loading || !createRequestIdParam) return;
+
+    const target = campaigns.find((campaign) => campaign.id === createRequestIdParam);
+    if (!target) return;
+
+    setSelectedId(target.id);
+    if (target.status === 'DRAFT') {
+      setCreateRequestId(target.id);
+      setCreateError('');
+      setShowCreateModal(true);
+    }
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('createRequestId');
+    setSearchParams(nextParams, { replace: true });
+  }, [campaigns, loading, searchParams, setSearchParams]);
 
   const metricCards = useMemo(
     () =>

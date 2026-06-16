@@ -51,7 +51,8 @@ function HomeRedirect() {
       return <Navigate to="/admin" replace />;
     case UserRole.DEPARTMENT_HEAD:
       return <Navigate to="/dept-head" replace />;
-    case UserRole.HR_MANAGER:
+    case UserRole.HR_LEADER:
+    case UserRole.HR_RECRUITER:
       return <Navigate to="/hr" replace />;
     case UserRole.CANDIDATE:
       return <Navigate to="/candidate" replace />;
@@ -243,7 +244,7 @@ export function App() {
           <Route
             path="/hr"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
                 <Layout>
                   <HRDashBoard />
                 </Layout>
@@ -253,7 +254,7 @@ export function App() {
           <Route
             path="/hr/requests"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER]}>
                 <Layout>
                   <HRRequestQueue />
                 </Layout>
@@ -263,7 +264,7 @@ export function App() {
           <Route
             path="/hr/campaigns"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
                 <Layout>
                   <HRCampaigns />
                 </Layout>
@@ -273,7 +274,7 @@ export function App() {
           <Route
             path="/hr/campaigns/:id"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
                 <Layout>
                   <HRCampaignDetail />
                 </Layout>
@@ -283,7 +284,7 @@ export function App() {
           <Route
             path="/hr/tasks"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
                 <Layout>
                   <TaskPlanner />
                 </Layout>
@@ -293,7 +294,7 @@ export function App() {
           <Route
             path="/hr/candidates"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
                 <Layout>
                   <HRTalentPool />
                 </Layout>
@@ -303,7 +304,7 @@ export function App() {
           <Route
             path="/hr/search"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
                 <Layout>
                   <CandidateSearch />
                 </Layout>
@@ -313,7 +314,7 @@ export function App() {
           <Route
             path="/hr/interviews"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
                 <Layout>
                   <HRInterviewSchedule />
                 </Layout>
@@ -323,7 +324,7 @@ export function App() {
           <Route
             path="/hr/results"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
                 <Layout>
                   <HRInterviewResults />
                 </Layout>
@@ -333,7 +334,7 @@ export function App() {
           <Route
             path="/hr/reports"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER]}>
                 <Layout>
                   <HRPipelineReports />
                 </Layout>
@@ -343,7 +344,7 @@ export function App() {
           <Route
             path="/hr/notifications"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_MANAGER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
                 <Layout>
                   <HRSystemNotifications />
                 </Layout>

@@ -70,7 +70,7 @@ async function main() {
     data: {
       email: 'hr@acme.com',
       displayName: 'Emily Wong',
-      role: 'HR_MANAGER',
+      role: 'HR_LEADER',
       passwordHash,
       organizationId: org.id,
     },
@@ -80,7 +80,7 @@ async function main() {
     data: {
       email: 'recruiter1@acme.com',
       displayName: 'Lisa Thompson',
-      role: 'HR_MANAGER',
+      role: 'HR_RECRUITER',
       passwordHash,
       organizationId: org.id,
     },

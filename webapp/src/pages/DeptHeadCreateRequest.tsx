@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiError, apiRequest } from '../lib/api';
 
@@ -20,6 +20,19 @@ interface FormState {
   salaryMax: string;
   startDate: string;
   priority: Priority;
+}
+
+interface RecruitmentRequestApi {
+  id: string;
+  position: string;
+  headcount: number;
+  jobDescription: string;
+  justification: string;
+  urgency: string;
+  status: string;
+  rejectionReason?: string | null;
+  department?: { name: string } | null;
+  skillRequirements?: Record<string, unknown> | null;
 }
 
 type IconName = 'close' | 'send' | 'search' | 'help' | 'x' | 'check' | 'plus';
@@ -111,13 +124,83 @@ const Section = ({
 
 export const DeptHeadCreateRequest: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { token } = useAuth();
+  const requestId = searchParams.get('requestId');
   const [form, setForm] = useState<FormState>(initialForm);
   const [skills, setSkills] = useState(['React', 'TypeScript', 'Node.js']);
   const [notice, setNotice] = useState<string | null>(null);
   const [noticeIsError, setNoticeIsError] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [loadingRequest, setLoadingRequest] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null);
+  const [requestStatus, setRequestStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!requestId) return;
+
+    let cancelled = false;
+    const loadRequest = async () => {
+      setLoadingRequest(true);
+      setNotice(null);
+      try {
+        const request = await apiRequest<RecruitmentRequestApi>(
+          `/recruitment-requests/${requestId}`,
+          token,
+        );
+        if (cancelled) return;
+
+        setRequestStatus(request.status);
+        setRejectionReason(request.rejectionReason ?? null);
+
+        const requirements = request.skillRequirements ?? {};
+        const loadedSkills = Array.isArray(requirements.skills)
+          ? requirements.skills.map(String)
+          : [];
+        const priorityValue = request.urgency.toLowerCase();
+        const priority =
+          priorityValue === 'low' ||
+          priorityValue === 'high' ||
+          priorityValue === 'critical'
+            ? ((priorityValue[0]?.toUpperCase() + priorityValue.slice(1)) as Priority)
+            : 'Medium';
+        const employmentType =
+          requirements.employmentType === 'Contract' ? 'Contract' : 'Full-time';
+
+        setForm({
+          positionTitle: request.position,
+          department: request.department?.name ?? initialForm.department,
+          jobLevel: String(requirements.jobLevel ?? initialForm.jobLevel),
+          employmentType,
+          headcount: request.headcount,
+          skillInput: '',
+          experience: String(requirements.experience ?? initialForm.experience),
+          education: String(requirements.education ?? ''),
+          description: request.jobDescription,
+          notes: request.justification,
+          salaryMin: String(requirements.salaryMin ?? ''),
+          salaryMax: String(requirements.salaryMax ?? ''),
+          startDate: String(requirements.startDate ?? ''),
+          priority,
+        });
+        setSkills(loadedSkills);
+      } catch (loadError) {
+        if (cancelled) return;
+        setNoticeIsError(true);
+        setNotice(
+          loadError instanceof ApiError ? loadError.message : 'Unable to load recruitment request.',
+        );
+      } finally {
+        if (!cancelled) setLoadingRequest(false);
+      }
+    };
+
+    void loadRequest();
+    return () => {
+      cancelled = true;
+    };
+  }, [requestId, token]);
 
   const readiness = useMemo(() => {
     const complete = [
@@ -183,6 +266,15 @@ export const DeptHeadCreateRequest: React.FC = () => {
     submit: submitForReview,
   });
 
+  const updateExistingRequest = async () => {
+    if (!requestId) return;
+    const { submit: _submit, ...payload } = buildPayload(false);
+    await apiRequest(`/recruitment-requests/${requestId}`, token, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  };
+
   const saveDraft = async () => {
     if (!form.positionTitle.trim()) {
       setErrors({ positionTitle: 'Position title is required before saving a draft.' });
@@ -194,10 +286,15 @@ export const DeptHeadCreateRequest: React.FC = () => {
     setErrors({});
     setSubmitting(true);
     try {
-      await apiRequest('/recruitment-requests', token, {
-        method: 'POST',
-        body: JSON.stringify(buildPayload(false)),
-      });
+      if (requestId) {
+        await updateExistingRequest();
+      } else {
+        const created = await apiRequest<RecruitmentRequestApi>('/recruitment-requests', token, {
+          method: 'POST',
+          body: JSON.stringify(buildPayload(false)),
+        });
+        navigate(`/dept-head/create-request?requestId=${created.id}`, { replace: true });
+      }
       setNoticeIsError(false);
       setNotice('Draft saved for this recruitment request.');
     } catch (saveError) {
@@ -217,10 +314,17 @@ export const DeptHeadCreateRequest: React.FC = () => {
 
     setSubmitting(true);
     try {
-      await apiRequest('/recruitment-requests', token, {
-        method: 'POST',
-        body: JSON.stringify(buildPayload(true)),
-      });
+      if (requestId) {
+        await updateExistingRequest();
+        await apiRequest(`/recruitment-requests/${requestId}/submit`, token, {
+          method: 'PATCH',
+        });
+      } else {
+        await apiRequest('/recruitment-requests', token, {
+          method: 'POST',
+          body: JSON.stringify(buildPayload(true)),
+        });
+      }
       setNoticeIsError(false);
       setNotice('Recruitment request submitted for approval.');
       navigate('/dept-head/requests');
@@ -239,10 +343,12 @@ export const DeptHeadCreateRequest: React.FC = () => {
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="font-bold text-primary">Department Head Portal</span>
             <span className="text-outline-variant">/</span>
-            <span className="font-semibold text-on-surface">Create Recruitment Request</span>
+            <span className="font-semibold text-on-surface">
+              {requestId ? 'Edit Recruitment Request' : 'Create Recruitment Request'}
+            </span>
           </div>
           <h1 className="mt-4 text-2xl font-bold text-deep-charcoal">
-            Create Recruitment Request
+            {requestId ? 'Edit Recruitment Request' : 'Create Recruitment Request'}
           </h1>
         </div>
         <div className="flex items-center gap-4">
@@ -276,6 +382,21 @@ export const DeptHeadCreateRequest: React.FC = () => {
           }`}
         >
           {notice}
+        </div>
+      )}
+
+      {loadingRequest && (
+        <div className="mb-5 rounded-lg border border-border-warm bg-clean-surface px-4 py-3 text-sm text-on-surface-variant">
+          Loading recruitment request...
+        </div>
+      )}
+
+      {requestStatus === 'REVISION_NEEDED' && rejectionReason && (
+        <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-900 mb-1">
+            Reviewer Instructions / Feedback
+          </p>
+          <p className="font-semibold leading-relaxed">{rejectionReason}</p>
         </div>
       )}
 

@@ -272,21 +272,21 @@ export class ProfilesController {
   // ─── Candidate Profiles ──────────────────────────────────────────
 
   @Get('candidate-profiles')
-  @Roles(UserRole.ADMIN, UserRole.HR_MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER)
   @ApiOperation({ summary: 'List candidate profiles (talent pool)' })
   listCandidates(@Query() query: { q?: string; page?: string; pageSize?: string }) {
     return firstValueFrom(this.profilesClient.send('profiles.list', query));
   }
 
   @Get('candidate-profiles/:id')
-  @Roles(UserRole.ADMIN, UserRole.HR_MANAGER, UserRole.DEPARTMENT_HEAD)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
   @ApiOperation({ summary: 'Get candidate profile' })
   getProfile(@Param('id') id: string) {
     return firstValueFrom(this.profilesClient.send('profiles.get', { id }));
   }
 
   @Patch('candidate-profiles/:id')
-  @Roles(UserRole.ADMIN, UserRole.HR_MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER)
   @ApiOperation({ summary: 'Update candidate profile' })
   updateProfile(@Param('id') id: string, @Body() body: UpdateCandidateProfileDto) {
     return firstValueFrom(this.profilesClient.send('profiles.update', { id, ...body }));

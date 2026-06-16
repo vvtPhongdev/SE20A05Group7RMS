@@ -439,8 +439,10 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         return 'System Admin';
       case UserRole.DEPARTMENT_HEAD:
         return 'Department Head';
-      case UserRole.HR_MANAGER:
-        return 'HR Manager';
+      case UserRole.HR_LEADER:
+        return 'HR Leader';
+      case UserRole.HR_RECRUITER:
+        return 'HR Recruiter';
       case UserRole.CANDIDATE:
         return 'Candidate';
       default:
