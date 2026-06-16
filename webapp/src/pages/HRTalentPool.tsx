@@ -1,11 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { apiRequest } from '../lib/api';
+import { ApiError, apiRequest } from '../lib/api';
 
 type ParseStatus = 'Parsed' | 'Pending';
 type CandidateStage = 'Talent Pool' | 'Screening' | 'Interview' | 'Offer';
 
 type RecentApplication = {
+  requestId: string;
   position: string;
   department: string | null;
   status: string;
@@ -39,6 +40,7 @@ interface CandidateApiItem {
   updatedAt: string;
   cvDocuments: { parsedAt: string | null; screeningStatus: string }[];
   applications: {
+    requestId: string;
     status: string;
     request: { position: string; department: { name: string } | null } | null;
   }[];
@@ -53,6 +55,26 @@ interface CandidateListResponse {
     activeCampaignsCount: number;
   };
 }
+
+type CampaignOption = {
+  requestId: string;
+  label: string;
+  status: string;
+};
+
+type JobPostingApiItem = {
+  requestId: string;
+  title?: string | null;
+  status: string;
+  request?: { position?: string | null } | null;
+};
+
+type ApplicationResponse = {
+  id: string;
+  requestId: string;
+  candidateId: string;
+  status: string;
+};
 
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(value));
@@ -104,6 +126,9 @@ const mapCandidate = (item: CandidateApiItem): Candidate => {
     return rank > highest ? rank : highest;
   }, 0);
 
+  const avatar = structuredData.avatar as { fileName?: string } | undefined;
+  const photo = avatar ? `/api/v1/candidate-profiles/${item.id}/avatar` : undefined;
+
   return {
     id: item.id,
     name: item.fullName,
@@ -114,12 +139,14 @@ const mapCandidate = (item: CandidateApiItem): Candidate => {
     stage: STAGE_BY_RANK[stageRank] ?? 'Talent Pool',
     lastActivity: formatDate(item.updatedAt),
     parseStatus: item.cvDocuments[0]?.parsedAt ? 'Parsed' : 'Pending',
-    // Best-effort: no availability field on CandidateProfile yet.
-    availability: 'Immediate',
+    // Best-effort: read availability field from structuredData if present, fallback to Immediate.
+    availability: (structuredData.availability as 'Immediate' | '1 Month Notice') || 'Immediate',
     email: item.email,
     phone: item.phone || '—',
     location,
+    photo,
     recentApplications: item.applications.map((application) => ({
+      requestId: application.requestId,
       position: application.request?.position ?? 'Unknown role',
       department: application.request?.department?.name ?? null,
       status: application.status,
@@ -170,23 +197,28 @@ export const HRTalentPool: React.FC = () => {
     newThisWeekCount: 0,
     activeCampaignsCount: 0,
   });
+  const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
 
   const [query, setQuery] = useState('');
   const [role, setRole] = useState('All Roles');
-  const [availability, setAvailability] = useState('All Availability');
+  const [selectedCampaignId, setSelectedCampaignId] = useState('');
   const [parseStatus, setParseStatus] = useState('All Status');
+  const [skill, setSkill] = useState('All Skills');
   const [eligibleOnly, setEligibleOnly] = useState(true);
   const [selectedId, setSelectedId] = useState('');
+  const [assigningId, setAssigningId] = useState('');
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
+  const loadCandidates = useCallback(
+    async (showSpinner = true, searchVal = '') => {
+      if (showSpinner) setLoading(true);
       setApiError('');
       try {
+        const searchParam = searchVal.trim() ? `&q=${encodeURIComponent(searchVal.trim())}` : '';
         const response = await apiRequest<CandidateListResponse>(
-          '/candidate-profiles?pageSize=100',
+          `/candidate-profiles?pageSize=100${searchParam}`,
           token,
         );
         const mapped = response.data.map(mapCandidate);
@@ -201,12 +233,70 @@ export const HRTalentPool: React.FC = () => {
       } catch (loadError) {
         setApiError(loadError instanceof Error ? loadError.message : 'Unable to load candidates');
       } finally {
-        setLoading(false);
+        if (showSpinner) setLoading(false);
       }
-    };
+    },
+    [token],
+  );
 
-    void load();
+  const loadCampaigns = useCallback(async () => {
+    try {
+      const response = await apiRequest<JobPostingApiItem[]>('/job-postings', token);
+      const mapped = response
+        .filter((posting) => Boolean(posting.requestId))
+        .map((posting) => ({
+          requestId: posting.requestId,
+          label: `${posting.title || posting.request?.position || 'Recruitment campaign'} (${posting.status})`,
+          status: posting.status,
+        }));
+      setCampaigns(mapped);
+      setSelectedCampaignId((current) => current || mapped[0]?.requestId || '');
+    } catch (loadError) {
+      setApiError(loadError instanceof Error ? loadError.message : 'Unable to load campaigns');
+    }
   }, [token]);
+
+  useEffect(() => {
+    void loadCampaigns();
+  }, [loadCampaigns]);
+
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      void loadCandidates(true, query);
+    }, 400);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [query, loadCandidates]);
+
+  const assignCandidate = async (candidateId: string) => {
+    if (!selectedCampaignId) {
+      setApiError('Select a campaign before adding a candidate.');
+      return;
+    }
+
+    setAssigningId(candidateId);
+    setActionMessage('');
+    setApiError('');
+    try {
+      await apiRequest<ApplicationResponse>('/applications', token, {
+        method: 'POST',
+        body: JSON.stringify({ requestId: selectedCampaignId, candidateId }),
+      });
+      setActionMessage('Candidate added to the selected campaign.');
+      await loadCandidates(false);
+    } catch (assignError) {
+      if (assignError instanceof ApiError && assignError.status === 409) {
+        setActionMessage('Candidate is already in the selected campaign.');
+        await loadCandidates(false);
+      } else {
+        setApiError(
+          assignError instanceof Error ? assignError.message : 'Unable to add candidate to campaign',
+        );
+      }
+    } finally {
+      setAssigningId('');
+    }
+  };
 
   const kpis = useMemo(
     () => [
@@ -238,6 +328,24 @@ export const HRTalentPool: React.FC = () => {
     [meta],
   );
 
+  const uniqueRoles = useMemo(() => {
+    const roles = new Set<string>();
+    candidates.forEach((c) => {
+      if (c.role && c.role !== '—') {
+        roles.add(c.role);
+      }
+    });
+    return Array.from(roles).sort();
+  }, [candidates]);
+
+  const uniqueSkills = useMemo(() => {
+    const skills = new Set<string>();
+    candidates.forEach((candidate) => {
+      candidate.skills.forEach((candidateSkill) => skills.add(candidateSkill));
+    });
+    return Array.from(skills).sort();
+  }, [candidates]);
+
   const visibleCandidates = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
@@ -253,15 +361,12 @@ export const HRTalentPool: React.FC = () => {
           ...candidate.skills,
         ].some((value) => value.toLowerCase().includes(normalizedQuery));
       const matchesRole = role === 'All Roles' || candidate.role === role;
-      const matchesAvailability =
-        availability === 'All Availability' || candidate.availability === availability;
+      const matchesSkill = skill === 'All Skills' || candidate.skills.includes(skill);
       const matchesParse = parseStatus === 'All Status' || candidate.parseStatus === parseStatus;
       const matchesEligibility = !eligibleOnly || candidate.parseStatus === 'Parsed';
-      return (
-        matchesQuery && matchesRole && matchesAvailability && matchesParse && matchesEligibility
-      );
+      return matchesQuery && matchesRole && matchesSkill && matchesParse && matchesEligibility;
     });
-  }, [availability, candidates, eligibleOnly, parseStatus, query, role]);
+  }, [candidates, eligibleOnly, parseStatus, query, role, skill]);
 
   const selected =
     candidates.find((candidate) => candidate.id === selectedId) ??
@@ -271,7 +376,7 @@ export const HRTalentPool: React.FC = () => {
   const resetFilters = () => {
     setQuery('');
     setRole('All Roles');
-    setAvailability('All Availability');
+    setSkill('All Skills');
     setParseStatus('All Status');
     setEligibleOnly(true);
   };
@@ -314,6 +419,12 @@ export const HRTalentPool: React.FC = () => {
           </div>
         )}
 
+        {actionMessage && (
+          <div className="rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm font-semibold text-teal-command">
+            {actionMessage}
+          </div>
+        )}
+
         {loading && (
           <div className="rounded-lg border border-border-warm bg-clean-surface px-4 py-3 text-sm text-on-surface-variant">
             Loading candidates...
@@ -351,28 +462,42 @@ export const HRTalentPool: React.FC = () => {
                 onChange={(event) => setRole(event.target.value)}
                 value={role}
               >
-                <option>All Roles</option>
-                <option>Software Engineer</option>
-                <option>Product Manager</option>
+                <option value="All Roles">All Roles</option>
+                {uniqueRoles.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-xs font-semibold text-on-surface-variant">Skills</span>
-              <div className="flex h-10 items-center justify-between rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm font-semibold text-on-surface-variant">
-                Multi-select...
-                <span className="text-xs">Open</span>
-              </div>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs font-semibold text-on-surface-variant">Availability</span>
               <select
                 className="h-10 rounded-lg border border-border-warm bg-clean-surface px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                onChange={(event) => setAvailability(event.target.value)}
-                value={availability}
+                onChange={(event) => setSkill(event.target.value)}
+                value={skill}
               >
-                <option>All Availability</option>
-                <option>Immediate</option>
-                <option>1 Month Notice</option>
+                <option value="All Skills">All Skills</option>
+                {uniqueSkills.map((candidateSkill) => (
+                  <option key={candidateSkill} value={candidateSkill}>
+                    {candidateSkill}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs font-semibold text-on-surface-variant">Campaign</span>
+              <select
+                className="h-10 rounded-lg border border-border-warm bg-clean-surface px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                onChange={(event) => setSelectedCampaignId(event.target.value)}
+                value={selectedCampaignId}
+              >
+                <option value="">Select campaign</option>
+                {campaigns.map((campaign) => (
+                  <option key={campaign.requestId} value={campaign.requestId}>
+                    {campaign.label}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="flex flex-col gap-1">
@@ -414,6 +539,9 @@ export const HRTalentPool: React.FC = () => {
         <section className="grid grid-cols-1 gap-6 md:grid-cols-2 2xl:grid-cols-3">
           {visibleCandidates.map((candidate) => {
             const active = selected?.id === candidate.id;
+            const alreadyAdded = candidate.recentApplications.some(
+              (application) => application.requestId === selectedCampaignId,
+            );
             return (
               <article
                 className={`flex cursor-pointer flex-col rounded-lg bg-clean-surface p-5 transition hover:-translate-y-[2px] hover:shadow-md ${
@@ -476,15 +604,32 @@ export const HRTalentPool: React.FC = () => {
                 <div className="mt-auto grid grid-cols-2 gap-3">
                   <button
                     className={`h-10 rounded-lg border border-teal-command text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 ${active ? 'bg-teal-command/5' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedId(candidate.id);
+                    }}
                     type="button"
                   >
                     View Profile
                   </button>
                   <button
-                    className="h-10 rounded-lg bg-teal-command text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
+                    className={`h-10 rounded-lg bg-teal-command text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] ${
+                      !selectedCampaignId || assigningId || alreadyAdded
+                        ? 'opacity-50 cursor-not-allowed'
+                        : ''
+                    }`}
+                    disabled={!selectedCampaignId || assigningId !== '' || alreadyAdded}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void assignCandidate(candidate.id);
+                    }}
                     type="button"
                   >
-                    Add to Campaign
+                    {alreadyAdded
+                      ? 'Already Added'
+                      : assigningId === candidate.id
+                        ? 'Adding...'
+                        : 'Add to Campaign'}
                   </button>
                 </div>
               </article>
@@ -519,6 +664,12 @@ export const HRTalentPool: React.FC = () => {
 
         {selected ? (
           <>
+            {(() => {
+              const selectedAlreadyAdded = selected.recentApplications.some(
+                (application) => application.requestId === selectedCampaignId,
+              );
+              return (
+                <>
             <div className="px-6 pb-6">
               <div className="mb-8 flex flex-col items-center text-center">
                 <div className="mb-4 flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-clean-surface text-2xl font-bold text-teal-command shadow-md">
@@ -615,25 +766,50 @@ export const HRTalentPool: React.FC = () => {
             </div>
 
             <footer className="space-y-4 border-t border-border-warm bg-workflow-ivory p-6">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
+                  Select Campaign
+                </span>
+                <select
+                  className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                  onChange={(event) => setSelectedCampaignId(event.target.value)}
+                  value={selectedCampaignId}
+                >
+                  <option value="">-- Choose Campaign --</option>
+                  {campaigns.map((item) => (
+                    <option key={item.requestId} value={item.requestId}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <div className="flex items-start gap-2">
                 <Icon className="mt-0.5 h-4 w-4 text-on-surface-variant" name="shield" />
                 <p className="text-[11px] leading-5 text-on-surface-variant">
                   Privacy Note: Data encrypted and stored according to GDPR/local compliance.
                 </p>
               </div>
-              {/* Assigning a candidate to a campaign requires a dedicated endpoint that links
-                  CandidateProfile to a recruitment request with an approved overall plan;
-                  not available yet, so this action stays disabled. */}
               <button
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-teal-command font-bold text-white opacity-50 transition active:scale-[0.98]"
-                disabled
-                title="Requires an approved request and approved overall plan"
+                className={`inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-teal-command font-bold text-white transition active:scale-[0.98] ${
+                  !selectedCampaignId || assigningId || selectedAlreadyAdded
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'hover:bg-primary'
+                }`}
+                disabled={!selectedCampaignId || assigningId !== '' || selectedAlreadyAdded}
+                onClick={() => void assignCandidate(selected.id)}
                 type="button"
               >
                 <Icon className="h-4 w-4" name="send" />
-                Add to Campaign
+                {selectedAlreadyAdded
+                  ? 'Already Added'
+                  : assigningId === selected.id
+                    ? 'Adding...'
+                    : 'Add to Campaign'}
               </button>
             </footer>
+                </>
+              );
+            })()}
           </>
         ) : (
           <div className="px-6 pb-8 text-center">

@@ -1,0 +1,158 @@
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta charset="utf-8">
+  <meta name="ProgId" content="Word.Document">
+  <meta name="Generator" content="Microsoft Word">
+  <title>Candidate CV Template</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 1.8cm;
+    }
+
+    body {
+      color: #24343a;
+      font-family: Arial, sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.45;
+    }
+
+    h1 {
+      margin: 0;
+      color: #123f46;
+      font-size: 24pt;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      margin: 18pt 0 8pt;
+      padding-bottom: 4pt;
+      border-bottom: 2px solid #137c7c;
+      color: #123f46;
+      font-size: 12pt;
+      text-transform: uppercase;
+      letter-spacing: 0.5pt;
+    }
+
+    h3 {
+      margin: 8pt 0 2pt;
+      font-size: 11pt;
+    }
+
+    p {
+      margin: 3pt 0;
+    }
+
+    ul {
+      margin: 5pt 0 8pt 20pt;
+    }
+
+    .role {
+      margin: 3pt 0 8pt;
+      color: #137c7c;
+      font-size: 13pt;
+      font-weight: bold;
+    }
+
+    .contact {
+      padding: 8pt;
+      background: #eef7f6;
+    }
+
+    .hint {
+      color: #6b7478;
+      font-style: italic;
+    }
+
+    .date {
+      float: right;
+      color: #56646a;
+      font-weight: normal;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    td {
+      padding: 3pt 8pt 3pt 0;
+      vertical-align: top;
+    }
+  </style>
+</head>
+<body>
+  <h1>[FULL NAME]</h1>
+  <p class="role">[PROFESSIONAL TITLE]</p>
+
+  <div class="contact">
+    <table>
+      <tr>
+        <td><strong>Email:</strong> [name@example.com]</td>
+        <td><strong>Phone:</strong> [+84 ...]</td>
+      </tr>
+      <tr>
+        <td><strong>Address:</strong> [City, Country]</td>
+        <td><strong>LinkedIn:</strong> [https://linkedin.com/in/...]</td>
+      </tr>
+      <tr>
+        <td><strong>GitHub:</strong> [https://github.com/...]</td>
+        <td><strong>Portfolio:</strong> [https://...]</td>
+      </tr>
+    </table>
+  </div>
+
+  <h2>Professional Summary</h2>
+  <p class="hint">
+    Write 3-5 sentences describing your experience, strengths, career direction, and the value
+    you can bring to an employer.
+  </p>
+
+  <h2>Technical Skills</h2>
+  <p><strong>Programming languages:</strong> [JavaScript, TypeScript, Java, ...]</p>
+  <p><strong>Frameworks and libraries:</strong> [React, NestJS, Spring Boot, ...]</p>
+  <p><strong>Databases and tools:</strong> [PostgreSQL, Docker, Git, ...]</p>
+
+  <h2>Soft Skills</h2>
+  <p>[Communication, Teamwork, Problem solving, Time management, ...]</p>
+
+  <h2>Languages</h2>
+  <p>[English - IELTS 7.0]</p>
+  <p>[Japanese - N3]</p>
+
+  <h2>Work Experience</h2>
+  <h3>
+    [POSITION] - [COMPANY]
+    <span class="date">[YYYY-MM] - [Present or YYYY-MM]</span>
+  </h3>
+  <ul>
+    <li>[Describe a responsibility or project using a strong action verb.]</li>
+    <li>[Describe a measurable achievement, for example: improved processing time by 30%.]</li>
+    <li>[Mention relevant technologies, team size, or business impact.]</li>
+  </ul>
+
+  <h3>
+    [POSITION] - [COMPANY]
+    <span class="date">[YYYY-MM] - [YYYY-MM]</span>
+  </h3>
+  <ul>
+    <li>[Responsibility or achievement]</li>
+    <li>[Responsibility or achievement]</li>
+  </ul>
+
+  <h2>Education</h2>
+  <h3>
+    [DEGREE] - [MAJOR]
+    <span class="date">[YYYY-MM] - [YYYY-MM]</span>
+  </h3>
+  <p>[SCHOOL / UNIVERSITY]</p>
+  <p class="hint">Optional: GPA, scholarship, relevant coursework, or academic achievements.</p>
+
+  <h2>Additional Information</h2>
+  <p><strong>Certifications:</strong> [Certification name - Issuing organization - Year]</p>
+  <p><strong>Projects:</strong> [Project name, role, technologies, and result]</p>
+  <p><strong>Activities:</strong> [Volunteer work, clubs, awards, or professional memberships]</p>
+</body>
+</html>

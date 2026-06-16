@@ -67,6 +67,7 @@ export const AdminUsers: React.FC = () => {
     email: string;
     displayName: string;
     role: string;
+    avatar?: { fileName?: string } | null;
     isActive: boolean;
     updatedAt: string;
     department?: { id: string; name: string } | null;
@@ -97,6 +98,7 @@ export const AdminUsers: React.FC = () => {
     department: user.department?.name ?? '-',
     status: user.isActive ? 'Active' : 'Inactive',
     lastLogin: new Date(user.updatedAt).toLocaleString(),
+    avatarUrl: user.avatar?.fileName ? `/api/v1/candidate-profiles/${user.id}/avatar` : undefined,
   });
 
   const loadUsers = async () => {

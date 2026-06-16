@@ -5,15 +5,12 @@ import { apiRequest, ApiError } from '../lib/api';
 import { mapPlanStatus, type PlanStatus } from '../lib/planStatus';
 
 type KanbanStage = 'applied' | 'cv_screening' | 'interview' | 'final_review' | 'offer';
-type InterviewType = 'Technical' | 'HR Fit' | 'Final' | 'Culture';
 type DetailTab = 'kanban' | 'calendar' | 'tasks';
 
 type Candidate = {
   id: string;
   name: string;
   initials: string;
-  source: string;
-  score: number;
   stage: KanbanStage;
   color: string;
   appliedDate: string;
@@ -25,7 +22,7 @@ type Interview = {
   candidateName: string;
   initials: string;
   color: string;
-  type: InterviewType;
+  status: string;
   date: string;
   time: string;
   location: string;
@@ -38,6 +35,7 @@ type TaskItem = {
   title: string;
   done: boolean;
   dueDate: string;
+  assigneeId?: string;
   assigneeName?: string;
 };
 
@@ -63,10 +61,6 @@ interface RecruitmentRequestApiItem {
   headcount: number;
   jobDescription: string;
   skillRequirements: Record<string, unknown> | null;
-}
-
-interface RecruitmentRequestListResponse {
-  data: RecruitmentRequestApiItem[];
 }
 
 interface TaskPlanApiItem {
@@ -115,6 +109,20 @@ interface InterviewScheduleApiItem {
   status: string;
 }
 
+interface JobPostingApiItem {
+  id: string;
+  requestId: string;
+  title: string;
+  status: string;
+  visibility: string;
+}
+
+type HrMemberOption = {
+  id: string;
+  name: string;
+  email?: string;
+};
+
 const TASK_TYPE_LABELS: Record<string, string> = {
   JOB_POSTING: 'Publish job posting',
   CV_COLLECTION: 'Collect candidate CVs',
@@ -131,8 +139,6 @@ const CANDIDATE_COLOR_PALETTE = [
   'bg-draft',
   'bg-teal-command/70',
 ];
-
-const INTERVIEW_TYPES: InterviewType[] = ['Technical', 'HR Fit', 'Final', 'Culture'];
 
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(value));
@@ -204,13 +210,6 @@ const statusConfig: Record<PlanStatus, { label: string; dot: string; badge: stri
   },
 };
 
-const interviewTypeBadge: Record<InterviewType, string> = {
-  Technical: 'border-revision/20 bg-revision/10 text-revision',
-  'HR Fit': 'border-teal-command/20 bg-teal-command/10 text-teal-command',
-  Final: 'border-approved/20 bg-approved/10 text-approved',
-  Culture: 'border-pending/20 bg-pending/10 text-pending',
-};
-
 const iconPaths: Record<string, React.ReactNode> = {
   back: <path d="M19 12H5m6-6-6 6 6 6" />,
   edit: <path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Zm12-14 3 3" />,
@@ -267,11 +266,7 @@ const CandidateCard = ({ candidate }: { candidate: Candidate }) => (
         <p className="truncate text-sm font-semibold leading-tight text-deep-charcoal">
           {candidate.name}
         </p>
-        <p className="mt-0.5 text-[11px] text-on-surface-variant">{candidate.source}</p>
       </div>
-      <span className="shrink-0 font-mono text-[11px] font-semibold text-teal-command">
-        {candidate.score}
-      </span>
     </div>
     <div className="flex flex-wrap gap-1">
       {candidate.tags.map((tag) => (
@@ -287,19 +282,6 @@ const CandidateCard = ({ candidate }: { candidate: Candidate }) => (
   </article>
 );
 
-const fallbackCampaign = (id: string): CampaignData => ({
-  id,
-  position: 'Recruitment Campaign',
-  department: 'General',
-  headcount: 1,
-  status: 'DRAFT',
-  window: 'TBD',
-  owner: 'Unassigned',
-  budget: 'N/A',
-  progress: 0,
-  description: 'No detail data is available for this campaign yet.',
-});
-
 export const HRCampaignDetail: React.FC = () => {
   const navigate = useNavigate();
   const { token, user } = useAuth();
@@ -313,37 +295,42 @@ export const HRCampaignDetail: React.FC = () => {
   const [plan, setPlan] = useState<OverallPlanFull | null>(null);
   const [applications, setApplications] = useState<ApplicationApiItem[]>([]);
   const [schedules, setSchedules] = useState<InterviewScheduleApiItem[]>([]);
+  const [jobPosting, setJobPosting] = useState<JobPostingApiItem | null>(null);
 
   const [actionError, setActionError] = useState('');
   const [actionSubmitting, setActionSubmitting] = useState(false);
+  const [quickActionError, setQuickActionError] = useState('');
+  const [quickActionSubmitting, setQuickActionSubmitting] = useState<string | null>(null);
 
   const [taskActionError, setTaskActionError] = useState('');
   const [taskBusyId, setTaskBusyId] = useState<string | null>(null);
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTaskType, setNewTaskType] = useState('JOB_POSTING');
   const [newTaskDue, setNewTaskDue] = useState('');
+  const [newTaskAssigneeId, setNewTaskAssigneeId] = useState('');
+  const [hrMembers, setHrMembers] = useState<HrMemberOption[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
   const [addTaskSubmitting, setAddTaskSubmitting] = useState(false);
 
-  const [recruiters, setRecruiters] = useState<Array<{ id: string; name: string }>>([]);
-  const [newTaskAssigneeId, setNewTaskAssigneeId] = useState('');
-
-  useEffect(() => {
-    if (showAddTask && user?.role === 'HR_LEADER') {
-      apiRequest<{ data: Array<{ id: string; displayName: string }> }>('/users?role=HR_RECRUITER&limit=100', token)
-        .then((res) => {
-          setRecruiters(res.data.map((u) => ({ id: u.id, name: u.displayName })));
-        })
-        .catch((err) => console.error('Failed to load recruiters:', err));
-    }
-  }, [showAddTask, user?.role, token]);
+  const [showScheduleForm, setShowScheduleForm] = useState(false);
+  const [scheduleCandidateId, setScheduleCandidateId] = useState('');
+  const [scheduleAt, setScheduleAt] = useState('');
+  const [scheduleDuration, setScheduleDuration] = useState('60');
+  const [scheduleLocation, setScheduleLocation] = useState('');
 
   const loadCampaign = async () => {
     setLoading(true);
     setApiError('');
     try {
-      const [requestsResponse, planResponse, applicationsResponse, schedulesResponse] =
+      const [
+        requestResponse,
+        planResponse,
+        applicationsResponse,
+        schedulesResponse,
+        jobPostingsResponse,
+      ] =
         await Promise.all([
-          apiRequest<RecruitmentRequestListResponse>('/recruitment-requests?limit=100', token),
+          apiRequest<RecruitmentRequestApiItem>(`/recruitment-requests/${campaignId}`, token),
           apiRequest<OverallPlanFull>(`/overall-plan/by-request/${campaignId}`, token).catch(
             (planError) => {
               if (planError instanceof ApiError && planError.status === 404) return null;
@@ -355,13 +342,20 @@ export const HRCampaignDetail: React.FC = () => {
             `/interviews/requests/${campaignId}/schedules`,
             token,
           ).catch(() => []),
+          apiRequest<JobPostingApiItem[]>('/job-postings', token).catch(() => []),
         ]);
-      setRequest(requestsResponse.data.find((item) => item.id === campaignId) ?? null);
+      setRequest(requestResponse);
       setPlan(planResponse);
       setApplications(applicationsResponse);
       setSchedules(schedulesResponse);
+      setJobPosting(jobPostingsResponse.find((posting) => posting.requestId === campaignId) ?? null);
     } catch (loadError) {
       setApiError(loadError instanceof Error ? loadError.message : 'Unable to load campaign');
+      setRequest(null);
+      setPlan(null);
+      setApplications([]);
+      setSchedules([]);
+      setJobPosting(null);
     } finally {
       setLoading(false);
     }
@@ -371,6 +365,34 @@ export const HRCampaignDetail: React.FC = () => {
     void loadCampaign();
   }, [token, campaignId]);
 
+  useEffect(() => {
+    if (user?.role !== 'HR_LEADER') return;
+
+    const loadHrMembers = async () => {
+      setMembersLoading(true);
+      try {
+        const response = await apiRequest<{
+          data: Array<{ id: string; displayName: string; email?: string }>;
+        }>('/users?role=HR_RECRUITER&limit=100', token);
+        setHrMembers(
+          response.data.map((member) => ({
+            id: member.id,
+            name: member.displayName,
+            email: member.email,
+          })),
+        );
+      } catch (memberError) {
+        setTaskActionError(
+          memberError instanceof Error ? memberError.message : 'Unable to load HR recruiters',
+        );
+      } finally {
+        setMembersLoading(false);
+      }
+    };
+
+    void loadHrMembers();
+  }, [token, user?.role]);
+
   const tasks: TaskItem[] = useMemo(
     () =>
       (plan?.tasks ?? []).map((task) => ({
@@ -379,6 +401,7 @@ export const HRCampaignDetail: React.FC = () => {
         title: TASK_TYPE_LABELS[task.taskType] ?? task.taskType,
         done: task.status === 'COMPLETED',
         dueDate: formatDate(task.endDate),
+        assigneeId: task.assignedTo?.id,
         assigneeName: task.assignedTo?.displayName || '',
       })),
     [plan],
@@ -386,9 +409,24 @@ export const HRCampaignDetail: React.FC = () => {
 
   const completedTasks = tasks.filter((task) => task.done).length;
   const taskProgress = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
+  const campaignMembers = useMemo(() => {
+    const byId = new Map<string, { id: string; name: string; taskCount: number }>();
 
-  const campaign: CampaignData = useMemo(() => {
-    if (!request) return fallbackCampaign(campaignId);
+    for (const task of tasks) {
+      if (!task.assigneeId || !task.assigneeName) continue;
+      const current = byId.get(task.assigneeId);
+      byId.set(task.assigneeId, {
+        id: task.assigneeId,
+        name: task.assigneeName,
+        taskCount: (current?.taskCount ?? 0) + 1,
+      });
+    }
+
+    return Array.from(byId.values());
+  }, [tasks]);
+
+  const campaign: CampaignData | null = useMemo(() => {
+    if (!request) return null;
 
     const skills = (request.skillRequirements ?? {}) as Record<string, unknown>;
     const salaryMin = skills.salaryMin as string | number | undefined;
@@ -410,23 +448,13 @@ export const HRCampaignDetail: React.FC = () => {
       progress: taskProgress,
       description: request.jobDescription,
     };
-  }, [request, plan, campaignId, taskProgress]);
+  }, [request, plan, taskProgress]);
 
   const candidates: Candidate[] = useMemo(
     () =>
       applications
         .filter((application) => application.status !== 'REJECTED')
         .map((application, index) => {
-          const screeningStatus = application.candidate.cvDocuments?.[0]?.screeningStatus;
-          const score =
-            screeningStatus === 'SHORTLISTED'
-              ? 85
-              : screeningStatus === 'REJECTED'
-                ? 40
-                : screeningStatus === 'PENDING'
-                  ? 65
-                  : 60;
-
           const hasCompletedInterview = schedules.some(
             (schedule) =>
               schedule.candidateId === application.candidateId &&
@@ -460,8 +488,6 @@ export const HRCampaignDetail: React.FC = () => {
             id: application.id,
             name: application.candidate.fullName,
             initials: getInitials(application.candidate.fullName),
-            source: 'Direct',
-            score,
             stage,
             color: CANDIDATE_COLOR_PALETTE[index % CANDIDATE_COLOR_PALETTE.length],
             appliedDate: formatDate(application.createdAt),
@@ -483,10 +509,17 @@ export const HRCampaignDetail: React.FC = () => {
     [candidates],
   );
 
+  const schedulableApplications = useMemo(
+    () =>
+      applications.filter((application) =>
+        ['SUBMITTED', 'SCREENING', 'INTERVIEWING'].includes(application.status),
+      ),
+    [applications],
+  );
+
   const weekDays = useMemo(() => getCurrentWeekDays(), []);
 
   const interviews: Interview[] = useMemo(() => {
-    const typeIndexByCandidate = new Map<string, number>();
     const sorted = [...schedules].sort(
       (a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
     );
@@ -494,10 +527,7 @@ export const HRCampaignDetail: React.FC = () => {
     return sorted.map((schedule, index) => {
       const application = applications.find((item) => item.candidateId === schedule.candidateId);
       const candidateName =
-        application?.candidate.fullName ?? `Candidate ${schedule.candidateId.slice(0, 8)}`;
-
-      const typeIndex = typeIndexByCandidate.get(schedule.candidateId) ?? 0;
-      typeIndexByCandidate.set(schedule.candidateId, typeIndex + 1);
+        application?.candidate.fullName ?? 'Unknown candidate';
 
       const scheduledDate = new Date(schedule.scheduledAt);
       const weekDay = weekDays.find(
@@ -509,7 +539,7 @@ export const HRCampaignDetail: React.FC = () => {
         candidateName,
         initials: getInitials(candidateName),
         color: CANDIDATE_COLOR_PALETTE[index % CANDIDATE_COLOR_PALETTE.length],
-        type: INTERVIEW_TYPES[typeIndex % INTERVIEW_TYPES.length],
+        status: schedule.status,
         date: weekDay?.label ?? '',
         time: scheduledDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
         location: schedule.location,
@@ -517,6 +547,12 @@ export const HRCampaignDetail: React.FC = () => {
       };
     });
   }, [schedules, applications, weekDays]);
+
+  const canManagePlan = user?.role === 'HR_LEADER';
+  const hasJobPostingTask = tasks.some((task) => task.taskType === 'JOB_POSTING');
+  const hasInterviewTask = tasks.some((task) => task.taskType === 'INTERVIEW_COORDINATION');
+  const canCreateJobPosting = canManagePlan && campaign?.status === 'APPROVED' && hasJobPostingTask;
+  const canScheduleInterview = campaign?.status === 'APPROVED' && hasInterviewTask;
 
   const resubmitPlan = async () => {
     if (!plan) return;
@@ -564,7 +600,7 @@ export const HRCampaignDetail: React.FC = () => {
   };
 
   const addTask = async () => {
-    if (!plan || !newTaskDue) return;
+    if (!plan || !newTaskDue || !newTaskAssigneeId) return;
 
     setAddTaskSubmitting(true);
     setTaskActionError('');
@@ -576,7 +612,7 @@ export const HRCampaignDetail: React.FC = () => {
           taskType: newTaskType,
           startDate: new Date().toISOString(),
           endDate: new Date(newTaskDue).toISOString(),
-          assignedToId: newTaskAssigneeId || undefined,
+          assignedToId: newTaskAssigneeId,
         }),
       });
       setShowAddTask(false);
@@ -589,6 +625,133 @@ export const HRCampaignDetail: React.FC = () => {
       setAddTaskSubmitting(false);
     }
   };
+
+  const createJobPosting = async () => {
+    if (!request || !canCreateJobPosting) return;
+
+    setQuickActionSubmitting('job-posting');
+    setQuickActionError('');
+    try {
+      const created = await apiRequest<JobPostingApiItem>('/job-postings', token, {
+        method: 'POST',
+        body: JSON.stringify({
+          requestId: request.id,
+          title: request.position,
+          description: request.jobDescription,
+          requirements: request.skillRequirements ?? {},
+          visibility: 'PUBLIC',
+        }),
+      });
+      setJobPosting(created);
+    } catch (jobErr) {
+      if (jobErr instanceof ApiError && jobErr.status === 409) {
+        await loadCampaign();
+      } else {
+        setQuickActionError(
+          jobErr instanceof ApiError ? jobErr.message : 'Unable to create job posting',
+        );
+      }
+    } finally {
+      setQuickActionSubmitting(null);
+    }
+  };
+
+  const publishJobPosting = async () => {
+    if (!jobPosting || !canCreateJobPosting) return;
+
+    setQuickActionSubmitting('publish-job');
+    setQuickActionError('');
+    try {
+      const published = await apiRequest<JobPostingApiItem>(
+        `/job-postings/${jobPosting.id}/publish`,
+        token,
+        { method: 'POST', body: JSON.stringify({}) },
+      );
+      setJobPosting(published);
+    } catch (publishErr) {
+      setQuickActionError(
+        publishErr instanceof ApiError ? publishErr.message : 'Unable to publish job posting',
+      );
+    } finally {
+      setQuickActionSubmitting(null);
+    }
+  };
+
+  const openScheduleForm = () => {
+    setScheduleCandidateId((current) => current || schedulableApplications[0]?.candidateId || '');
+    setQuickActionError('');
+    setShowScheduleForm(true);
+  };
+
+  const createInterviewSchedule = async () => {
+    if (
+      !user?.id ||
+      !canScheduleInterview ||
+      !scheduleCandidateId ||
+      !scheduleAt ||
+      !scheduleLocation.trim()
+    )
+      return;
+
+    setQuickActionSubmitting('schedule-interview');
+    setQuickActionError('');
+    try {
+      await apiRequest<InterviewScheduleApiItem>('/interviews/schedules', token, {
+        method: 'POST',
+        body: JSON.stringify({
+          requestId: campaignId,
+          candidateId: scheduleCandidateId,
+          scheduledAt: new Date(scheduleAt).toISOString(),
+          duration: Number(scheduleDuration),
+          location: scheduleLocation.trim(),
+          interviewers: [user.id],
+        }),
+      });
+      setShowScheduleForm(false);
+      setScheduleAt('');
+      setScheduleLocation('');
+      await loadCampaign();
+    } catch (scheduleErr) {
+      setQuickActionError(
+        scheduleErr instanceof ApiError ? scheduleErr.message : 'Unable to schedule interview',
+      );
+    } finally {
+      setQuickActionSubmitting(null);
+    }
+  };
+
+  if (!campaign) {
+    return (
+      <div className="mx-auto flex max-w-[1440px] flex-col gap-6">
+        {apiError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-rejected">
+            {apiError}
+          </div>
+        )}
+
+        <section className="rounded-lg border border-border-warm bg-clean-surface p-8 text-center">
+          {loading ? (
+            <p className="text-sm text-on-surface-variant">Loading campaign...</p>
+          ) : (
+            <>
+              <h1 className="text-xl font-semibold text-deep-charcoal">Campaign not found</h1>
+              <p className="mt-2 text-sm text-on-surface-variant">
+                This campaign does not exist or is not available for your account.
+              </p>
+              <button
+                className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border-warm bg-clean-surface px-4 text-sm font-semibold text-slate-ink transition hover:border-teal-command hover:text-teal-command active:scale-[0.98]"
+                onClick={() => navigate('/hr/campaigns')}
+                type="button"
+              >
+                <Icon className="h-4 w-4" name="back" />
+                Back to campaigns
+              </button>
+            </>
+          )}
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto flex max-w-[1440px] flex-col gap-6">
@@ -771,13 +934,11 @@ export const HRCampaignDetail: React.FC = () => {
                           {items.map((interview) => (
                             <div
                               className={`mb-1 rounded-md border-l-2 p-2 transition hover:shadow-sm ${
-                                interview.type === 'Technical'
-                                  ? 'border-revision bg-amber-50'
-                                  : interview.type === 'Final'
-                                    ? 'border-approved bg-green-50'
-                                    : interview.type === 'Culture'
-                                      ? 'border-pending bg-cyan-50'
-                                      : 'border-teal-command bg-teal-command/5'
+                                interview.status === 'COMPLETED'
+                                  ? 'border-approved bg-green-50'
+                                  : interview.status === 'CANCELLED'
+                                    ? 'border-red-400 bg-red-50'
+                                    : 'border-teal-command bg-teal-command/5'
                               }`}
                               key={interview.id}
                             >
@@ -792,7 +953,7 @@ export const HRCampaignDetail: React.FC = () => {
                                 </p>
                               </div>
                               <p className="text-[10px] text-on-surface-variant">
-                                {interview.type} / {interview.time}
+                                {interview.status} / {interview.time}
                               </p>
                               <p className="text-[10px] text-on-surface-variant">
                                 {interview.location}
@@ -803,16 +964,6 @@ export const HRCampaignDetail: React.FC = () => {
                       );
                     })}
                   </div>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-2 border-t border-border-warm bg-workflow-ivory/50 px-4 py-3">
-                {INTERVIEW_TYPES.map((type) => (
-                  <span
-                    className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${interviewTypeBadge[type]}`}
-                    key={type}
-                  >
-                    {type}
-                  </span>
                 ))}
               </div>
             </section>
@@ -842,6 +993,54 @@ export const HRCampaignDetail: React.FC = () => {
                   {taskActionError}
                 </div>
               )}
+              <div className="border-b border-border-warm px-6 py-4">
+                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                      Campaign HR Members
+                    </p>
+                    <p className="mt-1 text-xs text-slate-ink">
+                      Members are added to this campaign when they are assigned a task.
+                    </p>
+                  </div>
+                  {canManagePlan ? (
+                    <button
+                      className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border-warm px-3 text-xs font-semibold text-teal-command transition hover:border-teal-command hover:bg-teal-command/5 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={!plan || hrMembers.length === 0}
+                      onClick={() => {
+                        setNewTaskAssigneeId((current) => current || hrMembers[0]?.id || '');
+                        setShowAddTask(true);
+                      }}
+                      type="button"
+                    >
+                      <Icon className="h-4 w-4" name="userPlus" />
+                      Add HR Recruiter
+                    </button>
+                  ) : null}
+                </div>
+                {campaignMembers.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {campaignMembers.map((member) => (
+                      <span
+                        className="inline-flex items-center gap-2 rounded-full border border-border-warm bg-workflow-ivory px-3 py-1 text-xs font-semibold text-deep-charcoal"
+                        key={member.id}
+                      >
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-teal-command/10 text-[10px] font-bold text-teal-command">
+                          {getInitials(member.name)}
+                        </span>
+                        {member.name}
+                        <span className="font-mono text-on-surface-variant">
+                          {member.taskCount}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-on-surface-variant">
+                    No HR recruiter has been assigned to this campaign yet.
+                  </p>
+                )}
+              </div>
               <ul className="divide-y divide-border-warm">
                 {tasks.map((task) => (
                   <li
@@ -916,29 +1115,34 @@ export const HRCampaignDetail: React.FC = () => {
                         value={newTaskDue}
                       />
                     </label>
-                    {user?.role === 'HR_LEADER' && recruiters.length > 0 && (
-                      <label className="block">
-                        <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                          Assignee
-                        </span>
-                        <select
-                          className="h-10 w-full min-w-[180px] rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                          onChange={(event) => setNewTaskAssigneeId(event.target.value)}
-                          value={newTaskAssigneeId}
-                        >
-                          <option value="">Assign to myself</option>
-                          {recruiters.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    )}
+                    <label className="block">
+                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                        HR Member
+                      </span>
+                      <select
+                        className="h-10 w-full min-w-[220px] rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                        disabled={membersLoading || hrMembers.length === 0}
+                        onChange={(event) => setNewTaskAssigneeId(event.target.value)}
+                        value={newTaskAssigneeId}
+                      >
+                        <option value="">
+                          {membersLoading
+                            ? 'Loading HR recruiters...'
+                            : hrMembers.length === 0
+                              ? 'No HR recruiters available'
+                              : 'Select HR recruiter'}
+                        </option>
+                        {hrMembers.map((member) => (
+                          <option key={member.id} value={member.id}>
+                            {member.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <div className="flex gap-2">
                       <button
                         className="h-10 rounded-lg bg-teal-command px-4 text-sm font-bold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={!newTaskDue || addTaskSubmitting}
+                        disabled={!newTaskDue || !newTaskAssigneeId || addTaskSubmitting}
                         onClick={() => void addTask()}
                         type="button"
                       >
@@ -946,7 +1150,10 @@ export const HRCampaignDetail: React.FC = () => {
                       </button>
                       <button
                         className="h-10 rounded-lg border border-border-warm px-4 text-sm font-semibold text-secondary transition hover:bg-surface-variant/40 active:scale-[0.98]"
-                        onClick={() => setShowAddTask(false)}
+                        onClick={() => {
+                          setShowAddTask(false);
+                          setNewTaskAssigneeId('');
+                        }}
                         type="button"
                       >
                         Cancel
@@ -956,9 +1163,18 @@ export const HRCampaignDetail: React.FC = () => {
                 ) : (
                   <button
                     className="inline-flex items-center gap-2 text-sm font-semibold text-teal-command transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={!plan}
-                    onClick={() => setShowAddTask(true)}
-                    title={!plan ? 'Create an Overall Plan first.' : undefined}
+                    disabled={!plan || !canManagePlan}
+                    onClick={() => {
+                      setNewTaskAssigneeId((current) => current || hrMembers[0]?.id || '');
+                      setShowAddTask(true);
+                    }}
+                    title={
+                      !plan
+                        ? 'Create an Overall Plan first.'
+                        : !canManagePlan
+                          ? 'Only HR Leader can add campaign tasks.'
+                          : undefined
+                    }
                     type="button"
                   >
                     <Icon className="h-4 w-4" name="plus" />
@@ -1029,6 +1245,178 @@ export const HRCampaignDetail: React.FC = () => {
             <p className="text-sm leading-6 text-slate-ink">{campaign.description}</p>
           </section>
 
+          <section className="space-y-4 rounded-lg border border-border-warm bg-clean-surface p-5">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                Job Posting
+              </p>
+              <p className="mt-1 text-sm font-semibold text-deep-charcoal">
+                {jobPosting ? jobPosting.title : 'No job posting created'}
+              </p>
+              {jobPosting ? (
+                <p className="mt-1 text-xs text-on-surface-variant">
+                  {jobPosting.status} / {jobPosting.visibility}
+                </p>
+              ) : null}
+            </div>
+            {quickActionError ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-rejected">
+                {quickActionError}
+              </div>
+            ) : null}
+            {!jobPosting ? (
+              <button
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={quickActionSubmitting === 'job-posting' || !canCreateJobPosting}
+                onClick={() => void createJobPosting()}
+                title={
+                  !canCreateJobPosting
+                    ? 'Admin-approved plan and JOB_POSTING task are required.'
+                    : undefined
+                }
+                type="button"
+              >
+                <Icon className="h-4 w-4" name="plus" />
+                {quickActionSubmitting === 'job-posting' ? 'Creating...' : 'Create Job Posting'}
+              </button>
+            ) : jobPosting.status === 'DRAFT' ? (
+              <button
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={quickActionSubmitting === 'publish-job' || !canCreateJobPosting}
+                onClick={() => void publishJobPosting()}
+                title={
+                  !canCreateJobPosting
+                    ? 'Admin-approved plan and JOB_POSTING task are required.'
+                    : undefined
+                }
+                type="button"
+              >
+                <Icon className="h-4 w-4" name="send" />
+                {quickActionSubmitting === 'publish-job' ? 'Publishing...' : 'Publish Job Posting'}
+              </button>
+            ) : null}
+          </section>
+
+          <section className="space-y-4 rounded-lg border border-border-warm bg-clean-surface p-5">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                Campaign Actions
+              </p>
+              <button
+                className="text-[11px] font-semibold text-teal-command transition hover:underline"
+                onClick={() => navigate('/hr/search')}
+                type="button"
+              >
+                Find candidates
+              </button>
+            </div>
+
+            {showScheduleForm ? (
+              <div className="space-y-3">
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                    Candidate
+                  </span>
+                  <select
+                    className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                    onChange={(event) => setScheduleCandidateId(event.target.value)}
+                    value={scheduleCandidateId}
+                  >
+                    {schedulableApplications.map((application) => (
+                      <option key={application.id} value={application.candidateId}>
+                        {application.candidate.fullName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                    Time
+                  </span>
+                  <input
+                    className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                    onChange={(event) => setScheduleAt(event.target.value)}
+                    type="datetime-local"
+                    value={scheduleAt}
+                  />
+                </label>
+                <div className="grid grid-cols-[100px_minmax(0,1fr)] gap-3">
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                      Minutes
+                    </span>
+                    <input
+                      className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                      min="15"
+                      onChange={(event) => setScheduleDuration(event.target.value)}
+                      type="number"
+                      value={scheduleDuration}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                      Location
+                    </span>
+                    <input
+                      className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                      onChange={(event) => setScheduleLocation(event.target.value)}
+                      placeholder="Meeting room or online link"
+                      value={scheduleLocation}
+                    />
+                  </label>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    className="h-10 flex-1 rounded-lg bg-teal-command px-4 text-sm font-bold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={
+                      !scheduleCandidateId ||
+                      !scheduleAt ||
+                      !scheduleLocation.trim() ||
+                      quickActionSubmitting === 'schedule-interview'
+                    }
+                    onClick={() => void createInterviewSchedule()}
+                    type="button"
+                  >
+                    {quickActionSubmitting === 'schedule-interview' ? 'Scheduling...' : 'Schedule'}
+                  </button>
+                  <button
+                    className="h-10 rounded-lg border border-border-warm px-4 text-sm font-semibold text-secondary transition hover:bg-surface-variant/40 active:scale-[0.98]"
+                    onClick={() => setShowScheduleForm(false)}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-border-warm px-4 text-sm font-semibold text-slate-ink transition hover:border-teal-command hover:text-teal-command active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={schedulableApplications.length === 0 || !canScheduleInterview}
+                onClick={openScheduleForm}
+                title={
+                  !canScheduleInterview
+                    ? 'Admin-approved plan and INTERVIEW_COORDINATION task are required.'
+                    : schedulableApplications.length === 0
+                      ? 'No active candidates are available for scheduling.'
+                      : undefined
+                }
+                type="button"
+              >
+                <Icon className="h-4 w-4" name="calendar" />
+                Schedule Interview
+              </button>
+            )}
+
+            <button
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-border-warm px-4 text-sm font-semibold text-slate-ink transition hover:border-teal-command hover:text-teal-command active:scale-[0.98]"
+              onClick={() => navigate('/hr/reports')}
+              type="button"
+            >
+              <Icon className="h-4 w-4" name="report" />
+              View Reports
+            </button>
+          </section>
+
           <section className="rounded-lg border border-border-warm bg-clean-surface p-5">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
@@ -1055,7 +1443,8 @@ export const HRCampaignDetail: React.FC = () => {
                       {interview.candidateName}
                     </p>
                     <p className="text-[11px] text-on-surface-variant">
-                      {interview.type} / {interview.date || 'Outside current week'} {interview.time}
+                      {interview.status} / {interview.date || 'Outside current week'}{' '}
+                      {interview.time}
                     </p>
                     <p className="text-[10px] text-on-surface-variant">{interview.location}</p>
                   </div>
@@ -1067,26 +1456,6 @@ export const HRCampaignDetail: React.FC = () => {
             </div>
           </section>
 
-          <section className="space-y-2 rounded-lg border border-border-warm bg-clean-surface p-5">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-              Quick Actions
-            </p>
-            {/* Add Candidate / Schedule Interview / Export Report: deferred to Phase 2b (Talent Pool). */}
-            {[
-              { icon: 'userPlus', label: 'Add Candidate' },
-              { icon: 'calendar', label: 'Schedule Interview' },
-              { icon: 'report', label: 'Export Report' },
-            ].map((action) => (
-              <button
-                className="flex w-full items-center gap-2 rounded-lg border border-border-warm px-3 py-2 text-sm font-semibold text-slate-ink transition hover:border-teal-command hover:bg-teal-command/5 hover:text-teal-command active:scale-[0.98]"
-                key={action.label}
-                type="button"
-              >
-                <Icon className="h-4 w-4" name={action.icon} />
-                {action.label}
-              </button>
-            ))}
-          </section>
         </aside>
       </section>
     </div>

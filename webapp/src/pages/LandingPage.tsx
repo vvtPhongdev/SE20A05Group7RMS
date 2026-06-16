@@ -1,5 +1,18 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { apiRequest } from '../lib/api';
+
+type PublicJobPosting = {
+  id: string;
+  requestId: string;
+  title: string;
+  description: string;
+  expireDate?: string | null;
+  request?: {
+    department?: { name: string } | null;
+    urgency?: string;
+  } | null;
+};
 
 const approvalRows = [
   {
@@ -82,6 +95,24 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
 };
 
 export const LandingPage: React.FC = () => {
+  const [jobs, setJobs] = useState<PublicJobPosting[]>([]);
+
+  useEffect(() => {
+    const loadJobs = async () => {
+      try {
+        const response = await apiRequest<PublicJobPosting[]>(
+          '/public/job-postings?status=PUBLISHED&visibility=PUBLIC',
+          null,
+        );
+        setJobs(response.slice(0, 6));
+      } catch {
+        setJobs([]);
+      }
+    };
+
+    void loadJobs();
+  }, []);
+
   return (
     <div className="min-h-[100dvh] bg-workflow-ivory text-deep-charcoal">
       <header className="fixed top-0 z-30 w-full border-b border-border-warm bg-clean-surface/95 backdrop-blur">
@@ -108,6 +139,12 @@ export const LandingPage: React.FC = () => {
                 href="#pricing"
               >
                 Pricing
+              </a>
+              <a
+                className="text-sm font-medium text-slate-ink transition hover:text-teal-command"
+                href="#jobs"
+              >
+                Jobs
               </a>
             </div>
           </div>
@@ -277,6 +314,64 @@ export const LandingPage: React.FC = () => {
                 </div>
               ))}
             </div>
+          </div>
+        </section>
+
+        <section className="bg-[#f5f3f0] py-20" id="jobs">
+          <div className="mx-auto max-w-[1440px] px-5 sm:px-8">
+            <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.08em] text-teal-command">
+                  Open positions
+                </p>
+                <h2 className="mt-2 text-3xl font-semibold tracking-tight text-deep-charcoal">
+                  Published jobs
+                </h2>
+              </div>
+              <Link className="text-sm font-semibold text-teal-command hover:underline" to="/login">
+                Sign in to apply
+              </Link>
+            </div>
+
+            {jobs.length === 0 ? (
+              <div className="rounded-xl border border-border-warm bg-clean-surface p-8 text-sm text-slate-ink">
+                No public jobs are open right now.
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {jobs.map((job) => (
+                  <article
+                    className="flex min-h-56 flex-col rounded-xl border border-border-warm bg-clean-surface p-5 shadow-sm"
+                    key={job.id}
+                  >
+                    <div className="mb-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-teal-command">
+                        {job.request?.department?.name ?? 'Hiring team'}
+                      </p>
+                      <h3 className="mt-2 text-xl font-semibold text-deep-charcoal">
+                        {job.title}
+                      </h3>
+                    </div>
+                    <p className="line-clamp-4 flex-1 text-sm leading-6 text-slate-ink">
+                      {job.description}
+                    </p>
+                    <div className="mt-5 flex items-center justify-between gap-3">
+                      <span className="text-xs font-semibold text-slate-ink">
+                        {job.expireDate
+                          ? `Closes ${new Date(job.expireDate).toLocaleDateString()}`
+                          : 'Open until filled'}
+                      </span>
+                      <Link
+                        className="inline-flex h-9 items-center rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-[#0f766e] active:scale-[0.98]"
+                        to="/login"
+                      >
+                        Apply
+                      </Link>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
         </section>
 
