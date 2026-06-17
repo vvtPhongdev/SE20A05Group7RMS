@@ -59,7 +59,7 @@ export class UsersService {
     };
   }
 
-  async list(query: { page?: number; limit?: number; role?: string }) {
+  async list(query: { page?: number; limit?: number; role?: string; departmentId?: string }) {
     const page = Math.max(1, query.page || 1);
     const limit = Math.max(1, Math.min(100, query.limit || 10));
     const skip = (page - 1) * limit;
@@ -67,6 +67,9 @@ export class UsersService {
     const where: any = {};
     if (query.role) {
       where.role = query.role;
+    }
+    if (query.departmentId) {
+      where.departmentId = query.departmentId;
     }
 
     const [total, data] = await Promise.all([

@@ -11,7 +11,6 @@ import {
 } from '../components';
 
 type CampaignStage = 'Interviewing' | 'CV Screening' | 'Hired' | 'Planning';
-type RiskLevel = 'Critical' | 'Warning' | 'Stable';
 
 type CampaignProgress = {
   role: string;
@@ -69,48 +68,6 @@ const formatDate = (value: string) =>
     new Date(value),
   );
 
-const bottlenecks: Array<{ title: string; detail: string; level: RiskLevel; impact: string }> = [
-  {
-    title: 'Interview Panel Availability',
-    detail: 'IT Department - 4 days avg delay',
-    level: 'Critical',
-    impact: 'Impact: 12 candidates',
-  },
-  {
-    title: 'Background Check Vendor',
-    detail: 'Vendor: HireScreen Ltd - Delay',
-    level: 'Warning',
-    impact: 'Impact: 8 candidates',
-  },
-  {
-    title: 'Hiring Manager Feedback',
-    detail: 'Sales Dept - 48h SLA breach',
-    level: 'Stable',
-    impact: 'Impact: 3 candidates',
-  },
-];
-
-const workload = [
-  { day: 'Mon', height: '60%' },
-  { day: 'Tue', height: '85%' },
-  { day: 'Wed', height: '95%', active: true },
-  { day: 'Thu', height: '40%' },
-  { day: 'Fri', height: '70%' },
-  { day: 'Sat', height: '55%' },
-  { day: 'Sun', height: '30%' },
-];
-
-const atRisk = [
-  { title: 'Sales Lead - APAC', detail: 'No candidates in 14 days' },
-  { title: 'QA Automation', detail: 'Offer rejected by 2 finalists' },
-];
-
-const actions = [
-  { title: 'Schedule Round 2 for Senior Dev candidate', tone: 'text-teal-command' },
-  { title: 'Approve Plan for Marketing Lead', tone: 'text-teal-command' },
-  { title: 'Escalate Background Check REQ-042', tone: 'text-rejected' },
-];
-
 const iconPaths: Record<string, React.ReactNode> = {
   export: <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16" />,
   warning: (
@@ -143,12 +100,6 @@ const stageClass: Record<CampaignStage, string> = {
   'CV Screening': 'bg-revision/10 text-revision',
   Hired: 'bg-approved/10 text-approved',
   Planning: 'bg-slate-ink/10 text-slate-ink',
-};
-
-const riskClass: Record<RiskLevel, string> = {
-  Critical: 'border-error/10 bg-error-container/20 text-on-error-container',
-  Warning: 'border-border-warm bg-surface-container-low text-deep-charcoal',
-  Stable: 'border-border-warm bg-surface-container-low text-deep-charcoal opacity-80',
 };
 
 export const HRPipelineReports: React.FC = () => {

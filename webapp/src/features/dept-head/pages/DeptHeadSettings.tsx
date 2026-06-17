@@ -1,6 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../../../context/AuthContext';
+import { apiRequest } from '../../../lib/api';
 import {
   DeptHeadDashboardPage,
+  DeptHeadInlineAlert,
+  DeptHeadLoadingState,
   DeptHeadPageHeader,
   DeptHeadSearchInput,
 } from '../components';
@@ -25,7 +29,53 @@ interface NotificationPreference {
   disabled?: boolean;
 }
 
-const teamMembers: TeamMember[] = [
+interface CurrentUserResponse {
+  id: string;
+  displayName: string;
+  email: string;
+  role: string;
+  organizationId: string;
+  departmentId: string | null;
+  phone?: string | null;
+}
+
+interface DepartmentResponse {
+  id: string;
+  name: string;
+  code: string;
+  headUser?: {
+    id: string;
+    displayName: string;
+    email: string;
+    role: string;
+  } | null;
+}
+
+interface OrganizationResponse {
+  id: string;
+  name: string;
+  slug: string;
+  settings?: Record<string, unknown>;
+}
+
+interface UsersResponse {
+  data: Array<{
+    id: string;
+    displayName: string;
+    email: string;
+    role: string;
+    phone?: string | null;
+    departmentId?: string | null;
+    isActive?: boolean;
+  }>;
+}
+
+interface DeptHeadSettingsState {
+  preferences?: NotificationPreference[];
+  selectedPriority?: Priority;
+}
+
+const fallbackTeamMembers: TeamMember[] = [
   {
     id: 'TM-001',
     name: 'Jordan Smith',
@@ -126,10 +176,58 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
 };
 
 export const DeptHeadSettings: React.FC = () => {
+  const { token } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [preferences, setPreferences] = useState(initialPreferences);
   const [selectedPriority, setSelectedPriority] = useState<Priority>('High');
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(fallbackTeamMembers);
+  const [currentUser, setCurrentUser] = useState<CurrentUserResponse | null>(null);
+  const [department, setDepartment] = useState<DepartmentResponse | null>(null);
+  const [organization, setOrganization] = useState<OrganizationResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
+  const [saving, setSaving] = useState(false);
   const [showToast, setShowToast] = useState(false);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      setLoading(true);
+      setApiError('');
+      try {
+        const me = await apiRequest<CurrentUserResponse>('/me', token);
+        setCurrentUser(me);
+
+        const [departmentResponse, organizationResponse, usersResponse] = await Promise.all([
+          me.departmentId
+            ? apiRequest<DepartmentResponse>(`/departments/${me.departmentId}`, token)
+            : Promise.resolve(null),
+          apiRequest<OrganizationResponse>(`/organizations/${me.organizationId}`, token),
+          apiRequest<UsersResponse>('/users?limit=100', token),
+        ]);
+
+        setDepartment(departmentResponse);
+        setOrganization(organizationResponse);
+        setTeamMembers(usersResponse.data.map(mapUserToTeamMember));
+
+        const savedSettings = getDepartmentSettings(
+          organizationResponse.settings,
+          me.departmentId ?? 'unassigned',
+        );
+        if (savedSettings.preferences?.length) {
+          setPreferences(mergePreferences(savedSettings.preferences));
+        }
+        if (savedSettings.selectedPriority) {
+          setSelectedPriority(savedSettings.selectedPriority);
+        }
+      } catch (loadError) {
+        setApiError(loadError instanceof Error ? loadError.message : 'Unable to load settings');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadSettings();
+  }, [token]);
 
   const filteredMembers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -148,22 +246,78 @@ export const DeptHeadSettings: React.FC = () => {
     window.setTimeout(() => setShowToast(false), 2400);
   };
 
+  const persistSettings = async (
+    nextPreferences: NotificationPreference[],
+    nextPriority: Priority,
+  ) => {
+    if (!currentUser || !organization) {
+      showSavedToast();
+      return;
+    }
+
+    const previousSettings = organization.settings ?? {};
+    const nextSettings = {
+      ...previousSettings,
+      deptHeadSettings: {
+        ...getDeptHeadSettingsMap(previousSettings),
+        [currentUser.departmentId ?? 'unassigned']: {
+          preferences: nextPreferences,
+          selectedPriority: nextPriority,
+        },
+      },
+    };
+
+    setSaving(true);
+    setApiError('');
+    try {
+      const updated = await apiRequest<OrganizationResponse>(
+        `/organizations/${currentUser.organizationId}/settings`,
+        token,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ settings: nextSettings }),
+        },
+      );
+      setOrganization(updated);
+      showSavedToast();
+    } catch (saveError) {
+      setApiError(saveError instanceof Error ? saveError.message : 'Unable to save settings');
+      setOrganization({ ...organization, settings: previousSettings });
+      const savedSettings = getDepartmentSettings(
+        previousSettings,
+        currentUser.departmentId ?? 'unassigned',
+      );
+      setPreferences(savedSettings.preferences?.length ? mergePreferences(savedSettings.preferences) : initialPreferences);
+      setSelectedPriority(savedSettings.selectedPriority ?? 'High');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const togglePreference = (key: string) => {
-    setPreferences((current) =>
-      current.map((preference) =>
-        preference.key === key && !preference.disabled
-          ? { ...preference, enabled: !preference.enabled }
-          : preference,
-      ),
+    const nextPreferences = preferences.map((preference) =>
+      preference.key === key && !preference.disabled
+        ? { ...preference, enabled: !preference.enabled }
+        : preference,
     );
-    showSavedToast();
+    setPreferences(nextPreferences);
+    void persistSettings(nextPreferences, selectedPriority);
+  };
+
+  const updatePriority = (priority: Priority) => {
+    setSelectedPriority(priority);
+    void persistSettings(preferences, priority);
   };
 
   return (
     <DeptHeadDashboardPage>
       <DeptHeadPageHeader
         title="Department Settings"
-        description="Department Head Portal configuration workspace"
+        description={
+          department
+            ? `${department.name} configuration workspace`
+            : 'Department Head Portal configuration workspace'
+        }
         actions={
           <DeptHeadSearchInput
             className="lg:min-w-[320px]"
@@ -174,6 +328,9 @@ export const DeptHeadSettings: React.FC = () => {
           />
         }
       />
+
+      {apiError ? <DeptHeadInlineAlert>{apiError}</DeptHeadInlineAlert> : null}
+      {loading ? <DeptHeadLoadingState label="Loading department settings..." /> : null}
 
       <div className="grid grid-cols-12 gap-6">
         <section className="col-span-12 flex flex-col gap-6 rounded-xl border border-border-warm bg-clean-surface p-6 shadow-sm lg:col-span-8 lg:flex-row lg:items-start">
@@ -188,10 +345,10 @@ export const DeptHeadSettings: React.FC = () => {
                   Department Identity
                 </span>
                 <h2 className="text-2xl font-semibold text-deep-charcoal">
-                  Engineering & Infrastructure
+                  {department?.name ?? 'Department'}
                 </h2>
                 <p className="mt-1 text-sm font-medium text-on-surface-variant">
-                  Led by Alex Sterling, Director of Engineering
+                  Led by {department?.headUser?.displayName ?? currentUser?.displayName ?? 'Department Head'}
                 </p>
               </div>
               <button
@@ -319,7 +476,7 @@ export const DeptHeadSettings: React.FC = () => {
             </table>
           </div>
 
-          {filteredMembers.length === 0 && (
+                {filteredMembers.length === 0 && (
             <div className="border-t border-border-warm px-6 py-12 text-center">
               <p className="text-sm font-semibold text-deep-charcoal">No team members found</p>
               <p className="mt-1 text-sm text-slate-ink">Try a different search term.</p>
@@ -380,8 +537,7 @@ export const DeptHeadSettings: React.FC = () => {
                   }`}
                   key={priority.value}
                   onClick={() => {
-                    setSelectedPriority(priority.value);
-                    showSavedToast();
+                    updatePriority(priority.value);
                   }}
                   type="button"
                 >
@@ -400,7 +556,9 @@ export const DeptHeadSettings: React.FC = () => {
         }`}
       >
         <Icon className="h-5 w-5 text-teal-command" name="check" />
-        <p className="text-sm font-semibold">Settings updated successfully.</p>
+        <p className="text-sm font-semibold">
+          {saving ? 'Saving settings...' : 'Settings updated successfully.'}
+        </p>
       </div>
     </DeptHeadDashboardPage>
   );
@@ -415,3 +573,42 @@ const InitialAvatar = ({ name }: { name: string }) => (
       .join('')}
   </div>
 );
+
+const mapUserToTeamMember = (user: UsersResponse['data'][number]): TeamMember => ({
+  id: user.id,
+  name: user.displayName,
+  role: roleLabel(user.role),
+  email: user.email,
+  phone: user.phone || 'No phone provided',
+  permission: permissionForRole(user.role),
+});
+
+const roleLabel = (role: string) =>
+  role
+    .split('_')
+    .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
+    .join(' ');
+
+const permissionForRole = (role: string): Permission => {
+  if (role === 'DEPARTMENT_HEAD') return 'Full Admin';
+  if (role === 'HR_LEADER' || role === 'HR_RECRUITER') return 'Request Reviewer';
+  return 'Interviewer';
+};
+
+const getDeptHeadSettingsMap = (settings: Record<string, unknown>) => {
+  const value = settings.deptHeadSettings;
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, DeptHeadSettingsState>)
+    : {};
+};
+
+const getDepartmentSettings = (
+  settings: Record<string, unknown> | undefined,
+  departmentId: string,
+): DeptHeadSettingsState => getDeptHeadSettingsMap(settings ?? {})[departmentId] ?? {};
+
+const mergePreferences = (savedPreferences: NotificationPreference[]) =>
+  initialPreferences.map((preference) => {
+    const saved = savedPreferences.find((item) => item.key === preference.key);
+    return saved ? { ...preference, enabled: saved.enabled } : preference;
+  });
