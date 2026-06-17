@@ -183,6 +183,25 @@ describe('AuthService', () => {
       });
     });
 
+    it('should normalize email before looking up the user', async () => {
+      const user = {
+        id: 'uuid-1234',
+        email: dto.email,
+        displayName: 'Test User',
+        role: 'CANDIDATE',
+        passwordHash: 'hashed-password',
+        organizationId: 'org-123',
+      };
+      mockPrismaService.user.findUnique.mockResolvedValue(user);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+
+      await service.login({ email: '  Test@Example.COM  ', password: dto.password });
+
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { email: dto.email },
+      });
+    });
+
     it('should throw Unauthorized RpcException if email does not exist', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue(null);
 

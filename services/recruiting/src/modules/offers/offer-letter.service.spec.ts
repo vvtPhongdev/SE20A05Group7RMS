@@ -1,5 +1,5 @@
 import { of } from 'rxjs';
-import { OfferStatus, RecruitmentRequestStatus } from '@wr/contracts';
+import { OfferResponse, OfferStatus, RecruitmentRequestStatus } from '@wr/contracts';
 import { OfferLetterService } from './offer-letter.service';
 
 describe('OfferLetterService', () => {
@@ -112,5 +112,69 @@ describe('OfferLetterService', () => {
       }),
       expect.any(Object),
     );
+  });
+
+  it('closes the workflow when a candidate accepts an offer', async () => {
+    prisma.offerLetter.findUnique.mockResolvedValue({
+      id: 'offer-1',
+      requestId: 'request-1',
+      candidateId: 'candidate-1',
+      positionTitle: 'Backend Engineer',
+      status: OfferStatus.SENT,
+      candidate: {
+        userId: 'user-1',
+        email: 'candidate@example.com',
+      },
+      request: {
+        id: 'request-1',
+        status: RecruitmentRequestStatus.OFFER_EXTENDED,
+        createdById: 'dept-head-1',
+      },
+    });
+    prisma.offerLetter.update.mockReturnValue({ operation: 'offer' });
+    prisma.application.update.mockReturnValue({ operation: 'application' });
+    prisma.recruitmentRequest.update.mockReturnValue({ operation: 'request' });
+    prisma.requestLog.create.mockReturnValue({ operation: 'log' });
+    prisma.$transaction.mockResolvedValue([{ id: 'offer-1', status: OfferStatus.ACCEPTED }]);
+
+    const result = await service.respond('offer-1', OfferResponse.ACCEPT, 'user-1');
+
+    expect(prisma.application.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { status: RecruitmentRequestStatus.HIRED },
+      }),
+    );
+    expect(prisma.recruitmentRequest.update).toHaveBeenCalledWith({
+      where: { id: 'request-1' },
+      data: { status: RecruitmentRequestStatus.COMPLETED },
+    });
+    expect(prisma.requestLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'OFFER_ACCEPTED',
+          fromStatus: RecruitmentRequestStatus.OFFER_EXTENDED,
+          toStatus: RecruitmentRequestStatus.OFFER_ACCEPTED,
+        }),
+      }),
+    );
+    expect(prisma.requestLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'CANDIDATE_HIRED',
+          fromStatus: RecruitmentRequestStatus.OFFER_ACCEPTED,
+          toStatus: RecruitmentRequestStatus.HIRED,
+        }),
+      }),
+    );
+    expect(prisma.requestLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'CAMPAIGN_COMPLETED',
+          fromStatus: RecruitmentRequestStatus.HIRED,
+          toStatus: RecruitmentRequestStatus.COMPLETED,
+        }),
+      }),
+    );
+    expect(result.status).toBe(OfferStatus.ACCEPTED);
   });
 });

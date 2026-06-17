@@ -19,12 +19,12 @@ describe('JobPostingsService', () => {
     },
   };
 
-  const approvedRequest = {
+  const activeRequest = {
     id: 'request-1',
     position: 'Senior Backend Engineer',
     jobDescription: 'Build and maintain recruiting services.',
     skillRequirements: { skills: ['TypeScript', 'PostgreSQL'] },
-    status: RecruitmentRequestStatus.APPROVED,
+    status: RecruitmentRequestStatus.ACTIVE,
   };
 
   beforeEach(async () => {
@@ -38,25 +38,25 @@ describe('JobPostingsService', () => {
   });
 
   describe('create', () => {
-    it('creates a private draft from an approved request using request defaults', async () => {
-      const createdPosting = { id: 'posting-1', requestId: approvedRequest.id };
-      mockPrismaService.recruitmentRequest.findUnique.mockResolvedValue(approvedRequest);
+    it('creates a private draft from an active campaign using request defaults', async () => {
+      const createdPosting = { id: 'posting-1', requestId: activeRequest.id };
+      mockPrismaService.recruitmentRequest.findUnique.mockResolvedValue(activeRequest);
       mockPrismaService.jobPosting.findUnique.mockResolvedValue(null);
       mockPrismaService.jobPosting.create.mockResolvedValue(createdPosting);
 
       const result = await service.create({
-        requestId: approvedRequest.id,
+        requestId: activeRequest.id,
       } as any);
 
       expect(prisma.recruitmentRequest.findUnique).toHaveBeenCalledWith({
-        where: { id: approvedRequest.id },
+        where: { id: activeRequest.id },
       });
       expect(prisma.jobPosting.create).toHaveBeenCalledWith({
         data: {
-          requestId: approvedRequest.id,
-          title: approvedRequest.position,
-          description: approvedRequest.jobDescription,
-          requirements: approvedRequest.skillRequirements,
+          requestId: activeRequest.id,
+          title: activeRequest.position,
+          description: activeRequest.jobDescription,
+          requirements: activeRequest.skillRequirements,
           visibility: JobVisibility.PRIVATE,
           status: JobPostingStatus.DRAFT,
           expireDate: null,
@@ -69,12 +69,12 @@ describe('JobPostingsService', () => {
     it('persists public visibility, custom content, and the expiration date', async () => {
       const expireDate = '2026-07-31T17:00:00.000Z';
       const requirements = { skills: ['NestJS'], experienceYears: 3 };
-      mockPrismaService.recruitmentRequest.findUnique.mockResolvedValue(approvedRequest);
+      mockPrismaService.recruitmentRequest.findUnique.mockResolvedValue(activeRequest);
       mockPrismaService.jobPosting.findUnique.mockResolvedValue(null);
       mockPrismaService.jobPosting.create.mockResolvedValue({ id: 'posting-1' });
 
       await service.create({
-        requestId: approvedRequest.id,
+        requestId: activeRequest.id,
         title: 'Platform Engineer',
         description: 'Own the recruiting platform.',
         requirements,
@@ -84,7 +84,7 @@ describe('JobPostingsService', () => {
 
       expect(prisma.jobPosting.create).toHaveBeenCalledWith({
         data: {
-          requestId: approvedRequest.id,
+          requestId: activeRequest.id,
           title: 'Platform Engineer',
           description: 'Own the recruiting platform.',
           requirements,
@@ -97,16 +97,14 @@ describe('JobPostingsService', () => {
     });
 
     it.each([
-      RecruitmentRequestStatus.APPROVED,
-      RecruitmentRequestStatus.PLANNING,
-      RecruitmentRequestStatus.PLAN_APPROVED,
+      RecruitmentRequestStatus.ACTIVE,
       RecruitmentRequestStatus.SCREENING,
       RecruitmentRequestStatus.INTERVIEWING,
       RecruitmentRequestStatus.OFFER_EXTENDED,
       RecruitmentRequestStatus.OFFER_ACCEPTED,
-    ])('allows creation for approved workflow status %s', async (status) => {
+    ])('allows creation for active execution status %s', async (status) => {
       mockPrismaService.recruitmentRequest.findUnique.mockResolvedValue({
-        ...approvedRequest,
+        ...activeRequest,
         status,
       });
       mockPrismaService.jobPosting.findUnique.mockResolvedValue(null);
@@ -114,7 +112,7 @@ describe('JobPostingsService', () => {
 
       await expect(
         service.create({
-          requestId: approvedRequest.id,
+          requestId: activeRequest.id,
           requirements: {},
           visibility: JobVisibility.PRIVATE,
         }),
@@ -160,6 +158,9 @@ describe('JobPostingsService', () => {
 
     it.each([
       RecruitmentRequestStatus.DRAFT,
+      RecruitmentRequestStatus.APPROVED,
+      RecruitmentRequestStatus.PLANNING,
+      RecruitmentRequestStatus.PLAN_APPROVED,
       RecruitmentRequestStatus.PENDING_REVIEW,
       RecruitmentRequestStatus.REJECTED,
       RecruitmentRequestStatus.REVISION_NEEDED,
@@ -167,20 +168,20 @@ describe('JobPostingsService', () => {
       RecruitmentRequestStatus.CANCELLED,
     ])('rejects unapproved workflow status %s', async (status) => {
       mockPrismaService.recruitmentRequest.findUnique.mockResolvedValue({
-        ...approvedRequest,
+        ...activeRequest,
         status,
       });
 
       await expect(
         service.create({
-          requestId: approvedRequest.id,
+          requestId: activeRequest.id,
           requirements: {},
           visibility: JobVisibility.PRIVATE,
         }),
       ).rejects.toThrow(
         new RpcException({
           status: HttpStatus.PRECONDITION_FAILED,
-          message: `Recruitment request must be approved to create a job posting. Current status: ${status}`,
+          message: `Campaign must be active to create a job posting. Current status: ${status}`,
         }),
       );
 
@@ -189,19 +190,19 @@ describe('JobPostingsService', () => {
     });
 
     it('rejects a second posting for the same recruitment request', async () => {
-      mockPrismaService.recruitmentRequest.findUnique.mockResolvedValue(approvedRequest);
+      mockPrismaService.recruitmentRequest.findUnique.mockResolvedValue(activeRequest);
       mockPrismaService.jobPosting.findUnique.mockResolvedValue({ id: 'existing-posting' });
 
       await expect(
         service.create({
-          requestId: approvedRequest.id,
+          requestId: activeRequest.id,
           requirements: {},
           visibility: JobVisibility.PRIVATE,
         }),
       ).rejects.toThrow(
         new RpcException({
           status: HttpStatus.CONFLICT,
-          message: `A job posting already exists for recruitment request ${approvedRequest.id}`,
+          message: `A job posting already exists for recruitment request ${activeRequest.id}`,
         }),
       );
 

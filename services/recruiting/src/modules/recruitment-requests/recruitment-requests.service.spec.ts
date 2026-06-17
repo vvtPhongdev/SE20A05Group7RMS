@@ -30,7 +30,7 @@ describe('RecruitmentRequestsService', () => {
       department: { id: 'dept-1', name: 'Engineering', code: 'ENG' },
       createdBy: { id: 'dept-head-1', displayName: 'Dept Head' },
       reviewedBy: { id: 'hr-1', displayName: 'HR Leader' },
-      status: RecruitmentRequestStatus.PENDING_REVIEW,
+      status: RecruitmentRequestStatus.PENDING_HR_REVIEW,
       urgency: 'MEDIUM',
       headcount: 1,
       applications: [],
@@ -122,7 +122,7 @@ describe('RecruitmentRequestsService', () => {
     });
     prisma.recruitmentRequest.update.mockResolvedValue({
       id: 'request-1',
-      status: RecruitmentRequestStatus.PENDING_REVIEW,
+      status: RecruitmentRequestStatus.PENDING_HR_REVIEW,
     });
     prisma.requestLog.create.mockResolvedValue({ id: 'log-1' });
 
@@ -134,7 +134,7 @@ describe('RecruitmentRequestsService', () => {
     expect(prisma.recruitmentRequest.update).toHaveBeenCalledWith({
       where: { id: 'request-1' },
       data: {
-        status: RecruitmentRequestStatus.PENDING_REVIEW,
+        status: RecruitmentRequestStatus.PENDING_HR_REVIEW,
         rejectionReason: null,
       },
     });
@@ -143,18 +143,22 @@ describe('RecruitmentRequestsService', () => {
         requestId: 'request-1',
         action: 'RESUBMITTED_FOR_REVIEW',
         fromStatus: RecruitmentRequestStatus.REVISION_NEEDED,
-        toStatus: RecruitmentRequestStatus.PENDING_REVIEW,
+        toStatus: RecruitmentRequestStatus.PENDING_HR_REVIEW,
         performedById: 'dept-head-1',
       },
     });
-    expect(result.status).toBe(RecruitmentRequestStatus.PENDING_REVIEW);
+    expect(result.status).toBe(RecruitmentRequestStatus.PENDING_HR_REVIEW);
   });
 
   it('records when the assigned HR manager forwards a request to Admin', async () => {
     prisma.recruitmentRequest.findUnique.mockResolvedValue({
       id: 'request-1',
       reviewedById: 'hr-1',
-      status: RecruitmentRequestStatus.PENDING_REVIEW,
+      status: RecruitmentRequestStatus.PENDING_HR_REVIEW,
+    });
+    prisma.recruitmentRequest.update.mockResolvedValue({
+      id: 'request-1',
+      status: RecruitmentRequestStatus.PENDING_BOSS_APPROVAL,
     });
     prisma.requestLog.create.mockResolvedValue({ id: 'log-1' });
 
@@ -163,12 +167,16 @@ describe('RecruitmentRequestsService', () => {
       hrManagerId: 'hr-1',
     });
 
+    expect(prisma.recruitmentRequest.update).toHaveBeenCalledWith({
+      where: { id: 'request-1' },
+      data: { status: RecruitmentRequestStatus.PENDING_BOSS_APPROVAL },
+    });
     expect(prisma.requestLog.create).toHaveBeenCalledWith({
       data: {
         requestId: 'request-1',
         action: 'HR_FORWARDED_TO_ADMIN',
-        fromStatus: RecruitmentRequestStatus.PENDING_REVIEW,
-        toStatus: RecruitmentRequestStatus.PENDING_REVIEW,
+        fromStatus: RecruitmentRequestStatus.PENDING_HR_REVIEW,
+        toStatus: RecruitmentRequestStatus.PENDING_BOSS_APPROVAL,
         performedById: 'hr-1',
       },
     });
@@ -178,7 +186,7 @@ describe('RecruitmentRequestsService', () => {
     prisma.recruitmentRequest.findUnique.mockResolvedValue({
       id: 'request-1',
       reviewedById: 'hr-1',
-      status: RecruitmentRequestStatus.PENDING_REVIEW,
+      status: RecruitmentRequestStatus.PENDING_HR_REVIEW,
     });
     prisma.requestLog.findFirst
       .mockResolvedValueOnce({ createdAt: new Date('2026-06-15T08:00:00.000Z') })

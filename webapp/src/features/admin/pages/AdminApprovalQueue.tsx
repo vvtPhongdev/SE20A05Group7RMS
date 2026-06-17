@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest } from '../../../lib/api';
 import {
@@ -34,6 +34,15 @@ interface ApprovalRequest {
   justification: string;
   skillRequirements: Record<string, unknown>;
   rejectionReason?: string | null;
+  planTasks?: Array<{
+    id: string;
+    taskType: string;
+    status: string;
+    startDate: string;
+    endDate: string;
+    assignedTo?: { id: string; displayName: string; email?: string; role?: string } | null;
+  }>;
+  planWindow?: string;
 }
 const filters: FilterKey[] = ['All', 'Pending', 'Revision', 'Approved', 'Rejected', 'Draft'];
 const approvalTypeFilters: Array<{ key: ApprovalTypeFilter; label: string }> = [
@@ -42,6 +51,11 @@ const approvalTypeFilters: Array<{ key: ApprovalTypeFilter; label: string }> = [
   { key: 'PLAN', label: 'Plan Approval' },
 ];
 const ADMIN_PLAN_STATUSES = new Set(['PENDING_APPROVAL', 'APPROVED', 'REJECTED']);
+const ADMIN_REQUEST_STATUSES = new Set([
+  'PENDING_BOSS_APPROVAL',
+  'APPROVED',
+  'REJECTED',
+]);
 
 interface RecruitmentRequestApi {
   id: string;
@@ -61,8 +75,25 @@ interface RecruitmentRequestApi {
     id: string;
     status: string;
     revisionNotes?: string | null;
+    startDate?: string;
+    endDate?: string;
+    tasks?: Array<{
+      id: string;
+      taskType: string;
+      status: string;
+      startDate: string;
+      endDate: string;
+      assignedTo?: { id: string; displayName: string; email?: string; role?: string } | null;
+    }>;
   } | null;
 }
+
+const TASK_TYPE_LABELS: Record<string, string> = {
+  JOB_POSTING: 'Publish job posting',
+  CV_COLLECTION: 'Collect candidate CVs',
+  CV_SCREENING: 'Screen incoming CVs',
+  INTERVIEW_COORDINATION: 'Coordinate interviews',
+};
 
 export const AdminApprovalQueue: React.FC = () => {
   const { token } = useAuth();
@@ -82,6 +113,8 @@ export const AdminApprovalQueue: React.FC = () => {
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [reviewAction, setReviewAction] = useState<ReviewAction | null>(null);
   const [reviewNotes, setReviewNotes] = useState('');
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const notificationRef = useRef<HTMLDivElement | null>(null);
   const [reviewForm, setReviewForm] = useState({
     positionTitle: '',
     headcount: 1,
@@ -104,11 +137,15 @@ export const AdminApprovalQueue: React.FC = () => {
         if (cancelled) return;
         setRequests(
           response.data
-            .filter(
-              (request) =>
-                ADMIN_PLAN_STATUSES.has(request.overallPlan?.status ?? '') ||
-                request.forwardedToAdmin,
-            )
+            .filter((request) => {
+              const isPlanApproval = ADMIN_PLAN_STATUSES.has(request.overallPlan?.status ?? '');
+              const isForwardedRequest =
+                ADMIN_REQUEST_STATUSES.has(request.status) ||
+                (request.status === 'REVISION_NEEDED' && request.forwardedToAdmin) ||
+                (request.status === 'PENDING_REVIEW' && request.forwardedToAdmin);
+
+              return isPlanApproval || isForwardedRequest;
+            })
             .map((request) => {
               const planStatus = request.overallPlan?.status;
               const isPlanApproval = ADMIN_PLAN_STATUSES.has(planStatus ?? '');
@@ -130,7 +167,8 @@ export const AdminApprovalQueue: React.FC = () => {
                     : planStatus === 'APPROVED'
                       ? 'Approved'
                       : 'Rejected'
-                  : request.status === 'PENDING_REVIEW'
+                  : request.status === 'PENDING_BOSS_APPROVAL' ||
+                      (request.status === 'PENDING_REVIEW' && request.forwardedToAdmin)
                     ? 'Pending'
                     : request.status === 'REVISION_NEEDED'
                       ? 'Revision'
@@ -150,6 +188,13 @@ export const AdminApprovalQueue: React.FC = () => {
                 justification: request.justification,
                 skillRequirements: request.skillRequirements ?? {},
                 rejectionReason: request.rejectionReason,
+                planTasks: request.overallPlan?.tasks ?? [],
+                planWindow:
+                  request.overallPlan?.startDate && request.overallPlan?.endDate
+                    ? `${new Date(request.overallPlan.startDate).toLocaleDateString()} - ${new Date(
+                        request.overallPlan.endDate,
+                      ).toLocaleDateString()}`
+                    : undefined,
               };
             }),
         );
@@ -196,6 +241,37 @@ export const AdminApprovalQueue: React.FC = () => {
     [requests],
   );
 
+  const notificationItems = useMemo(
+    () =>
+      requests
+        .filter((request) => request.status === 'Pending' || request.status === 'Revision')
+        .slice(0, 6),
+    [requests],
+  );
+
+  useEffect(() => {
+    if (!isNotificationOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!notificationRef.current?.contains(event.target as Node)) {
+        setIsNotificationOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsNotificationOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isNotificationOpen]);
+
   const filteredRequests = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
@@ -225,6 +301,11 @@ export const AdminApprovalQueue: React.FC = () => {
   const handleOpenDrawer = (request: ApprovalRequest) => {
     setSelectedRequest(request);
     setIsDrawerOpen(true);
+  };
+
+  const handleOpenNotificationItem = (request: ApprovalRequest) => {
+    setIsNotificationOpen(false);
+    handleOpenDrawer(request);
   };
 
   const handleCloseDrawer = () => {
@@ -369,10 +450,90 @@ export const AdminApprovalQueue: React.FC = () => {
               placeholder="Search requests..."
               value={query}
             />
-            <div className="relative flex cursor-pointer items-center rounded-full p-2 text-on-surface-variant transition-colors hover:bg-surface-container-low">
-              <span className="material-symbols-outlined">notifications</span>
-              {counts.Pending > 0 && (
-                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full border-2 border-background bg-rejected"></span>
+            <div className="relative" ref={notificationRef}>
+              <button
+                aria-expanded={isNotificationOpen}
+                aria-haspopup="dialog"
+                aria-label="Open admin notifications"
+                className="relative flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container-low focus:outline-none focus:ring-2 focus:ring-teal-command/30"
+                onClick={() => setIsNotificationOpen((current) => !current)}
+                type="button"
+              >
+                <span className="material-symbols-outlined">notifications</span>
+                {notificationItems.length > 0 && (
+                  <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full border-2 border-background bg-rejected"></span>
+                )}
+              </button>
+
+              {isNotificationOpen && (
+                <div
+                  className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-border-warm bg-clean-surface shadow-xl"
+                  role="dialog"
+                  aria-label="Admin notifications"
+                >
+                  <div className="flex items-center justify-between border-b border-border-warm bg-workflow-ivory px-4 py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-deep-charcoal">Notifications</p>
+                      <p className="mt-0.5 text-xs text-on-surface-variant">
+                        {notificationItems.length > 0
+                          ? `${notificationItems.length} approval updates need attention`
+                          : 'No approvals need attention'}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-teal-command/10 px-2.5 py-1 text-xs font-bold text-teal-command">
+                      {notificationItems.length}
+                    </span>
+                  </div>
+
+                  <div className="max-h-80 overflow-y-auto py-2">
+                    {notificationItems.length > 0 ? (
+                      notificationItems.map((request) => (
+                        <button
+                          className="flex w-full gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-container-low"
+                          key={request.id}
+                          onClick={() => handleOpenNotificationItem(request)}
+                          type="button"
+                        >
+                          <span
+                            className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${
+                              request.status === 'Revision' ? 'bg-revision' : 'bg-pending'
+                            }`}
+                          ></span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex items-center gap-2">
+                              <span className="truncate text-sm font-semibold text-deep-charcoal">
+                                {request.position}
+                              </span>
+                              <span className="shrink-0 rounded-full bg-surface-container-high px-2 py-0.5 text-[11px] font-bold uppercase text-slate-ink">
+                                {request.approvalType === 'PLAN' ? 'Plan' : 'Request'}
+                              </span>
+                            </span>
+                            <span className="mt-1 block text-xs leading-5 text-on-surface-variant">
+                              {request.department} / {request.requestedBy}
+                            </span>
+                            <span className="mt-1 block text-xs font-semibold text-teal-command">
+                              {request.status === 'Revision'
+                                ? 'Revision requested'
+                                : 'Waiting for admin review'}
+                            </span>
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-4 py-8 text-center">
+                        <span className="material-symbols-outlined text-3xl text-on-surface-variant">
+                          notifications_off
+                        </span>
+                        <p className="mt-2 text-sm font-semibold text-deep-charcoal">
+                          All caught up
+                        </p>
+                        <p className="mt-1 text-xs text-on-surface-variant">
+                          New request or plan approvals will appear here.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           </>
@@ -860,6 +1021,66 @@ export const AdminApprovalQueue: React.FC = () => {
                   {selectedRequest.description}
                 </p>
               </div>
+
+              {selectedRequest.approvalType === 'PLAN' ? (
+                <div className="rounded-lg border border-border-warm bg-workflow-ivory p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-label-sm text-label-sm font-semibold uppercase text-on-surface-variant">
+                        Campaign Task Plan
+                      </p>
+                      <p className="mt-1 text-xs text-slate-ink">
+                        {selectedRequest.planWindow ?? 'Plan window not available'}
+                      </p>
+                    </div>
+                    <span className="rounded-full border border-border-warm bg-clean-surface px-2.5 py-1 text-xs font-bold text-deep-charcoal">
+                      {selectedRequest.planTasks?.length ?? 0} tasks
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {(selectedRequest.planTasks ?? []).map((task) => (
+                      <div
+                        className="rounded border border-border-warm bg-clean-surface p-3 text-sm"
+                        key={task.id}
+                      >
+                        <div className="min-w-0">
+                          <p className="break-words font-semibold leading-5 text-deep-charcoal">
+                            {TASK_TYPE_LABELS[task.taskType] ?? task.taskType}
+                          </p>
+                          <p className="mt-0.5 text-xs text-on-surface-variant">
+                            {task.assignedTo?.role === 'HR_RECRUITER'
+                              ? task.assignedTo.displayName
+                              : 'Recruiter will be assigned after approval'}
+                          </p>
+                        </div>
+                        <div className="mt-3 grid grid-cols-2 gap-3 border-t border-border-warm pt-3">
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-semibold uppercase text-on-surface-variant">
+                              Start
+                            </p>
+                            <p className="font-mono text-xs text-slate-ink">
+                              {new Date(task.startDate).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-semibold uppercase text-on-surface-variant">
+                              Due Date
+                            </p>
+                            <p className="font-mono text-xs font-semibold text-teal-command">
+                              {new Date(task.endDate).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {selectedRequest.planTasks?.length === 0 ? (
+                      <p className="rounded border border-border-warm bg-clean-surface p-3 text-sm text-on-surface-variant">
+                        No tasks were submitted with this plan.
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
 
               {/* Attachments */}
               {selectedRequest.documents && selectedRequest.documents.length > 0 && (

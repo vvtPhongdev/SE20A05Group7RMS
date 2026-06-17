@@ -1,5 +1,5 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { AuditAction, AuditEntityType, TaskStatus, TaskType } from '@wr/contracts';
+import { RpcException } from '@nestjs/microservices';
+import { AuditAction, AuditEntityType, PlanStatus, TaskStatus, TaskType } from '@wr/contracts';
 import { TaskPlanService } from './task-plan.service';
 
 describe('TaskPlanService', () => {
@@ -11,6 +11,9 @@ describe('TaskPlanService', () => {
       create: jest.fn(),
       findUnique: jest.fn(),
       update: jest.fn(),
+    },
+    user: {
+      findUnique: jest.fn(),
     },
   };
 
@@ -24,13 +27,18 @@ describe('TaskPlanService', () => {
     }),
   };
 
-  const service = new TaskPlanService(prisma as any, auditLog as any, notificationClient as any);
+  const service = new TaskPlanService(prisma as any, auditLog as any);
 
   beforeEach(() => {
     jest.clearAllMocks();
     auditLog.log.mockResolvedValue(undefined);
     notificationClient.send.mockReturnValue({
       subscribe: jest.fn(),
+    });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      role: 'HR_RECRUITER',
+      isActive: true,
     });
   });
 
@@ -44,7 +52,7 @@ describe('TaskPlanService', () => {
           startDate: '2026-07-01',
           endDate: '2026-07-10',
         }),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(RpcException);
     });
 
     it('throws if the overall plan does not exist', async () => {
@@ -58,11 +66,16 @@ describe('TaskPlanService', () => {
           startDate: '2026-07-01',
           endDate: '2026-07-10',
         }),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow(RpcException);
     });
 
     it('throws if endDate is not after startDate', async () => {
-      prisma.overallPlan.findUnique.mockResolvedValue({ id: 'plan-1' });
+      prisma.overallPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        status: PlanStatus.DRAFT,
+        startDate: new Date('2026-07-01'),
+        endDate: new Date('2026-07-31'),
+      });
 
       await expect(
         service.create({
@@ -72,11 +85,35 @@ describe('TaskPlanService', () => {
           startDate: '2026-07-10',
           endDate: '2026-07-01',
         }),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(RpcException);
+    });
+
+    it('throws if task dates fall outside the overall plan timeline', async () => {
+      prisma.overallPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        status: PlanStatus.DRAFT,
+        startDate: new Date('2026-07-01'),
+        endDate: new Date('2026-07-31'),
+      });
+
+      await expect(
+        service.create({
+          overallPlanId: 'plan-1',
+          taskType: TaskType.JOB_POSTING,
+          assignedToId: 'user-1',
+          startDate: '2026-06-30',
+          endDate: '2026-07-10',
+        }),
+      ).rejects.toThrow(RpcException);
     });
 
     it('creates a task and writes a TASK_PLAN_ASSIGNED audit log', async () => {
-      prisma.overallPlan.findUnique.mockResolvedValue({ id: 'plan-1' });
+      prisma.overallPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        status: PlanStatus.DRAFT,
+        startDate: new Date('2026-07-01'),
+        endDate: new Date('2026-07-31'),
+      });
       prisma.taskPlan.create.mockResolvedValue({ id: 'task-1', status: TaskStatus.PENDING });
 
       const result = await service.create({
@@ -100,7 +137,12 @@ describe('TaskPlanService', () => {
     });
 
     it('uses performedById over assignedToId for the audit log when provided', async () => {
-      prisma.overallPlan.findUnique.mockResolvedValue({ id: 'plan-1' });
+      prisma.overallPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        status: PlanStatus.DRAFT,
+        startDate: new Date('2026-07-01'),
+        endDate: new Date('2026-07-31'),
+      });
       prisma.taskPlan.create.mockResolvedValue({ id: 'task-1', status: TaskStatus.PENDING });
 
       await service.create({
@@ -117,18 +159,18 @@ describe('TaskPlanService', () => {
       );
     });
 
-    it('sends an email notification if the assigned user has an email address', async () => {
-      prisma.overallPlan.findUnique.mockResolvedValue({ id: 'plan-1' });
+    it('does not send assignment email while the plan is still being drafted', async () => {
+      prisma.overallPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        status: PlanStatus.DRAFT,
+        startDate: new Date('2026-07-01'),
+        endDate: new Date('2026-07-31'),
+      });
       prisma.taskPlan.create.mockResolvedValue({
         id: 'task-1',
         status: TaskStatus.PENDING,
         assignedToId: 'user-1',
         assignedTo: { id: 'user-1', displayName: 'Lisa Thompson', email: 'recruiter1@acme.com' },
-      });
-
-      const subscribeMock = jest.fn();
-      notificationClient.send.mockReturnValue({
-        subscribe: subscribeMock,
       });
 
       await service.create({
@@ -139,15 +181,7 @@ describe('TaskPlanService', () => {
         endDate: '2026-07-10',
       });
 
-      expect(notificationClient.send).toHaveBeenCalledWith(
-        'notification.send_email',
-        expect.objectContaining({
-          userId: 'user-1',
-          toEmail: 'recruiter1@acme.com',
-          subject: expect.stringContaining(TaskType.JOB_POSTING),
-        }),
-      );
-      expect(subscribeMock).toHaveBeenCalled();
+      expect(notificationClient.send).not.toHaveBeenCalled();
     });
   });
 
@@ -155,7 +189,7 @@ describe('TaskPlanService', () => {
     it('throws if status is invalid', async () => {
       await expect(
         service.updateStatus({ id: 'task-1', status: 'INVALID', performedById: 'user-1' }),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(RpcException);
     });
 
     it('throws if the task does not exist', async () => {
@@ -167,7 +201,7 @@ describe('TaskPlanService', () => {
           status: TaskStatus.IN_PROGRESS,
           performedById: 'user-1',
         }),
-      ).rejects.toThrow(NotFoundException);
+      ).rejects.toThrow(RpcException);
     });
 
     it('updates status and writes a TASK_PLAN_STATUS_CHANGED audit log', async () => {

@@ -13,14 +13,28 @@ export class ApplicationsController {
   @UseGuards(PlanLockedGuard)
   @PlanLocked(TaskType.CV_COLLECTION)
   async createApplication(
-    @Payload() payload: { requestId: string; candidateId?: string; userId?: string },
+    @Payload()
+    payload: {
+      requestId: string;
+      candidateId?: string;
+      userId?: string;
+      actorUserId?: string;
+      actorRole?: string;
+    },
   ) {
     return this.service.create(payload);
   }
 
   @MessagePattern('applications.list')
   async listApplications(
-    @Payload() payload: { candidateId?: string; requestId?: string; status?: string },
+    @Payload()
+    payload: {
+      candidateId?: string;
+      requestId?: string;
+      status?: string;
+      userId?: string;
+      userRole?: string;
+    },
   ) {
     return this.service.list(payload);
   }

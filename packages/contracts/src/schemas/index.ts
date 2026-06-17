@@ -37,7 +37,10 @@ export const RegisterUserSchema = z.object({
 });
 
 export const LoginSchema = z.object({
-  email: z.string().email(),
+  email: z.preprocess(
+    (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
+    z.string().email(),
+  ),
   password: z.string().min(1),
 });
 
@@ -177,7 +180,7 @@ export const UpdateOverallPlanSchema = z.object({
 export const CreateTaskPlanSchema = z.object({
   overallPlanId: z.string().uuid(),
   taskType: z.nativeEnum(TaskType),
-  assignedToId: z.string().uuid(),
+  assignedToId: z.string().uuid().optional(),
   startDate: z.string().datetime(),
   endDate: z.string().datetime(),
 });

@@ -18,6 +18,8 @@ export class TalentSearchController {
       query: string;
       filters?: Record<string, unknown>;
       pagination?: { page: number; pageSize: number };
+      actorUserId?: string;
+      actorRole?: string;
     },
   ) {
     return this.service.search(payload);

@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { embeddingToPgVector, getEmbedding } from '@wr/ai';
 import { AuditLogService } from '@wr/database';
 import { AuditAction, AuditEntityType, EmbeddingGenerateJobPayload } from '@wr/contracts';
 import { config } from '../config';
@@ -14,7 +15,7 @@ const auditLog = new AuditLogService(prisma);
 /**
  * Process a CV embedding generation job.
  *   1️⃣ Retrieve the CV record (optional sanity check).
- *   2️⃣ Generate a 384‑dimensional embedding using @xenova/transformers (all‑MiniLM‑L6‑v2).
+ *   2️⃣ Generate a 384-dimensional embedding using the local RMS ONNX model.
  *   3️⃣ Upsert CvEmbedding metadata (chunkIndex, chunkText, model).
  *   4️⃣ Store the vector in the pgvector column via raw SQL.
  */
@@ -27,23 +28,9 @@ export async function processCvEmbeddingJob(payload: EmbeddingGenerateJobPayload
     throw new Error(`CV document ${cvDocumentId} not found`);
   }
 
-  // Idempotency check: check if embedding already exists for cvDocumentId
-  const existingEmbedding = await prisma.cvEmbedding.findFirst({
-    where: { cvDocumentId }
-  });
+  const embedding = await getEmbedding(rawText);
 
-  if (existingEmbedding) {
-    logger.log(`[Idempotency] CvEmbedding for CV document ${cvDocumentId} already exists. Skipping job.`);
-    return;
-  }
-
-  // Load transformer model lazily
-  const { pipeline } = await import('@xenova/transformers' as string);
-  const extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
-  const output = await extractor(rawText, { pooling: 'mean', normalize: true });
-  const embedding = Array.from(output.data as Float32Array) as number[];
-
-  // Delete any existing embeddings for this document to avoid duplication
+  // Replace existing embeddings so profile-enriched CV text refreshes vector search.
   await prisma.cvEmbedding.deleteMany({
     where: { cvDocumentId },
   });
@@ -59,10 +46,9 @@ export async function processCvEmbeddingJob(payload: EmbeddingGenerateJobPayload
   });
 
   // Store vector in pgvector column via raw SQL
-  const vectorStr = `[${embedding.join(',')}]`;
   await prisma.$executeRawUnsafe(
     `UPDATE cv_embeddings SET embedding = $1::vector WHERE id = $2`,
-    vectorStr,
+    embeddingToPgVector(embedding),
     record.id,
   );
 

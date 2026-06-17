@@ -32,6 +32,7 @@
     "@wr/contracts": "*",
     "@wr/config": "*",
     "@wr/logger": "*",
+    "@wr/storage": "*",
     "helmet": "^8.0.0",
     "@nestjs/throttler": "^6.4.0"
   },

@@ -4,7 +4,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { apiRequest, ApiError } from '../../../lib/api';
 
 type RequestUrgency = 'Critical' | 'High' | 'Normal' | 'Low';
-type QueueStatus = 'PENDING' | 'UNDER_REVIEW' | 'FORWARDED' | 'APPROVED' | 'RETURNED';
+type QueueStatus = 'PENDING' | 'FORWARDED' | 'APPROVED' | 'RETURNED';
 
 type RecruitmentRequest = {
   id: string;
@@ -39,6 +39,14 @@ interface RecruitmentRequestApiItem {
   jobDescription: string;
   skillRequirements: Record<string, unknown> | null;
   justification: string;
+  hrSuggestedChanges?: {
+    positionTitle?: string;
+    headcount?: number;
+    jobDescription?: string;
+    justification?: string;
+    urgency?: string;
+    skillRequirements?: Record<string, unknown> | null;
+  } | null;
   forwardedToAdmin?: boolean;
   createdAt: string;
   updatedAt: string;
@@ -60,10 +68,16 @@ const formatDate = (value: string) =>
   new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(value));
 
 const mapRequest = (item: RecruitmentRequestApiItem): RecruitmentRequest => {
-  const skills = (item.skillRequirements ?? {}) as Record<string, unknown>;
+  const suggested = item.hrSuggestedChanges ?? null;
+  const skills = ((suggested?.skillRequirements ?? item.skillRequirements ?? {}) || {}) as Record<
+    string,
+    unknown
+  >;
   const employmentType = skills.employmentType === 'Internship' ? 'Internship' : 'Full-time';
   const salaryMin = skills.salaryMin as string | number | undefined;
   const salaryMax = skills.salaryMax as string | number | undefined;
+  const ownerId = item.owner?.id ?? item.reviewedBy?.id ?? null;
+  const ownerName = item.owner?.displayName ?? item.reviewedBy?.displayName ?? null;
 
   let budget = 'N/A';
   let budgetLabel = 'Monthly Budget';
@@ -73,34 +87,40 @@ const mapRequest = (item: RecruitmentRequestApiItem): RecruitmentRequest => {
   }
 
   let status: QueueStatus = 'FORWARDED';
-  if (item.status === 'APPROVED') status = 'APPROVED';
-  else if (item.status === 'PENDING_REVIEW')
+  if (item.status === 'APPROVED') {
+    status = 'APPROVED';
+  } else if (item.status === 'PENDING_HR_REVIEW') {
+    status = 'PENDING';
+  } else if (item.status === 'PENDING_BOSS_APPROVAL') {
+    status = 'FORWARDED';
+  } else if (item.status === 'PENDING_REVIEW') {
     status = item.forwardedToAdmin ? 'FORWARDED' : 'PENDING';
-  else if (item.status === 'REVISION_NEEDED') status = 'RETURNED';
+  } else if (item.status === 'REVISION_NEEDED') {
+    status = 'RETURNED';
+  }
 
   return {
     id: item.id,
-    position: item.position,
+    position: suggested?.positionTitle ?? item.position,
     department: item.department?.name ?? 'Unknown',
     requestedBy: item.requester?.displayName ?? 'Unknown',
     submittedDate: formatDate(item.createdAt),
-    headcount: item.headcount,
+    headcount: suggested?.headcount ?? item.headcount,
     type: employmentType,
     budget,
     budgetLabel,
-    urgency: URGENCY_MAP[item.urgency] ?? 'Normal',
+    urgency: URGENCY_MAP[suggested?.urgency ?? item.urgency] ?? 'Normal',
     status,
-    justification: item.justification,
-    jobDescription: item.jobDescription,
+    justification: suggested?.justification ?? item.justification,
+    jobDescription: suggested?.jobDescription ?? item.jobDescription,
     skillsRequired: Array.isArray(skills.skills) ? (skills.skills as string[]) : [],
-    ownerId: item.owner?.id ?? item.reviewedBy?.id ?? null,
-    ownerName: item.owner?.displayName ?? item.reviewedBy?.displayName ?? null,
+    ownerId,
+    ownerName,
   };
 };
 
 const statusTabs: Array<{ key: QueueStatus; label: string }> = [
   { key: 'PENDING', label: 'Pending Review' },
-  { key: 'UNDER_REVIEW', label: 'Under Review' },
   { key: 'FORWARDED', label: 'Forwarded to Admin' },
   { key: 'APPROVED', label: 'Approved' },
   { key: 'RETURNED', label: 'Returned' },
@@ -190,10 +210,6 @@ export const HRRequestQueue: React.FC = () => {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState('');
 
-  const [rejectionTarget, setRejectionTarget] = useState<RecruitmentRequest | null>(null);
-  const [rejectionComments, setRejectionComments] = useState('');
-  const [rejectionSubmitting, setRejectionSubmitting] = useState(false);
-  const [rejectionError, setRejectionError] = useState('');
   const [claimSubmittingId, setClaimSubmittingId] = useState<string | null>(null);
 
   const loadRequests = async () => {
@@ -249,13 +265,6 @@ export const HRRequestQueue: React.FC = () => {
 
   const openReview = (request: RecruitmentRequest) => {
     setSelectedRequest(request);
-    if (request.status === 'PENDING') {
-      setRequests((current) =>
-        current.map((item) =>
-          item.id === request.id ? { ...item, status: 'UNDER_REVIEW' } : item,
-        ),
-      );
-    }
   };
 
   const openCreatePlan = (requestId: string) => {
@@ -354,25 +363,30 @@ export const HRRequestQueue: React.FC = () => {
         .map((s) => s.trim())
         .filter(Boolean);
 
-      const updated = await apiRequest<RecruitmentRequestApiItem>(
-        `/recruitment-requests/${selectedRequest.id}`,
-        token,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({
-            positionTitle: editForm.positionTitle,
-            headcount: editForm.headcount,
-            justification: editForm.justification,
-            jobDescription: editForm.jobDescription,
-            urgency: editForm.urgency,
-            skillRequirements: {
-              skills: skillsArray,
-            },
-          }),
-        },
-      );
+      await apiRequest(`/recruitment-requests/${selectedRequest.id}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          positionTitle: editForm.positionTitle,
+          headcount: editForm.headcount,
+          justification: editForm.justification,
+          jobDescription: editForm.jobDescription,
+          urgency: editForm.urgency,
+          skillRequirements: {
+            skills: skillsArray,
+          },
+        }),
+      });
 
-      const mapped = mapRequest(updated);
+      const mapped: RecruitmentRequest = {
+        ...selectedRequest,
+        position: editForm.positionTitle,
+        headcount: editForm.headcount,
+        justification: editForm.justification,
+        jobDescription: editForm.jobDescription,
+        urgency: URGENCY_MAP[editForm.urgency] ?? selectedRequest.urgency,
+        skillsRequired: skillsArray,
+        status: 'PENDING',
+      };
       setRequests((current) =>
         current.map((item) => (item.id === selectedRequest.id ? mapped : item)),
       );
@@ -382,29 +396,6 @@ export const HRRequestQueue: React.FC = () => {
       setEditError(err instanceof ApiError ? err.message : 'Unable to save request changes');
     } finally {
       setEditSubmitting(false);
-    }
-  };
-
-  const rejectRequest = async () => {
-    if (!rejectionTarget || !rejectionComments.trim()) return;
-    setRejectionSubmitting(true);
-    setRejectionError('');
-    try {
-      await apiRequest(`/recruitment-requests/${rejectionTarget.id}/decision`, token, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          decision: 'REJECTED',
-          comments: rejectionComments.trim(),
-        }),
-      });
-      await loadRequests();
-      setRejectionTarget(null);
-      setSelectedRequest(null);
-      setRejectionComments('');
-    } catch (err) {
-      setRejectionError(err instanceof ApiError ? err.message : 'Unable to reject request');
-    } finally {
-      setRejectionSubmitting(false);
     }
   };
 
@@ -633,7 +624,7 @@ export const HRRequestQueue: React.FC = () => {
                             <Icon className="h-4 w-4" name="campaign" />
                             Create Plan
                           </button>
-                        ) : request.status !== 'RETURNED' ? (
+                        ) : request.status === 'PENDING' ? (
                           <button
                             className="h-10 rounded-lg border border-teal-command px-4 text-sm font-semibold text-teal-command transition hover:bg-teal-command hover:text-white active:scale-[0.98]"
                             onClick={() => setRevisionTarget(request)}
@@ -1041,9 +1032,17 @@ export const HRRequestQueue: React.FC = () => {
                           <Icon className="h-4 w-4" name="campaign" />
                           Create Plan
                         </button>
+                      ) : selectedRequest.status === 'FORWARDED' ? (
+                        <div className="rounded-lg border border-border-warm bg-clean-surface p-3 text-center text-sm font-medium text-secondary">
+                          This request has been forwarded to Admin for approval.
+                        </div>
+                      ) : selectedRequest.status === 'RETURNED' ? (
+                        <div className="rounded-lg border border-border-warm bg-clean-surface p-3 text-center text-sm font-medium text-secondary">
+                          This request is waiting for Department Head revision.
+                        </div>
                       ) : (
                         <>
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 gap-3">
                             <button
                               className="h-10 rounded-lg border border-teal-command px-4 text-sm font-semibold text-teal-command transition hover:bg-teal-command hover:text-white active:scale-[0.98]"
                               onClick={startEditing}
@@ -1051,28 +1050,15 @@ export const HRRequestQueue: React.FC = () => {
                             >
                               Edit Details
                             </button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
                             <button
-                              className="h-10 rounded-lg bg-rejected text-sm font-semibold text-white transition hover:bg-red-700 active:scale-[0.98]"
-                              onClick={() => setRejectionTarget(selectedRequest)}
+                              className="h-10 rounded-lg border border-border-warm bg-clean-surface text-sm font-semibold text-slate-ink transition hover:border-teal-command hover:text-teal-command active:scale-[0.98]"
+                              onClick={() => setRevisionTarget(selectedRequest)}
                               type="button"
                             >
-                              Reject Request
+                              Return for Revision
                             </button>
-                          </div>
-                          <div
-                            className={`grid gap-3 ${
-                              selectedRequest.status === 'RETURNED' ? 'grid-cols-1' : 'grid-cols-2'
-                            }`}
-                          >
-                            {selectedRequest.status !== 'RETURNED' ? (
-                              <button
-                                className="h-10 rounded-lg border border-border-warm bg-clean-surface text-sm font-semibold text-slate-ink transition hover:border-teal-command hover:text-teal-command active:scale-[0.98]"
-                                onClick={() => setRevisionTarget(selectedRequest)}
-                                type="button"
-                              >
-                                Return for Revision
-                              </button>
-                            ) : null}
                             <button
                               className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-deep-charcoal text-sm font-semibold text-white transition hover:bg-slate-ink active:scale-[0.98]"
                               onClick={() => forwardToAdmin(selectedRequest.id)}
@@ -1161,72 +1147,6 @@ export const HRRequestQueue: React.FC = () => {
                 type="button"
               >
                 {revisionSubmitting ? 'Returning...' : 'Return to Dept Head'}
-              </button>
-            </footer>
-          </section>
-        </div>
-      ) : null}
-
-      {rejectionTarget ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-deep-charcoal/40 p-4 backdrop-blur-sm">
-          <section className="w-full max-w-[480px] overflow-hidden rounded-xl border border-border-warm bg-clean-surface shadow-2xl">
-            <header className="flex items-center justify-between border-b border-border-warm bg-workflow-ivory/60 px-6 py-4">
-              <h2 className="font-semibold text-deep-charcoal">Reject Recruitment Request</h2>
-              <button
-                className="rounded-full p-1.5 text-on-surface-variant transition hover:bg-surface-variant hover:text-deep-charcoal"
-                onClick={() => {
-                  setRejectionTarget(null);
-                  setRejectionComments('');
-                  setRejectionError('');
-                }}
-                type="button"
-              >
-                <span className="sr-only">Close rejection modal</span>
-                <Icon className="h-4 w-4" name="close" />
-              </button>
-            </header>
-            <div className="space-y-4 p-6">
-              <p className="text-sm leading-6 text-secondary">
-                Please provide rejection comments for request #{rejectionTarget.id.slice(0, 8)}.
-                These comments will be recorded in the decision log.
-              </p>
-              {rejectionError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-rejected">
-                  {rejectionError}
-                </div>
-              )}
-              <label className="block">
-                <span className="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">
-                  Rejection Comments
-                </span>
-                <textarea
-                  className="w-full resize-none rounded-lg border border-border-warm bg-clean-surface p-3 text-sm outline-none transition placeholder:text-on-surface-variant focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                  onChange={(event) => setRejectionComments(event.target.value)}
-                  placeholder="Provide comments explaining the rejection reasons..."
-                  rows={4}
-                  value={rejectionComments}
-                />
-              </label>
-            </div>
-            <footer className="flex justify-end gap-3 border-t border-border-warm bg-workflow-ivory/60 px-6 py-4">
-              <button
-                className="h-10 rounded-lg border border-border-warm px-4 text-sm font-semibold text-secondary transition hover:bg-surface-variant/40 active:scale-[0.98]"
-                onClick={() => {
-                  setRejectionTarget(null);
-                  setRejectionComments('');
-                  setRejectionError('');
-                }}
-                type="button"
-              >
-                Cancel
-              </button>
-              <button
-                className="h-10 rounded-lg bg-rejected px-5 text-sm font-bold text-white transition hover:bg-red-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!rejectionComments.trim() || rejectionSubmitting}
-                onClick={() => void rejectRequest()}
-                type="button"
-              >
-                {rejectionSubmitting ? 'Rejecting...' : 'Reject Request'}
               </button>
             </footer>
           </section>

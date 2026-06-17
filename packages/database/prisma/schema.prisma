@@ -49,6 +49,7 @@ model User {
   emails           EmailLog[]
   offersGenerated  OfferLetter[]        @relation("GeneratedOffers")
   interviewResults InterviewResult[]
+  applicationsCollected Application[]    @relation("CollectedApplications")
 
   @@index([organizationId], map: "idx_users_organization")
   @@index([departmentId], map: "idx_users_department")
@@ -428,18 +429,21 @@ model EmailLog {
 }
 
 model Application {
-  id          String   @id @default(uuid())
-  requestId   String   @map("request_id")
-  candidateId String   @map("candidate_id")
-  status      String   @default("SUBMITTED") // e.g. SUBMITTED, SCREENING, INTERVIEWING, OFFER_EXTENDED, OFFER_ACCEPTED, REJECTED
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id            String   @id @default(uuid())
+  requestId     String   @map("request_id")
+  candidateId   String   @map("candidate_id")
+  collectedById String?  @map("collected_by_id")
+  status        String   @default("SUBMITTED") // e.g. SUBMITTED, SCREENING, INTERVIEWING, OFFER_EXTENDED, OFFER_ACCEPTED, REJECTED
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   request   RecruitmentRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
   candidate CandidateProfile   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  collectedBy User?            @relation("CollectedApplications", fields: [collectedById], references: [id], onDelete: SetNull)
 
   @@unique([requestId, candidateId], map: "uq_applications_request_candidate")
   @@index([requestId], map: "idx_applications_request")
   @@index([candidateId], map: "idx_applications_candidate")
+  @@index([collectedById], map: "idx_applications_collected_by")
   @@map("applications")
 }

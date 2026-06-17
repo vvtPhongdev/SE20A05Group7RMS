@@ -215,6 +215,69 @@ interface Education {
   year: string;
 }
 
+type AvatarFit = 'cover' | 'contain';
+type AvatarPosition = 'center' | 'top' | 'bottom' | 'left' | 'right';
+
+type AvatarFrame = {
+  fit: AvatarFit;
+  position: AvatarPosition;
+  x: number;
+  y: number;
+  zoom: number;
+};
+
+const avatarFitOptions: { value: AvatarFit; label: string }[] = [
+  { value: 'cover', label: 'Cover' },
+  { value: 'contain', label: 'Fit' },
+];
+
+const avatarPositionOptions: { value: AvatarPosition; label: string }[] = [
+  { value: 'center', label: 'Center' },
+  { value: 'top', label: 'Top' },
+  { value: 'bottom', label: 'Bottom' },
+  { value: 'left', label: 'Left' },
+  { value: 'right', label: 'Right' },
+];
+
+const avatarPositionCoordinates: Record<AvatarPosition, Pick<AvatarFrame, 'x' | 'y'>> = {
+  center: { x: 50, y: 50 },
+  top: { x: 50, y: 0 },
+  bottom: { x: 50, y: 100 },
+  left: { x: 0, y: 50 },
+  right: { x: 100, y: 50 },
+};
+
+const defaultAvatarFrame: AvatarFrame = {
+  fit: 'cover',
+  position: 'center',
+  x: 50,
+  y: 50,
+  zoom: 1,
+};
+
+const isAvatarFit = (value: unknown): value is AvatarFit =>
+  value === 'cover' || value === 'contain';
+
+const isAvatarPosition = (value: unknown): value is AvatarPosition =>
+  value === 'center' ||
+  value === 'top' ||
+  value === 'bottom' ||
+  value === 'left' ||
+  value === 'right';
+
+const clampAvatarNumber = (value: unknown, min: number, max: number, fallback: number) => {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(max, Math.max(min, numeric));
+};
+
+const avatarImageStyle = (frame: AvatarFrame): React.CSSProperties => ({
+  objectFit: frame.fit,
+  objectPosition: `${frame.x}% ${frame.y}%`,
+  transform: `scale(${frame.zoom})`,
+  transformOrigin: `${frame.x}% ${frame.y}%`,
+});
+
 const initialsFromName = (name: string) =>
   name
     .trim()
@@ -227,6 +290,7 @@ export const CandidateProfile: React.FC = () => {
   const { token } = useAuth();
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const avatarObjectUrlRef = useRef<string | null>(null);
+  const avatarPendingUrlRef = useRef<string | null>(null);
   // Core Profile Info State
   const [fullName, setFullName] = useState('');
   const [currentRole, setCurrentRole] = useState('');
@@ -277,6 +341,35 @@ export const CandidateProfile: React.FC = () => {
   const [lastUpdated, setLastUpdated] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarFit, setAvatarFit] = useState<AvatarFit>('cover');
+  const [avatarPosition, setAvatarPosition] = useState<AvatarPosition>('center');
+  const [avatarFrameX, setAvatarFrameX] = useState(50);
+  const [avatarFrameY, setAvatarFrameY] = useState(50);
+  const [avatarZoom, setAvatarZoom] = useState(1);
+  const [avatarEditorOpen, setAvatarEditorOpen] = useState(false);
+  const [avatarEditorSource, setAvatarEditorSource] = useState('');
+  const [avatarDraftFit, setAvatarDraftFit] = useState<AvatarFit>('cover');
+  const [avatarDraftPosition, setAvatarDraftPosition] =
+    useState<AvatarPosition>('center');
+  const [avatarDraftX, setAvatarDraftX] = useState(50);
+  const [avatarDraftY, setAvatarDraftY] = useState(50);
+  const [avatarDraftZoom, setAvatarDraftZoom] = useState(1);
+
+  const currentAvatarFrame: AvatarFrame = {
+    fit: avatarFit,
+    position: avatarPosition,
+    x: avatarFrameX,
+    y: avatarFrameY,
+    zoom: avatarZoom,
+  };
+
+  const draftAvatarFrame: AvatarFrame = {
+    fit: avatarDraftFit,
+    position: avatarDraftPosition,
+    x: avatarDraftX,
+    y: avatarDraftY,
+    zoom: avatarDraftZoom,
+  };
 
   const clearAvatarPreview = () => {
     if (avatarObjectUrlRef.current) {
@@ -291,6 +384,114 @@ export const CandidateProfile: React.FC = () => {
     const objectUrl = URL.createObjectURL(blob);
     avatarObjectUrlRef.current = objectUrl;
     setAvatarUrl(objectUrl);
+  };
+
+  const clearPendingAvatarPreview = () => {
+    if (avatarPendingUrlRef.current) {
+      URL.revokeObjectURL(avatarPendingUrlRef.current);
+      avatarPendingUrlRef.current = null;
+    }
+  };
+
+  const applyAvatarFrame = (frame: AvatarFrame) => {
+    setAvatarFit(frame.fit);
+    setAvatarPosition(frame.position);
+    setAvatarFrameX(frame.x);
+    setAvatarFrameY(frame.y);
+    setAvatarZoom(frame.zoom);
+  };
+
+  const profileStructuredData = (frame = currentAvatarFrame) => ({
+    currentRole,
+    location,
+    linkedinUrl,
+    visibility: visibleToRecruiters ? 'REGISTERED_ONLY' : 'PRIVATE',
+    openToNewOpportunities,
+    avatarFrame: frame,
+    experience,
+    education,
+    skills,
+  });
+
+  const saveAvatarFrame = async (frame: AvatarFrame) => {
+    const updated = await apiRequest<{ updatedAt: string }>('/candidate-profiles/me', token, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        structuredData: profileStructuredData(frame),
+      }),
+    });
+    setLastUpdated(new Date(updated.updatedAt).toLocaleDateString());
+    return updated;
+  };
+
+  const loadAvatarEditorImage = (sourceUrl: string) =>
+    new Promise<HTMLImageElement>((resolveImage, rejectImage) => {
+      const image = new Image();
+      image.onload = () => resolveImage(image);
+      image.onerror = () => rejectImage(new Error('Unable to read profile photo'));
+      image.src = sourceUrl;
+    });
+
+  const createAdjustedAvatarFile = async (sourceUrl: string, frame: AvatarFrame) => {
+    const image = await loadAvatarEditorImage(sourceUrl);
+    const size = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+      throw new Error('Unable to prepare profile photo');
+    }
+
+    context.clearRect(0, 0, size, size);
+    const fitScale =
+      frame.fit === 'cover'
+        ? Math.max(size / image.naturalWidth, size / image.naturalHeight)
+        : Math.min(size / image.naturalWidth, size / image.naturalHeight);
+    const scale = fitScale * frame.zoom;
+    const width = image.naturalWidth * scale;
+    const height = image.naturalHeight * scale;
+    const x = (size - width) * (frame.x / 100);
+    const y = (size - height) * (frame.y / 100);
+
+    context.drawImage(image, x, y, width, height);
+
+    const blob = await new Promise<Blob>((resolveBlob, rejectBlob) => {
+      canvas.toBlob((nextBlob) => {
+        if (nextBlob) {
+          resolveBlob(nextBlob);
+          return;
+        }
+        rejectBlob(new Error('Unable to prepare profile photo'));
+      }, 'image/png');
+    });
+
+    return new File([blob], 'profile-photo.png', { type: 'image/png' });
+  };
+
+  const openAvatarEditor = (sourceUrl: string) => {
+    if (!sourceUrl) return;
+    setAvatarEditorSource(sourceUrl);
+    setAvatarDraftFit(avatarFit);
+    setAvatarDraftPosition(avatarPosition);
+    setAvatarDraftX(avatarFrameX);
+    setAvatarDraftY(avatarFrameY);
+    setAvatarDraftZoom(avatarZoom);
+    setAvatarEditorOpen(true);
+  };
+
+  const closeAvatarEditor = () => {
+    setAvatarEditorOpen(false);
+    setAvatarEditorSource('');
+    clearPendingAvatarPreview();
+  };
+
+  const selectAvatarPreset = (position: AvatarPosition) => {
+    const next = avatarPositionCoordinates[position];
+    setAvatarDraftPosition(position);
+    setAvatarDraftX(next.x);
+    setAvatarDraftY(next.y);
   };
 
   const loadAvatar = async () => {
@@ -334,6 +535,13 @@ export const CandidateProfile: React.FC = () => {
           mimeType: string;
           updatedAt: string;
         };
+        avatarFrame?: {
+          fit?: string;
+          position?: string;
+          x?: number;
+          y?: number;
+          zoom?: number;
+        };
       } | null;
       updatedAt: string;
     };
@@ -355,6 +563,17 @@ export const CandidateProfile: React.FC = () => {
         setEducation(data.education ?? []);
         setSkills(data.skills ?? []);
         setLastUpdated(new Date(profile.updatedAt).toLocaleDateString());
+        const framePosition = isAvatarPosition(data.avatarFrame?.position)
+          ? data.avatarFrame.position
+          : defaultAvatarFrame.position;
+        const fallbackCoordinates = avatarPositionCoordinates[framePosition];
+        applyAvatarFrame({
+          fit: isAvatarFit(data.avatarFrame?.fit) ? data.avatarFrame.fit : defaultAvatarFrame.fit,
+          position: framePosition,
+          x: clampAvatarNumber(data.avatarFrame?.x, 0, 100, fallbackCoordinates.x),
+          y: clampAvatarNumber(data.avatarFrame?.y, 0, 100, fallbackCoordinates.y),
+          zoom: clampAvatarNumber(data.avatarFrame?.zoom, 1, 2.5, defaultAvatarFrame.zoom),
+        });
         if (data.avatar) {
           await loadAvatar();
         } else {
@@ -375,6 +594,7 @@ export const CandidateProfile: React.FC = () => {
       if (avatarObjectUrlRef.current) {
         URL.revokeObjectURL(avatarObjectUrlRef.current);
       }
+      clearPendingAvatarPreview();
     },
     [],
   );
@@ -404,16 +624,7 @@ export const CandidateProfile: React.FC = () => {
           email,
           phone,
           summary,
-          structuredData: {
-            currentRole,
-            location,
-            linkedinUrl,
-            visibility: visibleToRecruiters ? 'REGISTERED_ONLY' : 'PRIVATE',
-            openToNewOpportunities,
-            experience,
-            education,
-            skills,
-          },
+          structuredData: profileStructuredData(),
         }),
       });
       setSaveStatus('saved');
@@ -441,31 +652,12 @@ export const CandidateProfile: React.FC = () => {
       return;
     }
 
-    setAvatarUploading(true);
     setApiError('');
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const result = await apiRequest<{ updatedAt: string }>(
-        '/candidate-profiles/me/avatar',
-        token,
-        {
-          method: 'POST',
-          body: formData,
-        },
-      );
-      await loadAvatar();
-      window.dispatchEvent(new Event('avatar-updated'));
-      setLastUpdated(new Date(result.updatedAt).toLocaleDateString());
-    } catch (uploadError) {
-      setApiError(
-        uploadError instanceof Error ? uploadError.message : 'Unable to upload profile photo',
-      );
-    } finally {
-      setAvatarUploading(false);
-      event.target.value = '';
-    }
+    clearPendingAvatarPreview();
+    const objectUrl = URL.createObjectURL(file);
+    avatarPendingUrlRef.current = objectUrl;
+    openAvatarEditor(objectUrl);
+    event.target.value = '';
   };
 
   const handleAvatarDelete = async () => {
@@ -484,6 +676,37 @@ export const CandidateProfile: React.FC = () => {
     } catch (deleteError) {
       setApiError(
         deleteError instanceof Error ? deleteError.message : 'Unable to remove profile photo',
+      );
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const saveAvatarEditor = async () => {
+    const frame = draftAvatarFrame;
+    setAvatarUploading(true);
+    setApiError('');
+
+    try {
+      const adjustedAvatar = await createAdjustedAvatarFile(avatarEditorSource, frame);
+      const formData = new FormData();
+      formData.append('file', adjustedAvatar);
+      await apiRequest<{ updatedAt: string }>('/candidate-profiles/me/avatar', token, {
+        method: 'POST',
+        body: formData,
+      });
+      await loadAvatar();
+      window.dispatchEvent(new Event('avatar-updated'));
+
+      const updated = await saveAvatarFrame(defaultAvatarFrame);
+      applyAvatarFrame(defaultAvatarFrame);
+      setSaveStatus('saved');
+      window.setTimeout(() => setSaveStatus('idle'), 2000);
+      setLastUpdated(new Date(updated.updatedAt).toLocaleDateString());
+      closeAvatarEditor();
+    } catch (editorError) {
+      setApiError(
+        editorError instanceof Error ? editorError.message : 'Unable to save profile photo',
       );
     } finally {
       setAvatarUploading(false);
@@ -651,15 +874,18 @@ export const CandidateProfile: React.FC = () => {
                   <button
                     type="button"
                     disabled={avatarUploading}
-                    onClick={() => avatarInputRef.current?.click()}
+                    onClick={() =>
+                      avatarUrl ? openAvatarEditor(avatarUrl) : avatarInputRef.current?.click()
+                    }
                     className="relative w-20 h-20 shrink-0 overflow-hidden bg-surface-container-lowest border-2 border-dashed border-border-warm rounded-full flex items-center justify-center cursor-pointer hover:border-teal-command/50 transition-all group disabled:cursor-wait shadow-sm"
-                    aria-label={avatarUrl ? 'Change profile photo' : 'Upload profile photo'}
+                    aria-label={avatarUrl ? 'Adjust profile photo' : 'Upload profile photo'}
                   >
                     {avatarUrl ? (
                       <img
                         src={avatarUrl}
                         alt={`${fullName || 'Candidate'} profile`}
-                        className="h-full w-full object-cover transition-transform group-hover:scale-105 duration-300"
+                        className="h-full w-full transition-transform group-hover:scale-105 duration-300"
+                        style={avatarImageStyle(currentAvatarFrame)}
                       />
                     ) : (
                       <span className="text-xl font-extrabold text-teal-command uppercase tracking-wide">
@@ -673,7 +899,7 @@ export const CandidateProfile: React.FC = () => {
                     {/* Dark overlay on hover */}
                     <div className="absolute inset-0 bg-deep-charcoal/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[9px] font-semibold gap-0.5">
                       <span className="scale-75"><Icons.camera /></span>
-                      <span>{avatarUrl ? 'Change' : 'Upload'}</span>
+                      <span>{avatarUrl ? 'Adjust' : 'Upload'}</span>
                     </div>
                     {avatarUploading ? (
                       <span className="absolute inset-0 flex items-center justify-center bg-deep-charcoal/60">
@@ -693,6 +919,16 @@ export const CandidateProfile: React.FC = () => {
                       >
                         {avatarUrl ? 'Change photo' : 'Choose photo'}
                       </button>
+                      {avatarUrl ? (
+                        <button
+                          type="button"
+                          disabled={avatarUploading}
+                          onClick={() => openAvatarEditor(avatarUrl)}
+                          className="text-xs font-semibold text-teal-command hover:underline disabled:opacity-50"
+                        >
+                          Adjust
+                        </button>
+                      ) : null}
                       {avatarUrl ? (
                         <button
                           type="button"
@@ -1197,6 +1433,193 @@ export const CandidateProfile: React.FC = () => {
           </section>
         </aside>
       </div>
+
+      {avatarEditorOpen ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-deep-charcoal/55 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="avatar-editor-title"
+        >
+          <div className="w-full max-w-2xl rounded-lg border border-border-warm bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border-warm px-5 py-4">
+              <h3 id="avatar-editor-title" className="text-base font-semibold text-deep-charcoal">
+                Profile Photo Frame
+              </h3>
+              <button
+                type="button"
+                disabled={avatarUploading}
+                onClick={closeAvatarEditor}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-lg font-semibold text-on-surface-variant hover:bg-surface-container-low hover:text-deep-charcoal disabled:cursor-wait disabled:opacity-50"
+                aria-label="Close avatar editor"
+              >
+                x
+              </button>
+            </div>
+
+            <div className="grid gap-6 p-5 md:grid-cols-[260px_1fr]">
+              <div className="flex flex-col items-center gap-4">
+                <div className="flex h-56 w-56 items-center justify-center overflow-hidden rounded-full border border-border-warm bg-surface-container-low">
+                  {avatarEditorSource ? (
+                    <img
+                      src={avatarEditorSource}
+                      alt={`${fullName || 'Candidate'} profile preview`}
+                      className="h-full w-full"
+                      style={avatarImageStyle(draftAvatarFrame)}
+                    />
+                  ) : null}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={avatarUploading}
+                    onClick={() => avatarInputRef.current?.click()}
+                    className="h-9 rounded-md border border-border-warm bg-white px-3 text-xs font-semibold text-teal-command hover:bg-surface-container-low disabled:cursor-wait disabled:opacity-50"
+                  >
+                    Change photo
+                  </button>
+                  <button
+                    type="button"
+                    disabled={avatarUploading}
+                    onClick={() => {
+                      setAvatarDraftFit(defaultAvatarFrame.fit);
+                      selectAvatarPreset(defaultAvatarFrame.position);
+                      setAvatarDraftZoom(defaultAvatarFrame.zoom);
+                    }}
+                    className="h-9 rounded-md border border-border-warm bg-white px-3 text-xs font-semibold text-on-surface-variant hover:bg-surface-container-low disabled:cursor-wait disabled:opacity-50"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-5">
+                <div>
+                  <div className="mb-2 text-xs font-semibold text-deep-charcoal">Frame</div>
+                  <div className="inline-flex rounded-lg border border-border-warm bg-surface-container-low p-0.5">
+                    {avatarFitOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        disabled={avatarUploading}
+                        onClick={() => setAvatarDraftFit(option.value)}
+                        className={`h-8 px-4 text-xs font-semibold rounded-md transition disabled:cursor-wait disabled:opacity-60 ${
+                          avatarDraftFit === option.value
+                            ? 'bg-white text-teal-command shadow-sm'
+                            : 'text-on-surface-variant hover:text-deep-charcoal'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-2 text-xs font-semibold text-deep-charcoal">Focus</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {avatarPositionOptions.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        disabled={avatarUploading}
+                        onClick={() => selectAvatarPreset(option.value)}
+                        className={`h-8 px-3 text-xs font-semibold rounded-md border transition disabled:cursor-wait disabled:opacity-60 ${
+                          avatarDraftPosition === option.value &&
+                          avatarDraftX === avatarPositionCoordinates[option.value].x &&
+                          avatarDraftY === avatarPositionCoordinates[option.value].y
+                            ? 'border-teal-command bg-teal-command text-white'
+                            : 'border-border-warm bg-white text-on-surface-variant hover:border-teal-command/50 hover:text-deep-charcoal'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <label className="block">
+                    <span className="mb-2 flex items-center justify-between text-xs font-semibold text-deep-charcoal">
+                      <span>Zoom</span>
+                      <span className="text-on-surface-variant">{avatarDraftZoom.toFixed(2)}x</span>
+                    </span>
+                    <input
+                      type="range"
+                      min="1"
+                      max="2.5"
+                      step="0.05"
+                      value={avatarDraftZoom}
+                      disabled={avatarUploading}
+                      onChange={(event) => setAvatarDraftZoom(Number(event.target.value))}
+                      className="w-full accent-teal-command"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 flex items-center justify-between text-xs font-semibold text-deep-charcoal">
+                      <span>Horizontal</span>
+                      <span className="text-on-surface-variant">{avatarDraftX}%</span>
+                    </span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={avatarDraftX}
+                      disabled={avatarUploading}
+                      onChange={(event) => {
+                        setAvatarDraftPosition('center');
+                        setAvatarDraftX(Number(event.target.value));
+                      }}
+                      className="w-full accent-teal-command"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-2 flex items-center justify-between text-xs font-semibold text-deep-charcoal">
+                      <span>Vertical</span>
+                      <span className="text-on-surface-variant">{avatarDraftY}%</span>
+                    </span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={avatarDraftY}
+                      disabled={avatarUploading}
+                      onChange={(event) => {
+                        setAvatarDraftPosition('center');
+                        setAvatarDraftY(Number(event.target.value));
+                      }}
+                      className="w-full accent-teal-command"
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-border-warm px-5 py-4">
+              <button
+                type="button"
+                disabled={avatarUploading}
+                onClick={closeAvatarEditor}
+                className="h-9 rounded-md border border-border-warm bg-white px-4 text-xs font-semibold text-on-surface-variant hover:bg-surface-container-low disabled:cursor-wait disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={avatarUploading}
+                onClick={() => void saveAvatarEditor()}
+                className="inline-flex h-9 min-w-28 items-center justify-center rounded-md bg-teal-command px-4 text-xs font-semibold text-white hover:bg-primary disabled:cursor-wait disabled:opacity-70"
+              >
+                {avatarUploading ? <Icons.spinner /> : 'Save photo'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Bottom Actions Bar */}
       <div className="fixed bottom-0 left-[260px] right-0 p-4 bg-workflow-ivory/80 backdrop-blur-sm border-t border-border-warm flex items-center justify-between px-8 z-30">

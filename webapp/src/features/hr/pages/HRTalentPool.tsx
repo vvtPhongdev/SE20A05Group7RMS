@@ -37,6 +37,10 @@ type Candidate = {
   location: string;
   photo?: string;
   recentApplications: RecentApplication[];
+  aiScore?: number;
+  vectorScore?: number;
+  graphScore?: number;
+  readinessLabel?: string;
 };
 
 interface CandidateApiItem {
@@ -69,6 +73,20 @@ type CampaignOption = {
   requestId: string;
   label: string;
   status: string;
+  canSearch: boolean;
+  canCollect: boolean;
+};
+
+type TaskPlanApiItem = {
+  taskType: string;
+  overallPlan: {
+    requestId: string;
+    status: string;
+    request: {
+      position: string;
+      department: { name: string } | null;
+    };
+  };
 };
 
 type JobPostingApiItem = {
@@ -83,6 +101,23 @@ type ApplicationResponse = {
   requestId: string;
   candidateId: string;
   status: string;
+};
+
+type TalentSearchResponse = {
+  data: Array<{
+    candidateProfileId: string;
+    overallScore: number;
+    vectorScore: number;
+    graphScore: number;
+    readinessLabel: string;
+    matchedSkills?: Array<{ skill: string; confidence: number }>;
+  }>;
+  meta: {
+    expandedQuery?: {
+      resolved?: string | null;
+      expandedSkills?: string[];
+    };
+  };
 };
 
 const formatDate = (value: string) =>
@@ -198,7 +233,7 @@ const statusClass: Record<ParseStatus, string> = {
 };
 
 export const HRTalentPool: React.FC = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [meta, setMeta] = useState({
     total: 0,
@@ -212,6 +247,7 @@ export const HRTalentPool: React.FC = () => {
   const [actionMessage, setActionMessage] = useState('');
 
   const [query, setQuery] = useState('');
+  const [searchMode, setSearchMode] = useState<'PROFILE' | 'AI_VECTOR'>('AI_VECTOR');
   const [role, setRole] = useState('All Roles');
   const [selectedCampaignId, setSelectedCampaignId] = useState('');
   const [parseStatus, setParseStatus] = useState('All Status');
@@ -219,6 +255,8 @@ export const HRTalentPool: React.FC = () => {
   const [eligibleOnly, setEligibleOnly] = useState(true);
   const [selectedId, setSelectedId] = useState('');
   const [assigningId, setAssigningId] = useState('');
+  const [aiSearching, setAiSearching] = useState(false);
+  const [aiSummary, setAiSummary] = useState('');
 
   const loadCandidates = useCallback(
     async (showSpinner = true, searchVal = '') => {
@@ -248,38 +286,166 @@ export const HRTalentPool: React.FC = () => {
     [token],
   );
 
+  const applyAiSearch = useCallback(
+    async (searchVal: string, requestId: string) => {
+      const trimmed = searchVal.trim();
+      if (!trimmed || !requestId) return;
+
+      setAiSearching(true);
+      setApiError('');
+      setActionMessage('');
+      try {
+        const [candidateResponse, searchResponse] = await Promise.all([
+          apiRequest<CandidateListResponse>('/candidate-profiles?pageSize=100', token),
+          apiRequest<TalentSearchResponse>('/talent/search', token, {
+            method: 'POST',
+            body: JSON.stringify({
+              query: trimmed,
+              filters: { requestId },
+              pagination: { page: 1, pageSize: 50 },
+            }),
+          }),
+        ]);
+
+        const candidatesById = new Map(candidateResponse.data.map((item) => [item.id, item]));
+        const ranked = searchResponse.data.reduce<Candidate[]>((acc, match) => {
+            const candidate = candidatesById.get(match.candidateProfileId);
+            if (!candidate) return acc;
+            acc.push({
+              ...mapCandidate(candidate),
+              aiScore: match.overallScore,
+              vectorScore: match.vectorScore,
+              graphScore: match.graphScore,
+              readinessLabel: match.readinessLabel,
+            });
+            return acc;
+          }, []);
+
+        setCandidates(ranked);
+        setMeta({
+          total: ranked.length,
+          parsedCount: ranked.filter((candidate) => candidate.parseStatus === 'Parsed').length,
+          newThisWeekCount: candidateResponse.meta.newThisWeekCount,
+          activeCampaignsCount: candidateResponse.meta.activeCampaignsCount,
+        });
+        setSelectedId((current) =>
+          current && ranked.some((candidate) => candidate.id === current)
+            ? current
+            : ranked[0]?.id || '',
+        );
+        const expandedSkills = searchResponse.meta.expandedQuery?.expandedSkills ?? [];
+        setAiSummary(
+          expandedSkills.length
+            ? `AI expanded this search with: ${expandedSkills.slice(0, 5).join(', ')}`
+            : 'AI vector search ranked candidates by CV similarity and skill graph fit.',
+        );
+      } catch (searchError) {
+        setApiError(searchError instanceof Error ? searchError.message : 'Unable to run AI search');
+        setCandidates([]);
+        setSelectedId('');
+        setAiSummary('');
+      } finally {
+        setAiSearching(false);
+        setLoading(false);
+      }
+    },
+    [token],
+  );
+
   const loadCampaigns = useCallback(async () => {
     try {
-      const response = await apiRequest<JobPostingApiItem[]>('/job-postings', token);
-      const mapped = response
+      const isRecruiter = user?.role === 'HR_RECRUITER';
+      const [postings, assignedTasks] = await Promise.all([
+        apiRequest<JobPostingApiItem[]>('/job-postings', token),
+        isRecruiter ? apiRequest<TaskPlanApiItem[]>('/task-plan', token).catch(() => []) : [],
+      ]);
+      const taskPermissions = new Map<string, Set<string>>();
+      for (const task of assignedTasks) {
+        const requestId = task.overallPlan?.requestId;
+        if (!requestId) continue;
+        const current = taskPermissions.get(requestId) ?? new Set<string>();
+        current.add(task.taskType);
+        taskPermissions.set(requestId, current);
+      }
+      const taskCampaigns = assignedTasks.map((task) => {
+        const requestId = task.overallPlan.requestId;
+        const permissions = taskPermissions.get(requestId) ?? new Set<string>();
+        return {
+          requestId,
+          label: `${task.overallPlan.request.position} (${task.overallPlan.status})`,
+          status: task.overallPlan.status,
+          canSearch: permissions.has('CV_SCREENING'),
+          canCollect: permissions.has('CV_COLLECTION'),
+        };
+      });
+      const postingCampaigns = postings
         .filter((posting) => Boolean(posting.requestId))
         .map((posting) => ({
           requestId: posting.requestId,
           label: `${posting.title || posting.request?.position || 'Recruitment campaign'} (${posting.status})`,
           status: posting.status,
+          canSearch: true,
+          canCollect: true,
         }));
+      const deduped = new Map<string, CampaignOption>();
+      for (const campaign of isRecruiter ? taskCampaigns : postingCampaigns) {
+        const current = deduped.get(campaign.requestId);
+        deduped.set(campaign.requestId, {
+          ...campaign,
+          canSearch: Boolean(current?.canSearch || campaign.canSearch),
+          canCollect: Boolean(current?.canCollect || campaign.canCollect),
+        });
+      }
+      const mapped = Array.from(deduped.values()).filter(
+        (campaign) => !isRecruiter || campaign.canSearch || campaign.canCollect,
+      );
       setCampaigns(mapped);
-      setSelectedCampaignId((current) => current || mapped[0]?.requestId || '');
+      setSelectedCampaignId((current) =>
+        current && mapped.some((campaign) => campaign.requestId === current)
+          ? current
+          : mapped[0]?.requestId || '',
+      );
     } catch (loadError) {
       setApiError(loadError instanceof Error ? loadError.message : 'Unable to load campaigns');
     }
-  }, [token]);
+  }, [token, user?.role]);
 
   useEffect(() => {
     void loadCampaigns();
   }, [loadCampaigns]);
 
+  const selectedCampaign = useMemo(
+    () => campaigns.find((campaign) => campaign.requestId === selectedCampaignId) ?? null,
+    [campaigns, selectedCampaignId],
+  );
+
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
+      if (searchMode === 'AI_VECTOR') {
+        if (query.trim() && selectedCampaign?.canSearch) {
+          setLoading(true);
+          void applyAiSearch(query, selectedCampaign.requestId);
+        } else {
+          setAiSummary('');
+          void loadCandidates(true, '');
+        }
+        return;
+      }
+
+      setAiSummary('');
       void loadCandidates(true, query);
     }, 400);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [query, loadCandidates]);
+  }, [applyAiSearch, loadCandidates, query, searchMode, selectedCampaign]);
 
   const assignCandidate = async (candidateId: string) => {
     if (!selectedCampaignId) {
       setApiError('Select a campaign before adding a candidate.');
+      return;
+    }
+    if (!selectedCampaign?.canCollect) {
+      setApiError('HR Leader must assign you CV collection work for this campaign before collecting CVs.');
       return;
     }
 
@@ -360,6 +526,7 @@ export const HRTalentPool: React.FC = () => {
 
     return candidates.filter((candidate) => {
       const matchesQuery =
+        searchMode === 'AI_VECTOR' ||
         !normalizedQuery ||
         [
           candidate.name,
@@ -375,7 +542,7 @@ export const HRTalentPool: React.FC = () => {
       const matchesEligibility = !eligibleOnly || candidate.parseStatus === 'Parsed';
       return matchesQuery && matchesRole && matchesSkill && matchesParse && matchesEligibility;
     });
-  }, [candidates, eligibleOnly, parseStatus, query, role, skill]);
+  }, [candidates, eligibleOnly, parseStatus, query, role, searchMode, skill]);
 
   const selected =
     candidates.find((candidate) => candidate.id === selectedId) ??
@@ -413,6 +580,68 @@ export const HRTalentPool: React.FC = () => {
         {actionMessage && <HRInlineAlert tone="teal">{actionMessage}</HRInlineAlert>}
 
         {loading && <HRLoadingState label="Loading candidates..." />}
+
+        <section className="rounded-lg border border-teal-command/20 bg-teal-command/5 p-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-deep-charcoal">AI Search Vector</p>
+              <p className="mt-1 text-xs leading-5 text-on-surface-variant">
+                Rank parsed CVs by semantic similarity, vector score, and skill graph fit for the
+                selected campaign.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="inline-flex rounded-lg border border-border-warm bg-clean-surface p-1">
+                {[
+                  ['AI_VECTOR', 'AI Vector'],
+                  ['PROFILE', 'Profile'],
+                ].map(([value, label]) => (
+                  <button
+                    className={`h-8 rounded-md px-3 text-xs font-bold transition ${
+                      searchMode === value
+                        ? 'bg-teal-command text-white'
+                        : 'text-on-surface-variant hover:bg-surface-container-low'
+                    }`}
+                    key={value}
+                    onClick={() => setSearchMode(value as 'AI_VECTOR' | 'PROFILE')}
+                    type="button"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-bold ${
+                  selectedCampaign?.canSearch
+                    ? 'bg-approved/10 text-approved'
+                    : 'bg-revision/10 text-revision'
+                }`}
+              >
+                {selectedCampaign?.canSearch ? 'Search allowed' : 'Needs CV_SCREENING task'}
+              </span>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-bold ${
+                  selectedCampaign?.canCollect
+                    ? 'bg-teal-command/10 text-teal-command'
+                    : 'bg-revision/10 text-revision'
+                }`}
+              >
+                {selectedCampaign?.canCollect ? 'Collect allowed' : 'Needs CV_COLLECTION task'}
+              </span>
+            </div>
+          </div>
+          {searchMode === 'AI_VECTOR' && query.trim() && !selectedCampaign?.canSearch ? (
+            <p className="mt-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+              HR Leader must assign CV screening work for this campaign before AI vector search can
+              run.
+            </p>
+          ) : null}
+          {aiSearching ? (
+            <p className="mt-3 text-xs font-semibold text-teal-command">Running AI vector search...</p>
+          ) : aiSummary ? (
+            <p className="mt-3 text-xs text-slate-ink">{aiSummary}</p>
+          ) : null}
+        </section>
 
         <section
           className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4"
@@ -458,6 +687,8 @@ export const HRTalentPool: React.FC = () => {
                 {campaigns.map((campaign) => (
                   <option key={campaign.requestId} value={campaign.requestId}>
                     {campaign.label}
+                    {campaign.canSearch ? ' / AI' : ''}
+                    {campaign.canCollect ? ' / Collect' : ''}
                   </option>
                 ))}
               </select>
@@ -504,6 +735,7 @@ export const HRTalentPool: React.FC = () => {
             const alreadyAdded = candidate.recentApplications.some(
               (application) => application.requestId === selectedCampaignId,
             );
+            const canCollectSelected = Boolean(selectedCampaign?.canCollect);
             return (
               <article
                 className={`flex cursor-pointer flex-col rounded-lg bg-clean-surface p-5 transition hover:-translate-y-[2px] hover:shadow-md ${
@@ -541,6 +773,33 @@ export const HRTalentPool: React.FC = () => {
                   </span>
                 </div>
 
+                {searchMode === 'AI_VECTOR' && candidate.aiScore !== undefined ? (
+                  <div className="mb-4 grid grid-cols-3 gap-2 rounded-lg border border-border-warm bg-workflow-ivory p-2 text-center">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-on-surface-variant">AI</p>
+                      <p className="font-mono text-sm font-bold text-teal-command">
+                        {Math.round(candidate.aiScore * 100)}%
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-on-surface-variant">
+                        Vector
+                      </p>
+                      <p className="font-mono text-sm font-bold text-deep-charcoal">
+                        {Math.round((candidate.vectorScore ?? 0) * 100)}%
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-on-surface-variant">
+                        Graph
+                      </p>
+                      <p className="font-mono text-sm font-bold text-deep-charcoal">
+                        {Math.round((candidate.graphScore ?? 0) * 100)}%
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="mb-4 flex flex-wrap gap-2">
                   {candidate.skills.slice(0, 4).map((skill) => (
                     <span
@@ -576,11 +835,14 @@ export const HRTalentPool: React.FC = () => {
                   </button>
                   <button
                     className={`h-10 rounded-lg bg-teal-command text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] ${
-                      !selectedCampaignId || assigningId || alreadyAdded
+                      !selectedCampaignId || !canCollectSelected || assigningId || alreadyAdded
                         ? 'opacity-50 cursor-not-allowed'
                         : ''
                     }`}
-                    disabled={!selectedCampaignId || assigningId !== '' || alreadyAdded}
+                    disabled={
+                      !selectedCampaignId || !canCollectSelected || assigningId !== '' || alreadyAdded
+                    }
+                    title={!canCollectSelected ? 'Requires CV_COLLECTION task assignment' : undefined}
                     onClick={(e) => {
                       e.stopPropagation();
                       void assignCandidate(candidate.id);
@@ -626,6 +888,7 @@ export const HRTalentPool: React.FC = () => {
               const selectedAlreadyAdded = selected.recentApplications.some(
                 (application) => application.requestId === selectedCampaignId,
               );
+              const canCollectSelected = Boolean(selectedCampaign?.canCollect);
               return (
                 <>
             <div className="px-6 pb-6">
@@ -643,9 +906,16 @@ export const HRTalentPool: React.FC = () => {
                 </div>
                 <h3 className="text-2xl font-bold text-deep-charcoal">{selected.name}</h3>
                 <p className="mb-2 font-semibold text-teal-command">{selected.title}</p>
-                <span className="rounded-full bg-teal-command px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white">
-                  CV {selected.parseStatus}
-                </span>
+                <div className="flex flex-wrap justify-center gap-2">
+                  <span className="rounded-full bg-teal-command px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white">
+                    CV {selected.parseStatus}
+                  </span>
+                  {selected.readinessLabel ? (
+                    <span className="rounded-full bg-deep-charcoal/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-deep-charcoal">
+                      {selected.readinessLabel.replace(/_/g, ' ')}
+                    </span>
+                  ) : null}
+                </div>
               </div>
 
               <div className="space-y-6">
@@ -737,6 +1007,8 @@ export const HRTalentPool: React.FC = () => {
                   {campaigns.map((item) => (
                     <option key={item.requestId} value={item.requestId}>
                       {item.label}
+                      {item.canSearch ? ' / AI' : ''}
+                      {item.canCollect ? ' / Collect' : ''}
                     </option>
                   ))}
                 </select>
@@ -749,11 +1021,17 @@ export const HRTalentPool: React.FC = () => {
               </div>
               <button
                 className={`inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-teal-command font-bold text-white transition active:scale-[0.98] ${
-                  !selectedCampaignId || assigningId || selectedAlreadyAdded
+                  !selectedCampaignId || !canCollectSelected || assigningId || selectedAlreadyAdded
                     ? 'opacity-50 cursor-not-allowed'
                     : 'hover:bg-primary'
                 }`}
-                disabled={!selectedCampaignId || assigningId !== '' || selectedAlreadyAdded}
+                disabled={
+                  !selectedCampaignId ||
+                  !canCollectSelected ||
+                  assigningId !== '' ||
+                  selectedAlreadyAdded
+                }
+                title={!canCollectSelected ? 'Requires CV_COLLECTION task assignment' : undefined}
                 onClick={() => void assignCandidate(selected.id)}
                 type="button"
               >

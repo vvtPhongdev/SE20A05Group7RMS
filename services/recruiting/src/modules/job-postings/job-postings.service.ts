@@ -36,11 +36,9 @@ export class JobPostingsService {
       });
     }
 
-    // 2. Verify recruitment request is approved or later
+    // 2. Verify campaign execution has started.
     const allowedStatuses = [
-      RecruitmentRequestStatus.APPROVED,
-      RecruitmentRequestStatus.PLANNING,
-      RecruitmentRequestStatus.PLAN_APPROVED,
+      RecruitmentRequestStatus.ACTIVE,
       RecruitmentRequestStatus.SCREENING,
       RecruitmentRequestStatus.INTERVIEWING,
       RecruitmentRequestStatus.OFFER_EXTENDED,
@@ -50,7 +48,7 @@ export class JobPostingsService {
     if (!allowedStatuses.includes(request.status as RecruitmentRequestStatus)) {
       throw new RpcException({
         status: HttpStatus.PRECONDITION_FAILED,
-        message: `Recruitment request must be approved to create a job posting. Current status: ${request.status}`,
+        message: `Campaign must be active to create a job posting. Current status: ${request.status}`,
       });
     }
 

@@ -356,7 +356,7 @@ export const HRPipelineReports: React.FC = () => {
               className="md:col-span-2"
               label="Campaign"
               onChange={() => undefined}
-              options={['All active campaigns', 'Senior Dev Hire #42', 'Content Lead #12']}
+              options={['All active campaigns', ...visibleCampaigns.map((campaign) => campaign.role)]}
               value="All active campaigns"
             />
           </div>
@@ -417,30 +417,13 @@ export const HRPipelineReports: React.FC = () => {
               <Icon className="h-5 w-5 text-rejected" name="warning" />
               <h2 className="text-xl font-semibold text-deep-charcoal">Top Bottlenecks</h2>
             </div>
-            <div className="space-y-4">
-              {bottlenecks.map((item) => (
-                <article
-                  className={`rounded-lg border p-4 ${riskClass[item.level]}`}
-                  key={item.title}
-                >
-                  <p className="text-sm font-bold">{item.title}</p>
-                  <p className="mt-1 text-sm text-slate-ink">{item.detail}</p>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span
-                      className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase text-white ${
-                        item.level === 'Critical'
-                          ? 'bg-error'
-                          : item.level === 'Warning'
-                            ? 'bg-revision'
-                            : 'bg-slate-ink'
-                      }`}
-                    >
-                      {item.level}
-                    </span>
-                    <span className="font-mono text-[10px] text-slate-ink">{item.impact}</span>
-                  </div>
-                </article>
-              ))}
+            <div className="rounded-lg border border-border-warm bg-workflow-ivory px-4 py-8 text-center">
+              <p className="text-sm font-semibold text-deep-charcoal">
+                No bottleneck data available.
+              </p>
+              <p className="mt-1 text-sm text-slate-ink">
+                Connect SLA and delay tracking to populate this view.
+              </p>
             </div>
           </section>
         </section>
@@ -534,66 +517,40 @@ export const HRPipelineReports: React.FC = () => {
       <aside className="space-y-6">
         <section className="rounded-lg border border-border-warm bg-clean-surface p-6 shadow-sm">
           <h2 className="mb-4 text-sm font-bold text-deep-charcoal">Weekly HR Workload</h2>
-          <div className="mb-4 flex h-32 items-end justify-between gap-2">
-            {workload.map((day) => (
-              <div className="flex flex-1 flex-col items-center gap-2" key={day.day}>
-                <div
-                  className={`w-full rounded-t-lg transition hover:bg-teal-command/30 ${day.active ? 'bg-teal-command' : 'bg-surface-container'}`}
-                  style={{ height: day.height }}
-                />
-                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-ink">
-                  {day.day}
-                </span>
-              </div>
-            ))}
+          <div className="rounded-lg border border-border-warm bg-workflow-ivory px-4 py-8 text-center">
+            <p className="text-sm font-semibold text-deep-charcoal">No workload data available.</p>
+            <p className="mt-1 text-sm text-slate-ink">
+              Connect calendar capacity data to populate this chart.
+            </p>
           </div>
         </section>
 
         <section className="rounded-lg border border-border-warm bg-clean-surface p-6 shadow-sm">
           <h2 className="mb-4 text-sm font-bold text-deep-charcoal">Campaigns at Risk</h2>
-          <ul className="space-y-4">
-            {atRisk.map((risk) => (
-              <li className="flex gap-3" key={risk.title}>
-                <div className="h-10 w-1 rounded-full bg-revision" />
-                <div>
-                  <p className="text-sm font-bold leading-tight text-deep-charcoal">{risk.title}</p>
-                  <p className="text-xs text-slate-ink">{risk.detail}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <div className="rounded-lg border border-border-warm bg-workflow-ivory px-4 py-8 text-center">
+            <p className="text-sm font-semibold text-deep-charcoal">No risk data available.</p>
+            <p className="mt-1 text-sm text-slate-ink">
+              Connect campaign risk rules to populate this list.
+            </p>
+          </div>
         </section>
 
         <section className="rounded-lg border border-border-warm bg-clean-surface p-6 shadow-sm">
           <h2 className="mb-4 text-sm font-bold text-deep-charcoal">Recommended Next Actions</h2>
-          <ul className="space-y-3">
-            {actions.map((action) => (
-              <li
-                className="flex cursor-pointer items-start gap-3 rounded-lg p-2 transition hover:bg-surface-container"
-                key={action.title}
-              >
-                <Icon
-                  className={`mt-0.5 h-4 w-4 ${action.tone}`}
-                  name={action.tone === 'text-rejected' ? 'warning' : 'check'}
-                />
-                <span className="text-sm leading-5 text-on-surface-variant">{action.title}</span>
-              </li>
-            ))}
-          </ul>
-          <button
-            className="mt-6 w-full rounded-lg border border-teal-command/20 py-2 text-sm font-bold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98]"
-            type="button"
-          >
-            Process All Actions
-          </button>
+          <div className="rounded-lg border border-border-warm bg-workflow-ivory px-4 py-8 text-center">
+            <p className="text-sm font-semibold text-deep-charcoal">
+              No recommendations available.
+            </p>
+            <p className="mt-1 text-sm text-slate-ink">
+              Connect action recommendations to populate this panel.
+            </p>
+          </div>
         </section>
 
         <section className="rounded-lg border border-border-warm bg-teal-command/5 p-6 text-center">
           <Icon className="mx-auto h-8 w-8 text-teal-command" name="graph" />
           <h2 className="mt-3 text-sm font-bold text-teal-command">Predicted Outcome</h2>
-          <p className="mt-1 text-sm leading-6 text-slate-ink">
-            Based on current velocity, 85% of targets will be met this quarter.
-          </p>
+          <p className="mt-1 text-sm leading-6 text-slate-ink">No prediction data available.</p>
         </section>
       </aside>
     </div>

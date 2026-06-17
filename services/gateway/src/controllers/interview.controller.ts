@@ -35,10 +35,22 @@ export class InterviewController {
   }
 
   @Get('schedules/:id')
-  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
+  @Roles(
+    UserRole.HR_LEADER,
+    UserRole.HR_RECRUITER,
+    UserRole.ADMIN,
+    UserRole.DEPARTMENT_HEAD,
+    UserRole.CANDIDATE,
+  )
   @ApiOperation({ summary: 'Get interview schedule by ID' })
-  getSchedule(@Param('id') id: string) {
-    return firstValueFrom(this.interviewClient.send('interview.get_schedule', { id }));
+  getSchedule(@Param('id') id: string, @CurrentUser() user: any) {
+    return firstValueFrom(
+      this.interviewClient.send('interview.get_schedule', {
+        id,
+        userId: user.sub,
+        role: user.role,
+      }),
+    );
   }
 
   @Get('requests/:requestId/schedules')
@@ -74,6 +86,49 @@ export class InterviewController {
   })
   cancelSchedule(@Param('id') id: string, @Body() body: { cancelledBy: string; reason: string }) {
     return firstValueFrom(this.interviewClient.send('interview.cancel_schedule', { id, ...body }));
+  }
+
+  @Post('schedules/:id/confirm')
+  @Roles(UserRole.CANDIDATE)
+  @ApiOperation({ summary: 'Candidate confirms interview attendance' })
+  confirmAttendance(@Param('id') id: string, @CurrentUser('sub') userId: string) {
+    return firstValueFrom(
+      this.interviewClient.send('interview.candidate_confirm_schedule', { id, userId }),
+    );
+  }
+
+  @Patch('schedules/:id/candidate-reschedule')
+  @Roles(UserRole.CANDIDATE)
+  @ApiOperation({ summary: 'Candidate requests a new interview time' })
+  candidateReschedule(
+    @Param('id') id: string,
+    @CurrentUser('sub') userId: string,
+    @Body() body: { scheduledAt: string; reason: string },
+  ) {
+    return firstValueFrom(
+      this.interviewClient.send('interview.candidate_reschedule_schedule', {
+        id,
+        userId,
+        ...body,
+      }),
+    );
+  }
+
+  @Patch('schedules/:id/candidate-cancel')
+  @Roles(UserRole.CANDIDATE)
+  @ApiOperation({ summary: 'Candidate cancels an interview' })
+  candidateCancel(
+    @Param('id') id: string,
+    @CurrentUser('sub') userId: string,
+    @Body() body: { reason: string },
+  ) {
+    return firstValueFrom(
+      this.interviewClient.send('interview.candidate_cancel_schedule', {
+        id,
+        userId,
+        reason: body.reason,
+      }),
+    );
   }
 
   // ─── Invitations (FR-13) ──────────────────────────────────────────

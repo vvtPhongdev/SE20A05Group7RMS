@@ -9,10 +9,10 @@ import {
   Param,
   Query,
   Inject,
+  Res,
   UploadedFile,
   UseInterceptors,
   NotFoundException,
-  StreamableFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ClientProxy } from '@nestjs/microservices';
@@ -31,9 +31,19 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { UserRole } from '@wr/contracts';
-import { randomUUID } from 'crypto';
-import { mkdir, readFile, unlink, writeFile } from 'fs/promises';
+import { readFile, unlink } from 'fs/promises';
 import { basename, resolve } from 'path';
+import type { Response } from 'express';
+import {
+  buildCvStoragePath,
+  buildStoragePath,
+  downloadFile,
+  parseSupabasePublicUrl,
+  removeFile,
+  storageBuckets,
+  uploadFile,
+  validateCvFileName,
+} from '@wr/storage';
 
 export class UploadDocumentDto {
   @ApiProperty({ enum: ['CV', 'JD'], example: 'CV' })
@@ -101,6 +111,14 @@ export class UpdateCandidateProfileDto {
   structuredData?: Record<string, unknown>;
 }
 
+type AvatarStorageRecord = {
+  fileName?: string;
+  url?: string;
+  bucket?: string;
+  path?: string;
+  mimeType?: string;
+};
+
 /**
  * Thin proxy controller for Profiles service (candidate profiles, documents, evidence).
  */
@@ -138,6 +156,52 @@ export class ProfilesController {
     return false;
   }
 
+  private async sendAvatar(avatar: AvatarStorageRecord | null, res: Response) {
+    if (!avatar?.url && !avatar?.fileName) {
+      throw new NotFoundException('Profile photo not found');
+    }
+
+    const storageLocation =
+      avatar.bucket && avatar.path
+        ? { bucket: avatar.bucket, path: avatar.path }
+        : avatar.url
+          ? parseSupabasePublicUrl(avatar.url)
+          : null;
+
+    if (storageLocation) {
+      try {
+        const blob = await downloadFile(storageLocation.bucket, storageLocation.path);
+        const buffer = Buffer.from(await blob.arrayBuffer());
+        res.type(avatar.mimeType || blob.type || 'application/octet-stream');
+        res.setHeader('Content-Disposition', 'inline');
+        res.send(buffer);
+        return;
+      } catch (error) {
+        throw new NotFoundException('Profile photo not found');
+      }
+    }
+
+    try {
+      const file = await readFile(this.avatarPath(avatar.fileName!));
+      res.type(avatar.mimeType || 'application/octet-stream');
+      res.setHeader('Content-Disposition', 'inline');
+      res.send(file);
+    } catch (error) {
+      throw new NotFoundException('Profile photo not found');
+    }
+  }
+
+  private async removeStoredAvatar(avatar?: AvatarStorageRecord | null) {
+    if (avatar?.bucket && avatar.path) {
+      await removeFile(avatar.bucket, avatar.path).catch(() => undefined);
+      return;
+    }
+
+    if (avatar?.fileName) {
+      await unlink(this.avatarPath(avatar.fileName)).catch(() => undefined);
+    }
+  }
+
   @Get('candidate-profiles/me')
   @Roles(UserRole.CANDIDATE)
   @ApiOperation({ summary: 'Get the current candidate profile' })
@@ -155,30 +219,12 @@ export class ProfilesController {
   @Get('candidate-profiles/me/avatar')
   @Roles(UserRole.CANDIDATE)
   @ApiOperation({ summary: 'Get the current candidate profile photo' })
-  async getMyAvatar(@CurrentUser('sub') userId: string) {
+  async getMyAvatar(@CurrentUser('sub') userId: string, @Res() res: Response) {
     const avatar = await firstValueFrom(
-      this.profilesClient.send<{ fileName?: string; mimeType?: string } | null>(
-        'profiles.avatar.get',
-        { id: userId },
-      ),
+      this.profilesClient.send<AvatarStorageRecord | null>('profiles.avatar.get', { id: userId }),
     );
 
-    if (!avatar?.fileName) {
-      throw new NotFoundException('Profile photo not found');
-    }
-
-    try {
-      const file = await readFile(this.avatarPath(avatar.fileName));
-      return new StreamableFile(file, {
-        type: avatar.mimeType || 'application/octet-stream',
-        disposition: 'inline',
-      });
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      throw new NotFoundException('Profile photo not found');
-    }
+    await this.sendAvatar(avatar, res);
   }
 
   @Post('candidate-profiles/me/avatar')
@@ -197,7 +243,8 @@ export class ProfilesController {
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
   async uploadMyAvatar(
     @CurrentUser('sub') userId: string,
-    @UploadedFile() file?: { buffer: Buffer; mimetype: string; size: number },
+    @UploadedFile()
+    file?: { buffer: Buffer; originalname?: string; mimetype: string; size: number },
   ) {
     if (!file) {
       throw new BadRequestException('Profile photo is required');
@@ -214,37 +261,39 @@ export class ProfilesController {
       throw new BadRequestException('Only valid JPG, PNG, or GIF images are supported');
     }
 
-    const uploadDirectory = resolve(process.cwd(), 'uploads', 'avatars');
-    const fileName = `${randomUUID()}${extension}`;
-    const filePath = resolve(uploadDirectory, fileName);
-    await mkdir(uploadDirectory, { recursive: true });
-    await writeFile(filePath, file.buffer);
+    const bucket = storageBuckets.avatars;
+    const path = buildStoragePath(userId, file.originalname || `profile${extension}`);
+    const uploaded = await uploadFile(bucket, path, file.buffer, {
+      contentType: file.mimetype,
+    }).catch(() => {
+      throw new BadRequestException('Failed to upload avatar');
+    });
 
     try {
       const result = await firstValueFrom(
-        this.profilesClient.send<{
-          previousAvatar?: { fileName?: string } | null;
-          updatedAt: Date;
-        }>('profiles.avatar.set', {
-          id: userId,
-          avatar: {
-            fileName,
-            mimeType: file.mimetype,
-            updatedAt: new Date().toISOString(),
+        this.profilesClient.send<{ previousAvatar?: AvatarStorageRecord | null; updatedAt: Date }>(
+          'profiles.avatar.set',
+          {
+            id: userId,
+            avatar: {
+              url: uploaded.publicUrl,
+              bucket,
+              path,
+              mimeType: file.mimetype,
+              updatedAt: new Date().toISOString(),
+            },
           },
-        }),
+        ),
       );
-
-      if (result.previousAvatar?.fileName) {
-        await unlink(this.avatarPath(result.previousAvatar.fileName)).catch(() => undefined);
-      }
+      await this.removeStoredAvatar(result.previousAvatar);
 
       return {
         mimeType: file.mimetype,
+        url: uploaded.publicUrl,
         updatedAt: result.updatedAt,
       };
     } catch (error) {
-      await unlink(filePath).catch(() => undefined);
+      await removeFile(bucket, path).catch(() => undefined);
       throw error;
     }
   }
@@ -255,14 +304,12 @@ export class ProfilesController {
   async deleteMyAvatar(@CurrentUser('sub') userId: string) {
     const result = await firstValueFrom(
       this.profilesClient.send<{
-        previousAvatar?: { fileName?: string } | null;
+        previousAvatar?: AvatarStorageRecord | null;
         updatedAt: Date;
       }>('profiles.avatar.remove', { id: userId }),
     );
 
-    if (result.previousAvatar?.fileName) {
-      await unlink(this.avatarPath(result.previousAvatar.fileName)).catch(() => undefined);
-    }
+    await this.removeStoredAvatar(result.previousAvatar);
 
     return {
       deleted: Boolean(result.previousAvatar),
@@ -290,27 +337,12 @@ export class ProfilesController {
   @Public()
   @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
   @ApiOperation({ summary: 'Get candidate profile photo by candidate ID' })
-  async getCandidateAvatar(@Param('id') id: string) {
+  async getCandidateAvatar(@Param('id') id: string, @Res() res: Response) {
     const avatar = await firstValueFrom(
-      this.profilesClient.send<{ fileName?: string; mimeType?: string } | null>(
-        'profiles.avatar.get',
-        { id },
-      ),
+      this.profilesClient.send<AvatarStorageRecord | null>('profiles.avatar.get', { id }),
     );
 
-    if (!avatar?.fileName) {
-      throw new NotFoundException('Profile photo not found');
-    }
-
-    try {
-      const file = await readFile(this.avatarPath(avatar.fileName));
-      return new StreamableFile(file, {
-        type: avatar.mimeType || 'application/octet-stream',
-        disposition: 'inline',
-      });
-    } catch (error) {
-      throw new NotFoundException('Profile photo not found');
-    }
+    await this.sendAvatar(avatar, res);
   }
 
   @Patch('candidate-profiles/:id')
@@ -346,15 +378,47 @@ export class ProfilesController {
     file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
     @Body() body: Omit<UploadDocumentDto, 'file'>,
   ) {
-    return firstValueFrom(
-      this.profilesClient.send('documents.upload', {
-        ...body,
-        fileBuffer: file.buffer.toString('base64'),
-        fileName: file.originalname,
-        mimeType: file.mimetype,
-        fileSizeBytes: file.size,
-      }),
-    );
+    if (!file) {
+      throw new BadRequestException('Document file is required');
+    }
+
+    const bucket = storageBuckets.cvs;
+    let path: string;
+    if (body.documentType?.toUpperCase() === 'CV') {
+      try {
+        validateCvFileName(file.originalname);
+      } catch {
+        throw new BadRequestException('Only PDF and DOCX files are supported');
+      }
+      path = buildCvStoragePath(body.candidateProfileId || 'anonymous', file.originalname);
+    } else {
+      path = buildStoragePath(body.candidateProfileId || 'anonymous', file.originalname);
+    }
+
+    return (async () => {
+      const uploaded = await uploadFile(bucket, path, file.buffer, {
+        contentType: file.mimetype,
+      }).catch(() => {
+        throw new BadRequestException('Failed to upload document');
+      });
+
+      try {
+        return await firstValueFrom(
+          this.profilesClient.send('documents.upload', {
+            ...body,
+            fileName: file.originalname,
+            mimeType: file.mimetype,
+            fileSizeBytes: file.size,
+            filePath: uploaded.publicUrl,
+            bucket,
+            path,
+          }),
+        );
+      } catch (error) {
+        await removeFile(bucket, path).catch(() => undefined);
+        throw error;
+      }
+    })();
   }
 
   @Get('documents')

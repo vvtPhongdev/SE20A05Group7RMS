@@ -2,9 +2,8 @@
 // BullMQ processor that generates vector embeddings for evidence records.
 // Triggered when new evidence is extracted or updated.
 //
-// SETUP NOTE: This processor requires the `@xenova/transformers` package
-// for self-hosted all-MiniLM-L6-v2 inference. Install it in the worker:
-//   npm install @xenova/transformers
+// SETUP NOTE: This processor uses the local RMS ONNX embedding model
+// exported into packages/ai-models/rms-embedding-model.
 //
 // The processor:
 // 1. Receives evidence text from the queue
@@ -13,6 +12,7 @@
 // 4. The embedding is later used by the TalentSearchService for vector similarity
 
 import { createHash } from 'crypto';
+import { EMBEDDING_MODEL_VERSION, embeddingToPgVector, getEmbedding } from '@wr/ai';
 
 export interface EmbeddingJobPayload {
   evidenceRecordId: string;
@@ -56,21 +56,16 @@ export async function processEmbeddingJob(
     return; // Already up-to-date
   }
 
-  // Generate embedding using transformers.js (lazy-loaded)
-  // NOTE: The model is loaded on first call and cached in-process.
-  const { pipeline } = await import('@xenova/transformers' as string);
-  const extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
-  const output = await extractor(text, { pooling: 'mean', normalize: true });
-  const embedding = Array.from(output.data as Float32Array) as number[];
+  const embedding = await getEmbedding(text);
 
   // Upsert the embedding record (metadata only — Prisma-managed columns)
   await prisma.evidenceEmbedding.upsert({
     where: { evidenceRecordId },
-    update: { textHash: hash },
+    update: { textHash: hash, model: EMBEDDING_MODEL_VERSION },
     create: {
       evidenceRecordId,
       textHash: hash,
-      model: 'all-MiniLM-L6-v2',
+      model: EMBEDDING_MODEL_VERSION,
     },
   });
 
@@ -80,10 +75,9 @@ export async function processEmbeddingJob(
     select: { id: true },
   }))!.id;
 
-  const vectorStr = `[${embedding.join(',')}]`;
   await prisma.$executeRawUnsafe(
     `UPDATE evidence_embeddings SET embedding = $1::vector WHERE id = $2`,
-    vectorStr,
+    embeddingToPgVector(embedding),
     embeddingId,
   );
 }

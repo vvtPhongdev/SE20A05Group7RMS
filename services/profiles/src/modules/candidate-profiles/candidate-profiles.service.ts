@@ -1,12 +1,21 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
 import { RpcException } from '@nestjs/microservices';
+import { Queue } from 'bullmq';
 import { PrismaService } from '../../common/database/prisma.service';
 import { UserRole } from '@wr/contracts';
 import { Prisma } from '@prisma/client';
+import { JOB_NAMES, QUEUE_NAMES } from '@wr/queue';
+
+const PROFILE_ENRICHMENT_START = '--- RMS PROFILE ENRICHMENT START ---';
+const PROFILE_ENRICHMENT_END = '--- RMS PROFILE ENRICHMENT END ---';
 
 @Injectable()
 export class CandidateProfilesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @InjectQueue(QUEUE_NAMES.EMBEDDING_GENERATE) private readonly embeddingQueue: Queue,
+  ) {}
 
   private structuredData(value: unknown): Record<string, any> {
     return value && typeof value === 'object' && !Array.isArray(value)
@@ -15,9 +24,18 @@ export class CandidateProfilesService {
   }
 
   private avatarData(value: unknown): Record<string, string> | null {
-    return value && typeof value === 'object' && !Array.isArray(value)
-      ? (value as Record<string, string>)
-      : null;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+
+    const avatar = value as Record<string, string>;
+    if (avatar.fileName) {
+      return avatar;
+    }
+
+    const source = avatar.path || avatar.url;
+    const fileName = source?.split(/[\\/]/).pop();
+    return fileName ? { ...avatar, fileName } : avatar;
   }
 
   private withUserAvatar<T extends { structuredData: unknown; user?: { avatar?: unknown } | null }>(
@@ -47,6 +65,118 @@ export class CandidateProfilesService {
     }
 
     return profile;
+  }
+
+  private compactList(values: unknown): string[] {
+    if (!Array.isArray(values)) return [];
+    return values
+      .map((value) => String(value ?? '').trim())
+      .filter(Boolean);
+  }
+
+  private profileEnrichmentText(profile: {
+    fullName: string;
+    email: string;
+    phone: string | null;
+    summary: string | null;
+    structuredData: unknown;
+  }) {
+    const data = this.structuredData(profile.structuredData);
+    const skills = this.compactList(data.skills);
+    const experience = Array.isArray(data.experience)
+      ? data.experience
+          .map((item) => {
+            const record = this.structuredData(item);
+            return [record.title, record.company, record.duration, record.description]
+              .map((value) => String(value ?? '').trim())
+              .filter(Boolean)
+              .join(' - ');
+          })
+          .filter(Boolean)
+      : [];
+    const education = Array.isArray(data.education)
+      ? data.education
+          .map((item) => {
+            const record = this.structuredData(item);
+            return [record.degree, record.school, record.year]
+              .map((value) => String(value ?? '').trim())
+              .filter(Boolean)
+              .join(' - ');
+          })
+          .filter(Boolean)
+      : [];
+
+    const lines = [
+      PROFILE_ENRICHMENT_START,
+      `Candidate profile name: ${profile.fullName}`,
+      data.currentRole ? `Current role: ${data.currentRole}` : '',
+      profile.summary ? `Professional summary: ${profile.summary}` : '',
+      data.location ? `Location: ${data.location}` : '',
+      profile.phone ? `Phone: ${profile.phone}` : '',
+      profile.email ? `Email: ${profile.email}` : '',
+      data.linkedinUrl ? `LinkedIn: ${data.linkedinUrl}` : '',
+      skills.length ? `Skills: ${skills.join(', ')}` : '',
+      experience.length ? `Work experience: ${experience.join(' | ')}` : '',
+      education.length ? `Education: ${education.join(' | ')}` : '',
+      data.openToNewOpportunities !== undefined
+        ? `Open to new opportunities: ${Boolean(data.openToNewOpportunities) ? 'yes' : 'no'}`
+        : '',
+      PROFILE_ENRICHMENT_END,
+    ].filter(Boolean);
+
+    return lines.join('\n');
+  }
+
+  private mergeProfileEnrichment(rawText: string, enrichment: string) {
+    const pattern = new RegExp(
+      `\\n?${PROFILE_ENRICHMENT_START}[\\s\\S]*?${PROFILE_ENRICHMENT_END}\\n?`,
+      'm',
+    );
+    const cleaned = rawText.replace(pattern, '').trim();
+    return [cleaned, enrichment].filter(Boolean).join('\n\n');
+  }
+
+  private async syncProfileToLatestCvEmbedding(profileId: string) {
+    const profile = await this.prisma.candidateProfile.findUnique({
+      where: { id: profileId },
+      include: {
+        cvDocuments: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    const latestCv = profile?.cvDocuments[0];
+    if (!profile || !latestCv) return;
+
+    const enrichedRawText = this.mergeProfileEnrichment(
+      latestCv.rawText ?? '',
+      this.profileEnrichmentText(profile),
+    );
+
+    const updatedCv = await this.prisma.candidateCV.update({
+      where: { id: latestCv.id },
+      data: {
+        rawText: enrichedRawText,
+      },
+    });
+
+    await this.embeddingQueue.add(
+      JOB_NAMES.GENERATE_EMBEDDING,
+      {
+        cvDocumentId: updatedCv.id,
+        rawText: updatedCv.rawText,
+      },
+      {
+        jobId: `cv-embedding-${updatedCv.id}-profile-${Date.now()}`,
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 1000,
+        },
+      },
+    );
   }
 
   async listCandidates(payload: { q?: string; page?: number; pageSize?: number }) {
@@ -251,10 +381,20 @@ export class CandidateProfilesService {
         : {}),
     };
 
-    return this.prisma.candidateProfile.update({
+    const updated = await this.prisma.candidateProfile.update({
       where: { id: profile.id },
       data: allowedData,
     });
+
+    await this.syncProfileToLatestCvEmbedding(updated.id).catch((error) => {
+      console.warn(
+        `Failed to sync candidate profile ${updated.id} to CV search index: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    });
+
+    return updated;
   }
 
   async getAvatar(id: string) {
