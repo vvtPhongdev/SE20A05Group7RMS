@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest } from '../../../lib/api';
 import {
@@ -57,6 +58,7 @@ type SortField =
 type SortDirection = 'asc' | 'desc' | 'none';
 
 export const AdminAllRequests: React.FC = () => {
+  const navigate = useNavigate();
   const { token } = useAuth();
   const [requestsList, setRequestsList] = useState<RecruitmentRequest[]>([]);
   const [hrManagers, setHrManagers] = useState<Array<{ id: string; name: string }>>([]);
@@ -75,6 +77,8 @@ export const AdminAllRequests: React.FC = () => {
   // Sorting state
   const [sortField, setSortField] = useState<SortField>('id');
   const [sortDir, setSortDir] = useState<SortDirection>('desc');
+  const [detailRequest, setDetailRequest] = useState<any | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const mapStatus = (status: string): RequestStatus => {
     const statuses: Record<string, RequestStatus> = {
@@ -157,6 +161,18 @@ export const AdminAllRequests: React.FC = () => {
         };
       }),
     );
+  };
+
+  const openRequestDetail = async (id: string) => {
+    setDetailLoading(true);
+    setApiError('');
+    try {
+      setDetailRequest(await apiRequest(`/recruitment-requests/${id}`, token));
+    } catch (detailError) {
+      setApiError(detailError instanceof Error ? detailError.message : 'Unable to load request detail');
+    } finally {
+      setDetailLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -549,9 +565,7 @@ export const AdminAllRequests: React.FC = () => {
 
           <button
             className="mt-5 ml-auto bg-teal-command text-white px-6 py-2 rounded-lg font-bold hover:brightness-95 transition-all flex items-center gap-2 shadow-sm active:scale-95 text-sm"
-            onClick={() =>
-              alert('New request dialog would open... (Not implemented in Admin Oversight View)')
-            }
+            onClick={() => navigate('/dept-head/create-request')}
           >
             <span className="material-symbols-outlined">add</span> New Request
           </button>
@@ -758,7 +772,7 @@ export const AdminAllRequests: React.FC = () => {
                     <td className="px-4 py-4 text-right" onClick={(e) => e.stopPropagation()}>
                       <button
                         className="p-1 text-outline-variant hover:text-teal-command transition-colors"
-                        onClick={() => alert(`Details/actions for request ${request.id}`)}
+                        onClick={() => void openRequestDetail(request.id)}
                       >
                         <span className="material-symbols-outlined">more_vert</span>
                       </button>
@@ -881,6 +895,55 @@ export const AdminAllRequests: React.FC = () => {
           <span className="material-symbols-outlined">close</span>
         </button>
       </div>
+
+      {(detailRequest || detailLoading) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+          <section className="w-full max-w-3xl rounded-lg border border-border-warm bg-clean-surface shadow-xl">
+            <div className="flex items-start justify-between border-b border-border-warm px-6 py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-deep-charcoal">Request Detail</h2>
+                <p className="text-sm text-slate-ink">
+                  {detailLoading ? 'Loading request detail...' : detailRequest?.position}
+                </p>
+              </div>
+              <button
+                className="rounded-lg p-2 text-slate-ink hover:bg-surface-container-low"
+                onClick={() => setDetailRequest(null)}
+                type="button"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="grid gap-4 p-6 md:grid-cols-2">
+              {detailLoading ? (
+                <p className="text-sm text-slate-ink">Loading...</p>
+              ) : (
+                <>
+                  <DetailItem label="Department" value={detailRequest?.department?.name ?? '-'} />
+                  <DetailItem label="Requester" value={detailRequest?.requester?.displayName ?? '-'} />
+                  <DetailItem label="Status" value={detailRequest?.status ?? '-'} />
+                  <DetailItem label="Urgency" value={detailRequest?.urgency ?? '-'} />
+                  <DetailItem label="Headcount" value={String(detailRequest?.headcount ?? '-')} />
+                  <DetailItem label="Owner" value={detailRequest?.owner?.displayName ?? detailRequest?.reviewedBy?.displayName ?? 'Not assigned'} />
+                  <div className="md:col-span-2">
+                    <DetailItem label="Justification" value={detailRequest?.justification ?? '-'} />
+                  </div>
+                  <div className="md:col-span-2">
+                    <DetailItem label="Job Description" value={detailRequest?.jobDescription ?? '-'} />
+                  </div>
+                </>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
     </AdminDashboardPage>
   );
 };
+
+const DetailItem = ({ label, value }: { label: string; value: string }) => (
+  <div className="rounded-lg border border-border-warm bg-workflow-ivory/60 p-3">
+    <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">{label}</p>
+    <p className="mt-1 text-sm font-semibold text-deep-charcoal">{value}</p>
+  </div>
+);

@@ -71,6 +71,60 @@ export class NotificationsService {
     });
   }
 
+  async markUnread(payload: { id: string; userId: string }) {
+    if (!payload.id || !payload.userId) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'id and userId are required',
+      });
+    }
+
+    const notification = await this.prisma.notification.findFirst({
+      where: {
+        id: payload.id,
+        userId: payload.userId,
+      },
+    });
+
+    if (!notification) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Notification with ID ${payload.id} not found or access denied`,
+      });
+    }
+
+    return this.prisma.notification.update({
+      where: { id: payload.id },
+      data: { isRead: false },
+    });
+  }
+
+  async deleteNotification(payload: { id: string; userId: string }) {
+    if (!payload.id || !payload.userId) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'id and userId are required',
+      });
+    }
+
+    const notification = await this.prisma.notification.findFirst({
+      where: {
+        id: payload.id,
+        userId: payload.userId,
+      },
+    });
+
+    if (!notification) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Notification with ID ${payload.id} not found or access denied`,
+      });
+    }
+
+    await this.prisma.notification.delete({ where: { id: payload.id } });
+    return { success: true };
+  }
+
   async markAllRead(payload: { userId: string }) {
     if (!payload.userId) {
       throw new RpcException({
