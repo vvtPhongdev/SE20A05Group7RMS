@@ -197,9 +197,6 @@ export const HRSystemNotifications: React.FC = () => {
 
     return [
       { label: 'Unread Alerts', value: String(unread), tone: 'text-deep-charcoal', icon: 'mail' },
-      // No email delivery log integration yet — kept as static placeholders.
-      { label: 'Failed Deliveries', value: '0', tone: 'text-rejected', icon: 'error' },
-      { label: 'Pending Templates', value: '0', tone: 'text-revision', icon: 'edit' },
       {
         label: 'Resolved Today',
         value: String(resolvedToday),

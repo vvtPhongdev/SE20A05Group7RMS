@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
-import { ApiError, apiRequest } from '../../../lib/api';
+import { apiRequest } from '../../../lib/api';
 import { HRCard, HRInlineAlert, HRPageHeader } from '../components';
 
 type SearchResult = {
@@ -46,10 +46,6 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
 export const CandidateSearch: React.FC = () => {
   const { token } = useAuth();
   const [campaign, setCampaign] = useState('');
-  /*
-   * Mock search query retained for UI reference only:
-   * backend developer with Go, PostgreSQL, Redis, and distributed systems experience in fintech
-   */
   const [query, setQuery] = useState('');
   const [locked, setLocked] = useState(true);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -57,7 +53,7 @@ export const CandidateSearch: React.FC = () => {
   const [expandedTerms, setExpandedTerms] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState('');
-  const [shortlistingId, setShortlistingId] = useState('');
+  const [viewingCvId, setViewingCvId] = useState('');
   const [actionMessage, setActionMessage] = useState('');
 
   useEffect(() => {
@@ -83,31 +79,6 @@ export const CandidateSearch: React.FC = () => {
     };
     void loadCampaigns();
   }, [token]);
-
-  const handleShortlist = async (candidateId: string) => {
-    if (!campaign) {
-      setApiError('Select a campaign before shortlisting.');
-      return;
-    }
-    setShortlistingId(candidateId);
-    setActionMessage('');
-    setApiError('');
-    try {
-      await apiRequest('/applications', token, {
-        method: 'POST',
-        body: JSON.stringify({ requestId: campaign, candidateId }),
-      });
-      setActionMessage('Candidate successfully shortlisted for this campaign.');
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        setActionMessage('Candidate is already in this campaign.');
-      } else {
-        setApiError(err instanceof Error ? err.message : 'Failed to shortlist candidate');
-      }
-    } finally {
-      setShortlistingId('');
-    }
-  };
 
   const handleSearch = async () => {
     if (!campaign || !query.trim()) return;
@@ -148,9 +119,43 @@ export const CandidateSearch: React.FC = () => {
       );
       setExpandedTerms(response.meta.expandedQuery.expandedSkills);
     } catch (searchError) {
-      setApiError(searchError instanceof Error ? searchError.message : 'Candidate search failed');
+        setApiError(searchError instanceof Error ? searchError.message : 'Candidate search failed');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleViewCv = async (candidateId: string) => {
+    setViewingCvId(candidateId);
+    setApiError('');
+    try {
+      const headers = new Headers();
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+      const response = await fetch(
+        `/api/v1/candidate/cvs/candidate/${candidateId}/latest/file`,
+        { headers },
+      );
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.message || `Unable to open CV (${response.status})`);
+      }
+
+      const blobUrl = URL.createObjectURL(await response.blob());
+      const opened = window.open(blobUrl, '_blank');
+      if (!opened) {
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.click();
+      }
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+    } catch (viewError) {
+      setApiError(viewError instanceof Error ? viewError.message : 'Unable to open candidate CV');
+    } finally {
+      setViewingCvId('');
     }
   };
 
@@ -191,8 +196,8 @@ export const CandidateSearch: React.FC = () => {
       <main className="min-w-0 space-y-6">
         <HRPageHeader
           eyebrow="HR Manager Portal"
-          title="Candidate Search"
-          description="Use semantic search evidence to find matching CVs for approved recruitment campaigns."
+          title="CV Screening"
+          description="Use AI search evidence to screen only candidates already collected for or applied to the selected campaign."
         />
 
         {locked ? (
@@ -237,12 +242,16 @@ export const CandidateSearch: React.FC = () => {
               <span className="text-sm font-semibold text-deep-charcoal">
                 Natural Language Semantic Search
               </span>
+              <p className="text-xs leading-5 text-on-surface-variant">
+                Results are limited to candidates already in this campaign through CV Collection or
+                candidate self-application.
+              </p>
               <div className="relative">
                 <textarea
                   className="w-full resize-none rounded-lg border border-border-warm bg-workflow-ivory p-4 pr-40 text-sm outline-none transition placeholder:text-slate-ink/40 focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
                   disabled={locked}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="backend developer with Go, PostgreSQL, Redis, and distributed systems experience in fintech"
+                    placeholder="backend developer with Go, PostgreSQL, Redis, and distributed systems experience in fintech"
                   rows={3}
                   value={query}
                 />
@@ -376,20 +385,22 @@ export const CandidateSearch: React.FC = () => {
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <button
                     className="h-9 rounded-lg border border-border-warm px-4 text-sm font-semibold transition hover:bg-workflow-ivory"
-                    onClick={() => setApiError('Candidate CV download API is not available')}
+                    disabled={viewingCvId === result.id}
+                    onClick={() => void handleViewCv(result.id)}
                     type="button"
                   >
-                    View CV
+                    {viewingCvId === result.id ? 'Opening...' : 'View CV'}
                   </button>
                   <button
-                    className={`h-9 rounded-lg border border-teal-command px-4 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 ${
-                      shortlistingId ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                    disabled={shortlistingId !== ''}
-                    onClick={() => void handleShortlist(result.id)}
+                    className="h-9 rounded-lg border border-teal-command px-4 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5"
+                    onClick={() =>
+                      setActionMessage(
+                        'Screening decision actions should update CV status; collection is handled in Talent Pool.',
+                      )
+                    }
                     type="button"
                   >
-                    {shortlistingId === result.id ? 'Shortlisting...' : 'Shortlist'}
+                    Mark for Review
                   </button>
                   <button
                     className="h-9 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
@@ -420,6 +431,9 @@ export const CandidateSearch: React.FC = () => {
               <p className="rounded-lg border border-border-warm bg-workflow-ivory p-3 text-sm">
                 {campaigns.find((item) => item.requestId === campaign)?.label ??
                   'No campaign selected'}
+              </p>
+              <p className="mt-2 text-xs leading-5 text-on-surface-variant">
+                Search scope: collected CVs and applicants already linked to this campaign.
               </p>
             </div>
             <div>

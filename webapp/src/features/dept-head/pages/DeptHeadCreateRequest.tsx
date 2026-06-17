@@ -40,6 +40,20 @@ interface RecruitmentRequestApi {
   rejectionReason?: string | null;
   department?: { name: string } | null;
   skillRequirements?: Record<string, unknown> | null;
+  hrRevisionSuggestion?: {
+    feedback?: string;
+    rootRequest?: SuggestedRequest | null;
+    proposedRequest?: SuggestedRequest | null;
+  } | null;
+}
+
+interface SuggestedRequest {
+  positionTitle?: string;
+  headcount?: number;
+  jobDescription?: string;
+  justification?: string;
+  urgency?: string;
+  skillRequirements?: Record<string, unknown> | null;
 }
 
 type IconName = 'close' | 'send' | 'search' | 'help' | 'x' | 'check' | 'plus';
@@ -143,6 +157,10 @@ export const DeptHeadCreateRequest: React.FC = () => {
   const [loadingRequest, setLoadingRequest] = useState(false);
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
   const [requestStatus, setRequestStatus] = useState<string | null>(null);
+  const [hrRevisionSuggestion, setHrRevisionSuggestion] =
+    useState<RecruitmentRequestApi['hrRevisionSuggestion']>(null);
+  const [acceptedHrSuggestion, setAcceptedHrSuggestion] = useState<boolean | null>(null);
+  const [revisionResponse, setRevisionResponse] = useState('');
 
   useEffect(() => {
     if (!requestId) return;
@@ -160,6 +178,9 @@ export const DeptHeadCreateRequest: React.FC = () => {
 
         setRequestStatus(request.status);
         setRejectionReason(request.rejectionReason ?? null);
+        setHrRevisionSuggestion(request.hrRevisionSuggestion ?? null);
+        setAcceptedHrSuggestion(null);
+        setRevisionResponse('');
 
         const requirements = request.skillRequirements ?? {};
         const loadedSkills = Array.isArray(requirements.skills)
@@ -243,6 +264,41 @@ export const DeptHeadCreateRequest: React.FC = () => {
     setSkills((current) => current.filter((item) => item !== skill));
   };
 
+  const applySuggestedRequest = (suggestion: SuggestedRequest) => {
+    const requirements = suggestion.skillRequirements ?? {};
+    const suggestionUrgency = String(suggestion.urgency ?? 'MEDIUM').toLowerCase();
+    const priority =
+      suggestionUrgency === 'low' ||
+      suggestionUrgency === 'high' ||
+      suggestionUrgency === 'critical'
+        ? ((suggestionUrgency[0]?.toUpperCase() + suggestionUrgency.slice(1)) as Priority)
+        : 'Medium';
+    const suggestedSkills = Array.isArray(requirements.skills)
+      ? requirements.skills.map(String)
+      : [];
+
+    setForm((current) => ({
+      ...current,
+      positionTitle: suggestion.positionTitle ?? current.positionTitle,
+      headcount: suggestion.headcount ?? current.headcount,
+      description: suggestion.jobDescription ?? current.description,
+      notes: suggestion.justification ?? current.notes,
+      jobLevel: String(requirements.jobLevel ?? current.jobLevel),
+      employmentType: requirements.employmentType === 'Contract' ? 'Contract' : 'Full-time',
+      experience: String(requirements.experience ?? current.experience),
+      education: String(requirements.education ?? current.education),
+      salaryMin: String(requirements.salaryMin ?? current.salaryMin),
+      salaryMax: String(requirements.salaryMax ?? current.salaryMax),
+      startDate: String(requirements.startDate ?? current.startDate),
+      priority,
+    }));
+    if (suggestedSkills.length > 0) setSkills(suggestedSkills);
+    setAcceptedHrSuggestion(true);
+    setRevisionResponse('');
+    setNotice(null);
+    setNoticeIsError(false);
+  };
+
   const validate = () => {
     const nextErrors: Record<string, string> = {};
     if (!form.positionTitle.trim()) nextErrors.positionTitle = 'Position title is required.';
@@ -254,7 +310,7 @@ export const DeptHeadCreateRequest: React.FC = () => {
     return Object.keys(nextErrors).length === 0;
   };
 
-  const buildPayload = (submitForReview: boolean) => ({
+  const buildPayload = (submitForReview?: boolean) => ({
     positionTitle: form.positionTitle,
     headcount: form.headcount,
     jobDescription: form.description,
@@ -270,15 +326,22 @@ export const DeptHeadCreateRequest: React.FC = () => {
       salaryMax: form.salaryMax,
       startDate: form.startDate,
     },
-    submit: submitForReview,
+    ...(submitForReview === undefined ? {} : { submit: submitForReview }),
   });
 
   const updateExistingRequest = async () => {
     if (!requestId) return;
-    const { submit: _submit, ...payload } = buildPayload(false);
+    const revisionMetadata =
+      requestStatus === 'REVISION_NEEDED' && hrRevisionSuggestion?.proposedRequest
+        ? {
+            acceptedHrSuggestion: acceptedHrSuggestion === true,
+            revisionResponse:
+              acceptedHrSuggestion === true ? undefined : revisionResponse.trim() || undefined,
+          }
+        : {};
     await apiRequest(`/recruitment-requests/${requestId}`, token, {
       method: 'PATCH',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ...buildPayload(), ...revisionMetadata }),
     });
   };
 
@@ -316,6 +379,16 @@ export const DeptHeadCreateRequest: React.FC = () => {
     if (!validate()) {
       setNotice(null);
       setNoticeIsError(false);
+      return;
+    }
+    if (
+      requestStatus === 'REVISION_NEEDED' &&
+      hrRevisionSuggestion?.proposedRequest &&
+      acceptedHrSuggestion !== true &&
+      !revisionResponse.trim()
+    ) {
+      setNoticeIsError(true);
+      setNotice('Please write a reason if you do not approve the HR suggested changes.');
       return;
     }
 
@@ -379,6 +452,85 @@ export const DeptHeadCreateRequest: React.FC = () => {
             Reviewer Instructions / Feedback
           </p>
           <p className="font-semibold leading-relaxed">{rejectionReason}</p>
+        </div>
+      )}
+
+      {requestStatus === 'REVISION_NEEDED' && hrRevisionSuggestion?.proposedRequest && (
+        <div className="mb-6 rounded-lg border border-teal-command/20 bg-teal-command/5 p-5 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-command">
+                HR Suggested Copy
+              </p>
+              <h2 className="mt-1 text-lg font-semibold text-deep-charcoal">
+                {hrRevisionSuggestion.proposedRequest.positionTitle || 'Suggested request update'}
+              </h2>
+              {hrRevisionSuggestion.feedback ? (
+                <p className="mt-2 text-sm font-medium leading-6 text-slate-ink">
+                  {hrRevisionSuggestion.feedback}
+                </p>
+              ) : null}
+            </div>
+            <button
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
+              onClick={() => applySuggestedRequest(hrRevisionSuggestion.proposedRequest!)}
+              type="button"
+            >
+              <Icon className="h-4 w-4" name="check" />
+              Apply HR Suggestion
+            </button>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="rounded-lg border border-border-warm bg-clean-surface p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                Headcount
+              </p>
+              <p className="mt-1 text-sm font-semibold text-deep-charcoal">
+                {hrRevisionSuggestion.proposedRequest.headcount ?? 'No change'}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border-warm bg-clean-surface p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                Priority
+              </p>
+              <p className="mt-1 text-sm font-semibold text-deep-charcoal">
+                {hrRevisionSuggestion.proposedRequest.urgency ?? 'No change'}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border-warm bg-clean-surface p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                Skills
+              </p>
+              <p className="mt-1 text-sm font-semibold text-deep-charcoal">
+                {Array.isArray(hrRevisionSuggestion.proposedRequest.skillRequirements?.skills)
+                  ? hrRevisionSuggestion.proposedRequest.skillRequirements.skills.join(', ')
+                  : 'No change'}
+              </p>
+            </div>
+          </div>
+
+          {acceptedHrSuggestion === true ? (
+            <p className="mt-4 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm font-semibold text-approved">
+              HR suggestion applied. Submit the request to send this version back to HR.
+            </p>
+          ) : (
+            <label className="mt-4 block">
+              <span className="mb-2 block text-sm font-semibold text-on-surface">
+                Reason if you do not approve HR suggestion <span className="text-rejected">*</span>
+              </span>
+              <textarea
+                className={textareaClass}
+                onChange={(event) => {
+                  setAcceptedHrSuggestion(false);
+                  setRevisionResponse(event.target.value);
+                }}
+                placeholder="Explain why you keep your own version or reject the suggested changes..."
+                rows={3}
+                value={revisionResponse}
+              />
+            </label>
+          )}
         </div>
       )}
 

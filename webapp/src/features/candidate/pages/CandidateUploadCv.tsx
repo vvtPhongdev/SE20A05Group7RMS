@@ -541,9 +541,26 @@ export const CandidateUploadCv: React.FC = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileUpload = async (file: File) => {
+  const validateCvUploadFile = (file: File) => {
+    const extension = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+    if (!['.pdf', '.docx'].includes(extension)) {
+      setApiError('Invalid file format. Please upload a PDF or DOCX file.');
+      return false;
+    }
+
     if (file.size > 10 * 1024 * 1024) {
       setApiError('CV file must be 10MB or smaller');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleFileUpload = async (file: File) => {
+    if (!validateCvUploadFile(file)) {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       return;
     }
 
@@ -592,11 +609,7 @@ export const CandidateUploadCv: React.FC = () => {
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
-      if (file.name.endsWith('.pdf') || file.name.endsWith('.docx')) {
-        void handleFileUpload(file);
-      } else {
-        alert('Invalid file format. Please upload a PDF or DOCX file.');
-      }
+      void handleFileUpload(file);
     }
   };
 

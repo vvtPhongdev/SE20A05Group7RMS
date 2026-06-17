@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest } from '../../../lib/api';
 import {
@@ -193,10 +194,14 @@ interface AlertItem {
   format?: string;
   relatedJob?: string;
   attendanceConfirmed?: boolean;
+  relatedId?: string | null;
+  relatedType?: string | null;
+  status?: string;
 }
 
 export const CandidateNotifications: React.FC = () => {
   const { token } = useAuth();
+  const navigate = useNavigate();
   // Alert Data State
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
 
@@ -219,11 +224,27 @@ export const CandidateNotifications: React.FC = () => {
       body: string;
       isRead: boolean;
       createdAt: string;
+      relatedEntityId?: string | null;
+      relatedEntityType?: string | null;
+    };
+    type CandidateInterview = {
+      id: string;
+      scheduledAt: string;
+      duration: number;
+      location: string;
+      status: string;
+      request?: { position?: string };
     };
 
     const loadNotifications = async () => {
       try {
-        const response = await apiRequest<NotificationResponse[]>('/notifications', token);
+        const [response, profile] = await Promise.all([
+          apiRequest<NotificationResponse[]>('/notifications', token),
+          apiRequest<{ interviews: CandidateInterview[] }>('/candidate-profiles/me', token).catch(
+            () => ({ interviews: [] }),
+          ),
+        ]);
+        const interviewMap = new Map(profile.interviews.map((interview) => [interview.id, interview]));
         const mapped = response.map((notification): AlertItem => {
           const type: AlertItem['type'] =
             notification.type === 'INTERVIEW_INVITE'
@@ -232,6 +253,10 @@ export const CandidateNotifications: React.FC = () => {
                 ? 'System'
                 : 'Application';
           const sender = type === 'System' ? 'System Admin' : 'Recruitment Team';
+          const interview = notification.relatedEntityId
+            ? interviewMap.get(notification.relatedEntityId)
+            : undefined;
+          const startsAt = interview ? new Date(interview.scheduledAt) : null;
           return {
             id: notification.id,
             type,
@@ -245,6 +270,14 @@ export const CandidateNotifications: React.FC = () => {
             content: notification.body,
             receivedText: new Date(notification.createdAt).toLocaleString(),
             unread: !notification.isRead,
+            date: startsAt?.toLocaleDateString(),
+            time: startsAt?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            format: interview?.location?.startsWith('http') ? 'Online interview' : interview?.location,
+            relatedJob: interview?.request?.position,
+            relatedId: notification.relatedEntityId ?? null,
+            relatedType: notification.relatedEntityType ?? null,
+            status: interview?.status,
+            attendanceConfirmed: interview?.status === 'CONFIRMED',
           };
         });
         setAlerts(mapped);
@@ -309,8 +342,38 @@ export const CandidateNotifications: React.FC = () => {
   };
 
   // Confirm Attendance
-  const handleConfirmAttendance = (id: string) => {
-    setApiError(`Interview attendance confirmation API is not available for ${id}`);
+  const handleConfirmAttendance = async (id: string) => {
+    const selected = alerts.find((alert) => alert.id === id);
+    if (!selected?.relatedId) {
+      setApiError('Interview schedule is not linked to this notification');
+      return;
+    }
+
+    try {
+      await apiRequest(`/interviews/schedules/${selected.relatedId}/confirm`, token, {
+        method: 'POST',
+      });
+      setAlerts((prevAlerts) =>
+        prevAlerts.map((alert) =>
+          alert.id === id
+            ? { ...alert, attendanceConfirmed: true, status: 'CONFIRMED', unread: false }
+            : alert,
+        ),
+      );
+      setApiError('');
+    } catch (confirmError) {
+      setApiError(
+        confirmError instanceof Error ? confirmError.message : 'Unable to confirm attendance',
+      );
+    }
+  };
+
+  const handleOpenInterview = (alert: AlertItem) => {
+    if (!alert.relatedId) {
+      setApiError('Interview schedule is not linked to this notification');
+      return;
+    }
+    navigate(`/candidate/interviews?id=${alert.relatedId}`);
   };
 
   // Dynamic Metrics based on alert state
@@ -639,10 +702,19 @@ export const CandidateNotifications: React.FC = () => {
                       )}
                     </button>
                     {!selectedAlert.attendanceConfirmed && (
-                      <button className="bg-transparent border border-teal-command text-teal-command hover:bg-teal-command/5 font-semibold text-xs px-6 py-2.5 rounded-lg transition-colors active:scale-[0.98]">
+                      <button
+                        className="bg-transparent border border-teal-command text-teal-command hover:bg-teal-command/5 font-semibold text-xs px-6 py-2.5 rounded-lg transition-colors active:scale-[0.98]"
+                        onClick={() => handleOpenInterview(selectedAlert)}
+                      >
                         Propose New Time
                       </button>
                     )}
+                    <button
+                      className="bg-transparent border border-border-warm text-slate-ink hover:bg-surface-container-low font-semibold text-xs px-6 py-2.5 rounded-lg transition-colors active:scale-[0.98]"
+                      onClick={() => handleOpenInterview(selectedAlert)}
+                    >
+                      View Details
+                    </button>
                   </div>
                 )}
               </div>

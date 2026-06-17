@@ -34,9 +34,13 @@ type TaskItem = {
   taskType: string;
   title: string;
   done: boolean;
+  startDate: string;
+  startDateInput: string;
   dueDate: string;
+  dueDateInput: string;
   assigneeId?: string;
   assigneeName?: string;
+  assigneeRole?: string;
 };
 
 type CampaignData = {
@@ -70,7 +74,7 @@ interface TaskPlanApiItem {
   status: string;
   startDate: string;
   endDate: string;
-  assignedTo: { id: string; displayName: string } | null;
+  assignedTo: { id: string; displayName: string; role?: string; email?: string } | null;
 }
 
 interface OverallPlanFull {
@@ -90,6 +94,7 @@ interface ApplicationApiItem {
   candidateId: string;
   status: string;
   createdAt: string;
+  collectedBy: { id: string; displayName: string; email?: string } | null;
   candidate: {
     id: string;
     fullName: string;
@@ -142,6 +147,8 @@ const CANDIDATE_COLOR_PALETTE = [
 
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(value));
+
+const toDateInputValue = (value: string) => new Date(value).toISOString().slice(0, 10);
 
 const getInitials = (name: string) =>
   name
@@ -287,6 +294,8 @@ export const HRCampaignDetail: React.FC = () => {
   const { token, user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const campaignId = id?.replace(/^#/, '') ?? '';
+  const isHrLeader = user?.role === 'HR_LEADER';
+  const isHrRecruiter = user?.role === 'HR_RECRUITER';
 
   const [activeTab, setActiveTab] = useState<DetailTab>('kanban');
   const [loading, setLoading] = useState(true);
@@ -306,8 +315,12 @@ export const HRCampaignDetail: React.FC = () => {
   const [taskBusyId, setTaskBusyId] = useState<string | null>(null);
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTaskType, setNewTaskType] = useState('JOB_POSTING');
+  const [newTaskStart, setNewTaskStart] = useState('');
   const [newTaskDue, setNewTaskDue] = useState('');
-  const [newTaskAssigneeId, setNewTaskAssigneeId] = useState('');
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editTaskType, setEditTaskType] = useState('JOB_POSTING');
+  const [editTaskStart, setEditTaskStart] = useState('');
+  const [editTaskDue, setEditTaskDue] = useState('');
   const [hrMembers, setHrMembers] = useState<HrMemberOption[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [addTaskSubmitting, setAddTaskSubmitting] = useState(false);
@@ -344,6 +357,18 @@ export const HRCampaignDetail: React.FC = () => {
           ).catch(() => []),
           apiRequest<JobPostingApiItem[]>('/job-postings', token).catch(() => []),
         ]);
+      if (
+        user?.role === 'HR_RECRUITER' &&
+        !planResponse?.tasks.some((task) => task.assignedTo?.id === user.id)
+      ) {
+        setApiError('You can only view campaigns with tasks assigned to you by an HR Leader.');
+        setRequest(null);
+        setPlan(null);
+        setApplications([]);
+        setSchedules([]);
+        setJobPosting(null);
+        return;
+      }
       setRequest(requestResponse);
       setPlan(planResponse);
       setApplications(applicationsResponse);
@@ -363,10 +388,10 @@ export const HRCampaignDetail: React.FC = () => {
 
   useEffect(() => {
     void loadCampaign();
-  }, [token, campaignId]);
+  }, [token, campaignId, user?.id, user?.role]);
 
   useEffect(() => {
-    if (user?.role !== 'HR_LEADER') return;
+    if (!isHrLeader) return;
 
     const loadHrMembers = async () => {
       setMembersLoading(true);
@@ -391,7 +416,7 @@ export const HRCampaignDetail: React.FC = () => {
     };
 
     void loadHrMembers();
-  }, [token, user?.role]);
+  }, [isHrLeader, token]);
 
   const tasks: TaskItem[] = useMemo(
     () =>
@@ -400,17 +425,65 @@ export const HRCampaignDetail: React.FC = () => {
         taskType: task.taskType,
         title: TASK_TYPE_LABELS[task.taskType] ?? task.taskType,
         done: task.status === 'COMPLETED',
+        startDate: formatDate(task.startDate),
+        startDateInput: toDateInputValue(task.startDate),
         dueDate: formatDate(task.endDate),
-        assigneeId: task.assignedTo?.id,
-        assigneeName: task.assignedTo?.displayName || '',
+        dueDateInput: toDateInputValue(task.endDate),
+        assigneeId: task.assignedTo?.role === 'HR_RECRUITER' ? task.assignedTo.id : undefined,
+        assigneeName:
+          task.assignedTo?.role === 'HR_RECRUITER' ? task.assignedTo.displayName : undefined,
+        assigneeRole: task.assignedTo?.role,
       })),
     [plan],
   );
 
   const completedTasks = tasks.filter((task) => task.done).length;
   const taskProgress = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
+  const visibleTasks = useMemo(
+    () => (isHrRecruiter ? tasks.filter((task) => task.assigneeId === user?.id) : tasks),
+    [isHrRecruiter, tasks, user?.id],
+  );
+  const visibleCompletedTasks = visibleTasks.filter((task) => task.done).length;
+  const visibleTaskProgress =
+    visibleTasks.length > 0 ? Math.round((visibleCompletedTasks / visibleTasks.length) * 100) : 0;
+  const recruiterAssignedTaskTypes = useMemo(
+    () =>
+      new Set(
+        tasks
+          .filter((task) => task.assigneeId === user?.id)
+          .map((task) => task.taskType),
+      ),
+    [tasks, user?.id],
+  );
+  const canUseTaskPermission = (taskType: string) =>
+    isHrLeader || (isHrRecruiter && recruiterAssignedTaskTypes.has(taskType));
+  const collectionCountsByRecruiter = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const application of applications) {
+      if (!application.collectedBy?.id) continue;
+      counts.set(application.collectedBy.id, (counts.get(application.collectedBy.id) ?? 0) + 1);
+    }
+    return counts;
+  }, [applications]);
+
+  const collectionStats = useMemo(() => {
+    const byId = new Map<string, { id: string; name: string; email?: string; count: number }>();
+    for (const application of applications) {
+      if (!application.collectedBy?.id) continue;
+      const current = byId.get(application.collectedBy.id);
+      byId.set(application.collectedBy.id, {
+        id: application.collectedBy.id,
+        name: application.collectedBy.displayName,
+        email: application.collectedBy.email,
+        count: (current?.count ?? 0) + 1,
+      });
+    }
+    return Array.from(byId.values()).sort((a, b) => b.count - a.count);
+  }, [applications]);
+
+  const collectedCvTotal = collectionStats.reduce((sum, item) => sum + item.count, 0);
   const campaignMembers = useMemo(() => {
-    const byId = new Map<string, { id: string; name: string; taskCount: number }>();
+    const byId = new Map<string, { id: string; name: string; taskCount: number; collectedCount: number }>();
 
     for (const task of tasks) {
       if (!task.assigneeId || !task.assigneeName) continue;
@@ -419,11 +492,12 @@ export const HRCampaignDetail: React.FC = () => {
         id: task.assigneeId,
         name: task.assigneeName,
         taskCount: (current?.taskCount ?? 0) + 1,
+        collectedCount: collectionCountsByRecruiter.get(task.assigneeId) ?? current?.collectedCount ?? 0,
       });
     }
 
     return Array.from(byId.values());
-  }, [tasks]);
+  }, [collectionCountsByRecruiter, tasks]);
 
   const campaign: CampaignData | null = useMemo(() => {
     if (!request) return null;
@@ -548,27 +622,82 @@ export const HRCampaignDetail: React.FC = () => {
     });
   }, [schedules, applications, weekDays]);
 
-  const canManagePlan = user?.role === 'HR_LEADER';
+  const canManagePlan = isHrLeader;
+  const canEditDraftTasks =
+    canManagePlan &&
+    Boolean(plan) &&
+    ['DRAFT', 'REJECTED', 'PENDING_APPROVAL'].includes(plan?.status ?? '');
+  const canSubmitPlan =
+    canManagePlan && Boolean(plan) && ['DRAFT', 'REJECTED'].includes(plan?.status ?? '') && tasks.length > 0;
+  const canAssignRecruiters = canManagePlan && plan?.status === 'APPROVED';
+  const canStartCampaign =
+    canAssignRecruiters &&
+    request?.status !== 'ACTIVE' &&
+    tasks.length > 0 &&
+    tasks.every((task) => task.assigneeId);
   const hasJobPostingTask = tasks.some((task) => task.taskType === 'JOB_POSTING');
   const hasInterviewTask = tasks.some((task) => task.taskType === 'INTERVIEW_COORDINATION');
-  const canCreateJobPosting = canManagePlan && campaign?.status === 'APPROVED' && hasJobPostingTask;
-  const canScheduleInterview = campaign?.status === 'APPROVED' && hasInterviewTask;
+  const hasCandidateSearchTask =
+    tasks.some((task) => task.taskType === 'CV_COLLECTION') ||
+    tasks.some((task) => task.taskType === 'CV_SCREENING');
+  const canCreateJobPosting =
+    canManagePlan && request?.status === 'ACTIVE' && hasJobPostingTask;
+  const canScheduleInterview =
+    request?.status === 'ACTIVE' &&
+    hasInterviewTask &&
+    canUseTaskPermission('INTERVIEW_COORDINATION');
+  const canFindCandidates =
+    request?.status === 'ACTIVE' &&
+    hasCandidateSearchTask &&
+    (canUseTaskPermission('CV_COLLECTION') || canUseTaskPermission('CV_SCREENING'));
 
-  const resubmitPlan = async () => {
+  const submitPlan = async () => {
     if (!plan) return;
 
     setActionSubmitting(true);
     setActionError('');
     try {
-      await apiRequest(`/overall-plan/${plan.id}/resubmit`, token, {
+      await apiRequest(`/overall-plan/${plan.id}/submit`, token, { method: 'PATCH' });
+      await loadCampaign();
+    } catch (submitErr) {
+      setActionError(
+        submitErr instanceof ApiError ? submitErr.message : 'Unable to submit plan for approval',
+      );
+    } finally {
+      setActionSubmitting(false);
+    }
+  };
+
+  const assignRecruiter = async (taskId: string, assignedToId: string) => {
+    if (!assignedToId) return;
+
+    setTaskBusyId(taskId);
+    setTaskActionError('');
+    try {
+      await apiRequest(`/task-plan/${taskId}/assign-recruiter`, token, {
         method: 'PATCH',
-        body: JSON.stringify({}),
+        body: JSON.stringify({ assignedToId }),
       });
       await loadCampaign();
-    } catch (resubmitErr) {
-      setActionError(
-        resubmitErr instanceof ApiError ? resubmitErr.message : 'Unable to resubmit plan',
+    } catch (assignErr) {
+      setTaskActionError(
+        assignErr instanceof ApiError ? assignErr.message : 'Unable to assign recruiter',
       );
+    } finally {
+      setTaskBusyId(null);
+    }
+  };
+
+  const startCampaign = async () => {
+    if (!plan) return;
+
+    setActionSubmitting(true);
+    setActionError('');
+    try {
+      await apiRequest(`/overall-plan/${plan.id}/start-campaign`, token, { method: 'PATCH' });
+      await loadCampaign();
+    } catch (startErr) {
+      setActionError(startErr instanceof ApiError ? startErr.message : 'Unable to start campaign');
     } finally {
       setActionSubmitting(false);
     }
@@ -578,6 +707,12 @@ export const HRCampaignDetail: React.FC = () => {
     setTaskBusyId(taskId);
     setTaskActionError('');
     try {
+      const task = tasks.find((item) => item.id === taskId);
+      if (!task || (!canManagePlan && task.assigneeId !== user?.id)) {
+        setTaskActionError('You can only update tasks assigned to you.');
+        return;
+      }
+
       await apiRequest(`/task-plan/${taskId}/status`, token, {
         method: 'PATCH',
         body: JSON.stringify({ status: 'COMPLETED' }),
@@ -599,25 +734,71 @@ export const HRCampaignDetail: React.FC = () => {
     }
   };
 
+  const openEditTask = (task: TaskItem) => {
+    setEditingTaskId(task.id);
+    setEditTaskType(task.taskType);
+    setEditTaskStart(task.startDateInput);
+    setEditTaskDue(task.dueDateInput);
+    setTaskActionError('');
+  };
+
+  const updateTask = async () => {
+    if (!editingTaskId || !editTaskStart || !editTaskDue) return;
+
+    setTaskBusyId(editingTaskId);
+    setTaskActionError('');
+    try {
+      const taskStart = new Date(`${editTaskStart}T00:00:00`);
+      const taskEnd = new Date(`${editTaskDue}T23:59:59`);
+
+      if (taskEnd <= taskStart) {
+        setTaskActionError('Task due date must be after the task start date');
+        return;
+      }
+
+      await apiRequest(`/task-plan/${editingTaskId}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          taskType: editTaskType,
+          startDate: taskStart.toISOString(),
+          endDate: taskEnd.toISOString(),
+        }),
+      });
+      setEditingTaskId(null);
+      await loadCampaign();
+    } catch (taskErr) {
+      setTaskActionError(taskErr instanceof ApiError ? taskErr.message : 'Unable to update task');
+    } finally {
+      setTaskBusyId(null);
+    }
+  };
+
   const addTask = async () => {
-    if (!plan || !newTaskDue || !newTaskAssigneeId) return;
+    if (!plan || !newTaskStart || !newTaskDue) return;
 
     setAddTaskSubmitting(true);
     setTaskActionError('');
     try {
+      const taskStart = new Date(`${newTaskStart}T00:00:00`);
+      const taskEnd = new Date(`${newTaskDue}T23:59:59`);
+
+      if (taskEnd <= taskStart) {
+        setTaskActionError('Task due date must be after the task start date');
+        return;
+      }
+
       await apiRequest('/task-plan', token, {
         method: 'POST',
         body: JSON.stringify({
           overallPlanId: plan.id,
           taskType: newTaskType,
-          startDate: new Date().toISOString(),
-          endDate: new Date(newTaskDue).toISOString(),
-          assignedToId: newTaskAssigneeId,
+          startDate: taskStart.toISOString(),
+          endDate: taskEnd.toISOString(),
         }),
       });
       setShowAddTask(false);
+      setNewTaskStart('');
       setNewTaskDue('');
-      setNewTaskAssigneeId('');
       await loadCampaign();
     } catch (taskErr) {
       setTaskActionError(taskErr instanceof ApiError ? taskErr.message : 'Unable to add task');
@@ -810,20 +991,52 @@ export const HRCampaignDetail: React.FC = () => {
             {campaign.status === 'REVISION_REQUIRED' ? (
               <button
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={actionSubmitting}
-                onClick={() => void resubmitPlan()}
+                disabled={actionSubmitting || !canSubmitPlan}
+                onClick={() => void submitPlan()}
                 type="button"
               >
                 <Icon className="h-4 w-4" name="send" />
-                {actionSubmitting ? 'Resubmitting...' : 'Resubmit for Approval'}
+                {actionSubmitting ? 'Submitting...' : 'Submit Plan to Admin'}
               </button>
             ) : campaign.status === 'PENDING_APPROVAL' ? (
               <div className="inline-flex h-10 items-center justify-center rounded-lg border border-border-warm bg-workflow-ivory px-4 text-sm font-semibold text-on-surface-variant">
                 Awaiting Admin Approval
               </div>
             ) : campaign.status === 'DRAFT' ? (
-              <div className="inline-flex h-10 items-center justify-center rounded-lg border border-border-warm bg-workflow-ivory px-4 text-sm text-on-surface-variant">
-                No overall plan yet
+              plan ? (
+                <button
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={actionSubmitting || !canSubmitPlan}
+                  onClick={() => void submitPlan()}
+                  title={!canSubmitPlan ? 'Add at least one task before submitting the plan.' : undefined}
+                  type="button"
+                >
+                  <Icon className="h-4 w-4" name="send" />
+                  {actionSubmitting ? 'Submitting...' : 'Submit Plan to Admin'}
+                </button>
+              ) : (
+                <div className="inline-flex h-10 items-center justify-center rounded-lg border border-border-warm bg-workflow-ivory px-4 text-sm text-on-surface-variant">
+                  No overall plan yet
+                </div>
+              )
+            ) : campaign.status === 'APPROVED' && request?.status !== 'ACTIVE' ? (
+              <button
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={actionSubmitting || !canStartCampaign}
+                onClick={() => void startCampaign()}
+                title={
+                  !canStartCampaign
+                    ? 'Assign every task to an HR recruiter before starting the campaign.'
+                    : undefined
+                }
+                type="button"
+              >
+                <Icon className="h-4 w-4" name="send" />
+                {actionSubmitting ? 'Starting...' : 'Start Campaign'}
+              </button>
+            ) : request?.status === 'ACTIVE' ? (
+              <div className="inline-flex h-10 items-center justify-center rounded-lg border border-approved/20 bg-approved/10 px-4 text-sm font-semibold text-approved">
+                Campaign Active
               </div>
             ) : null}
           </div>
@@ -975,17 +1188,21 @@ export const HRCampaignDetail: React.FC = () => {
                 <div>
                   <h2 className="text-lg font-semibold text-deep-charcoal">Campaign Tasks</h2>
                   <p className="mt-1 text-xs text-on-surface-variant">
-                    {completedTasks} of {tasks.length} completed
+                    {isHrRecruiter
+                      ? `${visibleCompletedTasks} of ${visibleTasks.length} assigned tasks completed`
+                      : `${completedTasks} of ${tasks.length} completed`}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="h-1.5 w-32 overflow-hidden rounded-full bg-surface-variant">
                     <div
                       className="h-full rounded-full bg-teal-command"
-                      style={{ width: `${taskProgress}%` }}
+                      style={{ width: `${isHrRecruiter ? visibleTaskProgress : taskProgress}%` }}
                     />
                   </div>
-                  <span className="font-mono text-xs text-on-surface-variant">{taskProgress}%</span>
+                  <span className="font-mono text-xs text-on-surface-variant">
+                    {isHrRecruiter ? visibleTaskProgress : taskProgress}%
+                  </span>
                 </div>
               </div>
               {taskActionError && (
@@ -997,25 +1214,18 @@ export const HRCampaignDetail: React.FC = () => {
                 <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                      Campaign HR Members
+                      {isHrRecruiter ? 'My Assignment' : 'Campaign HR Members'}
                     </p>
                     <p className="mt-1 text-xs text-slate-ink">
-                      Members are added to this campaign when they are assigned a task.
+                      {isHrRecruiter
+                        ? 'You can act only on tasks assigned to you by the HR Leader.'
+                        : 'Members are added to this campaign when they are assigned a task.'}
                     </p>
                   </div>
-                  {canManagePlan ? (
-                    <button
-                      className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border-warm px-3 text-xs font-semibold text-teal-command transition hover:border-teal-command hover:bg-teal-command/5 disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={!plan || hrMembers.length === 0}
-                      onClick={() => {
-                        setNewTaskAssigneeId((current) => current || hrMembers[0]?.id || '');
-                        setShowAddTask(true);
-                      }}
-                      type="button"
-                    >
-                      <Icon className="h-4 w-4" name="userPlus" />
-                      Add HR Recruiter
-                    </button>
+                  {canAssignRecruiters && request?.status !== 'ACTIVE' ? (
+                    <span className="rounded-lg border border-teal-command/20 bg-teal-command/5 px-3 py-2 text-xs font-semibold text-teal-command">
+                      Assign recruiters before starting
+                    </span>
                   ) : null}
                 </div>
                 {campaignMembers.length > 0 ? (
@@ -1030,7 +1240,10 @@ export const HRCampaignDetail: React.FC = () => {
                         </span>
                         {member.name}
                         <span className="font-mono text-on-surface-variant">
-                          {member.taskCount}
+                          {member.taskCount} tasks
+                        </span>
+                        <span className="font-mono text-teal-command">
+                          {member.collectedCount} CVs
                         </span>
                       </span>
                     ))}
@@ -1042,7 +1255,7 @@ export const HRCampaignDetail: React.FC = () => {
                 )}
               </div>
               <ul className="divide-y divide-border-warm">
-                {tasks.map((task) => (
+                {visibleTasks.map((task) => (
                   <li
                     className={`flex items-center gap-4 px-6 py-4 transition ${task.done ? 'bg-workflow-ivory/30' : 'hover:bg-workflow-ivory/50'}`}
                     key={task.id}
@@ -1052,22 +1265,123 @@ export const HRCampaignDetail: React.FC = () => {
                     >
                       {task.done ? <Icon className="h-3 w-3" name="check" /> : null}
                     </span>
-                    <p
-                      className={`flex-1 text-sm ${task.done ? 'text-on-surface-variant line-through' : 'font-medium text-deep-charcoal'}`}
-                    >
-                      {task.title}
-                      {task.assigneeName && (
-                        <span className="ml-2 text-xs font-normal text-slate-ink/80 bg-workflow-ivory px-2 py-0.5 rounded-full border border-border-warm">
-                          {task.assigneeName}
-                        </span>
-                      )}
-                    </p>
-                    <span
-                      className={`font-mono text-xs ${task.done ? 'text-on-surface-variant' : 'text-slate-ink'}`}
-                    >
-                      Due {task.dueDate}
-                    </span>
-                    {!task.done ? (
+                    {editingTaskId === task.id ? (
+                      <div className="grid flex-1 gap-3 md:grid-cols-[minmax(180px,1fr)_150px_150px_auto] md:items-end">
+                        <label className="block">
+                          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                            Task Type
+                          </span>
+                          <select
+                            className="h-9 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-xs font-semibold text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                            onChange={(event) => setEditTaskType(event.target.value)}
+                            value={editTaskType}
+                          >
+                            {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
+                              <option key={value} value={value}>
+                                {label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="block">
+                          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                            Start Date
+                          </span>
+                          <input
+                            className="h-9 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-xs text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                            max={plan?.endDate.slice(0, 10)}
+                            min={plan?.startDate.slice(0, 10)}
+                            onChange={(event) => setEditTaskStart(event.target.value)}
+                            type="date"
+                            value={editTaskStart}
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                            Due Date
+                          </span>
+                          <input
+                            className="h-9 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-xs text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                            max={plan?.endDate.slice(0, 10)}
+                            min={plan?.startDate.slice(0, 10)}
+                            onChange={(event) => setEditTaskDue(event.target.value)}
+                            type="date"
+                            value={editTaskDue}
+                          />
+                        </label>
+                        <div className="flex gap-2">
+                          <button
+                            className="h-9 rounded-lg bg-teal-command px-3 text-xs font-bold text-white transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={!editTaskStart || !editTaskDue || taskBusyId === task.id}
+                            onClick={() => void updateTask()}
+                            type="button"
+                          >
+                            Save
+                          </button>
+                          <button
+                            className="h-9 rounded-lg border border-border-warm px-3 text-xs font-semibold text-secondary transition hover:bg-surface-variant/40"
+                            onClick={() => setEditingTaskId(null)}
+                            type="button"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p
+                        className={`flex-1 text-sm ${task.done ? 'text-on-surface-variant line-through' : 'font-medium text-deep-charcoal'}`}
+                      >
+                        {task.title}
+                        {task.assigneeName && (
+                          <span className="ml-2 text-xs font-normal text-slate-ink/80 bg-workflow-ivory px-2 py-0.5 rounded-full border border-border-warm">
+                            {task.assigneeName}
+                          </span>
+                        )}
+                        {task.taskType === 'CV_COLLECTION' && task.assigneeId ? (
+                          <span className="ml-2 text-xs font-normal text-teal-command bg-teal-command/5 px-2 py-0.5 rounded-full border border-teal-command/20">
+                            {collectionCountsByRecruiter.get(task.assigneeId) ?? 0} CVs collected
+                          </span>
+                        ) : null}
+                      </p>
+                    )}
+                    {editingTaskId !== task.id && canAssignRecruiters && request?.status !== 'ACTIVE' ? (
+                      <select
+                        className="h-9 min-w-[200px] rounded-lg border border-border-warm bg-clean-surface px-3 text-xs font-semibold text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                        disabled={membersLoading || taskBusyId === task.id}
+                        onChange={(event) => void assignRecruiter(task.id, event.target.value)}
+                        value={task.assigneeId ?? ''}
+                      >
+                        <option value="">
+                          {membersLoading ? 'Loading recruiters...' : 'Assign HR recruiter'}
+                        </option>
+                        {hrMembers.map((member) => (
+                          <option key={member.id} value={member.id}>
+                            {member.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : null}
+                    {editingTaskId !== task.id ? (
+                      <span
+                        className={`font-mono text-xs ${task.done ? 'text-on-surface-variant' : 'text-slate-ink'}`}
+                      >
+                        {task.startDate} - {task.dueDate}
+                      </span>
+                    ) : null}
+                    {editingTaskId !== task.id && canEditDraftTasks ? (
+                      <button
+                        className="text-xs font-semibold text-teal-command transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={taskBusyId === task.id}
+                        onClick={() => openEditTask(task)}
+                        type="button"
+                      >
+                        Edit
+                      </button>
+                    ) : null}
+                    {editingTaskId !== task.id &&
+                    !task.done &&
+                    request?.status === 'ACTIVE' &&
+                    (canManagePlan || task.assigneeId === user?.id) ? (
                       <button
                         className="text-xs font-semibold text-teal-command transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={taskBusyId === task.id}
@@ -1079,9 +1393,11 @@ export const HRCampaignDetail: React.FC = () => {
                     ) : null}
                   </li>
                 ))}
-                {tasks.length === 0 ? (
+                {visibleTasks.length === 0 ? (
                   <li className="px-6 py-8 text-center text-sm text-on-surface-variant">
-                    No tasks have been added to this plan yet.
+                    {isHrRecruiter
+                      ? 'No tasks have been assigned to you for this campaign.'
+                      : 'No tasks have been added to this plan yet.'}
                   </li>
                 ) : null}
               </ul>
@@ -1106,43 +1422,34 @@ export const HRCampaignDetail: React.FC = () => {
                     </label>
                     <label className="block">
                       <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                        Start Date
+                      </span>
+                      <input
+                        className="h-10 rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                        max={plan?.endDate.slice(0, 10)}
+                        min={plan?.startDate.slice(0, 10)}
+                        onChange={(event) => setNewTaskStart(event.target.value)}
+                        type="date"
+                        value={newTaskStart}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
                         Due Date
                       </span>
                       <input
                         className="h-10 rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                        max={plan?.endDate.slice(0, 10)}
+                        min={plan?.startDate.slice(0, 10)}
                         onChange={(event) => setNewTaskDue(event.target.value)}
                         type="date"
                         value={newTaskDue}
                       />
                     </label>
-                    <label className="block">
-                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                        HR Member
-                      </span>
-                      <select
-                        className="h-10 w-full min-w-[220px] rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                        disabled={membersLoading || hrMembers.length === 0}
-                        onChange={(event) => setNewTaskAssigneeId(event.target.value)}
-                        value={newTaskAssigneeId}
-                      >
-                        <option value="">
-                          {membersLoading
-                            ? 'Loading HR recruiters...'
-                            : hrMembers.length === 0
-                              ? 'No HR recruiters available'
-                              : 'Select HR recruiter'}
-                        </option>
-                        {hrMembers.map((member) => (
-                          <option key={member.id} value={member.id}>
-                            {member.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
                     <div className="flex gap-2">
                       <button
                         className="h-10 rounded-lg bg-teal-command px-4 text-sm font-bold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={!newTaskDue || !newTaskAssigneeId || addTaskSubmitting}
+                        disabled={!newTaskStart || !newTaskDue || addTaskSubmitting}
                         onClick={() => void addTask()}
                         type="button"
                       >
@@ -1152,7 +1459,8 @@ export const HRCampaignDetail: React.FC = () => {
                         className="h-10 rounded-lg border border-border-warm px-4 text-sm font-semibold text-secondary transition hover:bg-surface-variant/40 active:scale-[0.98]"
                         onClick={() => {
                           setShowAddTask(false);
-                          setNewTaskAssigneeId('');
+                          setNewTaskStart('');
+                          setNewTaskDue('');
                         }}
                         type="button"
                       >
@@ -1163,17 +1471,16 @@ export const HRCampaignDetail: React.FC = () => {
                 ) : (
                   <button
                     className="inline-flex items-center gap-2 text-sm font-semibold text-teal-command transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={!plan || !canManagePlan}
-                    onClick={() => {
-                      setNewTaskAssigneeId((current) => current || hrMembers[0]?.id || '');
-                      setShowAddTask(true);
-                    }}
+                    disabled={!canEditDraftTasks}
+                    onClick={() => setShowAddTask(true)}
                     title={
                       !plan
                         ? 'Create an Overall Plan first.'
                         : !canManagePlan
                           ? 'Only HR Leader can add campaign tasks.'
-                          : undefined
+                          : !canEditDraftTasks
+                            ? 'Tasks can only be added before Admin approves the plan.'
+                            : undefined
                     }
                     type="button"
                   >
@@ -1203,6 +1510,24 @@ export const HRCampaignDetail: React.FC = () => {
                 style={{ width: `${campaign.progress}%` }}
               />
             </div>
+            <div className="mb-4 grid grid-cols-2 gap-3">
+              <div className="rounded-lg border border-border-warm bg-workflow-ivory px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                  Applied
+                </p>
+                <p className="mt-1 font-mono text-xl font-bold text-deep-charcoal">
+                  {applications.length}
+                </p>
+              </div>
+              <div className="rounded-lg border border-teal-command/20 bg-teal-command/5 px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-teal-command">
+                  Collected CVs
+                </p>
+                <p className="mt-1 font-mono text-xl font-bold text-teal-command">
+                  {collectedCvTotal}
+                </p>
+              </div>
+            </div>
             <div className="space-y-2">
               {kanbanColumns.map((column) => (
                 <div className="flex items-center justify-between" key={column.key}>
@@ -1212,6 +1537,27 @@ export const HRCampaignDetail: React.FC = () => {
                   </span>
                 </div>
               ))}
+            </div>
+            <div className="mt-4 border-t border-border-warm pt-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                Recruiter Collection
+              </p>
+              {collectionStats.length > 0 ? (
+                <div className="space-y-2">
+                  {collectionStats.map((item) => (
+                    <div className="flex items-center justify-between gap-3" key={item.id}>
+                      <span className="truncate text-xs font-semibold text-deep-charcoal">
+                        {item.name}
+                      </span>
+                      <span className="shrink-0 font-mono text-xs font-semibold text-teal-command">
+                        {item.count} CVs
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-on-surface-variant">No CVs collected yet.</p>
+              )}
             </div>
           </section>
 
@@ -1303,8 +1649,17 @@ export const HRCampaignDetail: React.FC = () => {
                 Campaign Actions
               </p>
               <button
-                className="text-[11px] font-semibold text-teal-command transition hover:underline"
-                onClick={() => navigate('/hr/search')}
+                className="text-[11px] font-semibold text-teal-command transition hover:underline disabled:cursor-not-allowed disabled:text-on-surface-variant disabled:no-underline"
+                disabled={!canFindCandidates}
+                onClick={() => {
+                  if (!canFindCandidates) return;
+                  navigate('/hr/search');
+                }}
+                title={
+                  !canFindCandidates
+                    ? 'HR Leader must assign you CV collection or CV screening work for this campaign.'
+                    : undefined
+                }
                 type="button"
               >
                 Find candidates

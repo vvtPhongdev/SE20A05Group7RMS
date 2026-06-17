@@ -67,6 +67,12 @@ export const CandidateInterviewDetails: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
   const [actionError, setActionError] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
+  const [actionSubmitting, setActionSubmitting] = useState(false);
+  const [showRescheduleForm, setShowRescheduleForm] = useState(false);
+  const [rescheduleAt, setRescheduleAt] = useState('');
+  const [rescheduleReason, setRescheduleReason] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
 
   useEffect(() => {
     const loadInterview = async () => {
@@ -99,6 +105,96 @@ export const CandidateInterviewDetails: React.FC = () => {
     window.setTimeout(() => setCopied(false), 1800);
   };
 
+  const mergeUpdatedSchedule = (updated?: Partial<CandidateInterview>) => {
+    if (!updated) return;
+    setInterview((current) => (current ? { ...current, ...updated } : current));
+  };
+
+  const handleConfirmAttendance = async () => {
+    if (!interview) return;
+    setActionSubmitting(true);
+    setActionError('');
+    setActionMessage('');
+    try {
+      const response = await apiRequest<{ schedule: CandidateInterview }>(
+        `/interviews/schedules/${interview.id}/confirm`,
+        token,
+        { method: 'POST' },
+      );
+      mergeUpdatedSchedule(response.schedule);
+      setActionMessage('Attendance confirmed. HR has been notified.');
+    } catch (confirmError) {
+      setActionError(
+        confirmError instanceof Error ? confirmError.message : 'Unable to confirm attendance',
+      );
+    } finally {
+      setActionSubmitting(false);
+    }
+  };
+
+  const handleRequestReschedule = async () => {
+    if (!interview) return;
+    if (!rescheduleAt) {
+      setActionError('Please choose a new interview time');
+      return;
+    }
+    setActionSubmitting(true);
+    setActionError('');
+    setActionMessage('');
+    try {
+      const response = await apiRequest<{ schedule: CandidateInterview }>(
+        `/interviews/schedules/${interview.id}/candidate-reschedule`,
+        token,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            scheduledAt: new Date(rescheduleAt).toISOString(),
+            reason: rescheduleReason || 'Candidate requested a new interview time',
+          }),
+        },
+      );
+      mergeUpdatedSchedule(response.schedule);
+      setShowRescheduleForm(false);
+      setRescheduleReason('');
+      setRescheduleAt('');
+      setActionMessage('New interview time sent. HR and the interview panel have been notified.');
+    } catch (rescheduleError) {
+      setActionError(
+        rescheduleError instanceof Error ? rescheduleError.message : 'Unable to reschedule interview',
+      );
+    } finally {
+      setActionSubmitting(false);
+    }
+  };
+
+  const handleCancelInterview = async () => {
+    if (!interview) return;
+    setActionSubmitting(true);
+    setActionError('');
+    setActionMessage('');
+    try {
+      const response = await apiRequest<{ schedule: CandidateInterview }>(
+        `/interviews/schedules/${interview.id}/candidate-cancel`,
+        token,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            reason: cancelReason || 'Candidate cannot attend this interview',
+          }),
+        },
+      );
+      mergeUpdatedSchedule(response.schedule);
+      setCancelReason('');
+      setActionMessage('Interview cancelled. HR and the interview panel have been notified.');
+    } catch (cancelError) {
+      setActionError(
+        cancelError instanceof Error ? cancelError.message : 'Unable to cancel interview',
+      );
+    } finally {
+      setActionSubmitting(false);
+    }
+  };
+
   if (loading) {
     return (
       <CandidateDashboardPage className="max-w-[900px]">
@@ -126,6 +222,8 @@ export const CandidateInterviewDetails: React.FC = () => {
   const startsAt = new Date(interview.scheduledAt);
   const endsAt = new Date(startsAt.getTime() + interview.duration * 60_000);
   const isMeetingLink = /^https?:\/\//i.test(interview.location);
+  const isClosed = interview.status === 'CANCELLED' || interview.status === 'COMPLETED';
+  const isConfirmed = interview.status === 'CONFIRMED';
   const panelMembers = (
     interview.panel?.length
       ? interview.panel
@@ -150,6 +248,11 @@ export const CandidateInterviewDetails: React.FC = () => {
     <CandidateDashboardPage className="flex max-w-[900px] flex-col items-center">
       {actionError ? (
         <CandidateInlineAlert>{actionError}</CandidateInlineAlert>
+      ) : null}
+      {actionMessage ? (
+        <p className="mb-4 w-full rounded-lg border border-approved/20 bg-approved/10 p-4 text-sm font-semibold text-approved">
+          {actionMessage}
+        </p>
       ) : null}
       <CandidateCard className="w-full overflow-hidden p-0 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05),0_2px_10px_-2px_rgba(0,0,0,0.03)]">
         <header className="bg-[linear-gradient(135deg,#0D9488_0%,#00685f_100%)] p-8 text-white">
@@ -295,17 +398,21 @@ export const CandidateInterviewDetails: React.FC = () => {
           <footer className="flex flex-col gap-4 border-t border-border-warm pt-8 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-col gap-3 sm:flex-row">
               <button
-                className="rounded-lg bg-teal-command px-8 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-primary active:scale-[0.98]"
-                onClick={() =>
-                  setActionError('Interview attendance confirmation API is not available')
-                }
+                className={`rounded-lg px-8 py-3 text-sm font-semibold shadow-md transition active:scale-[0.98] ${
+                  isConfirmed || isClosed
+                    ? 'cursor-not-allowed bg-approved/10 text-approved shadow-none'
+                    : 'bg-teal-command text-white hover:bg-primary'
+                }`}
+                disabled={actionSubmitting || isConfirmed || isClosed}
+                onClick={() => void handleConfirmAttendance()}
                 type="button"
               >
-                Confirm Attendance
+                {isConfirmed ? 'Attendance Confirmed' : 'Confirm Attendance'}
               </button>
               <button
                 className="rounded-lg border-2 border-teal-command px-6 py-3 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98]"
-                onClick={() => setActionError('Candidate reschedule request API is not available')}
+                disabled={actionSubmitting || isClosed}
+                onClick={() => setShowRescheduleForm((visible) => !visible)}
                 type="button"
               >
                 Request Reschedule
@@ -325,6 +432,72 @@ export const CandidateInterviewDetails: React.FC = () => {
               ))}
             </div>
           </footer>
+
+          {showRescheduleForm && !isClosed ? (
+            <section className="rounded-lg border border-border-warm bg-surface-container-low p-4">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-ink">
+                Request New Time
+              </h2>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-[220px_1fr_auto] md:items-end">
+                <label className="text-xs font-semibold text-slate-ink">
+                  Preferred time
+                  <input
+                    className="mt-1 w-full rounded-lg border border-border-warm bg-white px-3 py-2 text-sm text-on-surface outline-none focus:border-teal-command"
+                    min={new Date().toISOString().slice(0, 16)}
+                    onChange={(event) => setRescheduleAt(event.target.value)}
+                    type="datetime-local"
+                    value={rescheduleAt}
+                  />
+                </label>
+                <label className="text-xs font-semibold text-slate-ink">
+                  Reason
+                  <input
+                    className="mt-1 w-full rounded-lg border border-border-warm bg-white px-3 py-2 text-sm text-on-surface outline-none focus:border-teal-command"
+                    onChange={(event) => setRescheduleReason(event.target.value)}
+                    placeholder="Reason for changing time"
+                    type="text"
+                    value={rescheduleReason}
+                  />
+                </label>
+                <button
+                  className="rounded-lg bg-teal-command px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={actionSubmitting}
+                  onClick={() => void handleRequestReschedule()}
+                  type="button"
+                >
+                  Send Request
+                </button>
+              </div>
+            </section>
+          ) : null}
+
+          {!isClosed ? (
+            <section className="rounded-lg border border-error/20 bg-error-container/40 p-4">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-on-error-container">
+                Cancel Interview
+              </h2>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto] md:items-end">
+                <label className="text-xs font-semibold text-on-error-container">
+                  Reason
+                  <input
+                    className="mt-1 w-full rounded-lg border border-error/20 bg-white px-3 py-2 text-sm text-on-surface outline-none focus:border-error"
+                    onChange={(event) => setCancelReason(event.target.value)}
+                    placeholder="Reason for cancellation"
+                    type="text"
+                    value={cancelReason}
+                  />
+                </label>
+                <button
+                  className="rounded-lg border border-error bg-white px-5 py-2.5 text-sm font-semibold text-error transition hover:bg-error/5 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={actionSubmitting}
+                  onClick={() => void handleCancelInterview()}
+                  type="button"
+                >
+                  Cancel Interview
+                </button>
+              </div>
+            </section>
+          ) : null}
         </div>
       </CandidateCard>
 

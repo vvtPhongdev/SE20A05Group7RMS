@@ -42,6 +42,24 @@ interface RealtimeTrackingItem {
   rejectionReason?: string | null;
 }
 
+interface RecruitmentRequestDetails {
+  id: string;
+  position: string;
+  headcount: number;
+  status: string;
+  urgency: string;
+  jobDescription?: string | null;
+  justification?: string | null;
+  skillRequirements?: {
+    jobLevel?: string;
+    employmentType?: string;
+    salaryMin?: string | number;
+    salaryMax?: string | number;
+    startDate?: string;
+    skills?: string[];
+  } | null;
+}
+
 const filterOptions: FilterKey[] = ['All', 'Pending', 'Approved', 'Revision', 'Completed'];
 
 const priorityWeight: Record<Priority, number> = {
@@ -77,6 +95,8 @@ const statusFromApi = (status: string, filledHeadcount: number, targetHeadcount:
   switch (status) {
     case 'DRAFT':
       return 'Draft';
+    case 'PENDING_HR_REVIEW':
+    case 'PENDING_BOSS_APPROVAL':
     case 'PENDING_REVIEW':
       return 'Pending';
     case 'REVISION_NEEDED':
@@ -84,12 +104,23 @@ const statusFromApi = (status: string, filledHeadcount: number, targetHeadcount:
     case 'REJECTED':
     case 'CANCELLED':
       return 'Rejected';
+    case 'COMPLETED':
     case 'CLOSED':
       return 'Completed';
     case 'OFFER_ACCEPTED':
       return filledHeadcount >= targetHeadcount ? 'Completed' : 'Approved';
-    default:
+    case 'APPROVED':
+    case 'PLANNING':
+    case 'PLAN_PENDING_APPROVAL':
+    case 'PLAN_APPROVED':
+    case 'ACTIVE':
+    case 'INTERVIEWING':
+    case 'DECISION_PENDING':
+    case 'HIRED':
+    case 'NOT_HIRED':
       return 'Approved';
+    default:
+      return 'Pending';
   }
 };
 
@@ -164,7 +195,7 @@ export const DeptHeadRequests: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [selectedRequestDetails, setSelectedRequestDetails] = useState<any | null>(null);
+  const [selectedRequestDetails, setSelectedRequestDetails] = useState<RecruitmentRequestDetails | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
   useEffect(() => {
@@ -194,7 +225,7 @@ export const DeptHeadRequests: React.FC = () => {
     const loadDetails = async () => {
       setLoadingDetails(true);
       try {
-        const data = await apiRequest<any>(`/recruitment-requests/${selectedRequestId}`, token);
+        const data = await apiRequest<RecruitmentRequestDetails>(`/recruitment-requests/${selectedRequestId}`, token);
         if (cancelled) return;
         setSelectedRequestDetails(data);
       } catch (err) {

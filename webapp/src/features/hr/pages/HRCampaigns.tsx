@@ -28,6 +28,14 @@ type Campaign = {
   updatedAt: string | null;
 };
 
+type TaskPlanApiItem = {
+  id: string;
+  taskType: string;
+  overallPlan: {
+    requestId: string;
+  };
+};
+
 interface RecruitmentRequestApiItem {
   id: string;
   position: string;
@@ -172,7 +180,7 @@ const StatusBadge = ({ status }: { status: PlanStatus }) => {
 export const HRCampaigns: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
@@ -193,15 +201,31 @@ export const HRCampaigns: React.FC = () => {
     setLoading(true);
     setApiError('');
     try {
-      const response = await apiRequest<RecruitmentRequestListResponse>(
-        '/recruitment-requests?limit=100',
-        token,
+      const isRecruiter = user?.role === 'HR_RECRUITER';
+      const [response, assignedTasks] = await Promise.all([
+        apiRequest<RecruitmentRequestListResponse>('/recruitment-requests?limit=100', token),
+        isRecruiter
+          ? apiRequest<TaskPlanApiItem[]>('/task-plan', token).catch(() => [])
+          : Promise.resolve([]),
+      ]);
+      const assignedRequestIds = new Set(
+        assignedTasks
+          .map((task) => task.overallPlan?.requestId)
+          .filter((requestId): requestId is string => Boolean(requestId)),
       );
       const mapped = response.data
-        .filter((item) => !EXCLUDED_CAMPAIGN_STATUSES.has(item.status))
+        .filter(
+          (item) =>
+            !EXCLUDED_CAMPAIGN_STATUSES.has(item.status) &&
+            (!isRecruiter || assignedRequestIds.has(item.id)),
+        )
         .map(mapCampaign);
       setCampaigns(mapped);
-      setSelectedId((current) => current || mapped[0]?.id || '');
+      setSelectedId((current) =>
+        current && mapped.some((campaign) => campaign.id === current)
+          ? current
+          : mapped[0]?.id || '',
+      );
     } catch (loadError) {
       setApiError(loadError instanceof Error ? loadError.message : 'Unable to load campaigns');
     } finally {
@@ -211,17 +235,19 @@ export const HRCampaigns: React.FC = () => {
 
   useEffect(() => {
     void loadCampaigns();
-  }, [token]);
+  }, [token, user?.id, user?.role]);
+
+  const canCreatePlans = user?.role === 'HR_LEADER';
 
   useEffect(() => {
     const createRequestIdParam = searchParams.get('createRequestId');
-    if (loading || !createRequestIdParam) return;
+    if (loading || !createRequestIdParam || !canCreatePlans) return;
 
     const target = campaigns.find((campaign) => campaign.id === createRequestIdParam);
     if (!target) return;
 
     setSelectedId(target.id);
-    if (target.status === 'DRAFT') {
+    if (target.status === 'DRAFT' && !target.planId) {
       setCreateRequestId(target.id);
       setCreateError('');
       setShowCreateModal(true);
@@ -230,7 +256,7 @@ export const HRCampaigns: React.FC = () => {
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete('createRequestId');
     setSearchParams(nextParams, { replace: true });
-  }, [campaigns, loading, searchParams, setSearchParams]);
+  }, [campaigns, canCreatePlans, loading, searchParams, setSearchParams]);
 
   const metricCards = useMemo(
     () =>
@@ -265,7 +291,7 @@ export const HRCampaigns: React.FC = () => {
     campaigns.find((campaign) => campaign.id === selectedId) ?? visibleCampaigns[0] ?? null;
 
   const draftCampaigns = useMemo(
-    () => campaigns.filter((campaign) => campaign.status === 'DRAFT'),
+    () => campaigns.filter((campaign) => campaign.status === 'DRAFT' && !campaign.planId),
     [campaigns],
   );
 
@@ -275,10 +301,11 @@ export const HRCampaigns: React.FC = () => {
     setCreateSubmitting(true);
     setCreateError('');
     try {
+      const requestId = createRequestId;
       await apiRequest('/overall-plan', token, {
         method: 'POST',
         body: JSON.stringify({
-          hiringRequestId: createRequestId,
+          hiringRequestId: requestId,
           startDate: new Date(createStart).toISOString(),
           endDate: new Date(createEnd).toISOString(),
         }),
@@ -287,8 +314,9 @@ export const HRCampaigns: React.FC = () => {
       setCreateRequestId('');
       setCreateStart('');
       setCreateEnd('');
-      setSelectedId(createRequestId);
+      setSelectedId(requestId);
       await loadCampaigns();
+      navigate(`/hr/campaigns/${requestId}`);
     } catch (createErr) {
       setCreateError(
         createErr instanceof ApiError ? createErr.message : 'Unable to create overall plan',
@@ -304,14 +332,13 @@ export const HRCampaigns: React.FC = () => {
     setActionSubmitting(true);
     setActionError('');
     try {
-      await apiRequest(`/overall-plan/${selected.planId}/resubmit`, token, {
+      await apiRequest(`/overall-plan/${selected.planId}/submit`, token, {
         method: 'PATCH',
-        body: JSON.stringify({}),
       });
       await loadCampaigns();
     } catch (resubmitErr) {
       setActionError(
-        resubmitErr instanceof ApiError ? resubmitErr.message : 'Unable to resubmit plan',
+        resubmitErr instanceof ApiError ? resubmitErr.message : 'Unable to submit plan',
       );
     } finally {
       setActionSubmitting(false);
@@ -326,17 +353,19 @@ export const HRCampaigns: React.FC = () => {
           title="Recruitment Campaigns"
           description="Build and maintain overall plans for Admin-approved recruitment requests."
           actions={
-            <HRActionButton
-              onClick={() => {
-                if (draftCampaigns.length === 0) return;
-                setCreateRequestId(draftCampaigns[0]?.id ?? '');
-                setCreateError('');
-                setShowCreateModal(true);
-              }}
-            >
-              <Icon className="h-4 w-4" name="add" />
-              Create Overall Plan
-            </HRActionButton>
+            canCreatePlans ? (
+              <HRActionButton
+                onClick={() => {
+                  if (draftCampaigns.length === 0) return;
+                  setCreateRequestId(draftCampaigns[0]?.id ?? '');
+                  setCreateError('');
+                  setShowCreateModal(true);
+                }}
+              >
+                <Icon className="h-4 w-4" name="add" />
+                Create Draft Plan
+              </HRActionButton>
+            ) : null
           }
         />
 
@@ -487,7 +516,9 @@ export const HRCampaigns: React.FC = () => {
                 No campaigns match this view.
               </p>
               <p className="mt-1 text-sm text-slate-ink">
-                Adjust the search term or status filter.
+                {user?.role === 'HR_RECRUITER'
+                  ? 'Only campaigns with tasks assigned to you are shown here.'
+                  : 'Adjust the search term or status filter.'}
               </p>
             </div>
           ) : null}
@@ -583,7 +614,7 @@ export const HRCampaigns: React.FC = () => {
                   {actionError}
                 </div>
               )}
-              {selected.status === 'REVISION_REQUIRED' ? (
+              {canCreatePlans && selected.status === 'REVISION_REQUIRED' ? (
                 <button
                   className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={actionSubmitting}
@@ -591,16 +622,22 @@ export const HRCampaigns: React.FC = () => {
                   type="button"
                 >
                   <Icon className="h-4 w-4" name="send" />
-                  {actionSubmitting ? 'Resubmitting...' : 'Resubmit for Approval'}
+                  {actionSubmitting ? 'Submitting...' : 'Submit Plan to Admin'}
                 </button>
               ) : selected.status === 'PENDING_APPROVAL' ? (
                 <div className="rounded-lg border border-border-warm bg-clean-surface px-4 py-2 text-center text-xs font-semibold text-on-surface-variant">
                   Awaiting Admin Approval
                 </div>
-              ) : selected.status === 'DRAFT' ? (
-                <div className="rounded-lg border border-border-warm bg-clean-surface px-4 py-2 text-center text-xs text-on-surface-variant">
-                  Use "Create Overall Plan" to start this campaign's plan.
-                </div>
+              ) : canCreatePlans && selected.status === 'DRAFT' ? (
+                selected.planId ? (
+                  <div className="rounded-lg border border-border-warm bg-clean-surface px-4 py-2 text-center text-xs text-on-surface-variant">
+                    Open detail to add tasks, due dates, and submit this plan to Admin.
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-border-warm bg-clean-surface px-4 py-2 text-center text-xs text-on-surface-variant">
+                    Use "Create Draft Plan" to start this campaign's plan.
+                  </div>
+                )
               ) : null}
               <div className="grid grid-cols-2 gap-3">
                 <button
@@ -634,7 +671,7 @@ export const HRCampaigns: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-deep-charcoal/40 p-4 backdrop-blur-sm">
           <section className="w-full max-w-[480px] overflow-hidden rounded-xl border border-border-warm bg-clean-surface shadow-2xl">
             <header className="flex items-center justify-between border-b border-border-warm bg-workflow-ivory/60 px-6 py-4">
-              <h2 className="font-semibold text-deep-charcoal">Create Overall Plan</h2>
+              <h2 className="font-semibold text-deep-charcoal">Create Draft Plan</h2>
               <button
                 className="rounded-full p-1.5 text-on-surface-variant transition hover:bg-surface-variant hover:text-deep-charcoal"
                 onClick={() => setShowCreateModal(false)}
@@ -705,7 +742,7 @@ export const HRCampaigns: React.FC = () => {
                 onClick={() => void createOverallPlan()}
                 type="button"
               >
-                {createSubmitting ? 'Creating...' : 'Create Plan'}
+                {createSubmitting ? 'Creating...' : 'Create Draft Plan'}
               </button>
             </footer>
           </section>
