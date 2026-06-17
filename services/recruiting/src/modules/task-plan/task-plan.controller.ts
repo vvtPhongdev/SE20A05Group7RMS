@@ -50,4 +50,25 @@ export class TaskPlanController {
   updateStatus(@Payload() payload: { id: string; status: string; performedById: string }) {
     return this.service.updateStatus(payload);
   }
+
+  @MessagePattern('task-plan.update')
+  update(
+    @Payload()
+    payload: {
+      id: string;
+      taskType?: string;
+      startDate?: string;
+      endDate?: string;
+      performedById: string;
+    },
+  ) {
+    return this.service.update(payload);
+  }
+
+  @MessagePattern('task-plan.assignRecruiter')
+  assignRecruiter(
+    @Payload() payload: { id: string; assignedToId: string; performedById: string },
+  ) {
+    return this.service.assignRecruiter(payload);
+  }
 }

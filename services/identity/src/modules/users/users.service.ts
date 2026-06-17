@@ -14,6 +14,28 @@ import * as bcrypt from 'bcryptjs';
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private normalizeAvatar(value: unknown) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return value;
+    }
+
+    const avatar = value as Record<string, unknown>;
+    if (typeof avatar.fileName === 'string' && avatar.fileName) {
+      return avatar;
+    }
+
+    const source = typeof avatar.path === 'string' ? avatar.path : avatar.url;
+    const fileName = typeof source === 'string' ? source.split(/[\\/]/).pop() : undefined;
+    return fileName ? { ...avatar, fileName } : avatar;
+  }
+
+  private normalizeUserAvatar<T extends { avatar?: unknown }>(user: T): T {
+    return {
+      ...user,
+      avatar: this.normalizeAvatar(user.avatar),
+    };
+  }
+
   private get userSelect() {
     return {
       id: true,
@@ -59,7 +81,7 @@ export class UsersService {
     ]);
 
     return {
-      data,
+      data: data.map((user) => this.normalizeUserAvatar(user)),
       meta: {
         total,
         page,
@@ -82,7 +104,7 @@ export class UsersService {
       });
     }
 
-    return user;
+    return this.normalizeUserAvatar(user);
   }
 
   async create(dto: CreateUserInput & { password?: string }) {

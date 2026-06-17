@@ -1,12 +1,56 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
+import { TaskType, UserRole } from '@wr/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
 
 @Injectable()
 export class ApplicationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(payload: { requestId: string; candidateId?: string; userId?: string }) {
+  private readonly applicationInclude = {
+    request: true,
+    candidate: {
+      include: {
+        cvDocuments: {
+          orderBy: { createdAt: 'desc' as const },
+          take: 1,
+          select: { screeningStatus: true },
+        },
+      },
+    },
+    collectedBy: {
+      select: { id: true, displayName: true, email: true },
+    },
+  };
+
+  private async resolveCollectedById(payload: {
+    requestId: string;
+    actorUserId?: string;
+    actorRole?: string;
+  }) {
+    if (payload.actorRole === UserRole.HR_RECRUITER && payload.actorUserId) {
+      return payload.actorUserId;
+    }
+
+    const collectionTask = await this.prisma.taskPlan.findFirst({
+      where: {
+        taskType: TaskType.CV_COLLECTION,
+        overallPlan: { requestId: payload.requestId },
+      },
+      orderBy: { createdAt: 'asc' },
+      select: { assignedToId: true },
+    });
+
+    return collectionTask?.assignedToId ?? null;
+  }
+
+  async create(payload: {
+    requestId: string;
+    candidateId?: string;
+    userId?: string;
+    actorUserId?: string;
+    actorRole?: string;
+  }) {
     const { requestId, candidateId, userId } = payload;
 
     if (!requestId) {
@@ -81,24 +125,32 @@ export class ApplicationsService {
       });
     }
 
+    const collectedById = await this.resolveCollectedById(payload);
+
     return this.prisma.application.create({
       data: {
         requestId,
         candidateId: candidateProfile.id,
+        collectedById,
         status: 'SUBMITTED',
       },
-      include: {
-        request: true,
-        candidate: true,
-      },
+      include: this.applicationInclude,
     });
   }
 
-  async list(query: { candidateId?: string; requestId?: string; status?: string }) {
-    const { candidateId, requestId, status } = query;
+  async list(query: {
+    candidateId?: string;
+    requestId?: string;
+    status?: string;
+    userId?: string;
+    userRole?: string;
+  }) {
+    const { candidateId, requestId, status, userId, userRole } = query;
     const where: any = {};
 
-    if (candidateId) {
+    if (userRole === 'CANDIDATE' && userId) {
+      where.candidate = { userId };
+    } else if (candidateId) {
       where.candidateId = candidateId;
     }
     if (requestId) {
@@ -110,18 +162,7 @@ export class ApplicationsService {
 
     return this.prisma.application.findMany({
       where,
-      include: {
-        request: true,
-        candidate: {
-          include: {
-            cvDocuments: {
-              orderBy: { createdAt: 'desc' },
-              take: 1,
-              select: { screeningStatus: true },
-            },
-          },
-        },
-      },
+      include: this.applicationInclude,
       orderBy: {
         createdAt: 'desc',
       },
@@ -131,10 +172,7 @@ export class ApplicationsService {
   async get(id: string) {
     const application = await this.prisma.application.findUnique({
       where: { id },
-      include: {
-        request: true,
-        candidate: true,
-      },
+      include: this.applicationInclude,
     });
 
     if (!application) {
@@ -162,10 +200,7 @@ export class ApplicationsService {
     return this.prisma.application.update({
       where: { id },
       data: { status },
-      include: {
-        request: true,
-        candidate: true,
-      },
+      include: this.applicationInclude,
     });
   }
 }

@@ -3,7 +3,7 @@ import { Reflector } from '@nestjs/core';
 import { RpcException } from '@nestjs/microservices';
 import { PrismaService } from '../database/prisma.service';
 import { PLAN_LOCKED_KEY } from '../decorators/plan-locked.decorator';
-import { TaskType, RecruitmentRequestStatus, PlanStatus } from '@wr/contracts';
+import { TaskType, RecruitmentRequestStatus, PlanStatus, UserRole } from '@wr/contracts';
 
 @Injectable()
 export class PlanLockedGuard implements CanActivate {
@@ -20,6 +20,8 @@ export class PlanLockedGuard implements CanActivate {
 
     const data = context.switchToRpc().getData();
     const requestId = data?.requestId || data?.id || data?.filters?.requestId;
+    const actorUserId = data?.actorUserId || data?.performedById || data?.userId;
+    const actorRole = data?.actorRole || data?.userRole;
 
     if (!requestId) {
       throw new RpcException({
@@ -40,17 +42,25 @@ export class PlanLockedGuard implements CanActivate {
       });
     }
 
-    const unallowedStatuses = [
-      RecruitmentRequestStatus.DRAFT,
-      RecruitmentRequestStatus.PENDING_REVIEW,
-      RecruitmentRequestStatus.REJECTED,
-      RecruitmentRequestStatus.REVISION_NEEDED,
+    const executableStatuses = [
+      RecruitmentRequestStatus.ACTIVE,
+      RecruitmentRequestStatus.SCREENING,
+      RecruitmentRequestStatus.INTERVIEWING,
+      RecruitmentRequestStatus.DECISION_PENDING,
+      RecruitmentRequestStatus.INTERVIEW_COMPLETED,
+      RecruitmentRequestStatus.OFFER_EXTENDED,
+      RecruitmentRequestStatus.OFFER_ACCEPTED,
+      RecruitmentRequestStatus.OFFER_DECLINED,
+      RecruitmentRequestStatus.HIRED,
+      RecruitmentRequestStatus.NOT_HIRED,
+      RecruitmentRequestStatus.COMPLETED,
+      RecruitmentRequestStatus.CLOSED,
     ];
 
-    if (unallowedStatuses.includes(request.status as RecruitmentRequestStatus)) {
+    if (!executableStatuses.includes(request.status as RecruitmentRequestStatus)) {
       throw new RpcException({
         status: HttpStatus.PRECONDITION_FAILED,
-        message: `Recruitment request status must be APPROVED or later. Current status: ${request.status}`,
+        message: `Campaign must be active before ${activityType} can be performed. Current status: ${request.status}`,
       });
     }
 
@@ -86,6 +96,22 @@ export class PlanLockedGuard implements CanActivate {
         status: HttpStatus.PRECONDITION_FAILED,
         message: `No TaskPlan assignment found for activity type ${activityType}`,
       });
+    }
+
+    if (actorRole === UserRole.HR_RECRUITER) {
+      if (!actorUserId) {
+        throw new RpcException({
+          status: HttpStatus.FORBIDDEN,
+          message: 'HR recruiter identity is required for assigned task checks',
+        });
+      }
+
+      if (taskPlan.assignedToId !== actorUserId) {
+        throw new RpcException({
+          status: HttpStatus.FORBIDDEN,
+          message: `Only the HR recruiter assigned to ${activityType} can perform this action`,
+        });
+      }
     }
 
     return true;

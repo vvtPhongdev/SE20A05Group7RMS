@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { embeddingToPgVector, getQueryEmbedding } from '@wr/ai';
 import { PrismaService } from '../../common/database/prisma.service';
 
 /**
@@ -10,7 +11,7 @@ import { PrismaService } from '../../common/database/prisma.service';
 export class CvSearchService {
   private readonly logger = new Logger(CvSearchService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   /**
    * Search CVs that are similar to the supplied job description text.
@@ -31,11 +32,8 @@ export class CvSearchService {
     this.logger.log(`🔎 Performing CV semantic search (page ${page}, size ${pageSize})`);
 
     // 1️⃣ Generate embedding for the job description using the same model as CV parsing.
-    const { pipeline } = await import('@xenova/transformers' as string);
-    const extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
-    const output = await extractor(jdText, { pooling: 'mean', normalize: true });
-    const embedding = Array.from(output.data as Float32Array) as number[];
-    const vectorStr = `[${embedding.join(',')}]`;
+    const embedding = await getQueryEmbedding(jdText);
+    const vectorStr = embeddingToPgVector(embedding);
 
     // 2️⃣ Query pgvector similarity directly in the database.
     //    The `<->` operator returns cosine distance; we convert to similarity by `1 - distance`.

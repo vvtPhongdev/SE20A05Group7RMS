@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { skillGraph, MatchScorer, SearchExpander } from '@wr/ai';
+import { embeddingToPgVector, getQueryEmbedding, skillGraph, MatchScorer, SearchExpander } from '@wr/ai';
 import { PrismaService } from '../../common/database/prisma.service';
 
 @Injectable()
@@ -8,7 +8,7 @@ export class TalentSearchService {
   private readonly scorer = new MatchScorer(skillGraph);
   private readonly expander = new SearchExpander(skillGraph);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async search(params: {
     query: string;
@@ -18,6 +18,7 @@ export class TalentSearchService {
     const { query, filters, pagination } = params;
     const page = pagination?.page ?? 1;
     const pageSize = pagination?.pageSize ?? 20;
+    const requestId = typeof filters?.requestId === 'string' ? filters.requestId : undefined;
 
     this.logger.log(`Talent search: "${query}" (page ${page})`);
 
@@ -27,6 +28,15 @@ export class TalentSearchService {
 
     // Step 2: Find candidate profiles with capability models
     const candidates = await this.prisma.candidateProfile.findMany({
+      where: requestId
+        ? {
+            applications: {
+              some: {
+                requestId,
+              },
+            },
+          }
+        : undefined,
       include: {
         user: { select: { displayName: true } },
         cvDocuments: {
@@ -42,6 +52,7 @@ export class TalentSearchService {
     const requiredSkills = expanded.resolvedSkill
       ? [expanded.resolvedSkill, ...expanded.expandedSkills.slice(0, 20)]
       : expanded.expandedSkills.slice(0, 20);
+    const vectorScores = await this.getVectorScores(query, requestId);
 
     const scoredResults = candidates
       .map((candidate: any) => {
@@ -71,7 +82,7 @@ export class TalentSearchService {
           candidateProfileId: candidate.id,
           candidateSkills,
           requiredSkills,
-          vectorSimilarity: 0, // TODO: plug in pgvector similarity when embeddings are populated
+          vectorSimilarity: vectorScores.get(candidate.id) ?? 0,
         });
 
         return {
@@ -110,5 +121,39 @@ export class TalentSearchService {
       expandedSkills: expanded.expandedSkills,
       graphSize: skillGraph.size,
     };
+  }
+
+  private async getVectorScores(query: string, requestId?: string): Promise<Map<string, number>> {
+    try {
+      const embedding = await getQueryEmbedding(query);
+      const vectorStr = embeddingToPgVector(embedding);
+      const applicationJoin = requestId
+        ? 'JOIN applications app ON app."candidate_id" = cv."candidate_id" AND app."request_id" = $2'
+        : '';
+      const rows = (await this.prisma.$queryRawUnsafe(
+        `SELECT cv."candidate_id" AS "candidateId",
+                MAX(1 - (ce.embedding <=> $1::vector)) AS similarity
+         FROM cv_embeddings ce
+         JOIN candidate_cvs cv ON cv.id = ce."cv_document_id"
+         ${applicationJoin}
+         WHERE ce.embedding IS NOT NULL
+         GROUP BY cv."candidate_id"`,
+        vectorStr,
+        ...(requestId ? [requestId] : []),
+      )) as Array<{ candidateId: string; similarity: number | string | null }>;
+
+      return new Map(
+        rows
+          .filter((row) => row.candidateId && row.similarity !== null)
+          .map((row) => [row.candidateId, Number(row.similarity)]),
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Vector similarity unavailable; falling back to graph-only talent search: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return new Map();
+    }
   }
 }

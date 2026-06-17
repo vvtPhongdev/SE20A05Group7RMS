@@ -23,8 +23,8 @@ export class SchedulesController {
   }
 
   @MessagePattern('interview.get_schedule')
-  async getSchedule(@Payload() payload: { id: string }) {
-    return this.schedulesService.getSchedule(payload.id);
+  async getSchedule(@Payload() payload: { id: string; userId?: string; role?: string }) {
+    return this.schedulesService.getSchedule(payload);
   }
 
   @MessagePattern('interview.list_schedules')
@@ -52,5 +52,22 @@ export class SchedulesController {
     },
   ) {
     return this.schedulesService.reschedule(payload);
+  }
+
+  @MessagePattern('interview.candidate_confirm_schedule')
+  async candidateConfirmSchedule(@Payload() payload: { id: string; userId: string }) {
+    return this.schedulesService.confirmByCandidate(payload);
+  }
+
+  @MessagePattern('interview.candidate_reschedule_schedule')
+  async candidateRescheduleSchedule(
+    @Payload() payload: { id: string; userId: string; scheduledAt: string; reason: string },
+  ) {
+    return this.schedulesService.rescheduleByCandidate(payload);
+  }
+
+  @MessagePattern('interview.candidate_cancel_schedule')
+  async candidateCancelSchedule(@Payload() payload: { id: string; userId: string; reason: string }) {
+    return this.schedulesService.cancelByCandidate(payload);
   }
 }

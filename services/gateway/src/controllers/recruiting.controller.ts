@@ -209,6 +209,22 @@ export class UpdateRecruitmentRequestDto {
   @ApiProperty({ required: false })
   @IsOptional()
   skillRequirements?: Record<string, unknown>;
+
+  @ApiProperty({
+    required: false,
+    description: 'Whether the Department Head accepted HR suggested changes during revision',
+  })
+  @IsOptional()
+  @IsBoolean()
+  acceptedHrSuggestion?: boolean;
+
+  @ApiProperty({
+    required: false,
+    description: 'Department Head reason when rejecting HR suggested changes',
+  })
+  @IsOptional()
+  @IsString()
+  revisionResponse?: string;
 }
 
 export class AssignRecruitmentRequestDto {
@@ -290,6 +306,13 @@ export class ResubmitOverallPlanDto {
   endDate?: string;
 }
 
+export class RejectOverallPlanDto {
+  @ApiProperty({ example: 'Please adjust the screening timeline before approval.' })
+  @IsString()
+  @IsNotEmpty()
+  revisionNotes!: string;
+}
+
 export class CreateTaskPlanDto {
   @ApiProperty({ example: 'uuid-of-overall-plan' })
   @IsUUID()
@@ -317,6 +340,29 @@ export class UpdateTaskPlanStatusDto {
   @ApiProperty({ enum: TaskStatus })
   @IsEnum(TaskStatus)
   status!: TaskStatus;
+}
+
+export class UpdateTaskPlanDto {
+  @ApiProperty({ enum: TaskType, required: false })
+  @IsOptional()
+  @IsEnum(TaskType)
+  taskType?: TaskType;
+
+  @ApiProperty({ example: '2026-07-01T00:00:00.000Z', required: false })
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
+
+  @ApiProperty({ example: '2026-07-08T00:00:00.000Z', required: false })
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
+}
+
+export class AssignTaskPlanRecruiterDto {
+  @ApiProperty({ example: 'uuid-of-hr-recruiter' })
+  @IsUUID()
+  assignedToId!: string;
 }
 
 enum AdminRequestDecision {
@@ -531,6 +577,50 @@ export class RecruitingController {
     );
   }
 
+  @Patch('overall-plan/:id/approve')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Approve an overall recruitment plan' })
+  approveOverallPlan(@Param('id') id: string, @CurrentUser('sub') userId: string) {
+    return firstValueFrom(
+      this.recruitingClient.send('overall-plan.approve', { id, approvedById: userId }),
+    );
+  }
+
+  @Patch('overall-plan/:id/submit')
+  @Roles(UserRole.HR_LEADER)
+  @ApiOperation({ summary: 'Submit a drafted overall plan with tasks for Admin approval' })
+  submitOverallPlan(@Param('id') id: string, @CurrentUser('sub') userId: string) {
+    return firstValueFrom(
+      this.recruitingClient.send('overall-plan.submit', { id, performedById: userId }),
+    );
+  }
+
+  @Patch('overall-plan/:id/start-campaign')
+  @Roles(UserRole.HR_LEADER)
+  @ApiOperation({ summary: 'Start an approved campaign and notify assigned HR recruiters' })
+  startCampaign(@Param('id') id: string, @CurrentUser('sub') userId: string) {
+    return firstValueFrom(
+      this.recruitingClient.send('overall-plan.start_campaign', { id, performedById: userId }),
+    );
+  }
+
+  @Patch('overall-plan/:id/reject')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Reject an overall recruitment plan with revision notes' })
+  rejectOverallPlan(
+    @Param('id') id: string,
+    @Body() body: RejectOverallPlanDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('overall-plan.reject', {
+        id,
+        approvedById: userId,
+        revisionNotes: body.revisionNotes,
+      }),
+    );
+  }
+
   @Patch('overall-plan/:id/resubmit')
   @Roles(UserRole.HR_LEADER)
   @ApiOperation({ summary: 'Resubmit a rejected overall plan for approval' })
@@ -656,16 +746,58 @@ export class RecruitingController {
   @ApiOperation({ summary: 'Apply to a role' })
   createApplication(@Body() body: any, @CurrentUser() user?: any) {
     const payload =
-      user?.role === UserRole.CANDIDATE && !body.candidateId && !body.userId
-        ? { ...body, userId: user.sub }
-        : body;
+      user?.role === UserRole.CANDIDATE
+        ? { ...body, candidateId: undefined, userId: user.sub }
+        : { ...body };
+    payload.actorUserId = user?.sub;
+    payload.actorRole = user?.role;
     return firstValueFrom(this.recruitingClient.send('applications.create', payload));
   }
 
   @Get('applications')
   @ApiOperation({ summary: 'List applications' })
-  listApplications(@Query() query: any) {
-    return firstValueFrom(this.recruitingClient.send('applications.list', query));
+  listApplications(@Query() query: any, @CurrentUser() user?: any) {
+    return firstValueFrom(
+      this.recruitingClient.send('applications.list', {
+        ...query,
+        userId: user?.sub,
+        userRole: user?.role,
+      }),
+    );
+  }
+
+  @Patch('task-plan/:id')
+  @Roles(UserRole.HR_LEADER)
+  @ApiOperation({ summary: 'Update a drafted task plan before Admin approval' })
+  updateTaskPlan(
+    @Param('id') id: string,
+    @Body() body: UpdateTaskPlanDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('task-plan.update', {
+        id,
+        performedById: userId,
+        ...body,
+      }),
+    );
+  }
+
+  @Patch('task-plan/:id/assign-recruiter')
+  @Roles(UserRole.HR_LEADER)
+  @ApiOperation({ summary: 'Assign an approved campaign task to an HR recruiter' })
+  assignTaskPlanRecruiter(
+    @Param('id') id: string,
+    @Body() body: AssignTaskPlanRecruiterDto,
+    @CurrentUser('sub') userId: string,
+  ) {
+    return firstValueFrom(
+      this.recruitingClient.send('task-plan.assignRecruiter', {
+        id,
+        assignedToId: body.assignedToId,
+        performedById: userId,
+      }),
+    );
   }
 
   @Get('applications/:id')
@@ -759,8 +891,14 @@ export class RecruitingController {
 
   @Post('talent/search')
   @ApiOperation({ summary: 'Search candidates by skills / role (knowledge graph + vector)' })
-  searchTalent(@Body() body: any) {
-    return firstValueFrom(this.recruitingClient.send('talent.search', body));
+  searchTalent(@Body() body: any, @CurrentUser() user?: any) {
+    return firstValueFrom(
+      this.recruitingClient.send('talent.search', {
+        ...body,
+        actorUserId: user?.sub,
+        actorRole: user?.role,
+      }),
+    );
   }
 
   @Get('talent/expand')
@@ -774,8 +912,14 @@ export class RecruitingController {
   @Post('job-postings')
   @Roles(UserRole.HR_LEADER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Create job posting from approved recruitment request' })
-  createJobPosting(@Body() body: CreateJobPostingDto) {
-    return firstValueFrom(this.recruitingClient.send('recruiting.job_posting.create', body));
+  createJobPosting(@Body() body: CreateJobPostingDto, @CurrentUser() user?: any) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruiting.job_posting.create', {
+        ...body,
+        actorUserId: user?.sub,
+        actorRole: user?.role,
+      }),
+    );
   }
 
   @Get('job-postings')

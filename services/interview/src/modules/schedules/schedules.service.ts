@@ -10,6 +10,7 @@ import {
   RecruitmentRequestStatus,
   TaskType,
   NotificationType,
+  UserRole,
 } from '@wr/contracts';
 
 // Statuses that confirm the request has cleared initial approval and is active.
@@ -17,11 +18,17 @@ const SCHEDULABLE_STATUSES: string[] = [
   RecruitmentRequestStatus.APPROVED,
   RecruitmentRequestStatus.PLANNING,
   RecruitmentRequestStatus.PLAN_APPROVED,
+  RecruitmentRequestStatus.ACTIVE,
   RecruitmentRequestStatus.SCREENING,
   RecruitmentRequestStatus.INTERVIEWING,
 ];
 
-const ACTIVE_INTERVIEW_STATUSES = [InterviewStatus.SCHEDULED, InterviewStatus.RESCHEDULED];
+const CANDIDATE_CONFIRMED_STATUS = 'CONFIRMED';
+const ACTIVE_INTERVIEW_STATUSES: string[] = [
+  InterviewStatus.SCHEDULED,
+  InterviewStatus.RESCHEDULED,
+  CANDIDATE_CONFIRMED_STATUS,
+];
 
 // Max interview duration used to bound the conflict-detection window.
 const MAX_DURATION_MS = 480 * 60_000;
@@ -40,6 +47,60 @@ export class SchedulesService {
     private readonly auditLog: AuditLogService,
     @Inject('NOTIFICATION_SERVICE') private readonly notificationClient: ClientProxy,
   ) {}
+
+  private sendNotification(payload: {
+    userId: string;
+    type: NotificationType;
+    title: string;
+    body: string;
+    relatedEntityId?: string;
+    relatedEntityType?: string;
+  }) {
+    this.notificationClient.send('notification.create_notification', payload).subscribe({
+      error: (err) => console.error('Failed to send interview notification:', err),
+    });
+  }
+
+  private async getCandidateOwnedSchedule(id: string, userId: string) {
+    const schedule = await this.prisma.interviewSchedule.findUnique({
+      where: { id },
+      include: {
+        candidate: {
+          select: {
+            id: true,
+            userId: true,
+            fullName: true,
+            email: true,
+          },
+        },
+        request: {
+          select: {
+            id: true,
+            position: true,
+            createdById: true,
+            reviewedById: true,
+            approvedById: true,
+          },
+        },
+      },
+    });
+
+    if (!schedule) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Interview schedule ${id} not found`,
+      });
+    }
+
+    if (schedule.candidate.userId !== userId) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'You can only manage your own interview schedule',
+      });
+    }
+
+    return schedule;
+  }
 
   // ─── Plan-lock guard (FR-07) ─────────────────────────────────────────
 
@@ -345,6 +406,15 @@ export class SchedulesService {
         });
 
         if (candidateProfile) {
+          this.sendNotification({
+            userId: candidateProfile.userId,
+            type: NotificationType.INTERVIEW_INVITE,
+            title: 'Interview Invitation',
+            body: `You have been invited to interview for ${reqObj?.position || 'this position'} on ${scheduledDateStr} (ICT). Location: ${payload.location}`,
+            relatedEntityId: schedule.id,
+            relatedEntityType: 'InterviewSchedule',
+          });
+
           this.notificationClient
             .send('notification.send_templated_email', {
               userId: candidateProfile.userId,
@@ -396,16 +466,30 @@ export class SchedulesService {
     return schedule;
   }
 
-  async getSchedule(id: string) {
+  async getSchedule(payload: { id: string; userId?: string; role?: string }) {
     const schedule = await this.prisma.interviewSchedule.findUnique({
-      where: { id },
-      include: { results: true },
+      where: { id: payload.id },
+      include: {
+        results: true,
+        candidate: { select: { userId: true } },
+      },
     });
 
     if (!schedule) {
       throw new RpcException({
         status: HttpStatus.NOT_FOUND,
-        message: `Interview schedule ${id} not found`,
+        message: `Interview schedule ${payload.id} not found`,
+      });
+    }
+
+    if (
+      payload.role === UserRole.CANDIDATE &&
+      payload.userId &&
+      schedule.candidate.userId !== payload.userId
+    ) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'You can only view your own interview schedule',
       });
     }
 
@@ -854,5 +938,104 @@ export class SchedulesService {
         interviewers: interviewerUsers.map((u) => u.email),
       },
     };
+  }
+
+  async confirmByCandidate(payload: { id: string; userId: string }) {
+    const schedule = await this.getCandidateOwnedSchedule(payload.id, payload.userId);
+
+    if (schedule.status === InterviewStatus.CANCELLED) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: 'Cannot confirm a cancelled interview',
+      });
+    }
+
+    if (schedule.status === InterviewStatus.COMPLETED) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: 'Cannot confirm a completed interview',
+      });
+    }
+
+    const [updatedSchedule, interviewerUsers] = await Promise.all([
+      this.prisma.interviewSchedule.update({
+        where: { id: payload.id },
+        data: { status: CANDIDATE_CONFIRMED_STATUS },
+      }),
+      this.prisma.user.findMany({
+        where: { id: { in: schedule.interviewers } },
+        select: { id: true },
+      }),
+      this.prisma.requestLog.create({
+        data: {
+          requestId: schedule.requestId,
+          action: 'INTERVIEW_CONFIRMED_BY_CANDIDATE',
+          performedById: payload.userId,
+          metadata: {
+            interviewId: payload.id,
+            candidateId: schedule.candidateId,
+            scheduledAt: schedule.scheduledAt.toISOString(),
+          },
+        },
+      }),
+    ]);
+
+    for (const user of interviewerUsers) {
+      this.sendNotification({
+        userId: user.id,
+        type: NotificationType.INTERVIEW_INVITE,
+        title: 'Candidate confirmed interview',
+        body: `${schedule.candidate.fullName} confirmed the interview for ${schedule.request.position}.`,
+        relatedEntityId: payload.id,
+        relatedEntityType: 'InterviewSchedule',
+      });
+    }
+
+    return { schedule: updatedSchedule };
+  }
+
+  async rescheduleByCandidate(payload: {
+    id: string;
+    userId: string;
+    scheduledAt: string;
+    reason: string;
+  }) {
+    const schedule = await this.getCandidateOwnedSchedule(payload.id, payload.userId);
+
+    const response = await this.reschedule({
+      id: payload.id,
+      scheduledAt: payload.scheduledAt,
+      duration: schedule.duration,
+      location: schedule.location,
+      interviewers: schedule.interviewers,
+      reason: `Candidate requested: ${payload.reason?.trim() || 'No reason provided'}`,
+    });
+
+    await this.prisma.requestLog.create({
+      data: {
+        requestId: schedule.requestId,
+        action: 'INTERVIEW_RESCHEDULED_BY_CANDIDATE',
+        performedById: payload.userId,
+        metadata: {
+          interviewId: payload.id,
+          candidateId: schedule.candidateId,
+          oldScheduledAt: schedule.scheduledAt.toISOString(),
+          newScheduledAt: new Date(payload.scheduledAt).toISOString(),
+          reason: payload.reason?.trim() || null,
+        },
+      },
+    });
+
+    return response;
+  }
+
+  async cancelByCandidate(payload: { id: string; userId: string; reason: string }) {
+    await this.getCandidateOwnedSchedule(payload.id, payload.userId);
+
+    return this.cancel({
+      id: payload.id,
+      cancelledBy: payload.userId,
+      reason: `Candidate cancelled: ${payload.reason?.trim() || 'No reason provided'}`,
+    });
   }
 }

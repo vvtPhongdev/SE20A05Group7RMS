@@ -53,6 +53,8 @@ export class RecruitmentRequestsController {
       justification?: string;
       urgency?: string;
       skillRequirements?: Record<string, unknown>;
+      acceptedHrSuggestion?: boolean;
+      revisionResponse?: string;
     },
   ) {
     return this.service.updateForDepartmentHead(payload);
