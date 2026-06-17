@@ -29,12 +29,10 @@ jest.mock('@wr/database', () => {
   };
 });
 
-jest.mock('@xenova/transformers', () => {
-  const mockExtractor = jest.fn().mockResolvedValue({
-    data: new Float32Array([0.1, 0.2, 0.3])
-  });
+jest.mock('@wr/ai', () => {
   return {
-    pipeline: jest.fn().mockResolvedValue(mockExtractor),
+    getEmbedding: jest.fn().mockResolvedValue(new Float32Array([0.1, 0.2, 0.3])),
+    embeddingToPgVector: jest.fn((embedding: Float32Array) => `[${Array.from(embedding).join(',')}]`),
   };
 }, { virtual: true });
 

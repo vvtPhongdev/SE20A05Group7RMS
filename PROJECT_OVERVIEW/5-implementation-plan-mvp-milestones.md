@@ -43,7 +43,7 @@
 
 - Candidate uploads CV (PDF/DOCX) via standardized form
 - BullMQ worker: CV parsing → structured data extraction
-- BullMQ worker: Vector embedding generation (all-MiniLM-L6-v2)
+- BullMQ worker: Vector embedding generation (RMS custom ONNX embedding model)
 - CV data stored as structured JSONB + vector embeddings in PostgreSQL
 - HR uses Vector Search (semantic search) to find matching candidates
 - Candidate profile management (view, update)
