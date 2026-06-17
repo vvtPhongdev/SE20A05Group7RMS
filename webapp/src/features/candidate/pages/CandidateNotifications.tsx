@@ -320,16 +320,14 @@ export const CandidateNotifications: React.FC = () => {
   const handleToggleRead = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const selected = alerts.find((alert) => alert.id === id);
-    if (!selected?.unread) {
-      setApiError('Mark as unread API is not available');
-      return;
-    }
+    const nextUnread = !selected?.unread;
     setAlerts((prevAlerts) =>
-      prevAlerts.map((alert) => (alert.id === id ? { ...alert, unread: false } : alert)),
+      prevAlerts.map((alert) => (alert.id === id ? { ...alert, unread: nextUnread } : alert)),
     );
-    void apiRequest(`/notifications/${id}/read`, token, { method: 'PATCH' }).catch((readError) => {
+    const endpoint = nextUnread ? `/notifications/${id}/unread` : `/notifications/${id}/read`;
+    void apiRequest(endpoint, token, { method: 'PATCH' }).catch((readError) => {
       setAlerts((prevAlerts) =>
-        prevAlerts.map((alert) => (alert.id === id ? { ...alert, unread: true } : alert)),
+        prevAlerts.map((alert) => (alert.id === id ? { ...alert, unread: selected?.unread ?? false } : alert)),
       );
       setApiError(readError instanceof Error ? readError.message : 'Unable to mark notification');
     });
@@ -338,7 +336,15 @@ export const CandidateNotifications: React.FC = () => {
   // Archive (Delete) Alert
   const handleArchive = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setApiError(`Archive notification API is not available for ${id}`);
+    const previousAlerts = alerts;
+    setAlerts((current) => current.filter((alert) => alert.id !== id));
+    if (selectedAlertId === id) {
+      setSelectedAlertId(previousAlerts.find((alert) => alert.id !== id)?.id ?? '');
+    }
+    void apiRequest(`/notifications/${id}`, token, { method: 'DELETE' }).catch((archiveError) => {
+      setAlerts(previousAlerts);
+      setApiError(archiveError instanceof Error ? archiveError.message : 'Unable to archive notification');
+    });
   };
 
   // Confirm Attendance

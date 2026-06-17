@@ -17,6 +17,16 @@ export class NotificationsController {
     return this.notificationsService.markRead(payload);
   }
 
+  @MessagePattern('notification.mark_unread')
+  async markUnread(@Payload() payload: { id: string; userId: string }) {
+    return this.notificationsService.markUnread(payload);
+  }
+
+  @MessagePattern('notification.delete_notification')
+  async deleteNotification(@Payload() payload: { id: string; userId: string }) {
+    return this.notificationsService.deleteNotification(payload);
+  }
+
   @MessagePattern('notification.mark_all_read')
   async markAllRead(@Payload() payload: { userId: string }) {
     return this.notificationsService.markAllRead(payload);
