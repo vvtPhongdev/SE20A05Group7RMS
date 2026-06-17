@@ -6,6 +6,7 @@ import { AuditLogService } from '@wr/database';
 import { AuditAction, AuditEntityType } from '@wr/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
 import { QUEUE_NAMES, JOB_NAMES } from '@wr/queue';
+import { parseSupabasePublicUrl, removeFile } from '@wr/storage';
 import { unlink } from 'fs/promises';
 
 @Injectable()
@@ -15,6 +16,16 @@ export class CvService {
     private readonly auditLog: AuditLogService,
     @InjectQueue(QUEUE_NAMES.CV_PARSE) private readonly cvParseQueue: Queue,
   ) {}
+
+  private async removeStoredFile(filePath: string) {
+    const storageLocation = parseSupabasePublicUrl(filePath);
+    if (storageLocation) {
+      await removeFile(storageLocation.bucket, storageLocation.path);
+      return;
+    }
+
+    await unlink(filePath);
+  }
 
   async uploadCv(payload: {
     candidateId: string;
@@ -161,7 +172,7 @@ export class CvService {
     await this.prisma.candidateCV.delete({
       where: { id },
     });
-    await unlink(cvRecord.filePath).catch(() => undefined);
+    await this.removeStoredFile(cvRecord.filePath).catch(() => undefined);
 
     return { success: true, message: `CV Document with ID ${id} successfully deleted` };
   }
@@ -182,7 +193,7 @@ export class CvService {
     }
 
     await this.prisma.candidateCV.delete({ where: { id } });
-    await unlink(cvRecord.filePath).catch(() => undefined);
+    await this.removeStoredFile(cvRecord.filePath).catch(() => undefined);
     return { success: true, message: `CV Document with ID ${id} successfully deleted` };
   }
 }

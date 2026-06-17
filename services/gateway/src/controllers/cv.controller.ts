@@ -4,8 +4,10 @@ import {
   Delete,
   Get,
   Inject,
+  NotFoundException,
   Param,
   Post,
+  Res,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -13,13 +15,19 @@ import { ClientProxy } from '@nestjs/microservices';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@wr/contracts';
-import { randomUUID } from 'crypto';
-import { mkdir, unlink, writeFile } from 'fs/promises';
-import { extname, resolve } from 'path';
+import {
+  buildCvStoragePath,
+  removeFile,
+  storageBuckets,
+  uploadFile,
+  validateCvFileName,
+} from '@wr/storage';
 import { firstValueFrom } from 'rxjs';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { SERVICE_TOKENS } from '../constants';
+import { Response } from 'express';
+import { basename } from 'path';
 
 @ApiTags('Candidate CVs')
 @ApiBearerAuth()
@@ -27,6 +35,33 @@ import { SERVICE_TOKENS } from '../constants';
 @Controller('candidate/cvs')
 export class CvController {
   constructor(@Inject(SERVICE_TOKENS.CV) private readonly cvClient: ClientProxy) {}
+
+  @Get('candidate/:candidateId/latest')
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'Get the latest CV for a candidate profile' })
+  getLatestForCandidate(@Param('candidateId') candidateId: string) {
+    return firstValueFrom(this.cvClient.send('cv.get_by_candidate', { candidateId }));
+  }
+
+  @Get('candidate/:candidateId/latest/file')
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'Open or download the latest CV for a candidate profile' })
+  async getLatestFileForCandidate(@Param('candidateId') candidateId: string, @Res() res: Response) {
+    const cv = await firstValueFrom(this.cvClient.send('cv.get_by_candidate', { candidateId }));
+    if (!cv?.filePath) {
+      throw new NotFoundException('Candidate CV file is not available');
+    }
+
+    if (/^https?:\/\//i.test(cv.filePath)) {
+      return res.redirect(cv.filePath);
+    }
+
+    return res.sendFile(cv.filePath, {
+      headers: {
+        'Content-Disposition': `inline; filename="${basename(cv.fileName || cv.filePath)}"`,
+      },
+    });
+  }
 
   @Get()
   @ApiOperation({ summary: 'List CVs owned by the current candidate' })
@@ -47,15 +82,20 @@ export class CvController {
       throw new BadRequestException('CV file is required');
     }
 
-    const extension = extname(file.originalname).toLowerCase();
-    if (!['.pdf', '.docx'].includes(extension)) {
+    let extension: '.pdf' | '.docx';
+    try {
+      extension = validateCvFileName(file.originalname).extension;
+    } catch {
       throw new BadRequestException('Only PDF and DOCX files are supported');
     }
 
-    const uploadDirectory = resolve(process.cwd(), 'uploads', 'cv');
-    const filePath = resolve(uploadDirectory, `${randomUUID()}${extension}`);
-    await mkdir(uploadDirectory, { recursive: true });
-    await writeFile(filePath, file.buffer);
+    const bucket = storageBuckets.cvs;
+    const path = buildCvStoragePath(userId, file.originalname);
+    const uploaded = await uploadFile(bucket, path, file.buffer, {
+      contentType: file.mimetype,
+    }).catch(() => {
+      throw new BadRequestException('Failed to upload CV');
+    });
 
     try {
       return await firstValueFrom(
@@ -63,11 +103,11 @@ export class CvController {
           candidateId: userId,
           fileName: file.originalname,
           fileType: extension === '.docx' ? 'DOCX' : 'PDF',
-          filePath,
+          filePath: uploaded.publicUrl,
         }),
       );
     } catch (error) {
-      await unlink(filePath).catch(() => undefined);
+      await removeFile(uploaded.bucket, uploaded.path).catch(() => undefined);
       throw error;
     }
   }

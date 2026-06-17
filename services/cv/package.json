@@ -23,6 +23,7 @@
     "@wr/contracts": "*",
     "@wr/config": "*",
     "@wr/database": "*",
+    "@wr/storage": "*",
     "@wr/queue": "*",
     "@wr/logger": "*"
   },
