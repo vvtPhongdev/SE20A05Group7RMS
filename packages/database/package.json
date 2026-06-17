@@ -18,6 +18,8 @@
     "generate": "prisma generate",
     "migrate:dev": "prisma migrate dev",
     "push": "prisma db push",
+    "db:seed": "prisma db seed",
+    "seed": "prisma db seed",
     "seed:sample-cvs": "ts-node --skip-project --compiler-options \"{\\\"module\\\":\\\"CommonJS\\\",\\\"moduleResolution\\\":\\\"node\\\"}\" prisma/seed-sample-cvs.ts",
     "studio": "prisma studio"
   },
@@ -30,6 +32,6 @@
     "typescript": "^5.8.3"
   },
   "prisma": {
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "node prisma/seed-runner.cjs"
   }
 }
