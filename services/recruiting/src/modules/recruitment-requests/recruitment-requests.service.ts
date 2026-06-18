@@ -147,6 +147,8 @@ export class RecruitmentRequestsService {
     urgency?: string;
     q?: string;
     reviewedById?: string;
+    role?: string;
+    userId?: string;
   }) {
     const page = Math.max(1, Number(payload.page) || 1);
     const limit = Math.max(1, Math.min(100, Number(payload.limit) || 50));
@@ -156,6 +158,17 @@ export class RecruitmentRequestsService {
     if (payload.departmentId) where.departmentId = payload.departmentId;
     if (payload.urgency) where.urgency = payload.urgency;
     if (payload.reviewedById) where.reviewedById = payload.reviewedById;
+    if (payload.role === UserRole.HR_RECRUITER && payload.userId) {
+      where.overallPlan = {
+        is: {
+          tasks: {
+            some: {
+              assignedToId: payload.userId,
+            },
+          },
+        },
+      };
+    }
     if (payload.q?.trim()) {
       where.OR = [
         { position: { contains: payload.q.trim(), mode: 'insensitive' } },
@@ -289,7 +302,15 @@ export class RecruitmentRequestsService {
         reviewedBy: {
           select: { id: true, displayName: true },
         },
-        overallPlan: true,
+        overallPlan: {
+          include: {
+            tasks: {
+              select: {
+                assignedToId: true,
+              },
+            },
+          },
+        },
         logs: {
           orderBy: { createdAt: 'asc' },
         },
@@ -306,8 +327,9 @@ export class RecruitmentRequestsService {
     const canAccess =
       payload.role === UserRole.ADMIN ||
       (payload.role === UserRole.DEPARTMENT_HEAD && request.createdById === payload.userId) ||
-      (payload.role === UserRole.HR_LEADER && request.reviewedById === payload.userId) ||
-      payload.role === UserRole.HR_RECRUITER;
+      payload.role === UserRole.HR_LEADER ||
+      (payload.role === UserRole.HR_RECRUITER &&
+        request.overallPlan?.tasks.some((task) => task.assignedToId === payload.userId));
 
     if (!canAccess) {
       throw new RpcException({

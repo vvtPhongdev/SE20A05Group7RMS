@@ -49,7 +49,7 @@ export class UploadDocumentDto {
   @ApiProperty({ enum: ['CV', 'JD'], example: 'CV' })
   documentType!: string;
 
-  @ApiProperty({ type: 'string', format: 'binary', description: 'PDF or DOCX file' })
+  @ApiProperty({ type: 'string', format: 'binary', description: 'PDF, DOCX, or DOC file' })
   file!: unknown;
 
   @ApiProperty({ required: false })
@@ -388,7 +388,7 @@ export class ProfilesController {
       try {
         validateCvFileName(file.originalname);
       } catch {
-        throw new BadRequestException('Only PDF and DOCX files are supported');
+        throw new BadRequestException('Only PDF, DOCX, and DOC files are supported');
       }
       path = buildCvStoragePath(body.candidateProfileId || 'anonymous', file.originalname);
     } else {

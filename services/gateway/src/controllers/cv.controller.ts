@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Inject,
+  Logger,
   NotFoundException,
   Param,
   Post,
@@ -14,9 +15,12 @@ import {
 import { ClientProxy } from '@nestjs/microservices';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { extractTextFromBuffer } from '@wr/ai';
 import { UserRole } from '@wr/contracts';
 import {
   buildCvStoragePath,
+  downloadFile,
+  parseSupabasePublicUrl,
   removeFile,
   storageBuckets,
   uploadFile,
@@ -34,7 +38,19 @@ import { basename } from 'path';
 @Roles(UserRole.CANDIDATE)
 @Controller('candidate/cvs')
 export class CvController {
+  private readonly logger = new Logger(CvController.name);
+
   constructor(@Inject(SERVICE_TOKENS.CV) private readonly cvClient: ClientProxy) {}
+
+  private cvContentType(fileName: string) {
+    const extension = fileName.slice(fileName.lastIndexOf('.')).toLowerCase();
+    if (extension === '.pdf') return 'application/pdf';
+    if (extension === '.docx') {
+      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    }
+    if (extension === '.doc') return 'application/msword';
+    return 'application/octet-stream';
+  }
 
   @Get('candidate/:candidateId/latest')
   @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
@@ -50,6 +66,28 @@ export class CvController {
     const cv = await firstValueFrom(this.cvClient.send('cv.get_by_candidate', { candidateId }));
     if (!cv?.filePath) {
       throw new NotFoundException('Candidate CV file is not available');
+    }
+
+    const storageLocation = parseSupabasePublicUrl(cv.filePath);
+    if (storageLocation) {
+      try {
+        const blob = await downloadFile(storageLocation.bucket, storageLocation.path);
+        const buffer = Buffer.from(await blob.arrayBuffer());
+        res.type(blob.type || this.cvContentType(cv.fileName || cv.filePath));
+        res.setHeader(
+          'Content-Disposition',
+          `inline; filename="${basename(cv.fileName || storageLocation.path)}"`,
+        );
+        res.send(buffer);
+        return;
+      } catch (error) {
+        this.logger.warn(
+          `Unable to download candidate CV ${cv.id} from storage bucket ${storageLocation.bucket}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        throw new NotFoundException('Candidate CV file was not found in storage');
+      }
     }
 
     if (/^https?:\/\//i.test(cv.filePath)) {
@@ -82,28 +120,40 @@ export class CvController {
       throw new BadRequestException('CV file is required');
     }
 
-    let extension: '.pdf' | '.docx';
+    let extension: '.pdf' | '.docx' | '.doc';
     try {
       extension = validateCvFileName(file.originalname).extension;
     } catch {
-      throw new BadRequestException('Only PDF and DOCX files are supported');
+      throw new BadRequestException('Only PDF, DOCX, and DOC files are supported');
     }
+
+    const fileType = extension === '.docx' ? 'DOCX' : extension === '.doc' ? 'DOC' : 'PDF';
+    const rawTextPromise = extractTextFromBuffer(file.buffer, fileType).catch((error) => {
+      this.logger.warn(
+        `Fast CV parse failed for ${file.originalname}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return '';
+    });
 
     const bucket = storageBuckets.cvs;
     const path = buildCvStoragePath(userId, file.originalname);
-    const uploaded = await uploadFile(bucket, path, file.buffer, {
+    const uploadedPromise = uploadFile(bucket, path, file.buffer, {
       contentType: file.mimetype,
     }).catch(() => {
       throw new BadRequestException('Failed to upload CV');
     });
+    const [uploaded, rawText] = await Promise.all([uploadedPromise, rawTextPromise]);
 
     try {
       return await firstValueFrom(
         this.cvClient.send('cv.upload_candidate', {
           candidateId: userId,
           fileName: file.originalname,
-          fileType: extension === '.docx' ? 'DOCX' : 'PDF',
+          fileType,
           filePath: uploaded.publicUrl,
+          rawText,
         }),
       );
     } catch (error) {

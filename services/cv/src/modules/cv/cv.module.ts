@@ -11,6 +11,9 @@ import { QUEUE_NAMES } from '@wr/queue';
     BullModule.registerQueue({
       name: QUEUE_NAMES.CV_PARSE,
     }),
+    BullModule.registerQueue({
+      name: QUEUE_NAMES.EMBEDDING_GENERATE,
+    }),
   ],
   controllers: [CvController],
   providers: [CvService],

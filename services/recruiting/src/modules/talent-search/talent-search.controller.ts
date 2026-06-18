@@ -25,6 +25,29 @@ export class TalentSearchController {
     return this.service.search(payload);
   }
 
+  @MessagePattern('talent.feedback')
+  recordFeedback(
+    @Payload()
+    payload: {
+      searchRunId: string;
+      candidateId: string;
+      action: any;
+      rank?: number;
+      scores?: Record<string, number>;
+      candidateSnapshot?: Record<string, unknown>;
+      metadata?: Record<string, unknown>;
+      actorUserId?: string;
+      actorRole?: string;
+    },
+  ) {
+    return this.service.recordFeedback(payload);
+  }
+
+  @MessagePattern('talent.feedback.export_triplets')
+  exportTriplets(@Payload() payload: { requestId?: string; limit?: number }) {
+    return this.service.exportTrainingTriplets(payload);
+  }
+
   @MessagePattern('talent.expand')
   expandQuery(@Payload() payload: { query: string }) {
     return this.service.expandQuery(payload.query);

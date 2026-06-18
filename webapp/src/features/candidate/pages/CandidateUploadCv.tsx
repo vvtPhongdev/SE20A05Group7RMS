@@ -243,7 +243,7 @@ const formatExperienceDuration = (experience: CvExperience) => {
   }`;
 };
 
-const parseRawText = (text: string): Partial<CvFormData> => {
+const parseRawTextFallback = (text: string): Partial<CvFormData> => {
   const result: Partial<CvFormData> = {};
   if (!text) return result;
 
@@ -328,6 +328,359 @@ const parseRawText = (text: string): Partial<CvFormData> => {
   return result;
 };
 
+const resumeSectionHeadings = [
+  'Professional Summary',
+  'Technical Skills',
+  'Soft Skills',
+  'Languages',
+  'Work Experience',
+  'Education',
+  'Additional Information',
+];
+
+const isPlaceholderText = (value: string) => /^\s*\[.*\]\s*$/.test(value);
+
+const isTemplatePlaceholderValue = (value: string) =>
+  /^(full name|professional title|name@example\.com|\+84\s*\.\.\.|city,\s*country|https:\/\/linkedin\.com\/in\/\.\.\.|https:\/\/github\.com\/\.\.\.|https:\/\/\.\.\.|degree|major|yyyy-mm|school \/ university)$/i.test(
+    value.trim(),
+  );
+
+const isTemplateInstruction = (value: string) =>
+  /write 3-5 sentences|you can bring to an employer|strong action verb|measurable achievement|relevant technologies|optional:|responsibility or achievement|^30%\.?\]?$|^\.\.\.?$/i.test(
+    value,
+  );
+
+const decodeHtmlEntities = (value: string) =>
+  value
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"');
+
+const cleanBracketInner = (value: string): string => {
+  const cleaned = decodeHtmlEntities(value)
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return cleaned && !isTemplatePlaceholderValue(cleaned) ? cleaned : '';
+};
+
+const stripTemplateBrackets = (value: string): string =>
+  value.replace(/\[([^\]]*)\]/g, (_, inner) => {
+    const cleanedInner = cleanBracketInner(inner);
+    return cleanedInner ? ` ${cleanedInner} ` : ' ';
+  });
+
+const cleanExtractedValue = (value: string | undefined): string => {
+  const decoded = decodeHtmlEntities(value ?? '');
+  const withoutBrackets = decoded.includes('[') ? stripTemplateBrackets(decoded) : decoded;
+  const cleaned = withoutBrackets
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[*-]\s*/, '')
+    .replace(/^[·•]\s*/, '')
+    .replace(/^\[/, '')
+    .replace(/\]$/, '')
+    .replace(/^\.\s*/, '')
+    .trim();
+
+  return cleaned && !isPlaceholderText(cleaned) && !isTemplatePlaceholderValue(cleaned)
+    ? cleaned
+    : '';
+};
+
+const normalizeRawCvText = (text: string) =>
+  text
+    .replace(/\r\n?/g, '\n')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+const getSection = (lines: string[], heading: string) => {
+  const startIndex = lines.findIndex((line) => line.toLowerCase() === heading.toLowerCase());
+  if (startIndex === -1) return '';
+
+  const endIndex = lines.findIndex(
+    (line, index) =>
+      index > startIndex &&
+      resumeSectionHeadings.some((section) => section.toLowerCase() === line.toLowerCase()),
+  );
+
+  return lines
+    .slice(startIndex + 1, endIndex === -1 ? undefined : endIndex)
+    .map(cleanExtractedValue)
+    .filter(Boolean)
+    .filter((line) => !isTemplateInstruction(line))
+    .join('\n');
+};
+
+const readLabeledValue = (text: string, label: string) => {
+  const labels = ['Email', 'Phone', 'Address', 'LinkedIn', 'GitHub', 'Portfolio'];
+  const labeledText = labels.reduce(
+    (current, currentLabel) =>
+      current.replace(new RegExp(`\\s+(${currentLabel}:)`, 'gi'), '\n$1'),
+    text,
+  );
+  const match = labeledText.match(new RegExp(`^${label}:\\s*(.*)$`, 'im'));
+  return cleanExtractedValue(match?.[1]);
+};
+
+const extractSkillText = (section: string) =>
+  section
+    .split('\n')
+    .flatMap((line) => {
+      const [, valueAfterLabel] = line.match(/^[^:]+:\s*(.+)$/) ?? [];
+      return splitList(valueAfterLabel || line);
+    })
+    .map((item) => item.replace(/\s*\.{3,}\s*$/g, '').trim())
+    .filter((item) => item && !isPlaceholderText(item) && !isTemplateInstruction(item))
+    .join(', ');
+
+const parseDateRange = (value: string) => {
+  const match = value.match(
+    /(\d{4})\s*-?\s*(1[0-2]|0?[1-9])\s*(?:-|to)\s*(Present|Current|Now|(\d{4})\s*-?\s*(1[0-2]|0?[1-9]))/i,
+  );
+  if (!match) {
+    return { startDate: '', endDate: '', isCurrent: false };
+  }
+
+  const rawEndValue = match[3] ?? '';
+  const isCurrent = /present|current|now/i.test(rawEndValue);
+  const startMonth = (match[2] ?? '').padStart(2, '0');
+  const endMonth = (match[5] ?? '').padStart(2, '0');
+  return {
+    startDate: `${match[1]}-${startMonth}`,
+    endDate: isCurrent ? '' : `${match[4]}-${endMonth}`,
+    isCurrent,
+  };
+};
+
+const stripDateRange = (value: string) =>
+  value
+    .replace(
+      /\b\d{4}\s*-?\s*(?:1[0-2]|0?[1-9])\s*(?:-|to)\s*(?:Present|Current|Now|\d{4}\s*-?\s*(?:1[0-2]|0?[1-9]))\b/gi,
+      '',
+    )
+    .trim();
+
+const parsePositionCompany = (value: string) => {
+  const cleaned = stripDateRange(value);
+  const atSeparator = cleaned.match(/\s+(?:at|@)\s+/i)?.[0];
+  const [position = '', ...companyParts] = atSeparator
+    ? cleaned.split(atSeparator)
+    : cleaned.split(/\s+-\s+/);
+
+  return {
+    position: cleanExtractedValue(position),
+    company: cleanExtractedValue(companyParts.join(' - ')),
+  };
+};
+
+const parseWorkExperienceSection = (section: string): CvExperience[] => {
+  const lines = section
+    .split('\n')
+    .map(cleanExtractedValue)
+    .filter(Boolean)
+    .filter((line) => !/strong action verb|measurable achievement|relevant technologies/i.test(line));
+
+  const experience: CvExperience[] = [];
+  let current: CvExperience | null = null;
+
+  lines.forEach((line, index) => {
+    const dateRange = parseDateRange(line);
+    const looksLikeHeader =
+      /\s+-\s+/.test(stripDateRange(line)) || Boolean(dateRange.startDate && !current);
+
+    if (looksLikeHeader) {
+      if (current) experience.push(current);
+      const parsedHeader = parsePositionCompany(line);
+      current = {
+        id: `parsed-exp-${index}`,
+        company: parsedHeader.company,
+        position: parsedHeader.position,
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        isCurrent: dateRange.isCurrent,
+        achievements: '',
+      };
+      return;
+    }
+
+    if (dateRange.startDate && current && !current.startDate) {
+      current.startDate = dateRange.startDate;
+      current.endDate = dateRange.endDate;
+      current.isCurrent = dateRange.isCurrent;
+      return;
+    }
+
+    if (current) {
+      current.achievements = [current.achievements, line].filter(Boolean).join('\n');
+    }
+  });
+
+  if (current) experience.push(current);
+
+  return experience.filter((item) =>
+    [item.company, item.position, item.startDate, item.endDate, item.achievements].some(Boolean),
+  );
+};
+
+const parseEducationSection = (section: string): CvEducation[] => {
+  const lines = section
+    .split('\n')
+    .map(cleanExtractedValue)
+    .filter(Boolean)
+    .filter((line) => !/optional:|gpa|scholarship|coursework/i.test(line));
+
+  const education: CvEducation[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const header = lines[index] ?? '';
+    const dateRange = parseDateRange(header);
+    const title = stripDateRange(header);
+    const [degree = '', ...majorParts] = title.split(/\s+-\s+/);
+    const nextLine = cleanExtractedValue(lines[index + 1]);
+
+    education.push({
+      id: `parsed-edu-${index}`,
+      degree: cleanExtractedValue(degree),
+      major: cleanExtractedValue(majorParts.join(' - ')),
+      school: nextLine,
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+    });
+
+    if (nextLine) index += 1;
+  }
+
+  return education.filter((item) =>
+    [item.school, item.major, item.degree, item.startDate, item.endDate].some(Boolean),
+  );
+};
+
+const parseRawText = (text: string): Partial<CvFormData> => {
+  const normalizedText = normalizeRawCvText(text);
+  const lines = normalizedText
+    .split('\n')
+    .map(cleanExtractedValue)
+    .filter(Boolean);
+  const firstHeadingIndex = lines.findIndex((line) =>
+    resumeSectionHeadings.some((heading) => heading.toLowerCase() === line.toLowerCase()),
+  );
+  const headerLines = lines
+    .slice(0, firstHeadingIndex === -1 ? Math.min(lines.length, 8) : firstHeadingIndex)
+    .filter((line) => !/^(email|phone|address|linkedin|github|portfolio):/i.test(line));
+  const legacyHeaderMatch = headerLines[0]?.match(/^(.*?)\s+CV\s*(?:-|--)\s*(.*?)\.?$/i);
+
+  const parsed: Partial<CvFormData> = {
+    fullName: cleanExtractedValue(legacyHeaderMatch?.[1] || headerLines[0]),
+    currentRole: cleanExtractedValue(legacyHeaderMatch?.[2] || headerLines[1]),
+    email: readLabeledValue(normalizedText, 'Email'),
+    phone: readLabeledValue(normalizedText, 'Phone'),
+    address: readLabeledValue(normalizedText, 'Address'),
+    linkedinUrl: readLabeledValue(normalizedText, 'LinkedIn'),
+    githubUrl: readLabeledValue(normalizedText, 'GitHub'),
+    portfolioUrl: readLabeledValue(normalizedText, 'Portfolio'),
+    summary:
+      getSection(lines, 'Professional Summary') ||
+      cleanExtractedValue(normalizedText.match(/Summary:\s*(.*?)(?:\n|$)/i)?.[1]),
+    technicalSkills:
+      extractSkillText(getSection(lines, 'Technical Skills')) ||
+      cleanExtractedValue(normalizedText.match(/Skills:\s*(.*?)(?:\n|$)/i)?.[1]),
+    softSkills: extractSkillText(getSection(lines, 'Soft Skills')),
+    languages: getSection(lines, 'Languages').replace(/\n/g, ', '),
+    experience: parseWorkExperienceSection(getSection(lines, 'Work Experience')),
+    education: parseEducationSection(getSection(lines, 'Education')),
+  };
+
+  const hasParsedValue = Object.values(parsed).some((value) =>
+    Array.isArray(value) ? value.length > 0 : Boolean(value),
+  );
+
+  if (hasParsedValue) return parsed;
+
+  const fallback = parseRawTextFallback(text);
+  delete fallback.experience;
+  delete fallback.education;
+  return fallback;
+};
+
+type ImportReadIssueKey =
+  | 'fullName'
+  | 'currentRole'
+  | 'email'
+  | 'phone'
+  | 'address'
+  | 'linkedinUrl'
+  | 'githubUrl'
+  | 'portfolioUrl'
+  | 'summary'
+  | 'technicalSkills'
+  | 'softSkills'
+  | 'languages'
+  | 'experience'
+  | 'education';
+
+type ImportReadIssues = Partial<Record<ImportReadIssueKey, string>>;
+
+const importReadIssueMessage =
+  'Không đọc được thông tin này từ CV đã import. Vui lòng nhập thủ công.';
+
+const createImportReadIssues = (parsed: Partial<CvFormData>): ImportReadIssues => {
+  const issues: ImportReadIssues = {};
+  const requiredTextFields: ImportReadIssueKey[] = [
+    'fullName',
+    'currentRole',
+    'email',
+    'phone',
+    'address',
+    'linkedinUrl',
+    'githubUrl',
+    'portfolioUrl',
+    'summary',
+    'technicalSkills',
+    'softSkills',
+    'languages',
+  ];
+
+  requiredTextFields.forEach((field) => {
+    const value = parsed[field as keyof CvFormData];
+    if (typeof value !== 'string' || !value.trim()) {
+      issues[field] = importReadIssueMessage;
+    }
+  });
+
+  if (!parsed.experience || parsed.experience.length === 0) {
+    issues.experience = importReadIssueMessage;
+  }
+
+  if (!parsed.education || parsed.education.length === 0) {
+    issues.education = importReadIssueMessage;
+  }
+
+  return issues;
+};
+
+type CvUploadProgressPhase = 'idle' | 'uploading' | 'parsing' | 'completed' | 'error';
+
+interface CvUploadProgressState {
+  phase: CvUploadProgressPhase;
+  fileName: string;
+  percent: number;
+  message: string;
+}
+
+const initialUploadProgress: CvUploadProgressState = {
+  phase: 'idle',
+  fileName: '',
+  percent: 0,
+  message: '',
+};
+
 export const CandidateUploadCv: React.FC = () => {
   const { token } = useAuth();
   const [view, setView] = useState<'upload' | 'builder'>('upload');
@@ -344,6 +697,9 @@ export const CandidateUploadCv: React.FC = () => {
   const [existingStructuredData, setExistingStructuredData] = useState<Record<string, unknown>>({});
   const [savingCv, setSavingCv] = useState(false);
   const [cvSaved, setCvSaved] = useState(false);
+  const [importReadIssues, setImportReadIssues] = useState<ImportReadIssues>({});
+  const [uploadProgress, setUploadProgress] =
+    useState<CvUploadProgressState>(initialUploadProgress);
 
   // States for CV Upload & Parsing Success Notification
   const [uploadedCvId, setUploadedCvId] = useState<string | null>(null);
@@ -364,6 +720,24 @@ export const CandidateUploadCv: React.FC = () => {
     rawText: document.rawText,
   });
 
+  const clearImportReadIssue = (field: ImportReadIssueKey) => {
+    setImportReadIssues((current) => {
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (uploadProgress.phase !== 'completed') return;
+
+    const timeout = window.setTimeout(() => {
+      setUploadProgress(initialUploadProgress);
+    }, 2200);
+
+    return () => window.clearTimeout(timeout);
+  }, [uploadProgress.phase]);
+
   const handleImportCv = (doc: CvDocument) => {
     if (!doc.rawText) {
       setApiError('No raw text content available in this CV to import');
@@ -371,16 +745,29 @@ export const CandidateUploadCv: React.FC = () => {
     }
 
     const parsed = parseRawText(doc.rawText);
+    setImportReadIssues(createImportReadIssues(parsed));
 
     setCvSaved(false);
     setCvForm((current) => ({
       ...current,
-      fullName: current.fullName || parsed.fullName || '',
+      fullName: parsed.fullName || current.fullName,
+      email: parsed.email || current.email,
+      phone: parsed.phone || current.phone,
       currentRole: parsed.currentRole || current.currentRole,
+      address: parsed.address || current.address,
+      linkedinUrl: parsed.linkedinUrl || current.linkedinUrl,
+      githubUrl: parsed.githubUrl || current.githubUrl,
+      portfolioUrl: parsed.portfolioUrl || current.portfolioUrl,
       summary: parsed.summary || current.summary,
       technicalSkills: parsed.technicalSkills || current.technicalSkills,
-      experience: parsed.experience || current.experience,
-      education: parsed.education || current.education,
+      softSkills: parsed.softSkills || current.softSkills,
+      languages: parsed.languages || current.languages,
+      experience:
+        parsed.experience && parsed.experience.length > 0
+          ? parsed.experience
+          : current.experience,
+      education:
+        parsed.education && parsed.education.length > 0 ? parsed.education : current.education,
     }));
 
     setView('builder');
@@ -435,6 +822,12 @@ export const CandidateUploadCv: React.FC = () => {
             setUploadedCvId(null);
             setSuccessParsedCv(updatedUploadedDoc);
             setShowSuccessModal(true);
+            setUploadProgress({
+              phase: 'completed',
+              fileName: updatedUploadedDoc.name,
+              percent: 100,
+              message: 'CV uploaded and parsed successfully.',
+            });
           }
         }
 
@@ -442,7 +835,7 @@ export const CandidateUploadCv: React.FC = () => {
       } catch (pollError) {
         console.error('Error polling CV status:', pollError);
       }
-    }, 3000);
+    }, 1000);
 
     return () => clearInterval(interval);
   }, [documents, token, uploadedCvId]);
@@ -543,8 +936,8 @@ export const CandidateUploadCv: React.FC = () => {
 
   const validateCvUploadFile = (file: File) => {
     const extension = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
-    if (!['.pdf', '.docx'].includes(extension)) {
-      setApiError('Invalid file format. Please upload a PDF or DOCX file.');
+    if (!['.pdf', '.docx', '.doc'].includes(extension)) {
+      setApiError('Invalid file format. Please upload a PDF, DOCX, or DOC file.');
       return false;
     }
 
@@ -566,6 +959,12 @@ export const CandidateUploadCv: React.FC = () => {
 
     setUploading(true);
     setApiError('');
+    setUploadProgress({
+      phase: 'uploading',
+      fileName: file.name,
+      percent: 30,
+      message: 'Uploading CV file...',
+    });
     const formData = new FormData();
     formData.append('file', file);
     try {
@@ -580,9 +979,31 @@ export const CandidateUploadCv: React.FC = () => {
       setDocuments((current) => [newDoc, ...current]);
       if (newDoc.parsingStatus === 'Parsing...') {
         setUploadedCvId(newDoc.id);
+        setUploadProgress({
+          phase: 'parsing',
+          fileName: newDoc.name,
+          percent: 70,
+          message: 'Parsing CV content...',
+        });
+      } else {
+        setSuccessParsedCv(newDoc);
+        setShowSuccessModal(true);
+        setUploadProgress({
+          phase: 'completed',
+          fileName: newDoc.name,
+          percent: 100,
+          message: 'CV uploaded and parsed successfully.',
+        });
       }
     } catch (uploadError) {
-      setApiError(uploadError instanceof Error ? uploadError.message : 'Unable to upload CV');
+      const message = uploadError instanceof Error ? uploadError.message : 'Unable to upload CV';
+      setApiError(message);
+      setUploadProgress({
+        phase: 'error',
+        fileName: file.name,
+        percent: 100,
+        message,
+      });
     } finally {
       setUploading(false);
       if (fileInputRef.current) {
@@ -635,11 +1056,13 @@ export const CandidateUploadCv: React.FC = () => {
 
   const updateCvField = (field: keyof CvFormData, value: string) => {
     setCvSaved(false);
+    clearImportReadIssue(field as ImportReadIssueKey);
     setCvForm((current) => ({ ...current, [field]: value }));
   };
 
   const addExperience = () => {
     setCvSaved(false);
+    clearImportReadIssue('experience');
     setCvForm((current) => ({
       ...current,
       experience: [
@@ -663,6 +1086,7 @@ export const CandidateUploadCv: React.FC = () => {
     value: CvExperience[Field],
   ) => {
     setCvSaved(false);
+    clearImportReadIssue('experience');
     setCvForm((current) => ({
       ...current,
       experience: current.experience.map((item) =>
@@ -681,6 +1105,7 @@ export const CandidateUploadCv: React.FC = () => {
 
   const addEducation = () => {
     setCvSaved(false);
+    clearImportReadIssue('education');
     setCvForm((current) => ({
       ...current,
       education: [
@@ -699,6 +1124,7 @@ export const CandidateUploadCv: React.FC = () => {
 
   const updateEducation = (id: string, field: keyof Omit<CvEducation, 'id'>, value: string) => {
     setCvSaved(false);
+    clearImportReadIssue('education');
     setCvForm((current) => ({
       ...current,
       education: current.education.map((item) =>
@@ -903,11 +1329,13 @@ export const CandidateUploadCv: React.FC = () => {
                   label="Full Name"
                   required
                   value={cvForm.fullName}
+                  issue={importReadIssues.fullName}
                   onChange={(value) => updateCvField('fullName', value)}
                 />
                 <CvInput
                   label="Professional Title"
                   value={cvForm.currentRole}
+                  issue={importReadIssues.currentRole}
                   onChange={(value) => updateCvField('currentRole', value)}
                 />
                 <CvInput
@@ -915,34 +1343,40 @@ export const CandidateUploadCv: React.FC = () => {
                   required
                   type="email"
                   value={cvForm.email}
+                  issue={importReadIssues.email}
                   onChange={(value) => updateCvField('email', value)}
                 />
                 <CvInput
                   label="Phone"
                   value={cvForm.phone}
+                  issue={importReadIssues.phone}
                   onChange={(value) => updateCvField('phone', value)}
                 />
                 <CvInput
                   label="Address / Location"
                   value={cvForm.address}
+                  issue={importReadIssues.address}
                   onChange={(value) => updateCvField('address', value)}
                 />
                 <CvInput
                   label="LinkedIn URL"
                   type="url"
                   value={cvForm.linkedinUrl}
+                  issue={importReadIssues.linkedinUrl}
                   onChange={(value) => updateCvField('linkedinUrl', value)}
                 />
                 <CvInput
                   label="GitHub URL"
                   type="url"
                   value={cvForm.githubUrl}
+                  issue={importReadIssues.githubUrl}
                   onChange={(value) => updateCvField('githubUrl', value)}
                 />
                 <CvInput
                   label="Portfolio URL"
                   type="url"
                   value={cvForm.portfolioUrl}
+                  issue={importReadIssues.portfolioUrl}
                   onChange={(value) => updateCvField('portfolioUrl', value)}
                 />
               </div>
@@ -956,6 +1390,9 @@ export const CandidateUploadCv: React.FC = () => {
                 placeholder="Summarize your experience, strengths, and career goals."
                 className="w-full rounded-lg border border-border-warm px-3 py-2 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/15"
               />
+              {importReadIssues.summary ? (
+                <CvImportReadIssue>{importReadIssues.summary}</CvImportReadIssue>
+              ) : null}
             </CvSection>
 
             <CvSection title="Skills">
@@ -971,6 +1408,9 @@ export const CandidateUploadCv: React.FC = () => {
                     placeholder="React, TypeScript, NestJS, Docker"
                     className="w-full rounded-lg border border-border-warm px-3 py-2 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/15"
                   />
+                  {importReadIssues.technicalSkills ? (
+                    <CvImportReadIssue>{importReadIssues.technicalSkills}</CvImportReadIssue>
+                  ) : null}
                 </label>
                 <label className="block">
                   <span className="mb-1.5 block text-xs font-semibold text-slate-ink">
@@ -983,6 +1423,9 @@ export const CandidateUploadCv: React.FC = () => {
                     placeholder="Teamwork, Problem solving, Communication"
                     className="w-full rounded-lg border border-border-warm px-3 py-2 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/15"
                   />
+                  {importReadIssues.softSkills ? (
+                    <CvImportReadIssue>{importReadIssues.softSkills}</CvImportReadIssue>
+                  ) : null}
                 </label>
                 <label className="block">
                   <span className="mb-1.5 block text-xs font-semibold text-slate-ink">
@@ -995,6 +1438,9 @@ export const CandidateUploadCv: React.FC = () => {
                     placeholder="English | IELTS 7.0, Japanese | N3"
                     className="w-full rounded-lg border border-border-warm px-3 py-2 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/15"
                   />
+                  {importReadIssues.languages ? (
+                    <CvImportReadIssue>{importReadIssues.languages}</CvImportReadIssue>
+                  ) : null}
                 </label>
                 <p className="text-xs text-on-surface-variant">
                   Separate entries with commas. Use "Language | Level" for languages.
@@ -1070,7 +1516,11 @@ export const CandidateUploadCv: React.FC = () => {
                   </div>
                 ))}
                 {cvForm.experience.length === 0 ? (
-                  <p className="text-sm text-on-surface-variant">No experience added yet.</p>
+                  importReadIssues.experience ? (
+                    <CvImportReadIssue>{importReadIssues.experience}</CvImportReadIssue>
+                  ) : (
+                    <p className="text-sm text-on-surface-variant">No experience added yet.</p>
+                  )
                 ) : null}
               </div>
             </CvSection>
@@ -1121,7 +1571,11 @@ export const CandidateUploadCv: React.FC = () => {
                   </div>
                 ))}
                 {cvForm.education.length === 0 ? (
-                  <p className="text-sm text-on-surface-variant">No education added yet.</p>
+                  importReadIssues.education ? (
+                    <CvImportReadIssue>{importReadIssues.education}</CvImportReadIssue>
+                  ) : (
+                    <p className="text-sm text-on-surface-variant">No education added yet.</p>
+                  )
                 ) : null}
               </div>
             </CvSection>
@@ -1145,7 +1599,7 @@ export const CandidateUploadCv: React.FC = () => {
         ref={fileInputRef}
         onChange={handleFileChange}
         className="hidden"
-        accept=".pdf,.docx"
+        accept=".pdf,.docx,.doc"
       />
 
       {loading ? <CandidateLoadingState label="Loading CV documents..." /> : null}
@@ -1155,7 +1609,7 @@ export const CandidateUploadCv: React.FC = () => {
         <div className="col-span-12 space-y-6">
           <CandidatePageHeader
             title="Upload CV - Candidate"
-            description="Upload PDF or DOCX CV files and monitor parsing readiness."
+            description="Upload PDF, DOCX, or DOC CV files and monitor parsing readiness."
             actions={
               <>
                 <DownloadCvTemplateLink />
@@ -1185,7 +1639,7 @@ export const CandidateUploadCv: React.FC = () => {
               Drag and drop your CV here
             </h3>
             <p className="text-xs text-on-surface-variant mb-6 text-center max-w-sm font-medium leading-relaxed">
-              Support for PDF and DOCX files. Max file size: 10MB. Ensure your contact details and
+              Support for PDF, DOCX, and DOC files. Max file size: 10MB. Ensure your contact details and
               work history are clearly legible for best parsing results.
             </p>
             <div className="flex gap-3" onClick={(e) => e.stopPropagation()}>
@@ -1308,6 +1762,13 @@ export const CandidateUploadCv: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {uploadProgress.phase !== 'idle' ? (
+        <CvUploadProgressPopup
+          progress={uploadProgress}
+          onClose={() => setUploadProgress(initialUploadProgress)}
+        />
+      ) : null}
 
       {showSuccessModal && successParsedCv && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-deep-charcoal/60 backdrop-blur-sm transition-opacity duration-300 animate-fadeIn">
@@ -1442,6 +1903,157 @@ export const CandidateUploadCv: React.FC = () => {
   );
 };
 
+const CvUploadProgressPopup = ({
+  progress,
+  onClose,
+}: {
+  progress: CvUploadProgressState;
+  onClose: () => void;
+}) => {
+  const percent = Math.min(100, Math.max(0, progress.percent));
+  const isWorking = progress.phase === 'uploading' || progress.phase === 'parsing';
+  const statusTone =
+    progress.phase === 'error'
+      ? 'border-red-200 bg-red-50 text-red-700'
+      : progress.phase === 'completed'
+        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+        : 'border-teal-command/20 bg-teal-command/10 text-teal-command';
+  const steps = [
+    {
+      label: 'Upload',
+      state:
+        progress.phase === 'uploading'
+          ? 'active'
+          : progress.phase === 'parsing' || progress.phase === 'completed'
+            ? 'done'
+            : progress.phase === 'error'
+              ? 'error'
+              : 'pending',
+    },
+    {
+      label: 'Parse',
+      state:
+        progress.phase === 'parsing'
+          ? 'active'
+          : progress.phase === 'completed'
+            ? 'done'
+            : progress.phase === 'error'
+              ? 'error'
+              : 'pending',
+    },
+    {
+      label: 'Ready',
+      state:
+        progress.phase === 'completed'
+          ? 'done'
+          : progress.phase === 'error'
+            ? 'error'
+            : 'pending',
+    },
+  ];
+
+  return (
+    <div
+      className="fixed bottom-5 right-5 z-[60] w-[min(360px,calc(100vw-2rem))] rounded-lg border border-border-warm bg-white p-4 shadow-2xl"
+      aria-live="polite"
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border ${statusTone}`}
+        >
+          {isWorking ? (
+            <Icons.spinner />
+          ) : progress.phase === 'completed' ? (
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          ) : (
+            <Icons.warning />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-deep-charcoal">CV processing</p>
+              <p className="truncate text-xs font-medium text-slate-ink">{progress.fileName}</p>
+            </div>
+            {!isWorking ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded p-1 text-slate-ink hover:bg-surface-container-low hover:text-deep-charcoal"
+                aria-label="Close CV upload progress"
+              >
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            ) : null}
+          </div>
+
+          <p className="mt-2 text-xs font-semibold text-on-surface-variant">{progress.message}</p>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-container-low">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                progress.phase === 'error' ? 'bg-red-500' : 'bg-teal-command'
+              }`}
+              style={{ width: `${percent}%` }}
+            />
+          </div>
+          <div className="mt-3 grid grid-cols-3 gap-2 text-[10px] font-bold uppercase tracking-wider">
+            {steps.map((step) => (
+              <div
+                key={step.label}
+                className={
+                  step.state === 'done'
+                    ? 'text-emerald-700'
+                    : step.state === 'active'
+                      ? 'text-teal-command'
+                      : step.state === 'error'
+                        ? 'text-red-600'
+                        : 'text-slate-ink/60'
+                }
+              >
+                <span
+                  className={`mr-1 inline-block h-1.5 w-1.5 rounded-full ${
+                    step.state === 'done'
+                      ? 'bg-emerald-600'
+                      : step.state === 'active'
+                        ? 'bg-teal-command'
+                        : step.state === 'error'
+                          ? 'bg-red-500'
+                          : 'bg-border-warm'
+                  }`}
+                />
+                {step.label}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const CvSection = ({
   title,
   actionLabel,
@@ -1470,6 +2082,12 @@ const CvSection = ({
   </section>
 );
 
+const CvImportReadIssue = ({ children }: { children: React.ReactNode }) => (
+  <p className="mt-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-800">
+    {children}
+  </p>
+);
+
 const DownloadCvTemplateLink = () => (
   <a
     href="/candidate-cv-template.doc"
@@ -1488,6 +2106,7 @@ const CvInput = ({
   required = false,
   type = 'text',
   placeholder,
+  issue,
 }: {
   label: string;
   value: string;
@@ -1495,6 +2114,7 @@ const CvInput = ({
   required?: boolean;
   type?: string;
   placeholder?: string;
+  issue?: string;
 }) => (
   <label className="block">
     <span className="mb-1.5 block text-xs font-semibold text-slate-ink">
@@ -1509,6 +2129,7 @@ const CvInput = ({
       onChange={(event) => onChange(event.target.value)}
       className="w-full rounded-lg border border-border-warm px-3 py-2 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/15"
     />
+    {issue ? <CvImportReadIssue>{issue}</CvImportReadIssue> : null}
   </label>
 );
 

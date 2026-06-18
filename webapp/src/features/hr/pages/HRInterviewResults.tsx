@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { UserRole } from '@wr/contracts';
 import { useAuth } from '../../../context/AuthContext';
-import { apiRequest, ApiError } from '../../../lib/api';
+import { apiRequest } from '../../../lib/api';
 import {
   HREmptyState,
   HRInlineAlert,
@@ -41,9 +42,16 @@ interface InterviewDetailsResponse {
   time: string;
   status: RecordingStatus;
   feedbacks: PanelFeedback[];
+  myFeedback?: PanelFeedback | null;
+  canSubmitMyFeedback?: boolean;
   finalRecommendation: string;
   summaryNotes: string;
 }
+
+type MyFeedbackResponse = {
+  success: boolean;
+  feedback: PanelFeedback;
+};
 
 const RECOMMENDATION_OPTIONS_VALUES: Recommendation[] = [
   'Recommend Hire',
@@ -101,8 +109,29 @@ const recommendationOptions: Array<{ label: Recommendation; icon: string; tone: 
   },
 ];
 
+const getInitials = (name: string) =>
+  name
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 3)
+    .toUpperCase() || 'U';
+
+const emptyOwnFeedback = (user: { id: string; displayName: string; role: UserRole } | null): PanelFeedback => ({
+  id: user?.id ?? 'me',
+  member: user?.displayName ?? 'Me',
+  role: user?.role ?? UserRole.HR_LEADER,
+  initials: getInitials(user?.displayName ?? 'Me'),
+  decision: 'PASS',
+  technical: 0,
+  communication: 0,
+  culture: 0,
+  notes: '',
+});
+
 export const HRInterviewResults: React.FC = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [completedInterviews, setCompletedInterviews] = useState<CompletedInterview[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [query, setQuery] = useState('');
@@ -115,6 +144,9 @@ export const HRInterviewResults: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState('');
   const [submitError, setSubmitError] = useState('');
+
+  const canEditOwnFeedback = user?.role === UserRole.HR_LEADER;
+  const canSubmitDecision = user?.role === UserRole.HR_RECRUITER;
 
   useEffect(() => {
     const loadCompleted = async () => {
@@ -148,7 +180,11 @@ export const HRInterviewResults: React.FC = () => {
           `/interviews/${selectedId}/details`,
           token,
         );
-        setFeedback(details.feedbacks);
+        const nextFeedback = [...details.feedbacks];
+        if (canEditOwnFeedback && user && !nextFeedback.some((item) => item.id === user.id)) {
+          nextFeedback.push(details.myFeedback || emptyOwnFeedback(user));
+        }
+        setFeedback(nextFeedback);
         setRecommendation(
           RECOMMENDATION_OPTIONS_VALUES.includes(details.finalRecommendation as Recommendation)
             ? (details.finalRecommendation as Recommendation)
@@ -163,7 +199,7 @@ export const HRInterviewResults: React.FC = () => {
       }
     };
     void loadDetails();
-  }, [selectedId, token]);
+  }, [canEditOwnFeedback, selectedId, token, user]);
 
   const selectedInterview = useMemo(
     () =>
@@ -206,17 +242,43 @@ export const HRInterviewResults: React.FC = () => {
     setSubmitMessage('');
     setSubmitError('');
     try {
+      if (canEditOwnFeedback) {
+        const ownFeedback = feedback.find((item) => item.id === user?.id);
+        if (!ownFeedback) {
+          throw new Error('Unable to find your feedback entry.');
+        }
+
+        const response = await apiRequest<MyFeedbackResponse>(
+          `/interviews/${selectedInterview.id}/my-feedback`,
+          token,
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              decision: ownFeedback.decision,
+              technical: ownFeedback.technical,
+              communication: ownFeedback.communication,
+              culture: ownFeedback.culture,
+              notes: ownFeedback.notes,
+            }),
+          },
+        );
+
+        setFeedback((items) =>
+          items.some((item) => item.id === response.feedback.id)
+            ? items.map((item) => (item.id === response.feedback.id ? response.feedback : item))
+            : [...items, response.feedback],
+        );
+      }
+
+      if (!canSubmitDecision) {
+        setSubmitMessage('Your evaluation was saved successfully.');
+        return;
+      }
+
       await apiRequest(`/interviews/${selectedInterview.id}/results`, token, {
         method: 'POST',
         body: JSON.stringify({
-          feedbacks: feedback.map((item) => ({
-            evaluatorId: item.id,
-            decision: item.decision,
-            technical: item.technical,
-            communication: item.communication,
-            culture: item.culture,
-            notes: item.notes,
-          })),
+          feedbacks: [],
           finalRecommendation: recommendation,
           summaryNotes,
         }),
@@ -226,9 +288,9 @@ export const HRInterviewResults: React.FC = () => {
           item.id === selectedInterview.id ? { ...item, status: 'Recorded' } : item,
         ),
       );
-      setSubmitMessage('Results submitted successfully.');
+      setSubmitMessage('Final decision submitted successfully.');
     } catch (error) {
-      setSubmitError(error instanceof ApiError ? error.message : 'Unable to submit results');
+      setSubmitError(error instanceof Error ? error.message : 'Unable to submit results');
     } finally {
       setSubmitting(false);
     }
@@ -239,7 +301,7 @@ export const HRInterviewResults: React.FC = () => {
       <HRPageHeader
         eyebrow="HR Manager Portal"
         title="Interview Results"
-        description="Record panel feedback, final recommendation, and supporting evidence after completed interviews."
+        description="Review panel feedback after completed interviews. HR recruiters record the final hiring decision; HR leaders can submit their own evaluation."
         actions={
           <HRSearchInput
             className="w-full max-w-md"
@@ -339,11 +401,13 @@ export const HRInterviewResults: React.FC = () => {
                   Panel Members Feedback
                 </h3>
                 <div className="space-y-5">
-                  {feedback.map((item) => (
-                    <article
-                      className="rounded-lg border border-border-warm bg-workflow-ivory/20 p-4"
-                      key={item.id}
-                    >
+                  {feedback.map((item) => {
+                    const editable = canEditOwnFeedback && item.id === user?.id;
+                    return (
+                      <article
+                        className="rounded-lg border border-border-warm bg-workflow-ivory/20 p-4"
+                        key={item.id}
+                      >
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-container font-mono text-xs font-bold text-teal-command">
                           {item.initials}
@@ -353,6 +417,11 @@ export const HRInterviewResults: React.FC = () => {
                             <p className="text-sm font-bold text-deep-charcoal">
                               {item.member} ({item.role})
                             </p>
+                            {editable && (
+                              <span className="rounded-full border border-teal-command/20 bg-teal-command/10 px-2.5 py-1 text-[11px] font-bold text-teal-command">
+                                Your feedback
+                              </span>
+                            )}
                             <div className="flex w-fit rounded-lg bg-surface-container-high p-1">
                               {(['PASS', 'FAIL'] as const).map((decision) => (
                                 <button
@@ -363,6 +432,7 @@ export const HRInterviewResults: React.FC = () => {
                                         : 'bg-rejected text-white shadow-sm'
                                       : 'text-slate-ink hover:bg-white'
                                   }`}
+                                  disabled={!editable || submitting}
                                   key={decision}
                                   onClick={() => updateDecision(item.id, decision)}
                                   type="button"
@@ -386,7 +456,8 @@ export const HRInterviewResults: React.FC = () => {
                                   {label} ({item[key]}/10)
                                 </span>
                                 <input
-                                  className="h-1 w-full cursor-pointer accent-teal-command"
+                                  className="h-1 w-full cursor-pointer accent-teal-command disabled:cursor-not-allowed disabled:opacity-60"
+                                  disabled={!editable || submitting}
                                   max="10"
                                   min="0"
                                   onChange={(event) =>
@@ -400,7 +471,8 @@ export const HRInterviewResults: React.FC = () => {
                           </div>
 
                           <textarea
-                            className="min-h-[88px] w-full rounded-lg border border-border-warm bg-clean-surface p-3 text-sm leading-6 outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                            className="min-h-[88px] w-full rounded-lg border border-border-warm bg-clean-surface p-3 text-sm leading-6 outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-70"
+                            disabled={!editable || submitting}
                             onChange={(event) => updateNotes(item.id, event.target.value)}
                             placeholder="Panel member observations..."
                             value={item.notes}
@@ -408,7 +480,8 @@ export const HRInterviewResults: React.FC = () => {
                         </div>
                       </div>
                     </article>
-                  ))}
+                    );
+                  })}
                   {feedback.length === 0 && !detailsLoading && (
                     <p className="text-sm text-on-surface-variant">No panel feedback recorded yet.</p>
                   )}
@@ -426,6 +499,7 @@ export const HRInterviewResults: React.FC = () => {
                       <input
                         checked={recommendation === option.label}
                         className="peer hidden"
+                        disabled={!canSubmitDecision || submitting}
                         name="recommendation"
                         onChange={() => setRecommendation(option.label)}
                         type="radio"
@@ -443,7 +517,8 @@ export const HRInterviewResults: React.FC = () => {
                 <label className="block space-y-2">
                   <span className="text-sm font-bold text-slate-ink">Executive Summary Notes</span>
                   <textarea
-                    className="min-h-[120px] w-full rounded-lg border border-border-warm bg-clean-surface p-4 text-sm leading-6 outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                    className="min-h-[120px] w-full rounded-lg border border-border-warm bg-clean-surface p-4 text-sm leading-6 outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-70"
+                    disabled={!canSubmitDecision || submitting}
                     onChange={(event) => setSummaryNotes(event.target.value)}
                     placeholder="Provide a high-level justification for the recommendation..."
                     value={summaryNotes}
@@ -472,21 +547,27 @@ export const HRInterviewResults: React.FC = () => {
                 {submitError && <span className="font-semibold text-rejected">{submitError}</span>}
               </div>
               <div className="flex flex-col gap-3 sm:flex-row">
-                <button
-                  className="rounded-lg border border-teal-command px-6 py-2.5 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98] disabled:opacity-70"
-                  disabled={submitting}
-                  onClick={submitResults}
-                  type="button"
-                >
-                  Save as Draft
-                </button>
+                {canSubmitDecision && (
+                  <button
+                    className="rounded-lg border border-teal-command px-6 py-2.5 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98] disabled:opacity-70"
+                    disabled={submitting}
+                    onClick={submitResults}
+                    type="button"
+                  >
+                    Save as Draft
+                  </button>
+                )}
                 <button
                   className="rounded-lg bg-teal-command px-8 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary active:scale-[0.98] disabled:opacity-70"
                   disabled={submitting}
                   onClick={submitResults}
                   type="button"
                 >
-                  {submitting ? 'Submitting...' : 'Submit to Admin for Decision'}
+                  {submitting
+                    ? 'Submitting...'
+                    : canSubmitDecision
+                      ? 'Submit Hiring Decision'
+                      : 'Save My Evaluation'}
                 </button>
               </div>
             </footer>

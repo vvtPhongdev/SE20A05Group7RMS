@@ -220,8 +220,13 @@ export class TaskPlanService {
   /**
    * T-107: Update a task's status (PENDING -> IN_PROGRESS -> COMPLETED).
    */
-  async updateStatus(payload: { id: string; status: string; performedById: string }) {
-    const { id, status, performedById } = payload;
+  async updateStatus(payload: {
+    id: string;
+    status: string;
+    performedById: string;
+    actorRole?: string;
+  }) {
+    const { id, status, performedById, actorRole } = payload;
 
     if (!Object.values(TaskStatus).includes(status as TaskStatus)) {
       this.rpc(
@@ -232,6 +237,10 @@ export class TaskPlanService {
 
     const task = await this.prisma.taskPlan.findUnique({ where: { id } });
     if (!task) this.rpc(HttpStatus.NOT_FOUND, `TaskPlan ${id} not found`);
+
+    if (actorRole === UserRole.HR_RECRUITER && task.assignedToId !== performedById) {
+      this.rpc(HttpStatus.FORBIDDEN, 'HR recruiters can only update tasks assigned to them');
+    }
 
     const updated = await this.prisma.taskPlan.update({
       where: { id },

@@ -1,4 +1,4 @@
-import { RecruitmentRequestStatus } from '@wr/contracts';
+import { RecruitmentRequestStatus, UserRole } from '@wr/contracts';
 import { RpcException } from '@nestjs/microservices';
 import { RecruitmentRequestsService } from './recruitment-requests.service';
 
@@ -69,6 +69,50 @@ describe('RecruitmentRequestsService', () => {
         expect.objectContaining({ id: 'resubmitted-request', forwardedToAdmin: false }),
       ]),
     );
+  });
+
+  it('filters recruitment requests to assigned campaigns for HR recruiters', async () => {
+    prisma.recruitmentRequest.count.mockResolvedValue(0);
+    prisma.recruitmentRequest.findMany.mockResolvedValue([]);
+
+    await service.listForAdmin({
+      role: UserRole.HR_RECRUITER,
+      userId: 'recruiter-1',
+    });
+
+    expect(prisma.recruitmentRequest.count).toHaveBeenCalledWith({
+      where: {
+        overallPlan: {
+          is: {
+            tasks: {
+              some: {
+                assignedToId: 'recruiter-1',
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it('blocks HR recruiters from viewing requests without an assigned task', async () => {
+    prisma.recruitmentRequest.findUnique.mockResolvedValue({
+      id: 'request-1',
+      createdById: 'dept-head-1',
+      reviewedById: 'hr-leader-1',
+      overallPlan: {
+        tasks: [{ assignedToId: 'other-recruiter' }],
+      },
+      logs: [],
+    });
+
+    await expect(
+      service.getByIdForActor({
+        id: 'request-1',
+        role: UserRole.HR_RECRUITER,
+        userId: 'recruiter-1',
+      }),
+    ).rejects.toThrow(RpcException);
   });
 
   it('updates a revision-needed request without changing its status', async () => {

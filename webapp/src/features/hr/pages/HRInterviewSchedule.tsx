@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest } from '../../../lib/api';
 import {
@@ -53,6 +53,24 @@ interface ScheduleWithPosition extends InterviewSchedule {
   position: string;
 }
 
+interface ApplicationApiItem {
+  id: string;
+  requestId: string;
+  candidateId: string;
+  status: string;
+  candidate: {
+    id: string;
+    fullName: string;
+    structuredData?: Record<string, unknown> | null;
+  };
+}
+
+interface UserOption {
+  id: string;
+  displayName: string;
+  email?: string;
+}
+
 const STATUS_MAP: Record<string, InterviewStatus> = {
   SCHEDULED: 'Scheduled',
   RESCHEDULED: 'Rescheduled',
@@ -95,27 +113,6 @@ const getWeekRange = () => {
   return { startOfWeek, endOfWeek };
 };
 
-const panel = [
-  {
-    name: 'David Miller',
-    status: 'Conflict: 10:00 AM',
-    tone: 'text-error',
-    surface: 'bg-error-container/20',
-  },
-  {
-    name: 'Aisha Khan',
-    status: 'Available',
-    tone: 'text-approved',
-    surface: 'bg-surface-container-low',
-  },
-  {
-    name: 'Kevin Smith',
-    status: 'Available after 14:00',
-    tone: 'text-revision',
-    surface: 'bg-revision/10',
-  },
-];
-
 const iconPaths: Record<string, React.ReactNode> = {
   calendar: (
     <path d="M8 2v4m8-4v4M4 10h16M6 5h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
@@ -157,51 +154,200 @@ const slotClass: Record<InterviewStatus, string> = {
   Completed: 'border-slate-ink/20 bg-slate-ink/5 text-slate-ink',
 };
 
+const getInitials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'CV';
+
+const buildInterviewerOptions = (
+  users: UserOption[],
+  currentUser?: { id?: string; displayName?: string; email?: string } | null,
+) => {
+  const options = new Map<string, UserOption>();
+  if (currentUser?.id) {
+    options.set(currentUser.id, {
+      id: currentUser.id,
+      displayName: currentUser.displayName || 'Current user',
+      email: currentUser.email,
+    });
+  }
+  users.forEach((item) => options.set(item.id, item));
+  return Array.from(options.values());
+};
+
 export const HRInterviewSchedule: React.FC = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [filter, setFilter] = useState<InterviewStatus | 'All'>('All');
   const [checking, setChecking] = useState(false);
   const [schedules, setSchedules] = useState<ScheduleWithPosition[]>([]);
+  const [requests, setRequests] = useState<RecruitmentRequestApiItem[]>([]);
+  const [applications, setApplications] = useState<ApplicationApiItem[]>([]);
+  const [interviewerOptions, setInterviewerOptions] = useState<UserOption[]>([]);
+  const [selectedRequestId, setSelectedRequestId] = useState('');
+  const [selectedCandidateId, setSelectedCandidateId] = useState('');
+  const [selectedInterviewerIds, setSelectedInterviewerIds] = useState<string[]>([]);
+  const [scheduleDate, setScheduleDate] = useState('');
+  const [scheduleTime, setScheduleTime] = useState('');
+  const [scheduleDuration, setScheduleDuration] = useState('60');
+  const [scheduleLocation, setScheduleLocation] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
+  const scheduleFormRef = useRef<HTMLFormElement>(null);
 
-  useEffect(() => {
-    const loadSchedules = async () => {
-      setLoading(true);
-      setApiError('');
-      try {
-        const response = await apiRequest<RecruitmentRequestListResponse>(
-          '/recruitment-requests?limit=100',
-          token,
-        );
-        const scheduleLists = await Promise.all(
-          response.data.map((request) =>
+  const loadScheduleData = async () => {
+    setLoading(true);
+    setApiError('');
+    try {
+      const response = await apiRequest<RecruitmentRequestListResponse>(
+        '/recruitment-requests?limit=100',
+        token,
+      );
+      const requestList = response.data;
+      const [scheduleLists, applicationLists, usersResponse] = await Promise.all([
+        Promise.all(
+          requestList.map((request) =>
             apiRequest<InterviewSchedule[]>(`/interviews/requests/${request.id}/schedules`, token)
               .then((list) =>
                 list.map((schedule) => ({ ...schedule, position: request.position })),
               )
               .catch(() => [] as ScheduleWithPosition[]),
           ),
-        );
-        setSchedules(scheduleLists.flat().filter((schedule) => schedule.status !== 'CANCELLED'));
-      } catch (loadError) {
-        setApiError(loadError instanceof Error ? loadError.message : 'Unable to load interviews');
-      } finally {
-        setLoading(false);
-      }
-    };
-    void loadSchedules();
+        ),
+        Promise.all(
+          requestList.map((request) =>
+            apiRequest<ApplicationApiItem[]>(`/applications?requestId=${request.id}`, token).catch(
+              () => [] as ApplicationApiItem[],
+            ),
+          ),
+        ),
+        apiRequest<{ data: UserOption[] }>('/users/interviewers', token).catch(
+          () => ({ data: [] as UserOption[] }),
+        ),
+      ]);
+
+      setRequests(requestList);
+      setApplications(applicationLists.flat());
+      setSchedules(scheduleLists.flat().filter((schedule) => schedule.status !== 'CANCELLED'));
+      setInterviewerOptions(buildInterviewerOptions(usersResponse.data, user));
+      setSelectedRequestId((current) =>
+        requestList.some((request) => request.id === current) ? current : requestList[0]?.id || '',
+      );
+      setSelectedInterviewerIds((current) =>
+        current.length > 0 ? current : user?.id ? [user.id] : [],
+      );
+    } catch (loadError) {
+      setApiError(loadError instanceof Error ? loadError.message : 'Unable to load interviews');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadScheduleData();
   }, [token]);
+
+  const candidateNameById = useMemo(() => {
+    const names = new Map<string, string>();
+    applications.forEach((application) => {
+      names.set(application.candidateId, application.candidate.fullName);
+    });
+    return names;
+  }, [applications]);
+
+  const selectedRequest = useMemo(
+    () => requests.find((request) => request.id === selectedRequestId) ?? null,
+    [requests, selectedRequestId],
+  );
+
+  const candidateOptions = useMemo(() => {
+    const scheduledCandidateIds = new Set(
+      schedules
+        .filter(
+          (schedule) =>
+            schedule.requestId === selectedRequestId &&
+            ['SCHEDULED', 'RESCHEDULED', 'COMPLETED'].includes(schedule.status),
+        )
+        .map((schedule) => schedule.candidateId),
+    );
+
+    return applications
+      .filter((application) => application.requestId === selectedRequestId)
+      .filter((application) => !scheduledCandidateIds.has(application.candidateId));
+  }, [applications, schedules, selectedRequestId]);
+
+  useEffect(() => {
+    setSelectedCandidateId((current) =>
+      candidateOptions.some((application) => application.candidateId === current)
+        ? current
+        : candidateOptions[0]?.candidateId || '',
+    );
+  }, [candidateOptions]);
+
+  const panelAvailability = useMemo(() => {
+    const selectedStart =
+      scheduleDate && scheduleTime ? new Date(`${scheduleDate}T${scheduleTime}`) : null;
+    const selectedEnd = selectedStart
+      ? new Date(selectedStart.getTime() + Number(scheduleDuration) * 60_000)
+      : null;
+
+    return selectedInterviewerIds.map((interviewerId) => {
+      const interviewer = interviewerOptions.find((item) => item.id === interviewerId);
+      const conflict =
+        selectedStart && selectedEnd
+          ? schedules.find((schedule) => {
+              if (!['SCHEDULED', 'RESCHEDULED'].includes(schedule.status)) return false;
+              if (!schedule.interviewers.includes(interviewerId)) return false;
+              const scheduleStart = new Date(schedule.scheduledAt);
+              const scheduleEnd = new Date(scheduleStart.getTime() + schedule.duration * 60_000);
+              return scheduleStart < selectedEnd && scheduleEnd > selectedStart;
+            })
+          : null;
+
+      return {
+        id: interviewerId,
+        name: interviewer?.displayName || `Interviewer ${interviewerId.slice(0, 8)}`,
+        status: !selectedStart
+          ? 'Select slot'
+          : conflict
+            ? `Conflict: ${new Date(conflict.scheduledAt).toLocaleTimeString(undefined, {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}`
+            : 'Available',
+        tone: !selectedStart ? 'text-revision' : conflict ? 'text-error' : 'text-approved',
+        surface: !selectedStart
+          ? 'bg-revision/10'
+          : conflict
+            ? 'bg-error-container/20'
+            : 'bg-surface-container-low',
+      };
+    });
+  }, [
+    interviewerOptions,
+    scheduleDate,
+    scheduleDuration,
+    scheduleTime,
+    schedules,
+    selectedInterviewerIds,
+  ]);
 
   const interviews: Interview[] = useMemo(
     () =>
       schedules.map((schedule) => {
         const status = STATUS_MAP[schedule.status] ?? 'Scheduled';
         const date = new Date(schedule.scheduledAt);
+        const candidateName =
+          candidateNameById.get(schedule.candidateId) ||
+          `Candidate ${schedule.candidateId.slice(0, 8)}`;
         return {
           id: schedule.id,
-          candidate: `Candidate ${schedule.candidateId.slice(0, 8)}`,
-          initials: schedule.id.slice(0, 2).toUpperCase(),
+          candidate: candidateName,
+          initials: getInitials(candidateName),
           position: schedule.position,
           campaign: schedule.position,
           time: `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')} ${date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`,
@@ -210,7 +356,7 @@ export const HRInterviewSchedule: React.FC = () => {
           action: ACTION_MAP[status],
         };
       }),
-    [schedules],
+    [candidateNameById, schedules],
   );
 
   const visibleInterviews = useMemo(() => {
@@ -281,17 +427,89 @@ export const HRInterviewSchedule: React.FC = () => {
           const end = new Date(date.getTime() + schedule.duration * 60000);
           return {
             time: `${date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`,
-            candidate: `Candidate ${schedule.candidateId.slice(0, 8)}`,
+            candidate:
+              candidateNameById.get(schedule.candidateId) ||
+              `Candidate ${schedule.candidateId.slice(0, 8)}`,
             role: schedule.position,
             tone: STATUS_MAP[schedule.status] ?? 'Scheduled',
           };
         }),
     }));
-  }, [schedules]);
+  }, [candidateNameById, schedules]);
 
   const handleAvailability = () => {
     setChecking(true);
-    window.setTimeout(() => setChecking(false), 800);
+    setActionMessage('');
+    window.setTimeout(() => {
+      setChecking(false);
+      if (!scheduleDate || !scheduleTime || selectedInterviewerIds.length === 0) {
+        setApiError('Select date, time, and interviewers before checking availability.');
+        return;
+      }
+
+      const start = new Date(`${scheduleDate}T${scheduleTime}`);
+      const end = new Date(start.getTime() + Number(scheduleDuration) * 60_000);
+      const hasConflict = schedules.some((schedule) => {
+        if (!['SCHEDULED', 'RESCHEDULED'].includes(schedule.status)) return false;
+        const scheduleStart = new Date(schedule.scheduledAt);
+        const scheduleEnd = new Date(scheduleStart.getTime() + schedule.duration * 60_000);
+        const overlaps = scheduleStart < end && scheduleEnd > start;
+        if (!overlaps) return false;
+        return (
+          schedule.candidateId === selectedCandidateId ||
+          schedule.interviewers.some((id) => selectedInterviewerIds.includes(id))
+        );
+      });
+
+      if (hasConflict) {
+        setApiError('Potential conflict found for this candidate or panel member.');
+        return;
+      }
+
+      setApiError('');
+      setActionMessage('No local conflict found. Backend will verify again when sending.');
+    }, 800);
+  };
+
+  const createSchedule = async () => {
+    if (
+      !selectedRequestId ||
+      !selectedCandidateId ||
+      !scheduleDate ||
+      !scheduleTime ||
+      !scheduleLocation.trim() ||
+      selectedInterviewerIds.length === 0
+    ) {
+      setApiError('Please complete campaign, candidate, interviewers, date, time, and location.');
+      return;
+    }
+
+    setSubmitting(true);
+    setApiError('');
+    setActionMessage('');
+    try {
+      const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
+      await apiRequest<InterviewSchedule>('/interviews/schedules', token, {
+        method: 'POST',
+        body: JSON.stringify({
+          requestId: selectedRequestId,
+          candidateId: selectedCandidateId,
+          scheduledAt,
+          duration: Number(scheduleDuration),
+          location: scheduleLocation.trim(),
+          interviewers: selectedInterviewerIds,
+        }),
+      });
+      setActionMessage('Interview invitation sent successfully.');
+      setScheduleDate('');
+      setScheduleTime('');
+      setScheduleLocation('');
+      await loadScheduleData();
+    } catch (createError) {
+      setApiError(createError instanceof Error ? createError.message : 'Unable to send invitation');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -301,7 +519,9 @@ export const HRInterviewSchedule: React.FC = () => {
         title="Interview Schedule"
         description="Coordinate interview slots, panel availability, and candidate invitations."
         actions={
-          <HRActionButton>
+          <HRActionButton
+            onClick={() => scheduleFormRef.current?.scrollIntoView({ behavior: 'smooth' })}
+          >
             <Icon className="h-4 w-4" name="plus" />
             Quick Schedule
           </HRActionButton>
@@ -309,6 +529,11 @@ export const HRInterviewSchedule: React.FC = () => {
       />
 
       {apiError && <HRInlineAlert>{apiError}</HRInlineAlert>}
+      {actionMessage && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+          {actionMessage}
+        </div>
+      )}
 
       {loading && <HRLoadingState label="Loading interviews..." />}
 
@@ -494,28 +719,50 @@ export const HRInterviewSchedule: React.FC = () => {
               Schedule New Interview
             </h2>
           </div>
-          <form className="space-y-4 p-5" onSubmit={(event) => event.preventDefault()}>
+          <form
+            className="space-y-4 p-5"
+            ref={scheduleFormRef}
+            onSubmit={(event) => event.preventDefault()}
+          >
             <label className="block space-y-1.5">
               <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-ink">
                 Candidate
               </span>
-              <select className="w-full rounded-lg border border-border-warm bg-workflow-ivory p-2.5 text-sm outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20">
-                <option>Select Candidate...</option>
-                <option>Sarah Jenkins (Product Designer)</option>
-                <option>Marcus Vane (Senior FE Dev)</option>
-                <option>Elena Fisher (UX Researcher)</option>
+              <select
+                className="w-full rounded-lg border border-border-warm bg-workflow-ivory p-2.5 text-sm outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                disabled={!selectedRequestId || candidateOptions.length === 0}
+                onChange={(event) => setSelectedCandidateId(event.target.value)}
+                value={selectedCandidateId}
+              >
+                {candidateOptions.length === 0 ? (
+                  <option value="">No unscheduled candidates</option>
+                ) : null}
+                {candidateOptions.map((application) => (
+                  <option key={application.id} value={application.candidateId}>
+                    {application.candidate.fullName} ({application.status})
+                  </option>
+                ))}
               </select>
             </label>
             <label className="block space-y-1.5">
               <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-ink">
                 Campaign
               </span>
-              <input
-                className="w-full cursor-not-allowed rounded-lg border border-border-warm bg-surface-container-low p-2.5 text-sm text-slate-ink"
-                readOnly
-                type="text"
-                value="Growth Expansion 2024"
-              />
+              <select
+                className="w-full rounded-lg border border-border-warm bg-workflow-ivory p-2.5 text-sm outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                onChange={(event) => {
+                  setSelectedRequestId(event.target.value);
+                  setActionMessage('');
+                }}
+                value={selectedRequestId}
+              >
+                {requests.length === 0 ? <option value="">No campaigns available</option> : null}
+                {requests.map((request) => (
+                  <option key={request.id} value={request.id}>
+                    {request.position}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="block space-y-1.5">
               <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-ink">
@@ -523,12 +770,20 @@ export const HRInterviewSchedule: React.FC = () => {
               </span>
               <select
                 className="min-h-[100px] w-full rounded-lg border border-border-warm bg-workflow-ivory p-2.5 text-sm outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                defaultValue={['David Miller (Head of Design)']}
                 multiple
+                onChange={(event) =>
+                  setSelectedInterviewerIds(
+                    Array.from(event.currentTarget.selectedOptions, (option) => option.value),
+                  )
+                }
+                value={selectedInterviewerIds}
               >
-                <option>David Miller (Head of Design)</option>
-                <option>Aisha Khan (Tech Lead)</option>
-                <option>Kevin Smith (Product Manager)</option>
+                {interviewerOptions.map((interviewer) => (
+                  <option key={interviewer.id} value={interviewer.id}>
+                    {interviewer.displayName}
+                    {interviewer.email ? ` (${interviewer.email})` : ''}
+                  </option>
+                ))}
               </select>
               <span className="text-xs text-slate-ink">
                 Hold Ctrl/Cmd to select multiple members.
@@ -541,7 +796,9 @@ export const HRInterviewSchedule: React.FC = () => {
                 </span>
                 <input
                   className="w-full rounded-lg border border-border-warm bg-workflow-ivory p-2 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                  onChange={(event) => setScheduleDate(event.target.value)}
                   type="date"
+                  value={scheduleDate}
                 />
               </label>
               <label className="block space-y-1.5">
@@ -550,7 +807,9 @@ export const HRInterviewSchedule: React.FC = () => {
                 </span>
                 <input
                   className="w-full rounded-lg border border-border-warm bg-workflow-ivory p-2 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                  onChange={(event) => setScheduleTime(event.target.value)}
                   type="time"
+                  value={scheduleTime}
                 />
               </label>
             </div>
@@ -560,12 +819,13 @@ export const HRInterviewSchedule: React.FC = () => {
               </span>
               <select
                 className="w-full rounded-lg border border-border-warm bg-workflow-ivory p-2.5 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                defaultValue="60 Minutes"
+                onChange={(event) => setScheduleDuration(event.target.value)}
+                value={scheduleDuration}
               >
-                <option>30 Minutes</option>
-                <option>60 Minutes</option>
-                <option>90 Minutes</option>
-                <option>2 Hours</option>
+                <option value="30">30 Minutes</option>
+                <option value="60">60 Minutes</option>
+                <option value="90">90 Minutes</option>
+                <option value="120">2 Hours</option>
               </select>
             </label>
             <label className="block space-y-1.5">
@@ -575,7 +835,9 @@ export const HRInterviewSchedule: React.FC = () => {
               <input
                 className="w-full rounded-lg border border-border-warm bg-workflow-ivory p-2.5 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
                 placeholder="https://meet.recruitflow.com/..."
+                onChange={(event) => setScheduleLocation(event.target.value)}
                 type="text"
+                value={scheduleLocation}
               />
             </label>
 
@@ -587,15 +849,20 @@ export const HRInterviewSchedule: React.FC = () => {
                 <Icon className="h-4 w-4 text-revision" name="warning" />
               </div>
               <div className="space-y-2">
-                {panel.map((member) => (
+                {panelAvailability.map((member) => (
                   <div
                     className={`flex items-center justify-between gap-3 rounded-lg p-2 text-xs ${member.surface}`}
-                    key={member.name}
+                    key={member.id}
                   >
                     <span className="font-semibold text-deep-charcoal">{member.name}</span>
                     <span className={`font-bold ${member.tone}`}>{member.status}</span>
                   </div>
                 ))}
+                {panelAvailability.length === 0 ? (
+                  <p className="rounded-lg bg-surface-container-low p-2 text-xs font-semibold text-slate-ink">
+                    Select at least one interviewer.
+                  </p>
+                ) : null}
               </div>
             </section>
 
@@ -609,10 +876,20 @@ export const HRInterviewSchedule: React.FC = () => {
                 {checking ? 'Checking...' : 'Check Availability'}
               </button>
               <button
-                className="w-full rounded-lg bg-teal-command py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary active:scale-[0.98]"
+                className="w-full rounded-lg bg-teal-command py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
+                disabled={
+                  submitting ||
+                  !selectedRequest ||
+                  !selectedCandidateId ||
+                  !scheduleDate ||
+                  !scheduleTime ||
+                  !scheduleLocation.trim() ||
+                  selectedInterviewerIds.length === 0
+                }
+                onClick={() => void createSchedule()}
                 type="submit"
               >
-                Send Invitation
+                {submitting ? 'Sending...' : 'Send Invitation'}
               </button>
             </div>
           </form>

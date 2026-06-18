@@ -39,6 +39,17 @@ const ids = {
   emailLog: '00000000-0000-4000-8000-000000000905',
 };
 
+const legacySeedEmails = [
+  'admin@acme.com',
+  'hr@acme.com',
+  'depthead@acme.com',
+  'candidate1@acme.com',
+  'candidate2@acme.com',
+  'candidate3@acme.com',
+  'candidate4@acme.com',
+  'candidate5@acme.com',
+];
+
 const candidateSeeds = [
   {
     userId: '00000000-0000-4000-8000-000000000111',
@@ -169,6 +180,23 @@ async function assertFixtureFiles() {
   }
 }
 
+async function cleanupLegacySeedData() {
+  const legacyOrganizations = await prisma.organization.findMany({
+    where: {
+      OR: [{ slug: 'acme-corp' }, { users: { some: { email: { in: legacySeedEmails } } } }],
+    },
+    select: { id: true },
+  });
+
+  const legacyOrganizationIds = legacyOrganizations.map((organization) => organization.id);
+
+  if (legacyOrganizationIds.length > 0) {
+    await prisma.organization.deleteMany({
+      where: { id: { in: legacyOrganizationIds } },
+    });
+  }
+}
+
 async function seedOrganization() {
   return prisma.organization.upsert({
     where: { slug: 'demo-corp' },
@@ -194,6 +222,20 @@ async function seedOrganization() {
         industry: 'Information Technology',
         orgSize: '51-200 employees',
       },
+    },
+  });
+}
+
+async function cleanupDuplicateDemoDepartments(organizationId: string) {
+  await prisma.department.deleteMany({
+    where: {
+      organizationId,
+      id: { not: ids.engineering },
+      OR: [
+        { name: { equals: 'Engineering', mode: 'insensitive' } },
+        { name: { equals: 'Engineer', mode: 'insensitive' } },
+        { code: { in: ['ENGINEER', 'ENGINEERING'] } },
+      ],
     },
   });
 }
@@ -230,8 +272,10 @@ async function main() {
 
   await ensureVectorStorage();
   await assertFixtureFiles();
+  await cleanupLegacySeedData();
 
   const org = await seedOrganization();
+  await cleanupDuplicateDemoDepartments(org.id);
 
   const admin = await upsertUser({
     id: ids.admin,

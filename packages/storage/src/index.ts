@@ -18,7 +18,7 @@ export const storageBuckets = {
   avatars: process.env.SUPABASE_AVATAR_BUCKET || 'avatars',
 };
 
-export const supportedCvExtensions = ['.pdf', '.docx'] as const;
+export const supportedCvExtensions = ['.pdf', '.docx', '.doc'] as const;
 
 let cachedClient: SupabaseClient | null = null;
 let cachedSignature = '';
@@ -83,7 +83,7 @@ export function validateCvFileName(fileName: string) {
   const extension = extname(safeFileName).toLowerCase();
 
   if (!supportedCvExtensions.includes(extension as (typeof supportedCvExtensions)[number])) {
-    throw new Error('Only PDF and DOCX files are supported');
+    throw new Error('Only PDF, DOCX, and DOC files are supported');
   }
 
   return {

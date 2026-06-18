@@ -7,13 +7,33 @@ export class ResultsController {
   constructor(private readonly resultsService: InterviewResultService) {}
 
   @MessagePattern('interview.list_completed')
-  async listCompleted() {
-    return this.resultsService.listCompleted();
+  async listCompleted(@Payload() payload: { userId?: string; role?: string }) {
+    return this.resultsService.listCompleted(payload);
   }
 
   @MessagePattern('interview.get_details')
-  async getDetails(@Payload() payload: { id: string }) {
-    return this.resultsService.getDetails(payload.id);
+  async getDetails(@Payload() payload: { id: string; userId?: string; role?: string }) {
+    return this.resultsService.getDetails(payload.id, {
+      userId: payload.userId,
+      role: payload.role,
+    });
+  }
+
+  @MessagePattern('interview.record_my_feedback')
+  async recordMyFeedback(
+    @Payload()
+    payload: {
+      interviewId: string;
+      evaluatorId: string;
+      actorRole: string;
+      decision: 'PASS' | 'FAIL';
+      technical: number;
+      communication: number;
+      culture: number;
+      notes?: string;
+    },
+  ) {
+    return this.resultsService.recordMyFeedback(payload);
   }
 
   /** FR-14: Record PASS/FAIL result with panel notes and evaluator. */

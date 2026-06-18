@@ -1,6 +1,5 @@
 import { processCvEmbeddingJob } from './cv-embedding.processor';
 import { PrismaClient } from '@prisma/client';
-import { logger } from '../logger';
 
 jest.mock('@prisma/client', () => {
   const mockPrisma = {
@@ -44,22 +43,28 @@ describe('processCvEmbeddingJob', () => {
     prismaMock = new PrismaClient() as any;
   });
 
-  it('skips generating embedding if CvEmbedding already exists', async () => {
+  it('replaces existing embeddings before writing a refreshed vector', async () => {
     prismaMock.candidateCV.findUnique.mockResolvedValue({ id: 'cv-1' });
-    prismaMock.cvEmbedding.findFirst.mockResolvedValue({ id: 'emb-1', cvDocumentId: 'cv-1' });
-
-    const consoleSpy = jest.spyOn(logger, 'log').mockImplementation();
+    prismaMock.cvEmbedding.create.mockResolvedValue({ id: 'emb-1' });
 
     await processCvEmbeddingJob({ cvDocumentId: 'cv-1', rawText: 'CV content' });
 
     expect(prismaMock.candidateCV.findUnique).toHaveBeenCalledWith({ where: { id: 'cv-1' } });
-    expect(prismaMock.cvEmbedding.findFirst).toHaveBeenCalledWith({ where: { cvDocumentId: 'cv-1' } });
-    expect(prismaMock.cvEmbedding.create).not.toHaveBeenCalled();
-    expect(prismaMock.$executeRawUnsafe).not.toHaveBeenCalled();
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[Idempotency] CvEmbedding for CV document cv-1 already exists'),
+    expect(prismaMock.cvEmbedding.deleteMany).toHaveBeenCalledWith({
+      where: { cvDocumentId: 'cv-1' },
+    });
+    expect(prismaMock.cvEmbedding.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        cvDocumentId: 'cv-1',
+        chunkText: 'CV content',
+      }),
+      select: { id: true },
+    });
+    expect(prismaMock.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE cv_embeddings'),
+      expect.any(String),
+      'emb-1',
     );
-    consoleSpy.mockRestore();
   });
 
   it('generates embedding if CvEmbedding does not exist', async () => {
@@ -70,7 +75,9 @@ describe('processCvEmbeddingJob', () => {
     await processCvEmbeddingJob({ cvDocumentId: 'cv-2', rawText: 'New CV content' });
 
     expect(prismaMock.candidateCV.findUnique).toHaveBeenCalledWith({ where: { id: 'cv-2' } });
-    expect(prismaMock.cvEmbedding.findFirst).toHaveBeenCalledWith({ where: { cvDocumentId: 'cv-2' } });
+    expect(prismaMock.cvEmbedding.deleteMany).toHaveBeenCalledWith({
+      where: { cvDocumentId: 'cv-2' },
+    });
     expect(prismaMock.cvEmbedding.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         cvDocumentId: 'cv-2',

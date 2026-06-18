@@ -15,8 +15,10 @@ type InterviewTone = 'teal' | 'cyan' | 'amber' | 'slate';
 
 interface CalendarEvent {
   id: string;
+  candidateId: string;
   day: string;
   date: string;
+  dateKey: string;
   scheduledAt: string;
   time: string;
   round: string;
@@ -46,24 +48,62 @@ interface InterviewSchedule {
   status: string;
 }
 
+interface ApplicationApiItem {
+  id: string;
+  requestId: string;
+  candidateId: string;
+  candidate: {
+    id: string;
+    fullName: string;
+  };
+}
+
+interface UserOption {
+  id: string;
+  displayName: string;
+  email?: string;
+}
+
 const TERMINAL_STATUSES = ['DRAFT', 'REJECTED', 'CANCELLED', 'CLOSED'];
 const TONES: InterviewTone[] = ['teal', 'cyan', 'amber', 'slate'];
 
 const formatDateLabel = (date: Date) =>
   date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
-const getWeekDays = () => {
-  const today = new Date();
-  const dayOfWeek = today.getDay();
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+const getStartOfWeek = (date = new Date()) => {
+  const start = new Date(date);
+  const dayOfWeek = start.getDay();
+  start.setDate(start.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+  start.setHours(0, 0, 0, 0);
+  return start;
+};
 
-  return Array.from({ length: 5 }, (_, index) => {
-    const date = new Date(monday);
-    date.setDate(monday.getDate() + index);
+const getPeriodRange = (viewMode: ViewMode) => {
+  const today = new Date();
+  if (viewMode === 'This Month') {
+    return {
+      start: new Date(today.getFullYear(), today.getMonth(), 1),
+      end: new Date(today.getFullYear(), today.getMonth() + 1, 1),
+    };
+  }
+
+  const start = getStartOfWeek(today);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 7);
+  return { start, end };
+};
+
+const getCalendarDays = (viewMode: ViewMode) => {
+  const { start, end } = getPeriodRange(viewMode);
+  const dayCount = Math.ceil((end.getTime() - start.getTime()) / 86_400_000);
+
+  return Array.from({ length: dayCount }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
     return {
       day: date.toLocaleDateString(undefined, { weekday: 'short' }),
       date: formatDateLabel(date),
+      dateKey: date.toDateString(),
     };
   });
 };
@@ -110,14 +150,15 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
 };
 
 export const DeptHeadInterviews: React.FC = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [viewMode, setViewMode] = useState<ViewMode>('This Week');
   const [sortKey, setSortKey] = useState<SortKey>('earliest');
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [viewingCvId, setViewingCvId] = useState('');
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
 
-  const calendarDays = useMemo(() => getWeekDays(), []);
+  const calendarDays = useMemo(() => getCalendarDays(viewMode), [viewMode]);
 
   useEffect(() => {
     const loadInterviews = async () => {
@@ -127,33 +168,67 @@ export const DeptHeadInterviews: React.FC = () => {
         const requests = await apiRequest<RealtimeTrackingItem[]>('/reports/realtime-tracking', token);
         const activeRequests = requests.filter((request) => !TERMINAL_STATUSES.includes(request.status));
 
-        const scheduleLists = await Promise.all(
-          activeRequests.map((request) =>
-            apiRequest<InterviewSchedule[]>(`/interviews/requests/${request.id}/schedules`, token)
-              .then((schedules) => schedules.map((schedule) => ({ schedule, position: request.position })))
-              .catch(() => [] as { schedule: InterviewSchedule; position: string }[]),
+        const [scheduleLists, applicationLists, usersResponse] = await Promise.all([
+          Promise.all(
+            activeRequests.map((request) =>
+              apiRequest<InterviewSchedule[]>(
+                `/interviews/requests/${request.id}/schedules`,
+                token,
+              )
+                .then((schedules) =>
+                  schedules.map((schedule) => ({ schedule, position: request.position })),
+                )
+                .catch(() => [] as { schedule: InterviewSchedule; position: string }[]),
+            ),
           ),
+          Promise.all(
+            activeRequests.map((request) =>
+              apiRequest<ApplicationApiItem[]>(`/applications?requestId=${request.id}`, token).catch(
+                () => [] as ApplicationApiItem[],
+              ),
+            ),
+          ),
+          apiRequest<{ data: UserOption[] }>('/users/interviewers', token).catch(() => ({
+            data: [] as UserOption[],
+          })),
+        ]);
+        const candidateNameById = new Map(
+          applicationLists.flat().map((application) => [
+            application.candidateId,
+            application.candidate.fullName,
+          ]),
+        );
+        const interviewerNameById = new Map(
+          usersResponse.data.map((interviewer) => [interviewer.id, interviewer.displayName]),
         );
 
         const mapped = scheduleLists
           .flat()
           .filter(({ schedule }) => schedule.status !== 'CANCELLED')
+          .filter(({ schedule }) => !user?.id || schedule.interviewers.includes(user.id))
           .map(({ schedule, position }, index): CalendarEvent => {
             const date = new Date(schedule.scheduledAt);
             const isVideo = /https?:\/\/|zoom|meet/i.test(schedule.location);
+            const candidateName =
+              candidateNameById.get(schedule.candidateId) ||
+              `Candidate ${schedule.candidateId.slice(0, 8)}`;
 
             return {
               id: schedule.id,
+              candidateId: schedule.candidateId,
               day: date.toLocaleDateString(undefined, { weekday: 'short' }),
               date: formatDateLabel(date),
+              dateKey: date.toDateString(),
               scheduledAt: schedule.scheduledAt,
               time: date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
               round: 'Interview',
               position,
               location: schedule.location,
               locationType: isVideo ? 'video' : 'room',
-              candidates: [`Candidate ${schedule.candidateId.slice(0, 8)}`],
-              panel: schedule.interviewers.map((id) => `Interviewer ${id.slice(0, 8)}`),
+              candidates: [candidateName],
+              panel: schedule.interviewers.map(
+                (id) => interviewerNameById.get(id) || `Interviewer ${id.slice(0, 8)}`,
+              ),
               status: schedule.status === 'SCHEDULED' ? 'Confirmed' : 'Pending Confirmation',
               tone: TONES[index % TONES.length] ?? 'teal',
             };
@@ -167,17 +242,60 @@ export const DeptHeadInterviews: React.FC = () => {
       }
     };
     void loadInterviews();
-  }, [token]);
+  }, [token, user?.id]);
+
+  const visibleEvents = useMemo(() => {
+    const { start, end } = getPeriodRange(viewMode);
+
+    return events.filter((event) => {
+      const scheduledAt = new Date(event.scheduledAt);
+      return scheduledAt >= start && scheduledAt < end;
+    });
+  }, [events, viewMode]);
 
   const sortedEvents = useMemo(() => {
-    return [...events].sort((left, right) => {
+    return [...visibleEvents].sort((left, right) => {
       if (sortKey === 'position') {
         return left.position.localeCompare(right.position);
       }
 
       return new Date(left.scheduledAt).getTime() - new Date(right.scheduledAt).getTime();
     });
-  }, [events, sortKey]);
+  }, [sortKey, visibleEvents]);
+
+  const handleViewCv = async (event: CalendarEvent) => {
+    setViewingCvId(event.id);
+    setApiError('');
+    try {
+      const headers = new Headers();
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+      const response = await fetch(
+        `/api/v1/candidate/cvs/candidate/${event.candidateId}/latest/file`,
+        { headers },
+      );
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.message || `Unable to open CV (${response.status})`);
+      }
+
+      const blobUrl = URL.createObjectURL(await response.blob());
+      const opened = window.open(blobUrl, '_blank');
+      if (!opened) {
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.click();
+      }
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+    } catch (viewError) {
+      setApiError(viewError instanceof Error ? viewError.message : 'Unable to open candidate CV');
+    } finally {
+      setViewingCvId('');
+    }
+  };
 
   return (
     <DeptHeadDashboardPage className="gap-7">
@@ -226,20 +344,25 @@ export const DeptHeadInterviews: React.FC = () => {
       {loading && <DeptHeadLoadingState label="Loading interviews..." />}
 
       <section aria-label={`${viewMode} calendar`}>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div
+          className={`grid grid-cols-1 gap-4 md:grid-cols-2 ${
+            viewMode === 'This Week' ? 'xl:grid-cols-7' : 'xl:grid-cols-7 2xl:grid-cols-7'
+          }`}
+        >
           {calendarDays.map((day) => {
-            const dayEvents = events.filter((event) => event.date === day.date);
+            const dayEvents = visibleEvents.filter((event) => event.dateKey === day.dateKey);
+            const isToday = day.dateKey === new Date().toDateString();
 
             return (
               <div className="flex min-h-[220px] flex-col gap-3" key={`${day.day}-${day.date}`}>
                 <div
                   className={`flex h-full flex-col rounded-xl border p-4 shadow-sm ${
-                    day.day === 'Mon'
+                    isToday
                       ? 'border-teal-command/20 border-b-2 bg-clean-surface'
                       : dayEvents.length
                         ? 'border-border-warm bg-clean-surface'
                         : 'border-dashed border-border-warm bg-parchment-lift/50'
-                  } ${day.day === 'Fri' ? 'opacity-70' : ''}`}
+                  }`}
                 >
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
                     {day.day} {day.date}
@@ -276,7 +399,7 @@ export const DeptHeadInterviews: React.FC = () => {
                     <div className="flex flex-1 flex-col items-center justify-center text-center">
                       <Icon className="mb-2 h-8 w-8 text-outline-variant" name="empty" />
                       <p className="text-sm text-on-surface-variant/70">
-                        {day.day === 'Fri' ? 'No items' : 'No interviews scheduled'}
+                        No interviews scheduled
                       </p>
                     </div>
                   )}
@@ -367,9 +490,11 @@ export const DeptHeadInterviews: React.FC = () => {
                 </button>
                 <button
                   className="rounded-lg border border-teal-command px-4 py-2 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98]"
+                  disabled={viewingCvId === event.id}
+                  onClick={() => void handleViewCv(event)}
                   type="button"
                 >
-                  View CV
+                  {viewingCvId === event.id ? 'Opening...' : 'View CV'}
                 </button>
               </div>
             </article>

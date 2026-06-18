@@ -2,8 +2,8 @@ import { config } from 'dotenv';
 import { resolve } from 'path';
 config({ path: resolve(__dirname, '../../../.env') });
 
-import { Worker } from 'bullmq';
-import { QUEUE_NAMES } from '@wr/queue';
+import { Queue, Worker } from 'bullmq';
+import { JOB_NAMES, QUEUE_NAMES } from '@wr/queue';
 import Redis from 'ioredis';
 import { processCvParseJob as cvParseProcessor } from './processors/cv-parse.processor';
 import { processCvEmbeddingJob as embeddingProcessor } from './processors/cv-embedding.processor';
@@ -29,16 +29,40 @@ async function bootstrap() {
     stalledInterval: 300000, // Check for stalled jobs every 5 minutes (default 30s)
     drainDelay: 30, // Poll every 30 seconds when queue is empty (default 5s)
   };
+  const cvParseWorkerOptions = {
+    ...workerOptions,
+    drainDelay: 1,
+  };
+  const embeddingQueue = new Queue(QUEUE_NAMES.EMBEDDING_GENERATE, {
+    connection: client,
+  });
 
   // CV Parse Queue Worker
   const cvParseWorker = new Worker(
     QUEUE_NAMES.CV_PARSE,
     wrapWorkerProcessor(async (job) => {
       logger.log(`📄 Processing CV parse job: ${job.name} [${job.id}]`);
-      await cvParseProcessor(job.data);
+      const parsedCv = await cvParseProcessor(job.data);
+      if (parsedCv?.rawText) {
+        await embeddingQueue.add(
+          JOB_NAMES.GENERATE_EMBEDDING,
+          {
+            cvDocumentId: parsedCv.cvDocumentId,
+            rawText: parsedCv.rawText,
+          },
+          {
+            jobId: `cv-embedding-${parsedCv.cvDocumentId}-${Date.now()}`,
+            attempts: 3,
+            backoff: {
+              type: 'exponential',
+              delay: 1000,
+            },
+          },
+        );
+      }
       logger.log(`✅ CV parse job ${job.id} completed`);
     }),
-    workerOptions,
+    cvParseWorkerOptions,
   );
 
   // Embedding Generation Queue Worker
@@ -69,6 +93,7 @@ async function bootstrap() {
   const shutdown = async () => {
     logger.log('\n🛑 Shutting down workers...');
     await Promise.all(workers.map((w) => w.close()));
+    await embeddingQueue.close();
     process.exit(0);
   };
 
