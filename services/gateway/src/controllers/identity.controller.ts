@@ -435,6 +435,20 @@ export class IdentityController {
     return firstValueFrom(this.identityClient.send('users.list', scopedQuery));
   }
 
+  @Get('users/interviewers')
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List internal users who can join interview panels' })
+  listInterviewers() {
+    return firstValueFrom(
+      this.identityClient.send('users.list', {
+        page: 1,
+        limit: 100,
+        roles: [UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD],
+      }),
+    );
+  }
+
   @Get('users/:id')
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
@@ -596,6 +610,13 @@ export class IdentityController {
   @ApiOperation({ summary: 'Get current user profile' })
   getCurrentUser(@CurrentUser() user: JwtPayload) {
     return firstValueFrom(this.identityClient.send('users.get', { id: user.sub }));
+  }
+
+  @Get('me/profile')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current user details from identity profile' })
+  getCurrentUserProfile(@CurrentUser('sub') userId: string) {
+    return firstValueFrom(this.identityClient.send('users.get', { id: userId }));
   }
 
   @Get('me/id')

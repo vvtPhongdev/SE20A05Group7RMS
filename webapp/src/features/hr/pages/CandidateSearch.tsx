@@ -8,9 +8,17 @@ type SearchResult = {
   name: string;
   title: string;
   similarity: number;
+  rank: number;
+  scores: {
+    overallScore: number;
+    vectorScore: number;
+    graphScore: number;
+    coverageScore: number;
+  };
   parsed: string;
   evidence: React.ReactNode;
   skills: string[];
+  hasInterviewInvite: boolean;
 };
 
 const iconPaths: Record<string, React.ReactNode> = {
@@ -44,7 +52,7 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
 );
 
 export const CandidateSearch: React.FC = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [campaign, setCampaign] = useState('');
   const [query, setQuery] = useState('');
   const [locked, setLocked] = useState(true);
@@ -55,6 +63,12 @@ export const CandidateSearch: React.FC = () => {
   const [apiError, setApiError] = useState('');
   const [viewingCvId, setViewingCvId] = useState('');
   const [actionMessage, setActionMessage] = useState('');
+  const [searchRunId, setSearchRunId] = useState('');
+  const [scheduleCandidate, setScheduleCandidate] = useState<SearchResult | null>(null);
+  const [scheduleAt, setScheduleAt] = useState('');
+  const [scheduleDuration, setScheduleDuration] = useState('60');
+  const [scheduleLocation, setScheduleLocation] = useState('');
+  const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
 
   useEffect(() => {
     type JobPosting = {
@@ -89,13 +103,18 @@ export const CandidateSearch: React.FC = () => {
         data: Array<{
           candidateProfileId: string;
           overallScore: number;
+          vectorScore: number;
+          graphScore: number;
+          coverageScore: number;
           displayName: string;
           headline?: string | null;
           readinessLabel: string;
           skills: string[];
           latestCv?: { parsedAt?: string | null } | null;
+          hasInterviewInvite?: boolean;
+          latestInterview?: { status?: string | null; scheduledAt?: string | null } | null;
         }>;
-        meta: { expandedQuery: { expandedSkills: string[] } };
+        meta: { searchRunId: string; expandedQuery: { expandedSkills: string[] } };
       }>('/talent/search', token, {
         method: 'POST',
         body: JSON.stringify({
@@ -105,36 +124,131 @@ export const CandidateSearch: React.FC = () => {
         }),
       });
       setResults(
-        response.data.map((result) => ({
+        response.data.map((result, index) => ({
           id: result.candidateProfileId,
           name: result.displayName,
           title: result.headline || 'Candidate',
           similarity: Math.round(result.overallScore * 100),
+          rank: index + 1,
+          scores: {
+            overallScore: result.overallScore,
+            vectorScore: result.vectorScore,
+            graphScore: result.graphScore,
+            coverageScore: result.coverageScore,
+          },
           parsed: result.latestCv?.parsedAt
             ? `Parsed ${new Date(result.latestCv.parsedAt).toLocaleString()}`
             : 'CV parsing date unavailable',
           evidence: result.readinessLabel.replaceAll('_', ' '),
           skills: result.skills,
+          hasInterviewInvite: Boolean(result.hasInterviewInvite || result.latestInterview),
         })),
       );
+      setSearchRunId(response.meta.searchRunId);
       setExpandedTerms(response.meta.expandedQuery.expandedSkills);
     } catch (searchError) {
-        setApiError(searchError instanceof Error ? searchError.message : 'Candidate search failed');
+      setApiError(searchError instanceof Error ? searchError.message : 'Candidate search failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleViewCv = async (candidateId: string) => {
-    setViewingCvId(candidateId);
+  const recordFeedback = async (
+    result: SearchResult,
+    action: 'VIEW_CV' | 'MARK_REVIEW' | 'SCHEDULE_INTERVIEW',
+    metadata: Record<string, unknown> = {},
+  ) => {
+    if (!searchRunId) return;
+    try {
+      await apiRequest('/talent/feedback', token, {
+        method: 'POST',
+        body: JSON.stringify({
+          searchRunId,
+          candidateId: result.id,
+          action,
+          rank: result.rank,
+          scores: result.scores,
+          candidateSnapshot: {
+            displayName: result.name,
+            headline: result.title,
+            skills: result.skills,
+          },
+          metadata,
+        }),
+      });
+    } catch (feedbackError) {
+      console.warn('Unable to record talent search feedback', feedbackError);
+    }
+  };
+
+  const openScheduleForm = (result: SearchResult) => {
+    if (result.hasInterviewInvite) {
+      setActionMessage(`Interview invite has already been sent to ${result.name}.`);
+      return;
+    }
+
     setApiError('');
+    setActionMessage('');
+    setScheduleCandidate(result);
+    setScheduleAt('');
+    setScheduleDuration('60');
+    setScheduleLocation('');
+  };
+
+  const createInterviewSchedule = async () => {
+    if (!scheduleCandidate || !campaign || !scheduleAt || !scheduleLocation.trim()) return;
+    if (!user?.id) {
+      setApiError('Unable to schedule interview because the current HR user is unavailable.');
+      return;
+    }
+
+    setScheduleSubmitting(true);
+    setApiError('');
+    try {
+      await apiRequest('/interviews/schedules', token, {
+        method: 'POST',
+        body: JSON.stringify({
+          requestId: campaign,
+          candidateId: scheduleCandidate.id,
+          scheduledAt: new Date(scheduleAt).toISOString(),
+          duration: Number(scheduleDuration),
+          location: scheduleLocation.trim(),
+          interviewers: [user.id],
+        }),
+      });
+      await recordFeedback(scheduleCandidate, 'SCHEDULE_INTERVIEW', {
+        source: 'candidate_search',
+        connected: true,
+      });
+      setResults((current) =>
+        current.map((result) =>
+          result.id === scheduleCandidate.id ? { ...result, hasInterviewInvite: true } : result,
+        ),
+      );
+      setActionMessage(`Interview scheduled for ${scheduleCandidate.name}.`);
+      setScheduleCandidate(null);
+      setScheduleAt('');
+      setScheduleLocation('');
+    } catch (scheduleError) {
+      setApiError(
+        scheduleError instanceof Error ? scheduleError.message : 'Unable to schedule interview',
+      );
+    } finally {
+      setScheduleSubmitting(false);
+    }
+  };
+
+  const handleViewCv = async (result: SearchResult) => {
+    setViewingCvId(result.id);
+    setApiError('');
+    void recordFeedback(result, 'VIEW_CV', { source: 'candidate_search' });
     try {
       const headers = new Headers();
       if (token) {
         headers.set('Authorization', `Bearer ${token}`);
       }
       const response = await fetch(
-        `/api/v1/candidate/cvs/candidate/${candidateId}/latest/file`,
+        `/api/v1/candidate/cvs/candidate/${result.id}/latest/file`,
         { headers },
       );
       if (!response.ok) {
@@ -282,6 +396,81 @@ export const CandidateSearch: React.FC = () => {
 
         {actionMessage ? <HRInlineAlert tone="teal">{actionMessage}</HRInlineAlert> : null}
 
+        {scheduleCandidate ? (
+          <section className="rounded-lg border border-border-warm bg-clean-surface p-5 shadow-sm">
+            <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
+                  Schedule Interview
+                </p>
+                <h2 className="text-lg font-semibold text-deep-charcoal">
+                  {scheduleCandidate.name}
+                </h2>
+                <p className="text-sm text-on-surface-variant">{scheduleCandidate.title}</p>
+              </div>
+              <button
+                className="h-9 rounded-lg border border-border-warm px-4 text-sm font-semibold transition hover:bg-workflow-ivory"
+                onClick={() => setScheduleCandidate(null)}
+                type="button"
+              >
+                Cancel
+              </button>
+            </div>
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_120px]">
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
+                  Time
+                </span>
+                <input
+                  className="h-10 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                  min={new Date().toISOString().slice(0, 16)}
+                  onChange={(event) => setScheduleAt(event.target.value)}
+                  type="datetime-local"
+                  value={scheduleAt}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
+                  Minutes
+                </span>
+                <input
+                  className="h-10 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                  min="15"
+                  onChange={(event) => setScheduleDuration(event.target.value)}
+                  type="number"
+                  value={scheduleDuration}
+                />
+              </label>
+              <label className="block md:col-span-2">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
+                  Location
+                </span>
+                <input
+                  className="h-10 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                  onChange={(event) => setScheduleLocation(event.target.value)}
+                  placeholder="Meeting room or online interview link"
+                  value={scheduleLocation}
+                />
+              </label>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                className="h-10 rounded-lg bg-teal-command px-5 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={
+                  !scheduleAt ||
+                  !scheduleLocation.trim() ||
+                  Number(scheduleDuration) < 15 ||
+                  scheduleSubmitting
+                }
+                onClick={() => void createInterviewSchedule()}
+                type="button"
+              >
+                {scheduleSubmitting ? 'Scheduling...' : 'Schedule Interview'}
+              </button>
+            </div>
+          </section>
+        ) : null}
+
         <section
           className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4"
           aria-label="Candidate search metrics"
@@ -386,32 +575,39 @@ export const CandidateSearch: React.FC = () => {
                   <button
                     className="h-9 rounded-lg border border-border-warm px-4 text-sm font-semibold transition hover:bg-workflow-ivory"
                     disabled={viewingCvId === result.id}
-                    onClick={() => void handleViewCv(result.id)}
+                    onClick={() => void handleViewCv(result)}
                     type="button"
                   >
                     {viewingCvId === result.id ? 'Opening...' : 'View CV'}
                   </button>
                   <button
                     className="h-9 rounded-lg border border-teal-command px-4 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5"
-                    onClick={() =>
+                    onClick={() => {
+                      void recordFeedback(result, 'MARK_REVIEW', { source: 'candidate_search' });
                       setActionMessage(
                         'Screening decision actions should update CV status; collection is handled in Talent Pool.',
-                      )
-                    }
+                      );
+                    }}
                     type="button"
                   >
                     Mark for Review
                   </button>
                   <button
-                    className="h-9 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
-                    onClick={() =>
-                      setApiError(
-                        'Scheduling requires an interview form and is not connected on this page',
-                      )
+                    className={`h-9 rounded-lg px-4 text-sm font-semibold transition ${
+                      result.hasInterviewInvite
+                        ? 'cursor-not-allowed bg-surface-container-high text-slate-ink'
+                        : 'bg-teal-command text-white hover:bg-primary active:scale-[0.98]'
+                    }`}
+                    disabled={result.hasInterviewInvite}
+                    onClick={() => openScheduleForm(result)}
+                    title={
+                      result.hasInterviewInvite
+                        ? 'Interview invite has already been sent'
+                        : 'Schedule interview'
                     }
                     type="button"
                   >
-                    Schedule Interview
+                    {result.hasInterviewInvite ? 'Invite Sent' : 'Schedule Interview'}
                   </button>
                 </div>
               </div>

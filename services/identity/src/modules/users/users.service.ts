@@ -54,18 +54,27 @@ export class UsersService {
           code: true,
         },
       },
+      departmentsHeaded: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+        },
+      },
       createdAt: true,
       updatedAt: true,
     };
   }
 
-  async list(query: { page?: number; limit?: number; role?: string; departmentId?: string }) {
+  async list(query: { page?: number; limit?: number; role?: string; roles?: string[] }) {
     const page = Math.max(1, query.page || 1);
     const limit = Math.max(1, Math.min(100, query.limit || 10));
     const skip = (page - 1) * limit;
 
     const where: any = {};
-    if (query.role) {
+    if (query.roles?.length) {
+      where.role = { in: query.roles };
+    } else if (query.role) {
       where.role = query.role;
     }
     if (query.departmentId) {

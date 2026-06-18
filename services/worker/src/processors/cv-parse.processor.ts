@@ -18,7 +18,9 @@ const auditLog = new AuditLogService(prisma);
  *   2️⃣ Extract raw text from the stored file (PDF or DOCX).
  *   3️⃣ Update the record with `rawText` and `parsedAt` timestamp.
  */
-export async function processCvParseJob(payload: CvParseJobPayload): Promise<void> {
+export async function processCvParseJob(
+  payload: CvParseJobPayload,
+): Promise<{ cvDocumentId: string; rawText: string } | null> {
   const { cvDocumentId, filePath } = payload;
 
   // 1️⃣ Retrieve the CV record
@@ -33,7 +35,7 @@ export async function processCvParseJob(payload: CvParseJobPayload): Promise<voi
   // Idempotency check: If rawText already exists or parsedAt is set, log and skip (exit cleanly)
   if (cvRecord.parsedAt || cvRecord.rawText) {
     logger.log(`[Idempotency] CandidateCV ${cvDocumentId} has already been parsed. Skipping job.`);
-    return;
+    return cvRecord.rawText ? { cvDocumentId, rawText: cvRecord.rawText } : null;
   }
 
   await auditLog.log({
@@ -48,10 +50,10 @@ export async function processCvParseJob(payload: CvParseJobPayload): Promise<voi
 
     // 2️⃣ Determine file type from extension (fallback to PDF)
     const ext = filePath.split('.').pop()?.toUpperCase();
-    const fileType = ext === 'DOCX' ? 'DOCX' : 'PDF';
+    const fileType = ext === 'DOCX' ? 'DOCX' : ext === 'DOC' ? 'DOC' : 'PDF';
 
     // 3️⃣ Extract raw text using the helper utilities
-    const rawText = await extractText(filePath, fileType as 'PDF' | 'DOCX');
+    const rawText = await extractText(filePath, fileType);
 
     // 4️⃣ Persist the extracted text and mark as parsed
     await prisma.candidateCV.update({
@@ -74,6 +76,7 @@ export async function processCvParseJob(payload: CvParseJobPayload): Promise<voi
       .catch((err) => logger.error('Failed to write audit log for CV_PARSE_COMPLETED:', err));
 
     logger.log(`✅ CV ${cvDocumentId} parsed and stored (type=${fileType})`);
+    return { cvDocumentId, rawText };
   } catch (err) {
     await auditLog
       .log({

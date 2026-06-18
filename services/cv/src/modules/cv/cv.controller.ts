@@ -17,7 +17,7 @@ export class CvController {
     payload: {
       candidateId: string;
       fileName: string;
-      fileType: 'PDF' | 'DOCX';
+      fileType: 'PDF' | 'DOCX' | 'DOC';
       filePath: string;
       rawText?: string;
       requestId: string;
@@ -32,8 +32,9 @@ export class CvController {
     payload: {
       candidateId: string;
       fileName: string;
-      fileType: 'PDF' | 'DOCX';
+      fileType: 'PDF' | 'DOCX' | 'DOC';
       filePath: string;
+      rawText?: string;
     },
   ) {
     return this.service.uploadCv(payload);

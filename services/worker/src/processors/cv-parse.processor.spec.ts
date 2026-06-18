@@ -48,13 +48,14 @@ describe('processCvParseJob', () => {
 
     const consoleSpy = jest.spyOn(logger, 'log').mockImplementation();
 
-    await processCvParseJob({ cvDocumentId: 'cv-1', filePath: 'cv-1.pdf' });
+    const result = await processCvParseJob({ cvDocumentId: 'cv-1', filePath: 'cv-1.pdf' });
 
     expect(prismaMock.candidateCV.findUnique).toHaveBeenCalledWith({
       where: { id: 'cv-1' },
     });
     expect(extractText).not.toHaveBeenCalled();
     expect(prismaMock.candidateCV.update).not.toHaveBeenCalled();
+    expect(result).toEqual({ cvDocumentId: 'cv-1', rawText: 'Already parsed content' });
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining('[Idempotency] CandidateCV cv-1 has already been parsed'),
     );
@@ -68,7 +69,7 @@ describe('processCvParseJob', () => {
       parsedAt: null,
     });
 
-    await processCvParseJob({ cvDocumentId: 'cv-2', filePath: 'cv-2.pdf' });
+    const result = await processCvParseJob({ cvDocumentId: 'cv-2', filePath: 'cv-2.pdf' });
 
     expect(prismaMock.candidateCV.findUnique).toHaveBeenCalledWith({
       where: { id: 'cv-2' },
@@ -81,5 +82,6 @@ describe('processCvParseJob', () => {
         parsedAt: expect.any(Date),
       }),
     });
+    expect(result).toEqual({ cvDocumentId: 'cv-2', rawText: 'Mocked CV Text Content' });
   });
 });

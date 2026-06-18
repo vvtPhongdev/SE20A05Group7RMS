@@ -25,8 +25,15 @@ export class OverallPlanController {
   }
 
   @MessagePattern('overall-plan.getByRequest')
-  getByRequest(@Payload() payload: { hiringRequestId: string }) {
-    return this.service.getByRequest(payload.hiringRequestId);
+  getByRequest(
+    @Payload()
+    payload: {
+      hiringRequestId: string;
+      userId?: string;
+      role?: string;
+    },
+  ) {
+    return this.service.getByRequest(payload);
   }
 
   @MessagePattern('overall-plan.approve')

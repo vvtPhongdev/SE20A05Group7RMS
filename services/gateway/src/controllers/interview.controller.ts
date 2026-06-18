@@ -160,19 +160,55 @@ export class InterviewController {
   @Get('completed')
   @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
   @ApiOperation({ summary: 'List completed or past interviews' })
-  listCompleted() {
-    return firstValueFrom(this.interviewClient.send('interview.list_completed', {}));
+  listCompleted(@CurrentUser() user: any) {
+    return firstValueFrom(
+      this.interviewClient.send('interview.list_completed', {
+        userId: user.sub,
+        role: user.role,
+      }),
+    );
   }
 
   @Get(':id/details')
   @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
   @ApiOperation({ summary: 'Get completed interview details with panel feedbacks' })
-  getDetails(@Param('id') id: string) {
-    return firstValueFrom(this.interviewClient.send('interview.get_details', { id }));
+  getDetails(@Param('id') id: string, @CurrentUser() user: any) {
+    return firstValueFrom(
+      this.interviewClient.send('interview.get_details', {
+        id,
+        userId: user.sub,
+        role: user.role,
+      }),
+    );
+  }
+
+  @Post(':id/my-feedback')
+  @Roles(UserRole.DEPARTMENT_HEAD, UserRole.HR_LEADER)
+  @ApiOperation({ summary: 'Record the current evaluator personal interview feedback' })
+  recordMyFeedback(
+    @Param('id') interviewId: string,
+    @Body()
+    body: {
+      decision: 'PASS' | 'FAIL';
+      technical: number;
+      communication: number;
+      culture: number;
+      notes?: string;
+    },
+    @CurrentUser() user: any,
+  ) {
+    return firstValueFrom(
+      this.interviewClient.send('interview.record_my_feedback', {
+        interviewId,
+        ...body,
+        evaluatorId: user.sub,
+        actorRole: user.role,
+      }),
+    );
   }
 
   @Post('schedules/:id/results')
-  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER)
+  @Roles(UserRole.HR_RECRUITER)
   @ApiOperation({ summary: 'FR-14: Record detailed panel feedbacks and final recommendation (Legacy path)' })
   recordResultLegacy(
     @Param('id') interviewId: string,
@@ -195,13 +231,14 @@ export class InterviewController {
       this.interviewClient.send('interview.record_result', {
         interviewId,
         ...body,
+        feedbacks: [],
         evaluatorId: user.sub,
       }),
     );
   }
 
   @Post(':id/results')
-  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER)
+  @Roles(UserRole.HR_RECRUITER)
   @ApiOperation({ summary: 'FR-14: Record detailed panel feedbacks and final recommendation' })
   recordResult(
     @Param('id') interviewId: string,
@@ -224,6 +261,7 @@ export class InterviewController {
       this.interviewClient.send('interview.record_result', {
         interviewId,
         ...body,
+        feedbacks: [],
         evaluatorId: user.sub,
       }),
     );

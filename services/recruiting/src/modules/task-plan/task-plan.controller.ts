@@ -47,7 +47,15 @@ export class TaskPlanController {
   }
 
   @MessagePattern('task-plan.updateStatus')
-  updateStatus(@Payload() payload: { id: string; status: string; performedById: string }) {
+  updateStatus(
+    @Payload()
+    payload: {
+      id: string;
+      status: string;
+      performedById: string;
+      actorRole?: string;
+    },
+  ) {
     return this.service.updateStatus(payload);
   }
 

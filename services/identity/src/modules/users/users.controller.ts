@@ -7,7 +7,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @MessagePattern('users.list')
-  async list(@Payload() data: { page?: number; limit?: number; role?: string }) {
+  async list(@Payload() data: { page?: number; limit?: number; role?: string; roles?: string[] }) {
     return this.usersService.list(data);
   }
 

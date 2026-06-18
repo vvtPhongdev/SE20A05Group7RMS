@@ -571,9 +571,13 @@ export class RecruitingController {
   @Get('overall-plan/by-request/:requestId')
   @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Get the overall plan for a recruitment request' })
-  getOverallPlanByRequest(@Param('requestId') requestId: string) {
+  getOverallPlanByRequest(@Param('requestId') requestId: string, @CurrentUser() user: any) {
     return firstValueFrom(
-      this.recruitingClient.send('overall-plan.getByRequest', { hiringRequestId: requestId }),
+      this.recruitingClient.send('overall-plan.getByRequest', {
+        hiringRequestId: requestId,
+        userId: user.sub,
+        role: user.role,
+      }),
     );
   }
 
@@ -666,13 +670,14 @@ export class RecruitingController {
   updateTaskPlanStatus(
     @Param('id') id: string,
     @Body() body: UpdateTaskPlanStatusDto,
-    @CurrentUser('sub') userId: string,
+    @CurrentUser() user: any,
   ) {
     return firstValueFrom(
       this.recruitingClient.send('task-plan.updateStatus', {
         id,
         status: body.status,
-        performedById: userId,
+        performedById: user.sub,
+        actorRole: user.role,
       }),
     );
   }
@@ -897,6 +902,30 @@ export class RecruitingController {
         ...body,
         actorUserId: user?.sub,
         actorRole: user?.role,
+      }),
+    );
+  }
+
+  @Post('talent/feedback')
+  @ApiOperation({ summary: 'Record HR feedback for talent search learning loop' })
+  recordTalentFeedback(@Body() body: any, @CurrentUser() user?: any) {
+    return firstValueFrom(
+      this.recruitingClient.send('talent.feedback', {
+        ...body,
+        actorUserId: user?.sub,
+        actorRole: user?.role,
+      }),
+    );
+  }
+
+  @Get('talent/feedback/export-triplets')
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER)
+  @ApiOperation({ summary: 'Export talent search feedback as embedding training triplets' })
+  exportTalentTriplets(@Query() query: any) {
+    return firstValueFrom(
+      this.recruitingClient.send('talent.feedback.export_triplets', {
+        requestId: query.requestId,
+        limit: query.limit ? Number(query.limit) : undefined,
       }),
     );
   }

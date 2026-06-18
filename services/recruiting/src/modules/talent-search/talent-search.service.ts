@@ -1,6 +1,23 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { embeddingToPgVector, getQueryEmbedding, skillGraph, MatchScorer, SearchExpander } from '@wr/ai';
+import {
+  EMBEDDING_MODEL_VERSION,
+  embeddingToPgVector,
+  getQueryEmbedding,
+  skillGraph,
+  MatchScorer,
+  SearchExpander,
+} from '@wr/ai';
 import { PrismaService } from '../../common/database/prisma.service';
+
+type TalentFeedbackAction =
+  | 'IMPRESSION'
+  | 'VIEW_CV'
+  | 'MARK_REVIEW'
+  | 'SCHEDULE_INTERVIEW'
+  | 'SHORTLIST'
+  | 'REJECT'
+  | 'INVITE'
+  | 'HIRE';
 
 @Injectable()
 export class TalentSearchService {
@@ -14,8 +31,10 @@ export class TalentSearchService {
     query: string;
     filters?: Record<string, unknown>;
     pagination?: { page: number; pageSize: number };
+    actorUserId?: string;
+    actorRole?: string;
   }) {
-    const { query, filters, pagination } = params;
+    const { query, filters, pagination, actorUserId, actorRole } = params;
     const page = pagination?.page ?? 1;
     const pageSize = pagination?.pageSize ?? 20;
     const requestId = typeof filters?.requestId === 'string' ? filters.requestId : undefined;
@@ -43,6 +62,17 @@ export class TalentSearchService {
           orderBy: { createdAt: 'desc' },
           take: 1,
         },
+        interviews: requestId
+          ? {
+              where: {
+                requestId,
+                status: { not: 'CANCELLED' },
+              },
+              select: { id: true, status: true, scheduledAt: true },
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+            }
+          : false,
       },
       take: pageSize * 3, // Over-fetch for scoring then trim
       skip: 0,
@@ -91,6 +121,8 @@ export class TalentSearchService {
           headline: capabilities?.currentRole ?? null,
           skills: candidateSkills,
           latestCv: candidate.cvDocuments[0] ?? null,
+          latestInterview: candidate.interviews?.[0] ?? null,
+          hasInterviewInvite: Boolean(candidate.interviews?.length),
         };
       })
       .filter(Boolean)
@@ -100,10 +132,44 @@ export class TalentSearchService {
     // Step 4: Paginate
     const total = scoredResults.length;
     const paged = scoredResults.slice((page - 1) * pageSize, page * pageSize);
+    const searchRun = await this.prisma.talentSearchRun.create({
+      data: {
+        actorUserId,
+        actorRole,
+        requestId,
+        query,
+        filters: (filters ?? {}) as any,
+        expandedSkills: expanded.expandedSkills.slice(0, 20) as any,
+        resultCount: total,
+        modelVersion: EMBEDDING_MODEL_VERSION,
+      },
+      select: { id: true },
+    });
+
+    if (paged.length > 0) {
+      await this.prisma.talentSearchFeedback.createMany({
+        data: paged.map((result: any, index: number) => ({
+          searchRunId: searchRun.id,
+          candidateId: result.candidateProfileId,
+          actorUserId,
+          requestId,
+          action: 'IMPRESSION',
+          rank: (page - 1) * pageSize + index + 1,
+          overallScore: result.overallScore,
+          vectorScore: result.vectorScore,
+          graphScore: result.graphScore,
+          coverageScore: result.coverageScore,
+          query,
+          candidateSnapshot: this.toCandidateSnapshot(result) as any,
+          metadata: { page, pageSize, actorRole } as any,
+        })),
+      });
+    }
 
     return {
       data: paged,
       meta: {
+        searchRunId: searchRun.id,
         pagination: { page, pageSize, total },
         expandedQuery: {
           resolved: expanded.resolvedSkill,
@@ -120,6 +186,106 @@ export class TalentSearchService {
       resolved: expanded.resolvedSkill,
       expandedSkills: expanded.expandedSkills,
       graphSize: skillGraph.size,
+    };
+  }
+
+  async recordFeedback(payload: {
+    searchRunId: string;
+    candidateId: string;
+    action: TalentFeedbackAction;
+    rank?: number;
+    scores?: {
+      overallScore?: number;
+      vectorScore?: number;
+      graphScore?: number;
+      coverageScore?: number;
+    };
+    candidateSnapshot?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+    actorUserId?: string;
+    actorRole?: string;
+  }) {
+    const searchRun = await this.prisma.talentSearchRun.findUnique({
+      where: { id: payload.searchRunId },
+      select: { id: true, query: true, requestId: true },
+    });
+    if (!searchRun) {
+      throw new Error(`Talent search run ${payload.searchRunId} not found`);
+    }
+
+    const record = await this.prisma.talentSearchFeedback.create({
+      data: {
+        searchRunId: searchRun.id,
+        candidateId: payload.candidateId,
+        actorUserId: payload.actorUserId,
+        requestId: searchRun.requestId,
+        action: payload.action,
+        rank: payload.rank,
+        overallScore: payload.scores?.overallScore,
+        vectorScore: payload.scores?.vectorScore,
+        graphScore: payload.scores?.graphScore,
+        coverageScore: payload.scores?.coverageScore,
+        query: searchRun.query,
+        candidateSnapshot: (payload.candidateSnapshot ?? {}) as any,
+        metadata: {
+          ...(payload.metadata ?? {}),
+          actorRole: payload.actorRole,
+        } as any,
+      },
+      select: { id: true, action: true, createdAt: true },
+    });
+
+    return record;
+  }
+
+  async exportTrainingTriplets(params: { requestId?: string; limit?: number }) {
+    const positiveActions = ['VIEW_CV', 'MARK_REVIEW', 'SCHEDULE_INTERVIEW', 'SHORTLIST', 'INVITE', 'HIRE'];
+    const negativeActions = ['REJECT'];
+    const rows = await this.prisma.talentSearchFeedback.findMany({
+      where: {
+        requestId: params.requestId,
+        action: { in: [...positiveActions, ...negativeActions] },
+      },
+      include: {
+        candidate: {
+          include: {
+            cvDocuments: {
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: params.limit ?? 500,
+    });
+
+    const positives = rows.filter((row) => positiveActions.includes(row.action));
+    const negatives = rows.filter((row) => negativeActions.includes(row.action));
+    const triplets = positives.flatMap((positive) => {
+      const negative = negatives.find(
+        (item) => item.searchRunId === positive.searchRunId && item.candidateId !== positive.candidateId,
+      );
+      if (!negative) return [];
+      return [
+        {
+          anchor: this.withPrefix('query', positive.query),
+          positive: this.withPrefix('passage', positive.candidate.cvDocuments[0]?.rawText ?? ''),
+          negative: this.withPrefix('passage', negative.candidate.cvDocuments[0]?.rawText ?? ''),
+          metadata: {
+            searchRunId: positive.searchRunId,
+            requestId: positive.requestId,
+            positiveAction: positive.action,
+            negativeAction: negative.action,
+          },
+        },
+      ];
+    });
+
+    return {
+      count: triplets.length,
+      format: 'jsonl',
+      data: triplets.map((item) => JSON.stringify(item)).join('\n'),
     };
   }
 
@@ -155,5 +321,21 @@ export class TalentSearchService {
       );
       return new Map();
     }
+  }
+
+  private toCandidateSnapshot(result: any) {
+    return {
+      displayName: result.displayName,
+      headline: result.headline,
+      skills: result.skills,
+      readinessLabel: result.readinessLabel,
+      latestCvId: result.latestCv?.id,
+    };
+  }
+
+  private withPrefix(kind: 'query' | 'passage', text: string) {
+    const trimmed = text.trim();
+    if (/^(query|passage):/i.test(trimmed)) return trimmed;
+    return `${kind}: ${trimmed}`;
   }
 }

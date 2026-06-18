@@ -212,7 +212,7 @@ export const UpdateCandidateProfileSchema = CreateCandidateProfileSchema.partial
 export const CreateCandidateCVSchema = z.object({
   candidateId: z.string().uuid(),
   fileName: z.string().min(1).max(255),
-  fileType: z.enum(['PDF', 'DOCX']),
+  fileType: z.enum(['PDF', 'DOCX', 'DOC']),
   filePath: z.string().min(1),
   rawText: z.string().min(1),
 });

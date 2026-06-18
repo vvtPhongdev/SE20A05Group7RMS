@@ -50,6 +50,8 @@ model User {
   offersGenerated  OfferLetter[]        @relation("GeneratedOffers")
   interviewResults InterviewResult[]
   applicationsCollected Application[]    @relation("CollectedApplications")
+  talentSearchRuns TalentSearchRun[]     @relation("TalentSearchActor")
+  talentSearchFeedback TalentSearchFeedback[] @relation("TalentSearchFeedbackActor")
 
   @@index([organizationId], map: "idx_users_organization")
   @@index([departmentId], map: "idx_users_department")
@@ -128,6 +130,8 @@ model RecruitmentRequest {
   jobPosting      JobPosting?
   applications    Application[]
   offers          OfferLetter[]
+  talentSearchRuns TalentSearchRun[]
+  talentSearchFeedback TalentSearchFeedback[]
 
   @@index([departmentId], map: "idx_recruitment_requests_department")
   @@index([createdById], map: "idx_recruitment_requests_created_by")
@@ -271,6 +275,7 @@ model CandidateProfile {
   interviews   InterviewSchedule[]
   applications Application[]
   offers       OfferLetter[]
+  talentSearchFeedback TalentSearchFeedback[]
 
   @@map("candidate_profiles")
 }
@@ -446,4 +451,56 @@ model Application {
   @@index([candidateId], map: "idx_applications_candidate")
   @@index([collectedById], map: "idx_applications_collected_by")
   @@map("applications")
+}
+
+model TalentSearchRun {
+  id              String   @id @default(uuid())
+  actorUserId     String?  @map("actor_user_id")
+  actorRole       String?  @map("actor_role")
+  requestId       String?  @map("request_id")
+  query           String   @db.Text
+  filters         Json     @default("{}")
+  expandedSkills  Json     @default("[]") @map("expanded_skills")
+  resultCount     Int      @default(0) @map("result_count")
+  modelVersion    String   @map("model_version")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  actor    User?                  @relation("TalentSearchActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  request  RecruitmentRequest?    @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  feedback TalentSearchFeedback[]
+
+  @@index([actorUserId], map: "idx_talent_search_runs_actor")
+  @@index([requestId], map: "idx_talent_search_runs_request")
+  @@index([createdAt], map: "idx_talent_search_runs_created")
+  @@map("talent_search_runs")
+}
+
+model TalentSearchFeedback {
+  id                  String   @id @default(uuid())
+  searchRunId         String   @map("search_run_id")
+  candidateId         String   @map("candidate_id")
+  actorUserId         String?  @map("actor_user_id")
+  requestId           String?  @map("request_id")
+  action              String
+  rank                Int?
+  overallScore        Float?   @map("overall_score")
+  vectorScore         Float?   @map("vector_score")
+  graphScore          Float?   @map("graph_score")
+  coverageScore       Float?   @map("coverage_score")
+  query               String   @db.Text
+  candidateSnapshot   Json     @default("{}") @map("candidate_snapshot")
+  metadata            Json     @default("{}")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  searchRun TalentSearchRun  @relation(fields: [searchRunId], references: [id], onDelete: Cascade)
+  candidate CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  actor     User?            @relation("TalentSearchFeedbackActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  request   RecruitmentRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+
+  @@index([searchRunId], map: "idx_talent_search_feedback_run")
+  @@index([candidateId], map: "idx_talent_search_feedback_candidate")
+  @@index([requestId], map: "idx_talent_search_feedback_request")
+  @@index([action], map: "idx_talent_search_feedback_action")
+  @@index([createdAt], map: "idx_talent_search_feedback_created")
+  @@map("talent_search_feedback")
 }

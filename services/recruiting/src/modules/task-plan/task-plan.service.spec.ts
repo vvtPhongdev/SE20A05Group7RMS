@@ -205,7 +205,11 @@ describe('TaskPlanService', () => {
     });
 
     it('updates status and writes a TASK_PLAN_STATUS_CHANGED audit log', async () => {
-      prisma.taskPlan.findUnique.mockResolvedValue({ id: 'task-1', status: TaskStatus.PENDING });
+      prisma.taskPlan.findUnique.mockResolvedValue({
+        id: 'task-1',
+        status: TaskStatus.PENDING,
+        assignedToId: 'user-1',
+      });
       prisma.taskPlan.update.mockResolvedValue({ id: 'task-1', status: TaskStatus.IN_PROGRESS });
 
       const result = await service.updateStatus({
@@ -231,6 +235,24 @@ describe('TaskPlanService', () => {
         }),
       );
       expect(result).toEqual({ id: 'task-1', status: TaskStatus.IN_PROGRESS });
+    });
+
+    it('blocks HR recruiters from updating tasks assigned to another HR member', async () => {
+      prisma.taskPlan.findUnique.mockResolvedValue({
+        id: 'task-1',
+        status: TaskStatus.PENDING,
+        assignedToId: 'other-recruiter',
+      });
+
+      await expect(
+        service.updateStatus({
+          id: 'task-1',
+          status: TaskStatus.IN_PROGRESS,
+          performedById: 'user-1',
+          actorRole: 'HR_RECRUITER',
+        }),
+      ).rejects.toThrow(RpcException);
+      expect(prisma.taskPlan.update).not.toHaveBeenCalled();
     });
   });
 });

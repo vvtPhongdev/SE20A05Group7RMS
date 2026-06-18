@@ -22,12 +22,26 @@ export class InterviewResultService {
   /**
    * List all completed or past interviews.
    */
-  async listCompleted() {
+  async listCompleted(payload: { userId?: string; role?: string } = {}) {
+    const where: any = {
+      status: { not: InterviewStatus.CANCELLED },
+      OR: [{ status: InterviewStatus.COMPLETED }, { scheduledAt: { lte: new Date() } }],
+    };
+
+    if (payload.role === UserRole.DEPARTMENT_HEAD && payload.userId) {
+      where.AND = [
+        {
+          OR: [
+            { interviewers: { has: payload.userId } },
+            { request: { createdById: payload.userId } },
+            { request: { department: { headUserId: payload.userId } } },
+          ],
+        },
+      ];
+    }
+
     const schedules = await this.prisma.interviewSchedule.findMany({
-      where: {
-        status: { not: InterviewStatus.CANCELLED },
-        OR: [{ status: InterviewStatus.COMPLETED }, { scheduledAt: { lte: new Date() } }],
-      },
+      where,
       include: {
         candidate: true,
         request: {
@@ -79,8 +93,14 @@ export class InterviewResultService {
             : latestInfoRequest
               ? 'Request Info'
               : 'Awaiting Decision';
+      const evaluatorIds = [
+        ...new Set([
+          ...s.interviewers,
+          ...s.results.map((result) => result.evaluatorId).filter((id): id is string => !!id),
+        ]),
+      ];
       const resultsByEvaluator = new Map(s.results.map((result) => [result.evaluatorId, result]));
-      const feedbacks = s.interviewers.map((interviewerId) => {
+      const feedbacks = evaluatorIds.map((interviewerId) => {
         const result = resultsByEvaluator.get(interviewerId);
         return {
           name: result?.evaluator?.displayName || 'Panel member',
@@ -136,7 +156,7 @@ export class InterviewResultService {
         feedbacks,
         passCount: s.results.filter((result) => result.result === 'PASS').length,
         failCount: s.results.filter((result) => result.result === 'FAIL').length,
-        pendingCount: Math.max(0, s.interviewers.length - s.results.length),
+        pendingCount: Math.max(0, evaluatorIds.length - s.results.length),
         scores: {
           tech: average('technical'),
           comm: average('communication'),
@@ -151,7 +171,7 @@ export class InterviewResultService {
   /**
    * Get completed interview details including panel members and their feedbacks.
    */
-  async getDetails(id: string) {
+  async getDetails(id: string, actor: { userId?: string; role?: string } = {}) {
     const schedule = await this.prisma.interviewSchedule.findUnique({
       where: { id },
       include: {
@@ -176,15 +196,33 @@ export class InterviewResultService {
       });
     }
 
-    // Fetch details of all users listed in schedule.interviewers
+    if (
+      actor.role === UserRole.DEPARTMENT_HEAD &&
+      actor.userId &&
+      !this.canDepartmentHeadAccessSchedule(schedule, actor.userId)
+    ) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'You do not have access to this interview result',
+      });
+    }
+
+    const evaluatorIds = [
+      ...new Set([
+        ...schedule.interviewers,
+        ...schedule.results.map((result) => result.evaluatorId).filter((userId): userId is string => !!userId),
+      ]),
+    ];
+
+    // Fetch details of all panel members and evaluators with recorded feedback.
     const interviewers = await this.prisma.user.findMany({
       where: {
-        id: { in: schedule.interviewers },
+        id: { in: evaluatorIds },
       },
     });
 
-    // Map each interviewer in schedule.interviewers to their feedback (recorded or default empty)
-    const feedbacks = schedule.interviewers.map((interviewerId) => {
+    // Map each evaluator to their feedback (recorded or default empty for scheduled panel).
+    const feedbacks = evaluatorIds.map((interviewerId) => {
       const interviewer = interviewers.find((u) => u.id === interviewerId);
       const result = schedule.results.find((r) => r.evaluatorId === interviewerId);
 
@@ -226,6 +264,11 @@ export class InterviewResultService {
         hour12: false,
       });
 
+    const myFeedback =
+      actor.userId && feedbacks.find((feedback) => feedback.id === actor.userId)
+        ? feedbacks.find((feedback) => feedback.id === actor.userId)
+        : null;
+
     return {
       id: schedule.id,
       candidate: schedule.candidate.fullName,
@@ -247,9 +290,194 @@ export class InterviewResultService {
           .toUpperCase(),
       })),
       feedbacks,
+      myFeedback,
+      canSubmitMyFeedback:
+        !!actor.userId &&
+        (actor.role === UserRole.HR_LEADER ||
+          (actor.role === UserRole.DEPARTMENT_HEAD &&
+            this.canDepartmentHeadAccessSchedule(schedule, actor.userId))),
       finalRecommendation: schedule.finalRecommendation || '',
       summaryNotes: schedule.summaryNotes || '',
     };
+  }
+
+  async recordMyFeedback(payload: {
+    interviewId: string;
+    evaluatorId: string;
+    actorRole: string;
+    decision: 'PASS' | 'FAIL';
+    technical: number;
+    communication: number;
+    culture: number;
+    notes?: string;
+  }) {
+    const { interviewId, evaluatorId, actorRole, decision, technical, communication, culture, notes } =
+      payload;
+
+    const schedule = await this.prisma.interviewSchedule.findUnique({
+      where: { id: interviewId },
+      include: {
+        candidate: true,
+        request: {
+          include: {
+            department: true,
+          },
+        },
+        results: true,
+      },
+    });
+
+    if (!schedule) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Interview schedule ${interviewId} not found`,
+      });
+    }
+
+    if (schedule.status === InterviewStatus.CANCELLED) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: 'Cannot record feedback for a cancelled interview',
+      });
+    }
+
+    if (schedule.status !== InterviewStatus.COMPLETED && schedule.scheduledAt > new Date()) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: 'Feedback can only be recorded after the interview time',
+      });
+    }
+
+    const canRecord =
+      actorRole === UserRole.HR_LEADER ||
+      (actorRole === UserRole.DEPARTMENT_HEAD &&
+        this.canDepartmentHeadAccessSchedule(schedule, evaluatorId));
+
+    if (!canRecord) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'You do not have permission to record feedback for this interview',
+      });
+    }
+
+    if (!['PASS', 'FAIL'].includes(decision)) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'decision must be PASS or FAIL',
+      });
+    }
+
+    for (const [label, value] of [
+      ['technical', technical],
+      ['communication', communication],
+      ['culture', culture],
+    ] as const) {
+      if (!Number.isInteger(value) || value < 0 || value > 10) {
+        throw new RpcException({
+          status: HttpStatus.BAD_REQUEST,
+          message: `${label} must be an integer from 0 to 10`,
+        });
+      }
+    }
+
+    const evaluator = await this.prisma.user.findUnique({
+      where: { id: evaluatorId },
+    });
+    if (!evaluator) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Evaluator user ${evaluatorId} not found`,
+      });
+    }
+
+    const existing = await this.prisma.interviewResult.findFirst({
+      where: { interviewId, evaluatorId },
+    });
+
+    const saved = existing
+      ? await this.prisma.interviewResult.update({
+          where: { id: existing.id },
+          data: {
+            result: decision,
+            notes: notes?.trim() || null,
+            technical,
+            communication,
+            culture,
+          },
+        })
+      : await this.prisma.interviewResult.create({
+          data: {
+            interviewId,
+            evaluatorId,
+            result: decision,
+            notes: notes?.trim() || null,
+            technical,
+            communication,
+            culture,
+          },
+        });
+
+    this.auditLog
+      .log({
+        entityType: AuditEntityType.INTERVIEW_RESULT,
+        entityId: saved.id,
+        action: AuditAction.INTERVIEW_RESULT_RECORDED,
+        toStatus: saved.result,
+        performedById: evaluatorId,
+        reason: saved.notes,
+        metadata: {
+          interviewId,
+          candidateId: schedule.candidateId,
+          evaluatorId,
+          source: 'personal-feedback',
+        },
+      })
+      .catch((err) => console.error('Failed to write audit log for personal interview feedback:', err));
+
+    return {
+      success: true,
+      feedback: {
+        id: evaluatorId,
+        member: evaluator.displayName,
+        role: evaluator.role,
+        initials: this.getInitials(evaluator.displayName),
+        decision: saved.result as 'PASS' | 'FAIL',
+        technical: saved.technical ?? 0,
+        communication: saved.communication ?? 0,
+        culture: saved.culture ?? 0,
+        notes: saved.notes ?? '',
+        isRecorded: true,
+      },
+    };
+  }
+
+  private canDepartmentHeadAccessSchedule(
+    schedule: {
+      interviewers: string[];
+      request?: {
+        createdById?: string | null;
+        department?: { headUserId?: string | null } | null;
+      } | null;
+    },
+    userId: string,
+  ) {
+    return (
+      schedule.interviewers.includes(userId) ||
+      schedule.request?.createdById === userId ||
+      schedule.request?.department?.headUserId === userId
+    );
+  }
+
+  private getInitials(name: string) {
+    return (
+      name
+        .split(' ')
+        .filter(Boolean)
+        .map((part) => part[0])
+        .join('')
+        .slice(0, 3)
+        .toUpperCase() || 'U'
+    );
   }
 
   /**

@@ -28,7 +28,13 @@ export class DocumentsService {
         data: {
           candidateId: payload.candidateProfileId,
           fileName: payload.fileName,
-          fileType: payload.mimeType.includes('pdf') ? 'PDF' : payload.mimeType.includes('officedocument') ? 'DOCX' : payload.mimeType,
+          fileType: payload.mimeType.includes('pdf')
+            ? 'PDF'
+            : payload.mimeType.includes('officedocument')
+              ? 'DOCX'
+              : payload.mimeType.includes('msword')
+                ? 'DOC'
+                : payload.mimeType,
           filePath: payload.filePath || payload.path || '',
           rawText: '',
         },

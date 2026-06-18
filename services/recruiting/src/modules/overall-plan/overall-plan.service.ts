@@ -7,6 +7,7 @@ import {
   NotificationType,
   PlanStatus,
   RecruitmentRequestStatus,
+  UserRole,
 } from '@wr/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
 
@@ -386,9 +387,9 @@ export class OverallPlanService {
     return plan;
   }
 
-  async getByRequest(hiringRequestId: string) {
+  async getByRequest(payload: { hiringRequestId: string; userId?: string; role?: string }) {
     const plan = await this.prisma.overallPlan.findUnique({
-      where: { requestId: hiringRequestId },
+      where: { requestId: payload.hiringRequestId },
       include: {
         createdBy: { select: { id: true, displayName: true } },
         approvedBy: { select: { id: true, displayName: true } },
@@ -401,8 +402,14 @@ export class OverallPlanService {
     if (!plan)
       this.rpc(
         HttpStatus.NOT_FOUND,
-        `No OverallPlan found for RecruitmentRequest ${hiringRequestId}`,
+        `No OverallPlan found for RecruitmentRequest ${payload.hiringRequestId}`,
       );
+    if (
+      payload.role === UserRole.HR_RECRUITER &&
+      !plan.tasks.some((task) => task.assignedTo?.id === payload.userId)
+    ) {
+      this.rpc(HttpStatus.FORBIDDEN, 'HR recruiters can only view plans assigned to them');
+    }
     return plan;
   }
 

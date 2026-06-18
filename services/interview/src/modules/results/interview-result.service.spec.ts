@@ -30,6 +30,7 @@ describe('InterviewResultService', () => {
     interviewResult: {
       create: jest.fn(),
       update: jest.fn(),
+      findFirst: jest.fn(),
       findMany: jest.fn(),
     },
     $transaction: jest.fn(),
@@ -53,8 +54,24 @@ describe('InterviewResultService', () => {
     jest.clearAllMocks();
     prisma.$transaction.mockImplementation(async (txs) => txs);
     prisma.user.findUnique.mockResolvedValue({ id: 'evaluator-1', displayName: 'Evaluator' });
+    prisma.interviewResult.findFirst.mockResolvedValue(null);
     prisma.interviewResult.findMany.mockResolvedValue([]);
-    prisma.interviewResult.create.mockReturnValue({ id: 'interview-result-1', result: 'PASS' });
+    prisma.interviewResult.create.mockReturnValue({
+      id: 'interview-result-1',
+      result: 'PASS',
+      notes: 'Strong fit',
+      technical: 8,
+      communication: 9,
+      culture: 8,
+    });
+    prisma.interviewResult.update.mockReturnValue({
+      id: 'interview-result-1',
+      result: 'PASS',
+      notes: 'Strong fit',
+      technical: 8,
+      communication: 9,
+      culture: 8,
+    });
     auditLog.log.mockResolvedValue(undefined);
   });
 
@@ -191,5 +208,86 @@ describe('InterviewResultService', () => {
         title: 'Review Required: Interview Stage Completed',
       }),
     );
+  });
+
+  it('records personal feedback for a department head after interview time', async () => {
+    const past = new Date(Date.now() - 60 * 60 * 1000);
+    prisma.interviewSchedule.findUnique.mockResolvedValue({
+      id: 'interview-1',
+      candidateId: 'candidate-1',
+      requestId: 'request-1',
+      scheduledAt: past,
+      status: InterviewStatus.SCHEDULED,
+      interviewers: [],
+      candidate: { fullName: 'John Doe' },
+      request: {
+        id: 'request-1',
+        createdById: 'dept-head-1',
+        department: { headUserId: 'dept-head-1' },
+      },
+      results: [],
+    });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'dept-head-1',
+      displayName: 'Department Head',
+      role: UserRole.DEPARTMENT_HEAD,
+    });
+
+    const result = await service.recordMyFeedback({
+      interviewId: 'interview-1',
+      evaluatorId: 'dept-head-1',
+      actorRole: UserRole.DEPARTMENT_HEAD,
+      decision: 'PASS',
+      technical: 8,
+      communication: 9,
+      culture: 8,
+      notes: 'Strong fit',
+    });
+
+    expect(result.success).toBe(true);
+    expect(prisma.interviewResult.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          interviewId: 'interview-1',
+          evaluatorId: 'dept-head-1',
+          result: 'PASS',
+          technical: 8,
+          communication: 9,
+          culture: 8,
+        }),
+      }),
+    );
+  });
+
+  it('rejects personal feedback before interview time', async () => {
+    const future = new Date(Date.now() + 60 * 60 * 1000);
+    prisma.interviewSchedule.findUnique.mockResolvedValue({
+      id: 'interview-1',
+      candidateId: 'candidate-1',
+      requestId: 'request-1',
+      scheduledAt: future,
+      status: InterviewStatus.SCHEDULED,
+      interviewers: ['dept-head-1'],
+      candidate: { fullName: 'John Doe' },
+      request: {
+        id: 'request-1',
+        createdById: 'dept-head-1',
+        department: { headUserId: 'dept-head-1' },
+      },
+      results: [],
+    });
+
+    await expect(
+      service.recordMyFeedback({
+        interviewId: 'interview-1',
+        evaluatorId: 'dept-head-1',
+        actorRole: UserRole.DEPARTMENT_HEAD,
+        decision: 'PASS',
+        technical: 8,
+        communication: 8,
+        culture: 8,
+        notes: 'Too early',
+      }),
+    ).rejects.toThrow(RpcException);
   });
 });

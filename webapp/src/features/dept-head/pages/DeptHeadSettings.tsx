@@ -21,6 +21,39 @@ interface TeamMember {
   permission: Permission;
 }
 
+interface ApiDepartment {
+  id: string;
+  name: string;
+  code: string;
+}
+
+interface ApiUser {
+  id: string;
+  email: string;
+  displayName: string;
+  role: string;
+  departmentId?: string | null;
+  phone?: string | null;
+  department?: ApiDepartment | null;
+  departmentsHeaded?: ApiDepartment[];
+}
+
+interface UserListResponse {
+  data: ApiUser[];
+}
+
+interface RealtimeTrackingItem {
+  id: string;
+  targetHeadcount: number;
+  filledHeadcount: number;
+  status: string;
+}
+
+interface NotificationItem {
+  id: string;
+  isRead: boolean;
+}
+
 interface NotificationPreference {
   key: string;
   title: string;
@@ -28,79 +61,6 @@ interface NotificationPreference {
   enabled: boolean;
   disabled?: boolean;
 }
-
-interface CurrentUserResponse {
-  id: string;
-  displayName: string;
-  email: string;
-  role: string;
-  organizationId: string;
-  departmentId: string | null;
-  phone?: string | null;
-}
-
-interface DepartmentResponse {
-  id: string;
-  name: string;
-  code: string;
-  headUser?: {
-    id: string;
-    displayName: string;
-    email: string;
-    role: string;
-  } | null;
-}
-
-interface OrganizationResponse {
-  id: string;
-  name: string;
-  slug: string;
-  settings?: Record<string, unknown>;
-}
-
-interface UsersResponse {
-  data: Array<{
-    id: string;
-    displayName: string;
-    email: string;
-    role: string;
-    phone?: string | null;
-    departmentId?: string | null;
-    isActive?: boolean;
-  }>;
-}
-
-interface DeptHeadSettingsState {
-  preferences?: NotificationPreference[];
-  selectedPriority?: Priority;
-}
-
-const fallbackTeamMembers: TeamMember[] = [
-  {
-    id: 'TM-001',
-    name: 'Jordan Smith',
-    role: 'Lead Developer',
-    email: 'j.smith@rms.com',
-    phone: '+1 (555) 123-4567',
-    permission: 'Full Admin',
-  },
-  {
-    id: 'TM-002',
-    name: 'Maria Lopez',
-    role: 'Senior QA Engineer',
-    email: 'm.lopez@rms.com',
-    phone: '+1 (555) 987-6543',
-    permission: 'Interviewer',
-  },
-  {
-    id: 'TM-003',
-    name: 'David Wong',
-    role: 'Cloud Architect',
-    email: 'd.wong@rms.com',
-    phone: '+1 (555) 444-3322',
-    permission: 'Full Admin',
-  },
-];
 
 const initialPreferences: NotificationPreference[] = [
   {
@@ -117,8 +77,8 @@ const initialPreferences: NotificationPreference[] = [
   },
   {
     key: 'budget',
-    title: 'Budget Alerts',
-    description: 'Notify when 90% of budget is reached.',
+    title: 'Capacity Alerts',
+    description: 'Notify when requested headcount is close to plan capacity.',
     enabled: false,
     disabled: true,
   },
@@ -142,6 +102,35 @@ const permissionDotStyles: Record<Permission, string> = {
   Interviewer: 'bg-pending',
   'Request Reviewer': 'bg-revision',
 };
+
+const terminalRequestStatuses = new Set(['CLOSED', 'CANCELLED', 'REJECTED']);
+
+const roleLabel = (role: string) =>
+  role
+    .toLowerCase()
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+
+const memberPermission = (member: ApiUser, currentUserId?: string): Permission => {
+  if (member.id === currentUserId || member.role === 'DEPARTMENT_HEAD') return 'Full Admin';
+  if (member.role === 'HR_LEADER' || member.role === 'HR_RECRUITER') return 'Request Reviewer';
+  return 'Interviewer';
+};
+
+const primaryDepartment = (profile: ApiUser | null): ApiDepartment | null =>
+  profile?.department ?? profile?.departmentsHeaded?.[0] ?? null;
+
+const toTeamMember = (member: ApiUser, currentUserId?: string): TeamMember => ({
+  id: member.id,
+  name: member.displayName,
+  role: member.department?.name
+    ? `${roleLabel(member.role)} - ${member.department.name}`
+    : roleLabel(member.role),
+  email: member.email,
+  phone: member.phone || '-',
+  permission: memberPermission(member, currentUserId),
+});
 
 const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: string }) => {
   const paths: Record<string, React.ReactNode> = {
@@ -176,8 +165,12 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
 };
 
 export const DeptHeadSettings: React.FC = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
+  const [profile, setProfile] = useState<ApiUser | null>(null);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [requests, setRequests] = useState<RealtimeTrackingItem[]>([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [preferences, setPreferences] = useState(initialPreferences);
   const [selectedPriority, setSelectedPriority] = useState<Priority>('High');
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>(fallbackTeamMembers);
@@ -188,6 +181,68 @@ export const DeptHeadSettings: React.FC = () => {
   const [apiError, setApiError] = useState('');
   const [saving, setSaving] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      setLoading(true);
+      setApiError('');
+      try {
+        const currentProfile = await apiRequest<ApiUser>('/me/profile', token);
+        const department = primaryDepartment(currentProfile);
+        const departmentId = department?.id ?? currentProfile.departmentId ?? null;
+
+        const [usersResponse, requestRows, notifications] = await Promise.all([
+          apiRequest<UserListResponse>('/users/interviewers', token).catch(() => ({ data: [] })),
+          apiRequest<RealtimeTrackingItem[]>('/reports/realtime-tracking', token).catch(
+            () => [] as RealtimeTrackingItem[],
+          ),
+          apiRequest<NotificationItem[]>('/notifications', token).catch(
+            () => [] as NotificationItem[],
+          ),
+        ]);
+
+        const sameDepartmentMembers = usersResponse.data.filter((member) => {
+          if (!departmentId) return true;
+          return (
+            member.departmentId === departmentId ||
+            member.department?.id === departmentId ||
+            member.departmentsHeaded?.some((item) => item.id === departmentId)
+          );
+        });
+        const normalizedMembers =
+          sameDepartmentMembers.length > 0 ? sameDepartmentMembers : [currentProfile];
+
+        setProfile(currentProfile);
+        setTeamMembers(
+          normalizedMembers
+            .map((member) => toTeamMember(member, currentProfile.id))
+            .sort((a, b) => (a.id === currentProfile.id ? -1 : b.id === currentProfile.id ? 1 : 0)),
+        );
+        setRequests(requestRows);
+        setUnreadNotifications(notifications.filter((item) => !item.isRead).length);
+      } catch (loadError) {
+        setApiError(loadError instanceof Error ? loadError.message : 'Unable to load settings');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadSettings();
+  }, [token]);
+
+  const department = primaryDepartment(profile);
+  const activeRequests = useMemo(
+    () => requests.filter((item) => !terminalRequestStatuses.has(item.status)),
+    [requests],
+  );
+  const totalRequested = requests.reduce((sum, item) => sum + item.targetHeadcount, 0);
+  const totalFilled = requests.reduce((sum, item) => sum + item.filledHeadcount, 0);
+  const remainingOpen = Math.max(0, totalRequested - totalFilled);
+  const utilizedPercent =
+    totalRequested > 0 ? Math.min(100, Math.round((totalFilled / totalRequested) * 1000) / 10) : 0;
+  const targetPercent = 80;
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -329,8 +384,8 @@ export const DeptHeadSettings: React.FC = () => {
         }
       />
 
-      {apiError ? <DeptHeadInlineAlert>{apiError}</DeptHeadInlineAlert> : null}
-      {loading ? <DeptHeadLoadingState label="Loading department settings..." /> : null}
+      {apiError && <DeptHeadInlineAlert>{apiError}</DeptHeadInlineAlert>}
+      {loading && <DeptHeadLoadingState label="Loading department settings..." />}
 
       <div className="grid grid-cols-12 gap-6">
         <section className="col-span-12 flex flex-col gap-6 rounded-xl border border-border-warm bg-clean-surface p-6 shadow-sm lg:col-span-8 lg:flex-row lg:items-start">
@@ -345,10 +400,11 @@ export const DeptHeadSettings: React.FC = () => {
                   Department Identity
                 </span>
                 <h2 className="text-2xl font-semibold text-deep-charcoal">
-                  {department?.name ?? 'Department'}
+                  {department?.name ?? profile?.department?.name ?? 'Department'}
                 </h2>
                 <p className="mt-1 text-sm font-medium text-on-surface-variant">
-                  Led by {department?.headUser?.displayName ?? currentUser?.displayName ?? 'Department Head'}
+                  Led by {profile?.displayName ?? user?.displayName ?? 'Department Head'}
+                  {department?.code ? `, ${department.code}` : ''}
                 </p>
               </div>
               <button
@@ -361,9 +417,9 @@ export const DeptHeadSettings: React.FC = () => {
               </button>
             </div>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-on-surface">
-              Our mission is to build scalable, resilient systems that power the RMS ecosystem. We
-              focus on technological excellence, automation-first processes, and a collaborative
-              environment for engineers to thrive and innovate.
+              This workspace reflects live department profile, team, notification, and recruitment
+              activity from RMS. Use it to review current hiring capacity and manage your department
+              recruitment preferences.
             </p>
           </div>
         </section>
@@ -371,34 +427,37 @@ export const DeptHeadSettings: React.FC = () => {
         <section className="col-span-12 rounded-xl border border-border-warm bg-clean-surface p-6 shadow-sm lg:col-span-4">
           <h2 className="mb-4 flex items-center gap-2 text-sm font-bold text-deep-charcoal">
             <Icon className="h-5 w-5 text-teal-command" name="wallet" />
-            Q3 Recruitment Budget
+            Department Hiring Capacity
           </h2>
 
           <div className="space-y-4">
             <div className="flex items-end justify-between gap-4">
               <div>
-                <p className="text-2xl font-bold text-deep-charcoal">$142,500</p>
-                <p className="text-xs font-semibold text-on-surface-variant">Total Allocated</p>
+                <p className="text-2xl font-bold text-deep-charcoal">{totalRequested}</p>
+                <p className="text-xs font-semibold text-on-surface-variant">Requested Roles</p>
               </div>
               <div className="text-right">
-                <p className="text-xl font-semibold text-on-surface-variant">$38,200</p>
-                <p className="text-xs font-semibold text-on-surface-variant">Remaining</p>
+                <p className="text-xl font-semibold text-on-surface-variant">{remainingOpen}</p>
+                <p className="text-xs font-semibold text-on-surface-variant">Open Headcount</p>
               </div>
             </div>
 
             <div className="h-3 overflow-hidden rounded-full bg-surface-container">
-              <div className="h-full w-[73.2%] rounded-full bg-teal-command transition-all duration-700" />
+              <div
+                className="h-full rounded-full bg-teal-command transition-all duration-700"
+                style={{ width: `${utilizedPercent}%` }}
+              />
             </div>
 
             <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">
-              <span>73.2% Utilized</span>
-              <span>Target: &lt; 80%</span>
+              <span>{utilizedPercent}% Filled</span>
+              <span>{activeRequests.length} Active Request{activeRequests.length === 1 ? '' : 's'}</span>
             </div>
           </div>
 
           <div className="mt-6 flex items-center gap-2 border-t border-border-warm pt-4 text-on-surface-variant">
             <Icon className="h-4 w-4" name="info" />
-            <p className="text-xs">Next budget review: Sep 15, 2026</p>
+            <p className="text-xs">Target fill rate: {targetPercent}% for active recruitment plans</p>
           </div>
         </section>
 
@@ -486,10 +545,15 @@ export const DeptHeadSettings: React.FC = () => {
 
         <section className="col-span-12 flex flex-col gap-6 lg:col-span-5">
           <div className="rounded-xl border border-border-warm bg-clean-surface p-6 shadow-sm">
-            <h2 className="mb-6 flex items-center gap-2 text-sm font-bold text-deep-charcoal">
-              <Icon className="h-5 w-5 text-teal-command" name="notifications" />
-              Notification Preferences
-            </h2>
+            <div className="mb-6 flex items-center justify-between gap-3">
+              <h2 className="flex items-center gap-2 text-sm font-bold text-deep-charcoal">
+                <Icon className="h-5 w-5 text-teal-command" name="notifications" />
+                Notification Preferences
+              </h2>
+              <span className="rounded-full bg-teal-command/10 px-2.5 py-1 text-xs font-bold text-teal-command">
+                {unreadNotifications} unread
+              </span>
+            </div>
 
             <div className="space-y-6">
               {preferences.map((preference) => (
