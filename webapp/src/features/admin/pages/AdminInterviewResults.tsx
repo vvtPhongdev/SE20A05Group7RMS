@@ -64,6 +64,15 @@ interface InterviewResultApi {
   summaryNotes: string;
 }
 
+interface CandidateProfileDetail {
+  id: string;
+  fullName?: string;
+  email?: string;
+  phone?: string;
+  summary?: string;
+  structuredData?: Record<string, unknown>;
+}
+
 const emptyCandidate: CandidateResult = {
   id: '',
   candidateId: '',
@@ -92,6 +101,8 @@ export const AdminInterviewResults: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [profileDetail, setProfileDetail] = useState<CandidateProfileDetail | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,6 +114,7 @@ export const AdminInterviewResults: React.FC = () => {
         if (cancelled) return;
         const mapped = response.map((result) => ({
           id: result.id,
+          candidateId: result.candidateId,
           name: result.candidate,
           role: result.role,
           department: result.department,
@@ -122,7 +134,6 @@ export const AdminInterviewResults: React.FC = () => {
               : ('More Info' as const),
           assessmentSummary:
             result.summaryNotes || 'The interview panel has not provided an overall summary.',
-          candidateId: result.candidateId,
         }));
         setCandidates(mapped);
         setSelectedId((current) =>
@@ -217,6 +228,24 @@ export const AdminInterviewResults: React.FC = () => {
       setApiError(error instanceof Error ? error.message : 'Unable to save the hiring decision');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const openCandidateProfile = async () => {
+    if (!activeCandidate.candidateId) return;
+    setProfileLoading(true);
+    setApiError('');
+    try {
+      setProfileDetail(
+        await apiRequest<CandidateProfileDetail>(
+          `/candidate-profiles/${activeCandidate.candidateId}`,
+          token,
+        ),
+      );
+    } catch (profileError) {
+      setApiError(profileError instanceof Error ? profileError.message : 'Unable to load profile');
+    } finally {
+      setProfileLoading(false);
     }
   };
 
@@ -358,7 +387,8 @@ export const AdminInterviewResults: React.FC = () => {
             </h3>
             <button
               className="text-teal-command hover:underline text-label-sm flex items-center gap-1 font-semibold text-xs"
-              onClick={() => alert(`Showing full profile for ${activeCandidate.name}...`)}
+              disabled={!activeCandidate.candidateId || profileLoading}
+              onClick={() => void openCandidateProfile()}
               type="button"
             >
               <span className="material-symbols-outlined text-[16px]">open_in_new</span>
@@ -566,6 +596,46 @@ export const AdminInterviewResults: React.FC = () => {
           </div>
         </section>
       </div>
+
+      {(profileDetail || profileLoading) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+          <section className="w-full max-w-2xl rounded-lg border border-border-warm bg-clean-surface shadow-xl">
+            <div className="flex items-start justify-between border-b border-border-warm px-6 py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-deep-charcoal">Candidate Profile</h2>
+                <p className="text-sm text-slate-ink">
+                  {profileLoading ? 'Loading profile...' : profileDetail?.fullName ?? activeCandidate.name}
+                </p>
+              </div>
+              <button
+                className="rounded-lg p-2 text-slate-ink hover:bg-surface-container-low"
+                onClick={() => setProfileDetail(null)}
+                type="button"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="space-y-4 p-6">
+              {profileLoading ? (
+                <p className="text-sm text-slate-ink">Loading...</p>
+              ) : (
+                <>
+                  <ProfileLine label="Email" value={profileDetail?.email ?? '-'} />
+                  <ProfileLine label="Phone" value={profileDetail?.phone ?? '-'} />
+                  <ProfileLine label="Summary" value={profileDetail?.summary ?? '-'} />
+                </>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
     </AdminDashboardPage>
   );
 };
+
+const ProfileLine = ({ label, value }: { label: string; value: string }) => (
+  <div className="rounded-lg border border-border-warm bg-workflow-ivory/60 p-3">
+    <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">{label}</p>
+    <p className="mt-1 text-sm font-semibold text-deep-charcoal">{value}</p>
+  </div>
+);

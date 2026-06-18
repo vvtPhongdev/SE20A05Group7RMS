@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Post, Param, Inject, Sse, MessageEvent } from '@nestjs/common';
+import { Controller, Delete, Get, Patch, Post, Param, Inject, Sse, MessageEvent } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SERVICE_TOKENS } from '../constants';
@@ -33,6 +33,20 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Mark a notification as read' })
   markRead(@Param('id') id: string, @CurrentUser('sub') userId: string) {
     return firstValueFrom(this.notificationClient.send('notification.mark_read', { id, userId }));
+  }
+
+  @Patch(':id/unread')
+  @ApiOperation({ summary: 'Mark a notification as unread' })
+  markUnread(@Param('id') id: string, @CurrentUser('sub') userId: string) {
+    return firstValueFrom(this.notificationClient.send('notification.mark_unread', { id, userId }));
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Archive/delete a notification' })
+  deleteNotification(@Param('id') id: string, @CurrentUser('sub') userId: string) {
+    return firstValueFrom(
+      this.notificationClient.send('notification.delete_notification', { id, userId }),
+    );
   }
 
   @Post('mark-all-read')

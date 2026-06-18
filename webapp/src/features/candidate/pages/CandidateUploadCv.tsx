@@ -300,27 +300,22 @@ const parseRawTextFallback = (text: string): Partial<CvFormData> => {
   }
 
   // 5. Education
-  // Let's add mock education based on the parsed CV text
-  if (text.toLowerCase().includes('priya')) {
+  const educationMatch = text.match(
+    /Education:\s*(.*?)(?:\n(?:Experience|Skills|Summary|Projects):|$)/is,
+  );
+  if (educationMatch) {
+    const educationText = educationMatch[1].replace(/\s+/g, ' ').trim();
+    const [degree = '', school = '', major = ''] = educationText
+      .split(/\s+at\s+|\s+-\s+|,\s+/i)
+      .map((part) => part.trim());
     result.education = [
       {
         id: `parsed-edu-${Date.now()}`,
-        school: 'Stanford University',
-        major: 'Computer Science (Machine Learning)',
-        degree: 'PhD',
-        startDate: '2015-09',
-        endDate: '2020-06',
-      },
-    ];
-  } else {
-    result.education = [
-      {
-        id: `parsed-edu-${Date.now()}`,
-        school: 'University of California, Berkeley',
-        major: 'Computer Science',
-        degree: 'Bachelor of Science',
-        startDate: '2014-09',
-        endDate: '2018-06',
+        school,
+        major,
+        degree,
+        startDate: '',
+        endDate: '',
       },
     ];
   }

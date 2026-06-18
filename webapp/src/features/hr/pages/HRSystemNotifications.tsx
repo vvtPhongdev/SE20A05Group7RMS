@@ -241,6 +241,37 @@ export const HRSystemNotifications: React.FC = () => {
     }
   };
 
+  const exportCsv = () => {
+    const rows = visibleNotifications.map((item) => ({
+      type: item.type,
+      subject: item.subject,
+      relatedId: item.relatedId,
+      recipient: item.recipient,
+      priority: item.priority,
+      status: item.status,
+      created: item.createdAt,
+      preview: item.preview,
+    }));
+    const headers = ['type', 'subject', 'relatedId', 'recipient', 'priority', 'status', 'created', 'preview'];
+    const csv = [
+      headers.join(','),
+      ...rows.map((row) =>
+        headers
+          .map((header) => {
+            const value = String(row[header as keyof typeof row] ?? '');
+            return `"${value.replaceAll('"', '""')}"`;
+          })
+          .join(','),
+      ),
+    ].join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `hr-notifications-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="mx-auto grid max-w-[1440px] gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
       <main className="min-w-0 space-y-6">
@@ -337,11 +368,9 @@ export const HRSystemNotifications: React.FC = () => {
                     <option>Queued</option>
                   </select>
                 </div>
-                {/* No export endpoint is available yet for in-app notifications. */}
                 <button
-                  className="inline-flex w-fit items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-teal-command opacity-50 transition active:scale-[0.98]"
-                  disabled
-                  title="Export is not available yet"
+                  className="inline-flex w-fit items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98]"
+                  onClick={exportCsv}
                   type="button"
                 >
                   <Icon className="h-4 w-4" name="download" />

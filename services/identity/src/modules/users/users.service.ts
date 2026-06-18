@@ -77,6 +77,9 @@ export class UsersService {
     } else if (query.role) {
       where.role = query.role;
     }
+    if (query.departmentId) {
+      where.departmentId = query.departmentId;
+    }
 
     const [total, data] = await Promise.all([
       this.prisma.user.count({ where }),

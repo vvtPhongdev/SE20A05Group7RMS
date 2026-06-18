@@ -10,6 +10,7 @@ import {
   Inject,
   HttpCode,
   HttpStatus,
+  ForbiddenException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { config as appConfig } from '../config';
@@ -323,6 +324,11 @@ export class ListUsersQueryDto {
   @IsOptional()
   @IsEnum(UserRole)
   role?: UserRole;
+
+  @ApiProperty({ required: false, description: 'Filter by department ID' })
+  @IsOptional()
+  @IsUUID()
+  departmentId?: string;
 }
 
 /**
@@ -408,12 +414,24 @@ export class IdentityController {
   // ─── Users ───────────────────────────────────────────────────────
 
   @Get('users')
-  @Roles(UserRole.ADMIN, UserRole.HR_LEADER)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.DEPARTMENT_HEAD)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List users with pagination and role filter' })
-  listUsers(@Query() query: ListUsersQueryDto, @CurrentUser() user: JwtPayload) {
-    const scopedQuery =
-      user.role === UserRole.HR_LEADER ? { ...query, role: UserRole.HR_RECRUITER } : query;
+  async listUsers(@Query() query: ListUsersQueryDto, @CurrentUser() user: JwtPayload) {
+    const scopedQuery = { ...query };
+
+    if (user.role === UserRole.HR_LEADER) {
+      scopedQuery.role = UserRole.HR_RECRUITER;
+    }
+
+    if (user.role === UserRole.DEPARTMENT_HEAD) {
+      const currentUser = await firstValueFrom(this.identityClient.send('users.get', { id: user.sub }));
+      if (!currentUser.departmentId) {
+        return { data: [], meta: { total: 0, page: scopedQuery.page, limit: scopedQuery.limit, totalPages: 0 } };
+      }
+      scopedQuery.departmentId = currentUser.departmentId;
+    }
+
     return firstValueFrom(this.identityClient.send('users.list', scopedQuery));
   }
 
@@ -498,10 +516,13 @@ export class IdentityController {
   }
 
   @Get('organizations/:id')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get organization by ID' })
-  getOrganization(@Param('id') id: string) {
+  getOrganization(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+    if (user.role === UserRole.DEPARTMENT_HEAD && user.organizationId !== id) {
+      throw new ForbiddenException('You can only access your own organization');
+    }
     return firstValueFrom(this.identityClient.send('identity.get_organization', { id }));
   }
 
@@ -512,6 +533,33 @@ export class IdentityController {
   updateOrganization(@Param('id') id: string, @Body() body: UpdateOrganizationDto) {
     return firstValueFrom(
       this.identityClient.send('identity.update_organization', { id, ...body }),
+    );
+  }
+
+  @Patch('organizations/:id/settings')
+  @Roles(UserRole.ADMIN, UserRole.DEPARTMENT_HEAD)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update organization settings only' })
+  async updateOrganizationSettings(
+    @Param('id') id: string,
+    @Body() body: Pick<UpdateOrganizationDto, 'settings'>,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    if (user.role === UserRole.DEPARTMENT_HEAD && user.organizationId !== id) {
+      throw new ForbiddenException('You can only update your own organization settings');
+    }
+
+    const organization = await firstValueFrom(
+      this.identityClient.send('identity.get_organization', { id }),
+    );
+
+    return firstValueFrom(
+      this.identityClient.send('identity.update_organization', {
+        id,
+        name: organization.name,
+        slug: organization.slug,
+        settings: body.settings,
+      }),
     );
   }
 
@@ -526,7 +574,7 @@ export class IdentityController {
   }
 
   @Get('departments')
-  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List departments with organization filtering' })
   listDepartments(@Query() query: ListDepartmentsQueryDto) {
@@ -534,7 +582,7 @@ export class IdentityController {
   }
 
   @Get('departments/:id')
-  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get department by ID' })
   getDepartment(@Param('id') id: string) {
@@ -561,8 +609,7 @@ export class IdentityController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get current user profile' })
   getCurrentUser(@CurrentUser() user: JwtPayload) {
-    // Example of extracting full user payload from JWT
-    return user;
+    return firstValueFrom(this.identityClient.send('users.get', { id: user.sub }));
   }
 
   @Get('me/profile')
