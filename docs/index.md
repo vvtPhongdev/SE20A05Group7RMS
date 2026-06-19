@@ -13,6 +13,8 @@
 | [API Contracts](./api-contracts.md)                           | HTTP endpoints, TCP message patterns, RBAC matrix           |
 | [Auth Design](./auth-design.md)                               | JWT strategy, refresh tokens, role-based guards             |
 | [All Tasks](./all-tasks.md)                                   | Master task list with dependencies                          |
+| [RMS Implementation Spec](./specs/spec-rms-implementation/SPEC.md) | Canonical spec and per-task implementation matrix            |
+| [Requirement v1.0 Implementation Task](./tasks/requirement-v1.0-implementation-task.md) | Focused task for interview panel, offer response, tracking, and reminders |
 
 ### Project Overview Documents
 

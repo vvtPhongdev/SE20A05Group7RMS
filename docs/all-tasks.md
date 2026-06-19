@@ -155,6 +155,12 @@ Phase 6 (Reports) ← Phase 2 + Phase 5
   └── T-081 (Routes) → T-082..T-084 (Frontend dashboards)
 ```
 
+## Phase 7: Requirement v1.0 Workflow Enhancements
+
+| ID    | Task                                                                                                                      | Depends On                         | Status |
+| ----- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ------ |
+| T-085 | Implement requirement v1.0 interview panel, offer response, tracking, and task/deadline reminders. See [task spec](./tasks/requirement-v1.0-implementation-task.md). | T-061, T-065, T-070, T-080, T-084 | ⬜     |
+
 ---
 
 _Last updated: 2026-05-28_
