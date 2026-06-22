@@ -1,5 +1,5 @@
 import { of } from 'rxjs';
-import { InterviewStatus, RecruitmentRequestStatus } from '@wr/contracts';
+import { InterviewStatus, RecruitmentRequestStatus, UserRole } from '@wr/contracts';
 import { SchedulesService } from './schedules.service';
 
 describe('SchedulesService', () => {
@@ -74,7 +74,20 @@ describe('SchedulesService', () => {
         email: 'jane@example.com',
       });
       prisma.user.findMany.mockResolvedValue([
-        { id: 'user-interviewer', displayName: 'Dr. John', email: 'john@example.com' },
+        {
+          id: 'interviewer-1',
+          displayName: 'Dr. John',
+          email: 'john@example.com',
+          role: UserRole.HR_LEADER,
+          isActive: true,
+        },
+        {
+          id: 'interviewer-2',
+          displayName: 'Ms. Linh',
+          email: 'linh@example.com',
+          role: UserRole.DEPARTMENT_HEAD,
+          isActive: true,
+        },
       ]);
       // Mock conflict check returns no conflict
       prisma.interviewSchedule.findMany.mockResolvedValue([]);
@@ -87,7 +100,8 @@ describe('SchedulesService', () => {
         scheduledAt: new Date(Date.now() + 3600000).toISOString(), // future date
         duration: 60,
         location: 'Room A',
-        interviewers: ['interviewer-1'],
+        interviewers: ['interviewer-1', 'interviewer-2'],
+        scheduledById: 'hr-1',
       };
 
       await service.create(payload);

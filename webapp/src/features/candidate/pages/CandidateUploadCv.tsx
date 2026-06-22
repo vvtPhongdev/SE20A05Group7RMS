@@ -110,8 +110,11 @@ interface CvDocument {
   id: string;
   name: string;
   uploadedDate: string;
-  parsingStatus: 'Ready' | 'Parsing...';
+  parsingStatus: 'Ready' | 'Parsing...' | 'Failed';
   rawText?: string;
+  processingMethod?: string | null;
+  processingError?: string | null;
+  structuredData?: { resume?: unknown; confidence?: number } | null;
 }
 
 interface CvExperience {
@@ -706,13 +709,25 @@ export const CandidateUploadCv: React.FC = () => {
     fileName: string;
     parsedAt?: string | null;
     rawText?: string;
+    processingStatus?: string;
+    processingMethod?: string | null;
+    processingError?: string | null;
+    structuredData?: { resume?: unknown; confidence?: number } | null;
     createdAt: string;
   }): CvDocument => ({
     id: document.id,
     name: document.fileName,
     uploadedDate: new Date(document.createdAt).toLocaleDateString(),
-    parsingStatus: document.parsedAt ? 'Ready' : 'Parsing...',
+    parsingStatus:
+      document.processingStatus === 'FAILED'
+        ? 'Failed'
+        : document.processingStatus === 'COMPLETED' || document.parsedAt
+          ? 'Ready'
+          : 'Parsing...',
     rawText: document.rawText,
+    processingMethod: document.processingMethod,
+    processingError: document.processingError,
+    structuredData: document.structuredData,
   });
 
   const clearImportReadIssue = (field: ImportReadIssueKey) => {
@@ -740,29 +755,59 @@ export const CandidateUploadCv: React.FC = () => {
     }
 
     const parsed = parseRawText(doc.rawText);
+    const aiResumeResult = ResumeDraftSchema.safeParse(doc.structuredData?.resume);
+    const aiResume = aiResumeResult.success ? aiResumeResult.data : undefined;
+    const aiPersonalInfo = aiResume?.personalInfo;
+    const aiSkills = aiResume?.skills;
     setImportReadIssues(createImportReadIssues(parsed));
 
     setCvSaved(false);
     setCvForm((current) => ({
       ...current,
-      fullName: parsed.fullName || current.fullName,
-      email: parsed.email || current.email,
-      phone: parsed.phone || current.phone,
-      currentRole: parsed.currentRole || current.currentRole,
-      address: parsed.address || current.address,
-      linkedinUrl: parsed.linkedinUrl || current.linkedinUrl,
-      githubUrl: parsed.githubUrl || current.githubUrl,
-      portfolioUrl: parsed.portfolioUrl || current.portfolioUrl,
-      summary: parsed.summary || current.summary,
-      technicalSkills: parsed.technicalSkills || current.technicalSkills,
-      softSkills: parsed.softSkills || current.softSkills,
-      languages: parsed.languages || current.languages,
+      fullName: aiPersonalInfo?.fullName || parsed.fullName || current.fullName,
+      email: aiPersonalInfo?.email || parsed.email || current.email,
+      phone: aiPersonalInfo?.phoneNumber || parsed.phone || current.phone,
+      currentRole: aiResume?.currentRole || parsed.currentRole || current.currentRole,
+      address: aiPersonalInfo?.address || parsed.address || current.address,
+      linkedinUrl:
+        findLink(aiPersonalInfo?.links, 'LINKEDIN') || parsed.linkedinUrl || current.linkedinUrl,
+      githubUrl: findLink(aiPersonalInfo?.links, 'GITHUB') || parsed.githubUrl || current.githubUrl,
+      portfolioUrl:
+        findLink(aiPersonalInfo?.links, 'PORTFOLIO') ||
+        parsed.portfolioUrl ||
+        current.portfolioUrl,
+      summary: aiResume?.summary || parsed.summary || current.summary,
+      technicalSkills:
+        aiSkills?.technical?.join(', ') || parsed.technicalSkills || current.technicalSkills,
+      softSkills: aiSkills?.softSkills?.join(', ') || parsed.softSkills || current.softSkills,
+      languages: formatLanguages(aiSkills?.languages) || parsed.languages || current.languages,
       experience:
-        parsed.experience && parsed.experience.length > 0
+        aiResume?.workExperience?.length
+          ? aiResume.workExperience.map((item, index) => ({
+              id: `ai-exp-${index}`,
+              company: item.company || '',
+              position: item.position || '',
+              startDate: item.startDate || '',
+              endDate: item.endDate || '',
+              isCurrent: item.isCurrent || false,
+              achievements: (item.achievements || []).join('\n'),
+            }))
+          : parsed.experience && parsed.experience.length > 0
           ? parsed.experience
           : current.experience,
       education:
-        parsed.education && parsed.education.length > 0 ? parsed.education : current.education,
+        aiResume?.education?.length
+          ? aiResume.education.map((item, index) => ({
+              id: `ai-edu-${index}`,
+              school: item.school || '',
+              major: item.major || '',
+              degree: item.degree || '',
+              startDate: item.startDate || '',
+              endDate: item.endDate || '',
+            }))
+          : parsed.education && parsed.education.length > 0
+            ? parsed.education
+            : current.education,
     }));
 
     setView('builder');
@@ -778,6 +823,10 @@ export const CandidateUploadCv: React.FC = () => {
             fileName: string;
             parsedAt?: string | null;
             rawText?: string;
+            processingStatus?: string;
+            processingMethod?: string | null;
+            processingError?: string | null;
+            structuredData?: { resume?: unknown; confidence?: number } | null;
             createdAt: string;
           }>
         >('/candidate/cvs', token);
@@ -805,6 +854,10 @@ export const CandidateUploadCv: React.FC = () => {
             fileName: string;
             parsedAt?: string | null;
             rawText?: string;
+            processingStatus?: string;
+            processingMethod?: string | null;
+            processingError?: string | null;
+            structuredData?: { resume?: unknown; confidence?: number } | null;
             createdAt: string;
           }>
         >('/candidate/cvs', token);
@@ -823,6 +876,10 @@ export const CandidateUploadCv: React.FC = () => {
               percent: 100,
               message: 'CV uploaded and parsed successfully.',
             });
+          } else if (updatedUploadedDoc?.parsingStatus === 'Failed') {
+            setUploadedCvId(null);
+            setApiError(updatedUploadedDoc.processingError || 'CV OCR and AI extraction failed.');
+            setUploadProgress(initialUploadProgress);
           }
         }
 
@@ -968,6 +1025,10 @@ export const CandidateUploadCv: React.FC = () => {
         fileName: string;
         parsedAt?: string | null;
         rawText?: string;
+        processingStatus?: string;
+        processingMethod?: string | null;
+        processingError?: string | null;
+        structuredData?: { resume?: unknown; confidence?: number } | null;
         createdAt: string;
       }>('/candidate/cvs', token, { method: 'POST', body: formData });
       const newDoc = mapDocument(uploaded);
@@ -1693,13 +1754,32 @@ export const CandidateUploadCv: React.FC = () => {
                       {/* Parsing Status */}
                       <td className="px-6 py-4">
                         {doc.parsingStatus === 'Ready' && (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/50 text-[10px] font-bold">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span> Ready
-                          </span>
+                          <div className="flex flex-col items-start gap-1">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/50 text-[10px] font-bold">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span> Ready
+                            </span>
+                            {doc.processingMethod && (
+                              <span className="text-[10px] text-outline">
+                                {doc.processingMethod === 'AI_VISION'
+                                  ? 'Gemini Vision OCR'
+                                  : doc.processingMethod === 'AI_TEXT'
+                                    ? 'Gemini extraction'
+                                    : 'Local text'}
+                              </span>
+                            )}
+                          </div>
                         )}
                         {doc.parsingStatus === 'Parsing...' && (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200/50 text-[10px] font-bold">
                             <Icons.spinner /> Parsing...
+                          </span>
+                        )}
+                        {doc.parsingStatus === 'Failed' && (
+                          <span
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 text-red-700 border border-red-200/50 text-[10px] font-bold"
+                            title={doc.processingError || 'CV processing failed'}
+                          >
+                            <Icons.warning /> Failed
                           </span>
                         )}
                       </td>

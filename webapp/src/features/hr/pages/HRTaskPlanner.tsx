@@ -2,13 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest, ApiError } from '../../../lib/api';
-import {
-  HRActionButton,
-  HRCard,
-  HRInlineAlert,
-  HRLoadingState,
-  HRPageHeader,
-} from '../components';
+import { HRActionButton, HRCard, HRInlineAlert, HRLoadingState, HRPageHeader } from '../components';
 
 type TaskStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
 type TaskType = 'JOB_POSTING' | 'CV_COLLECTION' | 'CV_SCREENING' | 'INTERVIEW_COORDINATION';
@@ -21,6 +15,11 @@ type TaskPlanApiItem = {
   startDate: string;
   endDate: string;
   status: TaskStatus;
+  reminders?: Array<{
+    reminderKey: string;
+    scheduledFor: string;
+    status: 'PENDING' | 'PROCESSING' | 'SENT' | 'FAILED' | 'SKIPPED';
+  }>;
   updatedAt: string;
   assignedTo: { id: string; displayName: string; email?: string } | null;
   overallPlan: {
@@ -129,7 +128,9 @@ export const TaskPlanner: React.FC = () => {
       const response = await apiRequest<TaskPlanApiItem[]>('/task-plan', token);
       setTasks(response);
       setSelectedTask((current) =>
-        current ? response.find((task) => task.id === current.id) ?? response[0] ?? null : response[0] ?? null,
+        current
+          ? (response.find((task) => task.id === current.id) ?? response[0] ?? null)
+          : (response[0] ?? null),
       );
     } catch (loadError) {
       setApiError(loadError instanceof Error ? loadError.message : 'Unable to load task plans');
@@ -194,7 +195,8 @@ export const TaskPlanner: React.FC = () => {
     {
       label: 'Completed This Week',
       value: tasks.filter(
-        (task) => task.status === 'COMPLETED' && new Date(task.updatedAt ?? task.endDate) >= weekStart,
+        (task) =>
+          task.status === 'COMPLETED' && new Date(task.updatedAt ?? task.endDate) >= weekStart,
       ).length,
       helper: 'Tasks',
       tone: 'text-approved',
@@ -339,16 +341,22 @@ export const TaskPlanner: React.FC = () => {
             <table className="w-full min-w-[980px] border-collapse text-left">
               <thead className="bg-parchment-lift text-xs uppercase tracking-[0.14em] text-secondary">
                 <tr>
-                  {['Task Type', 'Campaign', 'Assignee', 'Start Date', 'Due Date', 'Status', 'Actions'].map(
-                    (column) => (
-                      <th
-                        className={`px-5 py-4 font-semibold ${column === 'Actions' ? 'text-right' : ''}`}
-                        key={column}
-                      >
-                        {column}
-                      </th>
-                    ),
-                  )}
+                  {[
+                    'Task Type',
+                    'Campaign',
+                    'Assignee',
+                    'Start Date',
+                    'Due Date',
+                    'Status',
+                    'Actions',
+                  ].map((column) => (
+                    <th
+                      className={`px-5 py-4 font-semibold ${column === 'Actions' ? 'text-right' : ''}`}
+                      key={column}
+                    >
+                      {column}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-warm">
@@ -381,7 +389,16 @@ export const TaskPlanner: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-5 py-4 text-sm text-slate-ink">
-                        {formatDate(task.startDate)}
+                        <div>{formatDate(task.startDate)}</div>
+                        {task.reminders?.some((reminder) => reminder.status === 'SENT') ? (
+                          <span className="text-[10px] font-semibold uppercase text-teal-command">
+                            Reminder sent
+                          </span>
+                        ) : task.reminders?.some((reminder) => reminder.status === 'PENDING') ? (
+                          <span className="text-[10px] font-semibold uppercase text-slate-ink">
+                            Reminder scheduled
+                          </span>
+                        ) : null}
                       </td>
                       <td
                         className={`px-5 py-4 text-sm ${

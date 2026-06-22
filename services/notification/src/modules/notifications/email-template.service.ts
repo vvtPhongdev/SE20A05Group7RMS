@@ -53,6 +53,19 @@ We wish you the best of luck in your job search and future professional endeavor
 Sincerely,
 HR Team — Works Recruiter`,
   },
+  [EmailTemplateType.TASK_DEADLINE_REMINDER]: {
+    subject: 'Task deadline reminder: {{position}}',
+    body: `Hello {{recipientName}},
+
+Your {{taskType}} task for {{position}} is {{timing}}.
+
+Deadline: {{deadline}}
+
+Please complete the task or update its status in the recruitment system.
+
+Best regards,
+HR Team - Works Recruiter`,
+  },
 };
 
 @Injectable()

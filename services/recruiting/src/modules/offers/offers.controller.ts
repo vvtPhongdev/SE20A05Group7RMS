@@ -23,8 +23,8 @@ export class OffersController {
   }
 
   @MessagePattern('recruiting.offers.get')
-  get(@Payload() payload: { id: string }) {
-    return this.service.get(payload.id);
+  get(@Payload() payload: { id: string; actorUserId?: string; actorRole?: string }) {
+    return this.service.get(payload.id, payload.actorUserId, payload.actorRole);
   }
 
   @MessagePattern('recruiting.offers.send')
@@ -38,9 +38,15 @@ export class OffersController {
     payload: {
       id: string;
       response: OfferResponse;
+      note?: string;
       candidateUserId: string;
     },
   ) {
-    return this.service.respond(payload.id, payload.response, payload.candidateUserId);
+    return this.service.respond(
+      payload.id,
+      payload.response,
+      payload.candidateUserId,
+      payload.note,
+    );
   }
 }

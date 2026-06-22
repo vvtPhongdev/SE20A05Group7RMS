@@ -193,6 +193,26 @@ export const AdminInterviewResults: React.FC = () => {
     );
     if (!notes?.trim()) return;
 
+    let compensation: string | undefined;
+    let startDate: string | undefined;
+    if (action === 'Approved') {
+      const enteredCompensation = window.prompt(
+        `Enter compensation for ${candidate.name}:`,
+        'Negotiable',
+      );
+      if (!enteredCompensation?.trim()) return;
+      const enteredStartDate = window.prompt(
+        'Enter proposed start date (YYYY-MM-DD):',
+        new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      );
+      if (!enteredStartDate || Number.isNaN(new Date(enteredStartDate).getTime())) {
+        setApiError('A valid offer start date is required.');
+        return;
+      }
+      compensation = enteredCompensation.trim();
+      startDate = new Date(`${enteredStartDate}T00:00:00.000Z`).toISOString();
+    }
+
     setSubmitting(true);
     setApiError('');
     try {
@@ -210,6 +230,13 @@ export const AdminInterviewResults: React.FC = () => {
           body: JSON.stringify({
             decision: action === 'Approved' ? 'HIRE' : 'REJECT',
             notes: notes.trim(),
+            ...(action === 'Approved'
+              ? {
+                  candidateId: candidate.candidateId,
+                  compensation,
+                  startDate,
+                }
+              : {}),
           }),
         });
       }
