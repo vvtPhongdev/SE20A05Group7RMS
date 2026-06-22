@@ -37,21 +37,21 @@ model User {
   candidateProfile  CandidateProfile?
   departmentsHeaded Department[]      @relation("DepartmentHead")
 
-  requestsCreated  RecruitmentRequest[] @relation("CreatedRequests")
-  requestsReviewed RecruitmentRequest[] @relation("ReviewedRequests")
-  requestsApproved RecruitmentRequest[] @relation("ApprovedRequests")
-  approvalRecords  ApprovalRecord[]
-  requestLogs      RequestLog[]
-  plansCreated     OverallPlan[]        @relation("CreatedPlans")
-  plansApproved    OverallPlan[]        @relation("ApprovedPlans")
-  tasksAssigned    TaskPlan[]
-  notifications    Notification[]
-  emails           EmailLog[]
-  offersGenerated  OfferLetter[]        @relation("GeneratedOffers")
-  interviewResults InterviewResult[]
-  applicationsCollected Application[]    @relation("CollectedApplications")
-  talentSearchRuns TalentSearchRun[]     @relation("TalentSearchActor")
-  talentSearchFeedback TalentSearchFeedback[] @relation("TalentSearchFeedbackActor")
+  requestsCreated       RecruitmentRequest[]   @relation("CreatedRequests")
+  requestsReviewed      RecruitmentRequest[]   @relation("ReviewedRequests")
+  requestsApproved      RecruitmentRequest[]   @relation("ApprovedRequests")
+  approvalRecords       ApprovalRecord[]
+  requestLogs           RequestLog[]
+  plansCreated          OverallPlan[]          @relation("CreatedPlans")
+  plansApproved         OverallPlan[]          @relation("ApprovedPlans")
+  tasksAssigned         TaskPlan[]
+  notifications         Notification[]
+  emails                EmailLog[]
+  offersGenerated       OfferLetter[]          @relation("GeneratedOffers")
+  interviewResults      InterviewResult[]
+  applicationsCollected Application[]          @relation("CollectedApplications")
+  talentSearchRuns      TalentSearchRun[]      @relation("TalentSearchActor")
+  talentSearchFeedback  TalentSearchFeedback[] @relation("TalentSearchFeedbackActor")
 
   @@index([organizationId], map: "idx_users_organization")
   @@index([departmentId], map: "idx_users_department")
@@ -119,18 +119,18 @@ model RecruitmentRequest {
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
-  department      Department          @relation(fields: [departmentId], references: [id], onDelete: Cascade)
-  createdBy       User                @relation("CreatedRequests", fields: [createdById], references: [id], onDelete: Cascade)
-  reviewedBy      User?               @relation("ReviewedRequests", fields: [reviewedById], references: [id], onDelete: SetNull)
-  approvedBy      User?               @relation("ApprovedRequests", fields: [approvedById], references: [id], onDelete: SetNull)
-  approvalRecords ApprovalRecord[]
-  logs            RequestLog[]
-  overallPlan     OverallPlan?
-  interviews      InterviewSchedule[]
-  jobPosting      JobPosting?
-  applications    Application[]
-  offers          OfferLetter[]
-  talentSearchRuns TalentSearchRun[]
+  department           Department             @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  createdBy            User                   @relation("CreatedRequests", fields: [createdById], references: [id], onDelete: Cascade)
+  reviewedBy           User?                  @relation("ReviewedRequests", fields: [reviewedById], references: [id], onDelete: SetNull)
+  approvedBy           User?                  @relation("ApprovedRequests", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvalRecords      ApprovalRecord[]
+  logs                 RequestLog[]
+  overallPlan          OverallPlan?
+  interviews           InterviewSchedule[]
+  jobPosting           JobPosting?
+  applications         Application[]
+  offers               OfferLetter[]
+  talentSearchRuns     TalentSearchRun[]
   talentSearchFeedback TalentSearchFeedback[]
 
   @@index([departmentId], map: "idx_recruitment_requests_department")
@@ -247,12 +247,32 @@ model TaskPlan {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  overallPlan OverallPlan @relation(fields: [overallPlanId], references: [id], onDelete: Cascade)
-  assignedTo  User        @relation(fields: [assignedToId], references: [id], onDelete: Cascade)
+  overallPlan OverallPlan    @relation(fields: [overallPlanId], references: [id], onDelete: Cascade)
+  assignedTo  User           @relation(fields: [assignedToId], references: [id], onDelete: Cascade)
+  reminders   TaskReminder[]
 
   @@index([overallPlanId], map: "idx_task_plans_overall_plan")
   @@index([assignedToId], map: "idx_task_plans_assigned_to")
   @@map("task_plans")
+}
+
+model TaskReminder {
+  id           String    @id @default(uuid())
+  taskPlanId   String    @map("task_plan_id")
+  reminderKey  String    @map("reminder_key")
+  scheduledFor DateTime  @map("scheduled_for")
+  sentAt       DateTime? @map("sent_at")
+  status       String    @default("PENDING")
+  emailLogId   String?   @map("email_log_id")
+  errorMessage String?   @map("error_message") @db.Text
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  taskPlan TaskPlan @relation(fields: [taskPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([taskPlanId, reminderKey], map: "uq_task_reminders_task_key")
+  @@index([scheduledFor], map: "idx_task_reminders_scheduled_for")
+  @@map("task_reminders")
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -270,11 +290,11 @@ model CandidateProfile {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  cvDocuments  CandidateCV[]
-  interviews   InterviewSchedule[]
-  applications Application[]
-  offers       OfferLetter[]
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cvDocuments          CandidateCV[]
+  interviews           InterviewSchedule[]
+  applications         Application[]
+  offers               OfferLetter[]
   talentSearchFeedback TalentSearchFeedback[]
 
   @@map("candidate_profiles")
@@ -288,6 +308,11 @@ model CandidateCV {
   filePath        String    @map("file_path")
   rawText         String    @map("raw_text") @db.Text
   parsedAt        DateTime? @map("parsed_at")
+  processingStatus String   @default("PENDING") @map("processing_status")
+  processingMethod String?  @map("processing_method")
+  processingError  String?  @map("processing_error") @db.Text
+  structuredData   Json?    @map("structured_data")
+  extractedAt      DateTime? @map("extracted_at")
   screeningStatus String    @default("PENDING") @map("screening_status") // PENDING | SHORTLISTED | REJECTED
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
@@ -296,6 +321,7 @@ model CandidateCV {
   cvEmbeddings CvEmbedding[]
 
   @@index([candidateId], map: "idx_candidate_cvs_candidate")
+  @@index([processingStatus], map: "idx_candidate_cvs_processing_status")
   @@map("candidate_cvs")
 }
 
@@ -320,20 +346,20 @@ model CvEmbedding {
 // ═══════════════════════════════════════════════════════════════════
 
 model InterviewSchedule {
-  id                  String            @id @default(uuid())
-  requestId           String            @map("request_id")
-  candidateId         String            @map("candidate_id")
-  scheduledAt         DateTime          @map("scheduled_at")
+  id                  String   @id @default(uuid())
+  requestId           String   @map("request_id")
+  candidateId         String   @map("candidate_id")
+  scheduledAt         DateTime @map("scheduled_at")
   duration            Int // Duration in minutes
   location            String // Interview meeting room or URL
   interviewers        String[] // User IDs (interviewers)
-  status              String            @default("SCHEDULED") // InterviewStatus enum
+  status              String   @default("SCHEDULED") // InterviewStatus enum
   /// Khuyến nghị tuyển dụng cuối cùng từ hội đồng/HR Manager (Recommend Hire, Recommend Reject, Hold for Further)
-  finalRecommendation String?           @map("final_recommendation")
+  finalRecommendation String?  @map("final_recommendation")
   /// Ý kiến tóm tắt/nhận xét tổng quan của HR Manager
-  summaryNotes        String?           @map("summary_notes") @db.Text
-  createdAt           DateTime          @default(now()) @map("created_at")
-  updatedAt           DateTime          @updatedAt @map("updated_at")
+  summaryNotes        String?  @map("summary_notes") @db.Text
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
 
   request   RecruitmentRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
   candidate CandidateProfile   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
@@ -345,19 +371,19 @@ model InterviewSchedule {
 }
 
 model InterviewResult {
-  id            String            @id @default(uuid())
-  interviewId   String            @map("interview_id")
+  id            String   @id @default(uuid())
+  interviewId   String   @map("interview_id")
   result        String // InterviewResult enum: PASS, FAIL
-  notes         String?           @db.Text
-  evaluatorId   String?           @map("evaluator_id")
+  notes         String?  @db.Text
+  evaluatorId   String?  @map("evaluator_id")
   /// Điểm đánh giá kỹ thuật (thang điểm 10) từ thành viên hội đồng
-  technical     Int?              @map("technical")
+  technical     Int?     @map("technical")
   /// Điểm đánh giá kỹ năng giao tiếp (thang điểm 10) từ thành viên hội đồng
-  communication Int?              @map("communication")
+  communication Int?     @map("communication")
   /// Điểm đánh giá độ phù hợp văn hóa (thang điểm 10) từ thành viên hội đồng
-  culture       Int?              @map("culture")
-  createdAt     DateTime          @default(now()) @map("created_at")
-  updatedAt     DateTime          @updatedAt @map("updated_at")
+  culture       Int?     @map("culture")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   interview InterviewSchedule @relation(fields: [interviewId], references: [id], onDelete: Cascade)
   evaluator User?             @relation(fields: [evaluatorId], references: [id], onDelete: SetNull)
@@ -381,6 +407,8 @@ model OfferLetter {
   emailLogId     String?   @map("email_log_id")
   sentAt         DateTime? @map("sent_at")
   respondedAt    DateTime? @map("responded_at")
+  response       String?   @map("response")
+  responseNote   String?   @map("response_note") @db.Text
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
@@ -442,9 +470,9 @@ model Application {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  request   RecruitmentRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  candidate CandidateProfile   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  collectedBy User?            @relation("CollectedApplications", fields: [collectedById], references: [id], onDelete: SetNull)
+  request     RecruitmentRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  candidate   CandidateProfile   @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  collectedBy User?              @relation("CollectedApplications", fields: [collectedById], references: [id], onDelete: SetNull)
 
   @@unique([requestId, candidateId], map: "uq_applications_request_candidate")
   @@index([requestId], map: "idx_applications_request")
@@ -454,16 +482,16 @@ model Application {
 }
 
 model TalentSearchRun {
-  id              String   @id @default(uuid())
-  actorUserId     String?  @map("actor_user_id")
-  actorRole       String?  @map("actor_role")
-  requestId       String?  @map("request_id")
-  query           String   @db.Text
-  filters         Json     @default("{}")
-  expandedSkills  Json     @default("[]") @map("expanded_skills")
-  resultCount     Int      @default(0) @map("result_count")
-  modelVersion    String   @map("model_version")
-  createdAt       DateTime @default(now()) @map("created_at")
+  id             String   @id @default(uuid())
+  actorUserId    String?  @map("actor_user_id")
+  actorRole      String?  @map("actor_role")
+  requestId      String?  @map("request_id")
+  query          String   @db.Text
+  filters        Json     @default("{}")
+  expandedSkills Json     @default("[]") @map("expanded_skills")
+  resultCount    Int      @default(0) @map("result_count")
+  modelVersion   String   @map("model_version")
+  createdAt      DateTime @default(now()) @map("created_at")
 
   actor    User?                  @relation("TalentSearchActor", fields: [actorUserId], references: [id], onDelete: SetNull)
   request  RecruitmentRequest?    @relation(fields: [requestId], references: [id], onDelete: SetNull)
@@ -476,25 +504,25 @@ model TalentSearchRun {
 }
 
 model TalentSearchFeedback {
-  id                  String   @id @default(uuid())
-  searchRunId         String   @map("search_run_id")
-  candidateId         String   @map("candidate_id")
-  actorUserId         String?  @map("actor_user_id")
-  requestId           String?  @map("request_id")
-  action              String
-  rank                Int?
-  overallScore        Float?   @map("overall_score")
-  vectorScore         Float?   @map("vector_score")
-  graphScore          Float?   @map("graph_score")
-  coverageScore       Float?   @map("coverage_score")
-  query               String   @db.Text
-  candidateSnapshot   Json     @default("{}") @map("candidate_snapshot")
-  metadata            Json     @default("{}")
-  createdAt           DateTime @default(now()) @map("created_at")
+  id                String   @id @default(uuid())
+  searchRunId       String   @map("search_run_id")
+  candidateId       String   @map("candidate_id")
+  actorUserId       String?  @map("actor_user_id")
+  requestId         String?  @map("request_id")
+  action            String
+  rank              Int?
+  overallScore      Float?   @map("overall_score")
+  vectorScore       Float?   @map("vector_score")
+  graphScore        Float?   @map("graph_score")
+  coverageScore     Float?   @map("coverage_score")
+  query             String   @db.Text
+  candidateSnapshot Json     @default("{}") @map("candidate_snapshot")
+  metadata          Json     @default("{}")
+  createdAt         DateTime @default(now()) @map("created_at")
 
-  searchRun TalentSearchRun  @relation(fields: [searchRunId], references: [id], onDelete: Cascade)
-  candidate CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
-  actor     User?            @relation("TalentSearchFeedbackActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  searchRun TalentSearchRun     @relation(fields: [searchRunId], references: [id], onDelete: Cascade)
+  candidate CandidateProfile    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  actor     User?               @relation("TalentSearchFeedbackActor", fields: [actorUserId], references: [id], onDelete: SetNull)
   request   RecruitmentRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
 
   @@index([searchRunId], map: "idx_talent_search_feedback_run")

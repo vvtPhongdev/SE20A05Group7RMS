@@ -16,6 +16,7 @@ describe('OfferLetterService', () => {
     application: { update: jest.fn() },
     requestLog: { create: jest.fn() },
     emailLog: { create: jest.fn() },
+    notification: { create: jest.fn() },
     $transaction: jest.fn(),
   };
   const emailQueue = { add: jest.fn() };
@@ -97,6 +98,7 @@ describe('OfferLetterService', () => {
     prisma.recruitmentRequest.update.mockReturnValue({ operation: 'request' });
     prisma.application.update.mockReturnValue({ operation: 'application' });
     prisma.requestLog.create.mockReturnValue({ operation: 'log' });
+    prisma.notification.create.mockReturnValue({ operation: 'notification' });
     prisma.$transaction.mockResolvedValue([
       { id: 'email-1' },
       { id: 'offer-1', status: OfferStatus.SENT },
@@ -137,7 +139,21 @@ describe('OfferLetterService', () => {
     prisma.requestLog.create.mockReturnValue({ operation: 'log' });
     prisma.$transaction.mockResolvedValue([{ id: 'offer-1', status: OfferStatus.ACCEPTED }]);
 
-    const result = await service.respond('offer-1', OfferResponse.ACCEPT, 'user-1');
+    const result = await service.respond(
+      'offer-1',
+      OfferResponse.ACCEPT,
+      'user-1',
+      'Happy to join',
+    );
+
+    expect(prisma.offerLetter.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          response: OfferResponse.ACCEPT,
+          responseNote: 'Happy to join',
+        }),
+      }),
+    );
 
     expect(prisma.application.update).toHaveBeenCalledWith(
       expect.objectContaining({

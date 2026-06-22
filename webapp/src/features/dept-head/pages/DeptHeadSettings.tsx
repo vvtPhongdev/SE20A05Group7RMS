@@ -36,6 +36,7 @@ interface ApiUser {
   phone?: string | null;
   department?: ApiDepartment | null;
   departmentsHeaded?: ApiDepartment[];
+  organizationId?: string;
 }
 
 interface UserListResponse {
@@ -60,6 +61,16 @@ interface NotificationPreference {
   description: string;
   enabled: boolean;
   disabled?: boolean;
+}
+
+interface OrganizationResponse {
+  id: string;
+  settings?: Record<string, unknown>;
+}
+
+interface DeptHeadSettingsState {
+  preferences?: NotificationPreference[];
+  selectedPriority?: Priority;
 }
 
 const initialPreferences: NotificationPreference[] = [
@@ -138,10 +149,18 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
       <path d="M19 7V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-1m0-10h-7a2 2 0 0 0 0 4h7V7Zm-3 2h.01" />
     ),
     edit: <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" />,
-    engineering: <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48 2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48 2.83-2.83M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />,
-    more: <path d="M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM19 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM5 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" />,
-    notifications: <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />,
-    priority: <path d="M12 7v6m0 4h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />,
+    engineering: (
+      <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48 2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48 2.83-2.83M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+    ),
+    more: (
+      <path d="M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM19 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM5 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" />
+    ),
+    notifications: (
+      <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />
+    ),
+    priority: (
+      <path d="M12 7v6m0 4h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+    ),
     search: <path d="m21 21-4.3-4.3M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" />,
     check: <path d="M20 6 9 17l-5-5" />,
     plus: <path d="M12 5v14M5 12h14" />,
@@ -173,12 +192,8 @@ export const DeptHeadSettings: React.FC = () => {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [preferences, setPreferences] = useState(initialPreferences);
   const [selectedPriority, setSelectedPriority] = useState<Priority>('High');
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(fallbackTeamMembers);
-  const [currentUser, setCurrentUser] = useState<CurrentUserResponse | null>(null);
-  const [department, setDepartment] = useState<DepartmentResponse | null>(null);
+  const [currentUser, setCurrentUser] = useState<ApiUser | null>(null);
   const [organization, setOrganization] = useState<OrganizationResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [apiError, setApiError] = useState('');
   const [saving, setSaving] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -249,20 +264,16 @@ export const DeptHeadSettings: React.FC = () => {
       setLoading(true);
       setApiError('');
       try {
-        const me = await apiRequest<CurrentUserResponse>('/me', token);
+        const me = await apiRequest<ApiUser>('/me', token);
         setCurrentUser(me);
 
-        const [departmentResponse, organizationResponse, usersResponse] = await Promise.all([
-          me.departmentId
-            ? apiRequest<DepartmentResponse>(`/departments/${me.departmentId}`, token)
-            : Promise.resolve(null),
+        const [organizationResponse, usersResponse] = await Promise.all([
           apiRequest<OrganizationResponse>(`/organizations/${me.organizationId}`, token),
-          apiRequest<UsersResponse>('/users?limit=100', token),
+          apiRequest<UserListResponse>('/users?limit=100', token),
         ]);
 
-        setDepartment(departmentResponse);
         setOrganization(organizationResponse);
-        setTeamMembers(usersResponse.data.map(mapUserToTeamMember));
+        setTeamMembers(usersResponse.data.map((member) => toTeamMember(member, user?.id)));
 
         const savedSettings = getDepartmentSettings(
           organizationResponse.settings,
@@ -282,7 +293,7 @@ export const DeptHeadSettings: React.FC = () => {
     };
 
     void loadSettings();
-  }, [token]);
+  }, [token, user?.id]);
 
   const filteredMembers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -342,7 +353,11 @@ export const DeptHeadSettings: React.FC = () => {
         previousSettings,
         currentUser.departmentId ?? 'unassigned',
       );
-      setPreferences(savedSettings.preferences?.length ? mergePreferences(savedSettings.preferences) : initialPreferences);
+      setPreferences(
+        savedSettings.preferences?.length
+          ? mergePreferences(savedSettings.preferences)
+          : initialPreferences,
+      );
       setSelectedPriority(savedSettings.selectedPriority ?? 'High');
     } finally {
       setSaving(false);
@@ -451,13 +466,17 @@ export const DeptHeadSettings: React.FC = () => {
 
             <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">
               <span>{utilizedPercent}% Filled</span>
-              <span>{activeRequests.length} Active Request{activeRequests.length === 1 ? '' : 's'}</span>
+              <span>
+                {activeRequests.length} Active Request{activeRequests.length === 1 ? '' : 's'}
+              </span>
             </div>
           </div>
 
           <div className="mt-6 flex items-center gap-2 border-t border-border-warm pt-4 text-on-surface-variant">
             <Icon className="h-4 w-4" name="info" />
-            <p className="text-xs">Target fill rate: {targetPercent}% for active recruitment plans</p>
+            <p className="text-xs">
+              Target fill rate: {targetPercent}% for active recruitment plans
+            </p>
           </div>
         </section>
 
@@ -535,7 +554,7 @@ export const DeptHeadSettings: React.FC = () => {
             </table>
           </div>
 
-                {filteredMembers.length === 0 && (
+          {filteredMembers.length === 0 && (
             <div className="border-t border-border-warm px-6 py-12 text-center">
               <p className="text-sm font-semibold text-deep-charcoal">No team members found</p>
               <p className="mt-1 text-sm text-slate-ink">Try a different search term.</p>
@@ -637,27 +656,6 @@ const InitialAvatar = ({ name }: { name: string }) => (
       .join('')}
   </div>
 );
-
-const mapUserToTeamMember = (user: UsersResponse['data'][number]): TeamMember => ({
-  id: user.id,
-  name: user.displayName,
-  role: roleLabel(user.role),
-  email: user.email,
-  phone: user.phone || 'No phone provided',
-  permission: permissionForRole(user.role),
-});
-
-const roleLabel = (role: string) =>
-  role
-    .split('_')
-    .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
-    .join(' ');
-
-const permissionForRole = (role: string): Permission => {
-  if (role === 'DEPARTMENT_HEAD') return 'Full Admin';
-  if (role === 'HR_LEADER' || role === 'HR_RECRUITER') return 'Request Reviewer';
-  return 'Interviewer';
-};
 
 const getDeptHeadSettingsMap = (settings: Record<string, unknown>) => {
   const value = settings.deptHeadSettings;

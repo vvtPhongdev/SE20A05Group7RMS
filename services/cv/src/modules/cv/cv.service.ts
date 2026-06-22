@@ -15,7 +15,6 @@ export class CvService {
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
     @InjectQueue(QUEUE_NAMES.CV_PARSE) private readonly cvParseQueue: Queue,
-    @InjectQueue(QUEUE_NAMES.EMBEDDING_GENERATE) private readonly embeddingQueue: Queue,
   ) {}
 
   private async removeStoredFile(filePath: string) {
@@ -61,7 +60,10 @@ export class CvService {
         fileType,
         filePath,
         rawText,
-        parsedAt: rawText ? new Date() : null,
+        parsedAt: null,
+        processingStatus: 'PENDING',
+        processingMethod: null,
+        processingError: null,
       },
     });
 
@@ -76,39 +78,22 @@ export class CvService {
       })
       .catch((err) => console.error('Failed to write audit log for CV_UPLOADED:', err));
 
-    if (!rawText) {
-      await this.cvParseQueue.add(
-        JOB_NAMES.PARSE_CV,
-        {
-          cvDocumentId: cvRecord.id,
-          filePath: cvRecord.filePath,
+    await this.cvParseQueue.add(
+      JOB_NAMES.PARSE_CV,
+      {
+        cvDocumentId: cvRecord.id,
+        filePath: cvRecord.filePath,
+      },
+      {
+        jobId: `cv-parse-${cvRecord.id}`,
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 1000,
         },
-        {
-          jobId: `cv-parse-${cvRecord.id}`,
-          attempts: 3,
-          backoff: {
-            type: 'exponential',
-            delay: 1000,
-          },
-        },
-      );
-    } else {
-      await this.embeddingQueue.add(
-        JOB_NAMES.GENERATE_EMBEDDING,
-        {
-          cvDocumentId: cvRecord.id,
-          rawText: cvRecord.rawText,
-        },
-        {
-          jobId: `cv-embedding-${cvRecord.id}-${Date.now()}`,
-          attempts: 3,
-          backoff: {
-            type: 'exponential',
-            delay: 1000,
-          },
-        },
-      );
-    }
+        removeOnFail: true,
+      },
+    );
 
     return cvRecord;
   }

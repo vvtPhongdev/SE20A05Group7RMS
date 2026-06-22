@@ -66,7 +66,13 @@ export class UsersService {
     };
   }
 
-  async list(query: { page?: number; limit?: number; role?: string; roles?: string[] }) {
+  async list(query: {
+    page?: number;
+    limit?: number;
+    role?: string;
+    roles?: string[];
+    departmentId?: string;
+  }) {
     const page = Math.max(1, query.page || 1);
     const limit = Math.max(1, Math.min(100, query.limit || 10));
     const skip = (page - 1) * limit;

@@ -41,6 +41,7 @@ type TaskItem = {
   assigneeId?: string;
   assigneeName?: string;
   assigneeRole?: string;
+  reminderStatus?: string;
 };
 
 type CampaignData = {
@@ -75,6 +76,7 @@ interface TaskPlanApiItem {
   startDate: string;
   endDate: string;
   assignedTo: { id: string; displayName: string; role?: string; email?: string } | null;
+  reminders?: Array<{ reminderKey: string; scheduledFor: string; status: string }>;
 }
 
 interface OverallPlanFull {
@@ -341,22 +343,21 @@ export const HRCampaignDetail: React.FC = () => {
         applicationsResponse,
         schedulesResponse,
         jobPostingsResponse,
-      ] =
-        await Promise.all([
-          apiRequest<RecruitmentRequestApiItem>(`/recruitment-requests/${campaignId}`, token),
-          apiRequest<OverallPlanFull>(`/overall-plan/by-request/${campaignId}`, token).catch(
-            (planError) => {
-              if (planError instanceof ApiError && planError.status === 404) return null;
-              throw planError;
-            },
-          ),
-          apiRequest<ApplicationApiItem[]>(`/applications?requestId=${campaignId}`, token),
-          apiRequest<InterviewScheduleApiItem[]>(
-            `/interviews/requests/${campaignId}/schedules`,
-            token,
-          ).catch(() => []),
-          apiRequest<JobPostingApiItem[]>('/job-postings', token).catch(() => []),
-        ]);
+      ] = await Promise.all([
+        apiRequest<RecruitmentRequestApiItem>(`/recruitment-requests/${campaignId}`, token),
+        apiRequest<OverallPlanFull>(`/overall-plan/by-request/${campaignId}`, token).catch(
+          (planError) => {
+            if (planError instanceof ApiError && planError.status === 404) return null;
+            throw planError;
+          },
+        ),
+        apiRequest<ApplicationApiItem[]>(`/applications?requestId=${campaignId}`, token),
+        apiRequest<InterviewScheduleApiItem[]>(
+          `/interviews/requests/${campaignId}/schedules`,
+          token,
+        ).catch(() => []),
+        apiRequest<JobPostingApiItem[]>('/job-postings', token).catch(() => []),
+      ]);
       if (
         user?.role === 'HR_RECRUITER' &&
         !planResponse?.tasks.some((task) => task.assignedTo?.id === user.id)
@@ -373,7 +374,9 @@ export const HRCampaignDetail: React.FC = () => {
       setPlan(planResponse);
       setApplications(applicationsResponse);
       setSchedules(schedulesResponse);
-      setJobPosting(jobPostingsResponse.find((posting) => posting.requestId === campaignId) ?? null);
+      setJobPosting(
+        jobPostingsResponse.find((posting) => posting.requestId === campaignId) ?? null,
+      );
     } catch (loadError) {
       setApiError(loadError instanceof Error ? loadError.message : 'Unable to load campaign');
       setRequest(null);
@@ -433,6 +436,11 @@ export const HRCampaignDetail: React.FC = () => {
         assigneeName:
           task.assignedTo?.role === 'HR_RECRUITER' ? task.assignedTo.displayName : undefined,
         assigneeRole: task.assignedTo?.role,
+        reminderStatus: task.reminders?.some((reminder) => reminder.status === 'SENT')
+          ? 'Reminder sent'
+          : task.reminders?.some((reminder) => reminder.status === 'PENDING')
+            ? 'Reminder scheduled'
+            : undefined,
       })),
     [plan],
   );
@@ -448,11 +456,7 @@ export const HRCampaignDetail: React.FC = () => {
     visibleTasks.length > 0 ? Math.round((visibleCompletedTasks / visibleTasks.length) * 100) : 0;
   const recruiterAssignedTaskTypes = useMemo(
     () =>
-      new Set(
-        tasks
-          .filter((task) => task.assigneeId === user?.id)
-          .map((task) => task.taskType),
-      ),
+      new Set(tasks.filter((task) => task.assigneeId === user?.id).map((task) => task.taskType)),
     [tasks, user?.id],
   );
   const canUseTaskPermission = (taskType: string) =>
@@ -483,7 +487,10 @@ export const HRCampaignDetail: React.FC = () => {
 
   const collectedCvTotal = collectionStats.reduce((sum, item) => sum + item.count, 0);
   const campaignMembers = useMemo(() => {
-    const byId = new Map<string, { id: string; name: string; taskCount: number; collectedCount: number }>();
+    const byId = new Map<
+      string,
+      { id: string; name: string; taskCount: number; collectedCount: number }
+    >();
 
     for (const task of tasks) {
       if (!task.assigneeId || !task.assigneeName) continue;
@@ -492,7 +499,8 @@ export const HRCampaignDetail: React.FC = () => {
         id: task.assigneeId,
         name: task.assigneeName,
         taskCount: (current?.taskCount ?? 0) + 1,
-        collectedCount: collectionCountsByRecruiter.get(task.assigneeId) ?? current?.collectedCount ?? 0,
+        collectedCount:
+          collectionCountsByRecruiter.get(task.assigneeId) ?? current?.collectedCount ?? 0,
       });
     }
 
@@ -531,8 +539,7 @@ export const HRCampaignDetail: React.FC = () => {
         .map((application, index) => {
           const hasCompletedInterview = schedules.some(
             (schedule) =>
-              schedule.candidateId === application.candidateId &&
-              schedule.status === 'COMPLETED',
+              schedule.candidateId === application.candidateId && schedule.status === 'COMPLETED',
           );
 
           let stage: KanbanStage;
@@ -600,8 +607,7 @@ export const HRCampaignDetail: React.FC = () => {
 
     return sorted.map((schedule, index) => {
       const application = applications.find((item) => item.candidateId === schedule.candidateId);
-      const candidateName =
-        application?.candidate.fullName ?? 'Unknown candidate';
+      const candidateName = application?.candidate.fullName ?? 'Unknown candidate';
 
       const scheduledDate = new Date(schedule.scheduledAt);
       const weekDay = weekDays.find(
@@ -628,7 +634,10 @@ export const HRCampaignDetail: React.FC = () => {
     Boolean(plan) &&
     ['DRAFT', 'REJECTED', 'PENDING_APPROVAL'].includes(plan?.status ?? '');
   const canSubmitPlan =
-    canManagePlan && Boolean(plan) && ['DRAFT', 'REJECTED'].includes(plan?.status ?? '') && tasks.length > 0;
+    canManagePlan &&
+    Boolean(plan) &&
+    ['DRAFT', 'REJECTED'].includes(plan?.status ?? '') &&
+    tasks.length > 0;
   const canAssignRecruiters = canManagePlan && plan?.status === 'APPROVED';
   const canStartCampaign =
     canAssignRecruiters &&
@@ -640,8 +649,7 @@ export const HRCampaignDetail: React.FC = () => {
   const hasCandidateSearchTask =
     tasks.some((task) => task.taskType === 'CV_COLLECTION') ||
     tasks.some((task) => task.taskType === 'CV_SCREENING');
-  const canCreateJobPosting =
-    canManagePlan && request?.status === 'ACTIVE' && hasJobPostingTask;
+  const canCreateJobPosting = canManagePlan && request?.status === 'ACTIVE' && hasJobPostingTask;
   const canScheduleInterview =
     request?.status === 'ACTIVE' &&
     hasInterviewTask &&
@@ -859,46 +867,17 @@ export const HRCampaignDetail: React.FC = () => {
   };
 
   const openScheduleForm = () => {
-    setScheduleCandidateId((current) => current || schedulableApplications[0]?.candidateId || '');
-    setQuickActionError('');
-    setShowScheduleForm(true);
+    const candidateId = scheduleCandidateId || schedulableApplications[0]?.candidateId || '';
+    navigate(
+      `/hr/interviews?requestId=${encodeURIComponent(campaignId)}&candidateId=${encodeURIComponent(candidateId)}`,
+    );
   };
 
   const createInterviewSchedule = async () => {
-    if (
-      !user?.id ||
-      !canScheduleInterview ||
-      !scheduleCandidateId ||
-      !scheduleAt ||
-      !scheduleLocation.trim()
-    )
-      return;
-
-    setQuickActionSubmitting('schedule-interview');
-    setQuickActionError('');
-    try {
-      await apiRequest<InterviewScheduleApiItem>('/interviews/schedules', token, {
-        method: 'POST',
-        body: JSON.stringify({
-          requestId: campaignId,
-          candidateId: scheduleCandidateId,
-          scheduledAt: new Date(scheduleAt).toISOString(),
-          duration: Number(scheduleDuration),
-          location: scheduleLocation.trim(),
-          interviewers: [user.id],
-        }),
-      });
-      setShowScheduleForm(false);
-      setScheduleAt('');
-      setScheduleLocation('');
-      await loadCampaign();
-    } catch (scheduleErr) {
-      setQuickActionError(
-        scheduleErr instanceof ApiError ? scheduleErr.message : 'Unable to schedule interview',
-      );
-    } finally {
-      setQuickActionSubmitting(null);
-    }
+    if (!scheduleCandidateId) return;
+    navigate(
+      `/hr/interviews?requestId=${encodeURIComponent(campaignId)}&candidateId=${encodeURIComponent(scheduleCandidateId)}`,
+    );
   };
 
   if (!campaign) {
@@ -1008,7 +987,9 @@ export const HRCampaignDetail: React.FC = () => {
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={actionSubmitting || !canSubmitPlan}
                   onClick={() => void submitPlan()}
-                  title={!canSubmitPlan ? 'Add at least one task before submitting the plan.' : undefined}
+                  title={
+                    !canSubmitPlan ? 'Add at least one task before submitting the plan.' : undefined
+                  }
                   type="button"
                 >
                   <Icon className="h-4 w-4" name="send" />
@@ -1143,7 +1124,10 @@ export const HRCampaignDetail: React.FC = () => {
                       );
 
                       return (
-                        <div className="min-h-[74px] border-l border-border-warm p-1.5" key={day.label}>
+                        <div
+                          className="min-h-[74px] border-l border-border-warm p-1.5"
+                          key={day.label}
+                        >
                           {items.map((interview) => (
                             <div
                               className={`mb-1 rounded-md border-l-2 p-2 transition hover:shadow-sm ${
@@ -1344,7 +1328,9 @@ export const HRCampaignDetail: React.FC = () => {
                         ) : null}
                       </p>
                     )}
-                    {editingTaskId !== task.id && canAssignRecruiters && request?.status !== 'ACTIVE' ? (
+                    {editingTaskId !== task.id &&
+                    canAssignRecruiters &&
+                    request?.status !== 'ACTIVE' ? (
                       <select
                         className="h-9 min-w-[200px] rounded-lg border border-border-warm bg-clean-surface px-3 text-xs font-semibold text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
                         disabled={membersLoading || taskBusyId === task.id}
@@ -1366,6 +1352,7 @@ export const HRCampaignDetail: React.FC = () => {
                         className={`font-mono text-xs ${task.done ? 'text-on-surface-variant' : 'text-slate-ink'}`}
                       >
                         {task.startDate} - {task.dueDate}
+                        {task.reminderStatus ? ` · ${task.reminderStatus}` : ''}
                       </span>
                     ) : null}
                     {editingTaskId !== task.id && canEditDraftTasks ? (
@@ -1810,7 +1797,6 @@ export const HRCampaignDetail: React.FC = () => {
               ) : null}
             </div>
           </section>
-
         </aside>
       </section>
     </div>
