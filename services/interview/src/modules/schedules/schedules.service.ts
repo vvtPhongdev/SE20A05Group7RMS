@@ -161,6 +161,42 @@ export class SchedulesService {
     return { request, plan };
   }
 
+  private async assertValidInterviewers(interviewerIds: string[]) {
+    const uniqueIds = [...new Set(interviewerIds ?? [])];
+    if (uniqueIds.length < 2) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'At least 2 interviewers are required to schedule an interview',
+      });
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: uniqueIds } },
+      select: { id: true, role: true, isActive: true, displayName: true, email: true },
+    });
+    if (users.length !== uniqueIds.length) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'One or more interviewers do not exist',
+      });
+    }
+
+    const allowedRoles: UserRole[] = [
+      UserRole.HR_LEADER,
+      UserRole.HR_RECRUITER,
+      UserRole.DEPARTMENT_HEAD,
+      UserRole.ADMIN,
+    ];
+    if (users.some((user) => !user.isActive || !allowedRoles.includes(user.role as UserRole))) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'Interviewers must be active internal users',
+      });
+    }
+
+    return { uniqueIds, users };
+  }
+
   // ─── Conflict detection ──────────────────────────────────────────────
 
   /**
@@ -236,6 +272,7 @@ export class SchedulesService {
     duration: number;
     location: string;
     interviewers: string[];
+    scheduledById?: string;
   }) {
     const scheduledAt = new Date(payload.scheduledAt);
 
@@ -260,20 +297,17 @@ export class SchedulesService {
       });
     }
 
-    if (!payload.interviewers.length) {
-      throw new RpcException({
-        status: HttpStatus.BAD_REQUEST,
-        message: 'At least one interviewer is required',
-      });
-    }
-
     // FR-07: all three plan-lock preconditions
     await this.assertPlanLocked(payload.requestId);
+    const { uniqueIds: interviewerIds, users: panel } = await this.assertValidInterviewers(
+      payload.interviewers,
+    );
+    const performedById = payload.scheduledById ?? interviewerIds[0]!;
 
     // Conflict check
     const conflicts = await this.detectConflicts(
       payload.candidateId,
-      payload.interviewers,
+      interviewerIds,
       scheduledAt,
       payload.duration,
     );
@@ -311,10 +345,14 @@ export class SchedulesService {
           scheduledAt,
           duration: payload.duration,
           location: payload.location,
-          interviewers: payload.interviewers,
+          interviewers: interviewerIds,
           status: InterviewStatus.SCHEDULED,
         },
-        include: { results: true },
+        include: {
+          results: true,
+          request: { select: { id: true, position: true } },
+          candidate: { select: { id: true, fullName: true, email: true, userId: true } },
+        },
       }),
       this.prisma.application.update({
         where: {
@@ -333,7 +371,7 @@ export class SchedulesService {
         data: {
           requestId: payload.requestId,
           action: 'INTERVIEW_SCHEDULED',
-          performedById: payload.interviewers[0] || 'SYSTEM',
+          performedById,
           metadata: {
             candidateId: payload.candidateId,
             scheduledAt: scheduledAt.toISOString(),
@@ -348,7 +386,7 @@ export class SchedulesService {
         entityId: schedule.id,
         action: AuditAction.INTERVIEW_SCHEDULED,
         toStatus: InterviewStatus.SCHEDULED,
-        performedById: payload.interviewers[0] || 'SYSTEM',
+        performedById,
         metadata: { candidateId: payload.candidateId, scheduledAt: scheduledAt.toISOString() },
       })
       .catch((err) => console.error('Failed to write audit log for INTERVIEW_SCHEDULED:', err));
@@ -390,7 +428,7 @@ export class SchedulesService {
         select: { userId: true, fullName: true, email: true },
       }),
       this.prisma.user.findMany({
-        where: { id: { in: payload.interviewers } },
+        where: { id: { in: interviewerIds } },
         select: { id: true, email: true, displayName: true },
       }),
       this.prisma.recruitmentRequest.findUnique({
@@ -463,7 +501,10 @@ export class SchedulesService {
         console.error('Failed to query details for interview invitation emails:', err),
       );
 
-    return schedule;
+    return {
+      ...schedule,
+      panel: panel.map(({ id, displayName, email, role }) => ({ id, displayName, email, role })),
+    };
   }
 
   async getSchedule(payload: { id: string; userId?: string; role?: string }) {
@@ -471,7 +512,10 @@ export class SchedulesService {
       where: { id: payload.id },
       include: {
         results: true,
-        candidate: { select: { userId: true } },
+        candidate: { select: { id: true, userId: true, fullName: true, email: true } },
+        request: {
+          select: { id: true, position: true, department: { select: { name: true } } },
+        },
       },
     });
 
@@ -493,15 +537,38 @@ export class SchedulesService {
       });
     }
 
-    return schedule;
+    const panel = await this.prisma.user.findMany({
+      where: { id: { in: schedule.interviewers } },
+      select: { id: true, displayName: true, email: true, role: true },
+    });
+    return { ...schedule, panel };
   }
 
   async listSchedules(requestId: string) {
-    return this.prisma.interviewSchedule.findMany({
+    const schedules = await this.prisma.interviewSchedule.findMany({
       where: { requestId },
-      include: { results: true },
+      include: {
+        results: true,
+        candidate: { select: { id: true, fullName: true, email: true } },
+        request: { select: { id: true, position: true } },
+      },
       orderBy: { scheduledAt: 'asc' },
     });
+    const interviewerIds = [...new Set(schedules.flatMap((schedule) => schedule.interviewers))];
+    const users = interviewerIds.length
+      ? await this.prisma.user.findMany({
+          where: { id: { in: interviewerIds } },
+          select: { id: true, displayName: true, email: true, role: true },
+        })
+      : [];
+    const userById = new Map(users.map((user) => [user.id, user]));
+    return schedules.map((schedule) => ({
+      ...schedule,
+      panel: schedule.interviewers.flatMap((id) => {
+        const user = userById.get(id);
+        return user ? [user] : [];
+      }),
+    }));
   }
 
   /**
@@ -759,18 +826,13 @@ export class SchedulesService {
       });
     }
 
-    if (!payload.interviewers.length) {
-      throw new RpcException({
-        status: HttpStatus.BAD_REQUEST,
-        message: 'At least one interviewer is required',
-      });
-    }
+    const { uniqueIds: interviewerIds } = await this.assertValidInterviewers(payload.interviewers);
 
     // Conflict check — exclude the schedule being rescheduled so it does not
     // conflict against its own old slot.
     const conflicts = await this.detectConflicts(
       existing.candidateId,
-      payload.interviewers,
+      interviewerIds,
       newStart,
       payload.duration,
       payload.id,
@@ -791,7 +853,7 @@ export class SchedulesService {
         select: { userId: true, fullName: true, email: true },
       }),
       this.prisma.user.findMany({
-        where: { id: { in: payload.interviewers } },
+        where: { id: { in: interviewerIds } },
         select: { id: true, email: true, displayName: true },
       }),
     ]);
@@ -841,7 +903,7 @@ export class SchedulesService {
           scheduledAt: newStart,
           duration: payload.duration,
           location: payload.location,
-          interviewers: payload.interviewers,
+          interviewers: interviewerIds,
           status: InterviewStatus.RESCHEDULED,
         },
       }),
@@ -849,7 +911,7 @@ export class SchedulesService {
         data: {
           requestId: existing.requestId,
           action: 'INTERVIEW_RESCHEDULED',
-          performedById: payload.interviewers[0] || 'SYSTEM',
+          performedById: interviewerIds[0]!,
           metadata: {
             interviewId: payload.id,
             reason: payload.reason.trim(),
@@ -867,7 +929,7 @@ export class SchedulesService {
         action: AuditAction.INTERVIEW_RESCHEDULED,
         fromStatus: existing.status,
         toStatus: InterviewStatus.RESCHEDULED,
-        performedById: payload.interviewers[0] || 'SYSTEM',
+        performedById: interviewerIds[0]!,
         reason: payload.reason.trim(),
         metadata: {
           oldScheduledAt: existing.scheduledAt.toISOString(),

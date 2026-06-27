@@ -571,12 +571,7 @@ export class InterviewResultService {
 
     const isLastInterview = activeSchedulesCount === 0;
 
-    let nextAppStatus: RecruitmentRequestStatus | null = null;
-    if (finalRecommendation === 'Recommend Hire') {
-      nextAppStatus = RecruitmentRequestStatus.INTERVIEW_COMPLETED;
-    } else if (finalRecommendation === 'Recommend Reject') {
-      nextAppStatus = RecruitmentRequestStatus.REJECTED;
-    }
+    const nextAppStatus = RecruitmentRequestStatus.INTERVIEW_COMPLETED;
 
     // Find existing interview results to see what needs to be created vs updated
     const existingResults = await this.prisma.interviewResult.findMany({
@@ -630,15 +625,13 @@ export class InterviewResultService {
       }),
     );
 
-    // 3. Update Application Status if recommendation specifies a transition
-    if (nextAppStatus) {
-      transactions.push(
-        this.prisma.application.update({
-          where: { id: application.id },
-          data: { status: nextAppStatus },
-        }),
-      );
-    }
+    // 3. Mark the candidate application ready for Admin final decision.
+    transactions.push(
+      this.prisma.application.update({
+        where: { id: application.id },
+        data: { status: nextAppStatus },
+      }),
+    );
 
     // 4. Create RequestLog for candidate evaluation outcome
     transactions.push(
@@ -662,8 +655,8 @@ export class InterviewResultService {
       }),
     );
 
-    // 5. If all schedules are finished, transition RecruitmentRequest to INTERVIEW_COMPLETED
-    if (isLastInterview && nextAppStatus === RecruitmentRequestStatus.INTERVIEW_COMPLETED) {
+    // 5. If all schedules are finished, transition RecruitmentRequest to Admin review.
+    if (isLastInterview) {
       transactions.push(
         this.prisma.recruitmentRequest.update({
           where: { id: schedule.requestId },
@@ -713,13 +706,14 @@ export class InterviewResultService {
 
     // --- Next-step communications & workflows ---
 
-    // 1. If candidate was rejected, trigger rejection email and notification
-    if (finalRecommendation === 'Recommend Reject') {
-      const emailSubject = `Application Update: ${schedule.request.position}`;
+    // Candidate rejection emails are sent only after Admin's final Not Hire decision.
+    if (false) {
+      /*
+      const emailSubject = `Application Update: ${schedule!.request.position}`;
       const emailBody = [
-        `Dear ${schedule.candidate.fullName},`,
+        `Dear ${schedule!.candidate.fullName},`,
         '',
-        `Thank you for taking the time to interview with us for the position of ${schedule.request.position}.`,
+        `Thank you for taking the time to interview with us for the position of ${schedule!.request.position}.`,
         '',
         `We appreciate your interest in our company, but we regret to inform you that we have decided to move forward with other candidates at this stage.`,
         '',
@@ -730,13 +724,13 @@ export class InterviewResultService {
       ].join('\n');
 
       const notifTitle = 'Application Update';
-      const notifBody = `Your application for ${schedule.request.position} was not selected.`;
+      const notifBody = `Your application for ${schedule!.request.position} was not selected.`;
 
       // Enqueue email
       this.notificationClient
         .send('notification.send_email', {
-          userId: schedule.candidate.userId,
-          toEmail: schedule.candidate.email,
+          userId: schedule!.candidate.userId,
+          toEmail: schedule!.candidate.email,
           subject: emailSubject,
           body: emailBody,
         })
@@ -747,25 +741,28 @@ export class InterviewResultService {
       // Send in-app notification
       this.notificationClient
         .send('notification.create_notification', {
-          userId: schedule.candidate.userId,
+          userId: schedule!.candidate.userId,
           type: NotificationType.REJECTION,
           title: notifTitle,
           body: notifBody,
-          relatedEntityId: schedule.requestId,
+          relatedEntityId: schedule!.requestId,
           relatedEntityType: 'RecruitmentRequest',
         })
         .subscribe({
           error: (err) => console.error('Failed to send rejection notification:', err),
         });
+      */
     }
 
-    // 2. If all interviews are completed and candidate is recommended for hire, notify Admins to review and make final decision (FR-15)
-    if (isLastInterview && finalRecommendation === 'Recommend Hire') {
+    // Notify Admins to review HR's recommendation and make the final decision (FR-15).
+    if (isLastInterview) {
       this.notificationClient
         .send('notification.send_to_role', {
           role: UserRole.ADMIN,
           title: 'Review Required: Interview Stage Completed',
-          body: `All scheduled interviews for "${schedule.request.position}" are completed. Please review results and make the final decision.`,
+          body:
+            `HR submitted "${finalRecommendation}" for ${schedule.candidate.fullName} ` +
+            `on "${schedule.request.position}". Please review and make the final Hire/Not Hire decision.`,
           type: NotificationType.PLAN_UPDATE,
           relatedEntityId: schedule.requestId,
           relatedEntityType: 'RecruitmentRequest',
@@ -779,7 +776,9 @@ export class InterviewResultService {
           userId: schedule.request.createdById,
           type: NotificationType.REQUEST_UPDATE,
           title: 'Request status update: Interview Completed',
-          body: `All interviews for recruitment request "${schedule.request.position}" have been completed.`,
+          body:
+            `HR submitted "${finalRecommendation}" for "${schedule.request.position}". ` +
+            'The request is now waiting for Admin final decision.',
           relatedEntityId: schedule.requestId,
           relatedEntityType: 'RecruitmentRequest',
         })

@@ -12,6 +12,9 @@ import { RecruitingController } from './controllers/recruiting.controller';
 import { ProfilesController } from './controllers/profiles.controller';
 import { NotificationsController } from './controllers/notifications.controller';
 import { InterviewController } from './controllers/interview.controller';
+import { DeptHeadInterviewFeedbackController } from './controllers/dept-head-interview-feedback.controller';
+import { AdminInterviewResultsController } from './controllers/admin-interview-results.controller';
+import { HrInterviewResultsController } from './controllers/hr-interview-results.controller';
 import { CvController } from './controllers/cv.controller';
 import { SseNotificationService } from './services/sse-notification.service';
 import { CorrelationClientTCP, CorrelationIdMiddleware } from '@wr/logger';
@@ -76,6 +79,9 @@ import { config as appConfig } from './config';
     ProfilesController,
     NotificationsController,
     InterviewController,
+    DeptHeadInterviewFeedbackController,
+    AdminInterviewResultsController,
+    HrInterviewResultsController,
     CvController,
   ],
 })

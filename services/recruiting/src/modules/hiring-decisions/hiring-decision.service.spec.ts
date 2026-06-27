@@ -16,8 +16,9 @@ describe('HiringDecisionService', () => {
     },
     requestLog: { create: jest.fn() },
     application: { update: jest.fn() },
-    emailLog: { create: jest.fn() },
+    emailLog: { create: jest.fn(), update: jest.fn() },
     notification: { create: jest.fn() },
+    offerLetter: { create: jest.fn() },
     $transaction: jest.fn(),
   };
   const notificationClient = {
@@ -47,6 +48,7 @@ describe('HiringDecisionService', () => {
     prisma.application.update.mockReturnValue({ operation: 'application' });
     prisma.emailLog.create.mockReturnValue({ operation: 'email' });
     prisma.notification.create.mockReturnValue({ operation: 'notification' });
+    prisma.offerLetter.create.mockReturnValue({ operation: 'offer' });
     prisma.$transaction.mockResolvedValue([{ id: 'request-1' }]);
   });
 
@@ -70,12 +72,14 @@ describe('HiringDecisionService', () => {
       id: 'request-1',
       position: 'Backend Engineer',
       status: RecruitmentRequestStatus.INTERVIEW_COMPLETED,
+      department: { name: 'Engineering' },
       interviews: [
         {
           id: 'interview-1',
           candidateId: 'candidate-1',
           status: InterviewStatus.COMPLETED,
-          results: [{ result: InterviewResult.PASS }],
+          interviewers: ['interviewer-1', 'interviewer-2'],
+          results: [{ result: InterviewResult.PASS }, { result: InterviewResult.PASS }],
         },
       ],
       applications: [
@@ -85,6 +89,7 @@ describe('HiringDecisionService', () => {
           candidate: {
             userId: 'user-1',
             email: 'candidate@example.com',
+            fullName: 'Jane Doe',
           },
         },
       ],
@@ -95,6 +100,11 @@ describe('HiringDecisionService', () => {
       HiringDecision.HIRE,
       'Strong panel feedback',
       'admin-1',
+      {
+        candidateId: 'candidate-1',
+        compensation: '45,000,000 VND gross per month',
+        startDate: '2026-07-15T00:00:00.000Z',
+      },
     );
 
     expect(prisma.recruitmentRequest.update).toHaveBeenCalledWith(
@@ -108,11 +118,147 @@ describe('HiringDecisionService', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           performedById: 'admin-1',
-          action: 'FINAL_HIRING_DECISION',
+          action: 'HIRING_DECISION_HIRE',
         }),
       }),
     );
     expect(result.selectedCandidateIds).toEqual(['candidate-1']);
+    expect(prisma.offerLetter.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          candidateId: 'candidate-1',
+          status: 'SENT',
+          compensation: '45,000,000 VND gross per month',
+        }),
+      }),
+    );
+    expect(emailQueue.add).toHaveBeenCalledWith(
+      'send-email',
+      expect.objectContaining({ to: 'candidate@example.com' }),
+      expect.objectContaining({ jobId: expect.stringMatching(/^email-log-/) }),
+    );
+  });
+
+  it('allows HIRE when the selected candidate has 2 feedback results even if another candidate interview is pending', async () => {
+    prisma.recruitmentRequest.findUnique.mockResolvedValue({
+      id: 'request-1',
+      position: 'Backend Engineer',
+      status: RecruitmentRequestStatus.INTERVIEW_COMPLETED,
+      department: { name: 'Engineering' },
+      interviews: [
+        {
+          id: 'interview-1',
+          candidateId: 'candidate-1',
+          status: InterviewStatus.COMPLETED,
+          interviewers: ['interviewer-1', 'interviewer-2'],
+          results: [{ result: InterviewResult.PASS }, { result: InterviewResult.PASS }],
+        },
+        {
+          id: 'interview-2',
+          candidateId: 'candidate-2',
+          status: InterviewStatus.COMPLETED,
+          interviewers: ['interviewer-1', 'interviewer-2'],
+          results: [],
+        },
+      ],
+      applications: [
+        {
+          id: 'application-1',
+          candidateId: 'candidate-1',
+          candidate: {
+            userId: 'user-1',
+            email: 'candidate@example.com',
+            fullName: 'Jane Doe',
+          },
+        },
+        {
+          id: 'application-2',
+          candidateId: 'candidate-2',
+          candidate: {
+            userId: 'user-2',
+            email: 'other@example.com',
+            fullName: 'John Smith',
+          },
+        },
+      ],
+    });
+
+    const result = await service.decide(
+      'request-1',
+      HiringDecision.HIRE,
+      'Strong panel feedback',
+      'admin-1',
+      {
+        candidateId: 'candidate-1',
+        compensation: '45,000,000 VND gross per month',
+        startDate: '2026-07-15T00:00:00.000Z',
+      },
+    );
+
+    expect(result.selectedCandidateIds).toEqual(['candidate-1']);
+    expect(prisma.recruitmentRequest.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: RecruitmentRequestStatus.OFFER_EXTENDED,
+        }),
+      }),
+    );
+  });
+
+  it('rejects HIRE when the selected candidate has fewer than 2 feedback results', async () => {
+    prisma.recruitmentRequest.findUnique.mockResolvedValue({
+      id: 'request-1',
+      position: 'Backend Engineer',
+      status: RecruitmentRequestStatus.INTERVIEW_COMPLETED,
+      department: { name: 'Engineering' },
+      interviews: [
+        {
+          id: 'interview-1',
+          candidateId: 'candidate-1',
+          status: InterviewStatus.COMPLETED,
+          interviewers: ['interviewer-1', 'interviewer-2'],
+          results: [{ result: InterviewResult.PASS }],
+        },
+      ],
+      applications: [
+        {
+          id: 'application-1',
+          candidateId: 'candidate-1',
+          candidate: {
+            userId: 'user-1',
+            email: 'candidate@example.com',
+            fullName: 'Jane Doe',
+          },
+        },
+      ],
+    });
+
+    await expect(
+      service.decide('request-1', HiringDecision.HIRE, 'Strong panel feedback', 'admin-1', {
+        candidateId: 'candidate-1',
+        compensation: '45,000,000 VND gross per month',
+        startDate: '2026-07-15T00:00:00.000Z',
+      }),
+    ).rejects.toMatchObject({
+      error: expect.objectContaining({
+        status: HttpStatus.PRECONDITION_FAILED,
+        message: 'The selected candidate must have feedback from at least 2 interviewers before hire',
+      }),
+    });
+  });
+
+  it('rejects HIRE when offer details are missing', async () => {
+    await expect(
+      service.decide(
+        'request-1',
+        HiringDecision.HIRE,
+        'Strong panel feedback',
+        'admin-1',
+      ),
+    ).rejects.toMatchObject({
+      error: expect.objectContaining({ status: HttpStatus.BAD_REQUEST }),
+    });
+    expect(prisma.recruitmentRequest.findUnique).not.toHaveBeenCalled();
   });
 
   it('queues a rejection email for candidates with FAIL results or decision REJECT', async () => {
@@ -120,11 +266,13 @@ describe('HiringDecisionService', () => {
       id: 'request-1',
       position: 'Backend Engineer',
       status: RecruitmentRequestStatus.INTERVIEW_COMPLETED,
+      department: { name: 'Engineering' },
       interviews: [
         {
           id: 'interview-1',
           candidateId: 'candidate-1',
           status: InterviewStatus.COMPLETED,
+          interviewers: ['interviewer-1', 'interviewer-2'],
           results: [{ result: InterviewResult.FAIL }],
         },
       ],
@@ -163,7 +311,7 @@ describe('HiringDecisionService', () => {
     expect(prisma.recruitmentRequest.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          status: RecruitmentRequestStatus.REJECTED,
+          status: RecruitmentRequestStatus.NOT_HIRED,
           rejectionReason: 'Lack of experience',
         }),
       }),
@@ -182,12 +330,12 @@ describe('HiringDecisionService', () => {
     expect(emailQueue.add).toHaveBeenCalledWith(
       'send-email',
       expect.objectContaining({
-        emailLogId: 'email-log-1',
+        emailLogId: expect.any(String),
         to: 'candidate@example.com',
         subject: 'Rendered Rejection Subject',
         body: 'Rendered Rejection Body',
       }),
-      expect.any(Object),
+      expect.objectContaining({ jobId: expect.stringMatching(/^email-log-/) }),
     );
     expect(result.decision).toBe(HiringDecision.REJECT);
   });

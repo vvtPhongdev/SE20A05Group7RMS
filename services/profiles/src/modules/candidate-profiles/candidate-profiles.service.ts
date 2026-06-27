@@ -23,6 +23,12 @@ export class CandidateProfilesService {
       : {};
   }
 
+  private isUuid(value: string) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value,
+    );
+  }
+
   private avatarData(value: unknown): Record<string, string> | null {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       return null;
@@ -51,6 +57,13 @@ export class CandidateProfilesService {
   }
 
   private async findStoredProfile(id: string) {
+    if (!this.isUuid(id)) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Candidate profile not found for ID ${id}`,
+      });
+    }
+
     const profile = await this.prisma.candidateProfile.findFirst({
       where: {
         OR: [{ id }, { userId: id }],
@@ -259,6 +272,13 @@ export class CandidateProfilesService {
   }
 
   async getProfile(id: string) {
+    if (!this.isUuid(id)) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Candidate profile not found for ID ${id}`,
+      });
+    }
+
     let profile = await this.prisma.candidateProfile.findFirst({
       where: {
         OR: [{ id: id }, { userId: id }],

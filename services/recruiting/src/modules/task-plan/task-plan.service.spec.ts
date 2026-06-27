@@ -15,6 +15,11 @@ describe('TaskPlanService', () => {
     user: {
       findUnique: jest.fn(),
     },
+    taskReminder: {
+      upsert: jest.fn(),
+      updateMany: jest.fn(),
+    },
+    $transaction: jest.fn(),
   };
 
   const auditLog = {
@@ -40,6 +45,9 @@ describe('TaskPlanService', () => {
       role: 'HR_RECRUITER',
       isActive: true,
     });
+    prisma.$transaction.mockImplementation(async (callback) => callback(prisma));
+    prisma.taskReminder.upsert.mockResolvedValue({});
+    prisma.taskReminder.updateMany.mockResolvedValue({ count: 0 });
   });
 
   describe('create', () => {
@@ -114,7 +122,11 @@ describe('TaskPlanService', () => {
         startDate: new Date('2026-07-01'),
         endDate: new Date('2026-07-31'),
       });
-      prisma.taskPlan.create.mockResolvedValue({ id: 'task-1', status: TaskStatus.PENDING });
+      prisma.taskPlan.create.mockResolvedValue({
+        id: 'task-1',
+        status: TaskStatus.PENDING,
+        endDate: new Date('2026-07-10'),
+      });
 
       const result = await service.create({
         overallPlanId: 'plan-1',
@@ -133,7 +145,17 @@ describe('TaskPlanService', () => {
           performedById: 'user-1',
         }),
       );
-      expect(result).toEqual({ id: 'task-1', status: TaskStatus.PENDING });
+      expect(result).toEqual(expect.objectContaining({ id: 'task-1', status: TaskStatus.PENDING }));
+      expect(prisma.taskReminder.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            taskPlanId_reminderKey: {
+              taskPlanId: 'task-1',
+              reminderKey: '24h-before',
+            },
+          },
+        }),
+      );
     });
 
     it('uses performedById over assignedToId for the audit log when provided', async () => {
@@ -143,7 +165,11 @@ describe('TaskPlanService', () => {
         startDate: new Date('2026-07-01'),
         endDate: new Date('2026-07-31'),
       });
-      prisma.taskPlan.create.mockResolvedValue({ id: 'task-1', status: TaskStatus.PENDING });
+      prisma.taskPlan.create.mockResolvedValue({
+        id: 'task-1',
+        status: TaskStatus.PENDING,
+        endDate: new Date('2026-07-10'),
+      });
 
       await service.create({
         overallPlanId: 'plan-1',
@@ -170,6 +196,7 @@ describe('TaskPlanService', () => {
         id: 'task-1',
         status: TaskStatus.PENDING,
         assignedToId: 'user-1',
+        endDate: new Date('2026-07-10'),
         assignedTo: { id: 'user-1', displayName: 'Lisa Thompson', email: 'recruiter1@acme.com' },
       });
 

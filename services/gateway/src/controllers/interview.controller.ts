@@ -30,8 +30,14 @@ export class InterviewController {
       location: string;
       interviewers: string[];
     },
+    @CurrentUser() user: any,
   ) {
-    return firstValueFrom(this.interviewClient.send('interview.create_schedule', body));
+    return firstValueFrom(
+      this.interviewClient.send('interview.create_schedule', {
+        ...body,
+        scheduledById: user.sub,
+      }),
+    );
   }
 
   @Get('schedules/:id')
@@ -209,7 +215,9 @@ export class InterviewController {
 
   @Post('schedules/:id/results')
   @Roles(UserRole.HR_RECRUITER)
-  @ApiOperation({ summary: 'FR-14: Record detailed panel feedbacks and final recommendation (Legacy path)' })
+  @ApiOperation({
+    summary: 'FR-14: Record detailed panel feedbacks and final recommendation (Legacy path)',
+  })
   recordResultLegacy(
     @Param('id') interviewId: string,
     @Body()

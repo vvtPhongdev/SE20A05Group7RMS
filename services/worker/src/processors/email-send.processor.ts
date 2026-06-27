@@ -228,7 +228,7 @@ import { config } from '../config';
 import { logger } from '../logger';
 
 const prisma = new PrismaClient({
-  log: config.NODE_ENV === 'development' ? ['query', 'warn', 'error'] : ['warn', 'error'],
+  log: ['warn', 'error'],
 });
 
 // 1. TỐI ƯU HIỆU NĂNG: Khởi tạo transporter một lần ở global scope
@@ -337,23 +337,91 @@ function escapeHtml(text: string): string {
     .replace(/'/g, '&#039;');
 }
 
+// function buildHtmlTemplate(subject: string, body: string, hasLogo: boolean): string {
+//   const config = getTemplateConfig(subject);
+
+//   const safeBody = escapeHtml(body.trim());
+//   const formattedBody = safeBody
+//     .split(/\n\s*\n/)
+//     .map(
+//       (paragraph) =>
+//         `<p style="margin: 0 0 16px 0; line-height: 1.6;">${paragraph.replace(/\n/g, '<br>')}</p>`,
+//     )
+//     .join('');
+
+//   // 2. CĂN CHỈNH LOGO: Chuyển div thành tr/td table chuẩn hóa để tương thích mọi ứng dụng mail
+//   const logoRowHtml = hasLogo
+//     ? `<tr>
+//          <td align="center" style="padding-bottom: 24px;">
+//            <img src="cid:logo" alt="RMS Recruiter Logo" style="height: 45px; max-width: 180px; display: block; object-fit: contain; border: 0;" />
+//          </td>
+//        </tr>`
+//     : '';
+
+//   return `
+// <!DOCTYPE html>
+// <html>
+// <head>
+//   <meta charset="utf-8">
+//   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+//   <title>${escapeHtml(subject)}</title>
+// </head>
+// <body style="margin: 0; padding: 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+//   <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; padding: 40px 20px;">
+//     <tr>
+//       <td align="center">
+//         <table width="100%" max-width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; width: 100%;">
+//           ${logoRowHtml}
+//           <tr>
+//             <td>
+//               <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+//                 <tr>
+//                   <td style="background: ${config.bannerBg}; padding: 40px 30px; text-align: center; color: ${config.bannerText};">
+//                     <div style="font-size: 48px; margin-bottom: 16px;">${config.icon}</div>
+//                     <h1 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.025em; font-family: inherit;">${config.title}</h1>
+//                     <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">${escapeHtml(subject)}</p>
+//                   </td>
+//                 </tr>
+//                 <tr>
+//                   <td style="padding: 40px 30px; color: #1e293b; font-size: 16px; font-family: inherit;">
+//                     <div style="margin-bottom: 24px;">
+//                       ${formattedBody}
+//                     </div>
+//                   </td>
+//                 </tr>
+//                 <tr>
+//                   <td style="background-color: #f1f5f9; padding: 24px 30px; text-align: center; color: #64748b; font-size: 12px; border-top: 1px solid #e2e8f0; font-family: inherit;">
+//                     <p style="margin: 0 0 8px 0; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #475569;">Works Recruiter System (RMS)</p>
+//                     <p style="margin: 0 0 12px 0; line-height: 1.5;">This is an automated notification. Please do not reply directly to this email.</p>
+//                     <div style="border-top: 1px solid #cbd5e1; margin: 12px 0;"></div>
+//                     <p style="margin: 0; font-size: 11px; opacity: 0.8; line-height: 1.4;">Confidentiality Notice: This message contains confidential information and is intended solely for the individual named. If you are not the intended recipient, please destroy this message immediately.</p>
+//                   </td>
+//                 </tr>
+//               </table>
+//             </td>
+//           </tr>
+//         </table>
+//       </td>
+//     </tr>
+//   </table>
+// </body>
+// </html>
+//   `.trim();
+// }
 function buildHtmlTemplate(subject: string, body: string, hasLogo: boolean): string {
   const config = getTemplateConfig(subject);
 
   const safeBody = escapeHtml(body.trim());
   const formattedBody = safeBody
     .split(/\n\s*\n/)
-    .map(
-      (paragraph) =>
-        `<p style="margin: 0 0 16px 0; line-height: 1.6;">${paragraph.replace(/\n/g, '<br>')}</p>`,
-    )
+    .map((paragraph) => `<p style="margin: 0 0 16px 0; line-height: 1.6;">${paragraph.replace(/\n/g, '<br>')}</p>`)
     .join('');
 
-  // 2. CĂN CHỈNH LOGO: Chuyển div thành tr/td table chuẩn hóa để tương thích mọi ứng dụng mail
+  // Căn chỉnh logo: Thêm padding xung quanh và background màu trắng để tiệp màu với viền bo góc của form bên dưới
   const logoRowHtml = hasLogo
     ? `<tr>
-         <td align="center" style="padding-bottom: 24px;">
-           <img src="cid:logo" alt="RMS Recruiter Logo" style="height: 45px; max-width: 180px; display: block; object-fit: contain; border: 0;" />
+         <td align="center" style="padding: 20px 30px; background-color: #ffffff;">
+           <img src="cid:logo" alt="RMS Recruiter Logo" style="height: 40px; max-width: 160px; display: block; object-fit: contain; border: 0;" />
          </td>
        </tr>`
     : '';
@@ -370,34 +438,32 @@ function buildHtmlTemplate(subject: string, body: string, hasLogo: boolean): str
   <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f8fafc; padding: 40px 20px;">
     <tr>
       <td align="center">
-        <table width="100%" max-width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; width: 100%;">
+        <table width="100%" max-width="600" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; width: 100%; background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+          
           ${logoRowHtml}
+
           <tr>
-            <td>
-              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
-                <tr>
-                  <td style="background: ${config.bannerBg}; padding: 40px 30px; text-align: center; color: ${config.bannerText};">
-                    <div style="font-size: 48px; margin-bottom: 16px;">${config.icon}</div>
-                    <h1 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.025em; font-family: inherit;">${config.title}</h1>
-                    <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">${escapeHtml(subject)}</p>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="padding: 40px 30px; color: #1e293b; font-size: 16px; font-family: inherit;">
-                    <div style="margin-bottom: 24px;">
-                      ${formattedBody}
-                    </div>
-                  </td>
-                </tr>
-                <tr>
-                  <td style="background-color: #f1f5f9; padding: 24px 30px; text-align: center; color: #64748b; font-size: 12px; border-top: 1px solid #e2e8f0; font-family: inherit;">
-                    <p style="margin: 0 0 8px 0; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #475569;">Works Recruiter System (RMS)</p>
-                    <p style="margin: 0 0 12px 0; line-height: 1.5;">This is an automated notification. Please do not reply directly to this email.</p>
-                    <div style="border-top: 1px solid #cbd5e1; margin: 12px 0;"></div>
-                    <p style="margin: 0; font-size: 11px; opacity: 0.8; line-height: 1.4;">Confidentiality Notice: This message contains confidential information and is intended solely for the individual named. If you are not the intended recipient, please destroy this message immediately.</p>
-                  </td>
-                </tr>
-              </table>
+            <td style="background: ${config.bannerBg}; padding: 40px 30px; text-align: center; color: ${config.bannerText};">
+              <div style="font-size: 48px; margin-bottom: 16px;">${config.icon}</div>
+              <h1 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.025em; font-family: inherit;">${config.title}</h1>
+              <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">${escapeHtml(subject)}</p>
+            </td>
+          </tr>
+          
+          <tr>
+            <td style="padding: 40px 30px; color: #1e293b; font-size: 16px; font-family: inherit;">
+              <div style="margin-bottom: 24px;">
+                ${formattedBody}
+              </div>
+            </td>
+          </tr>
+          
+          <tr>
+            <td style="background-color: #f1f5f9; padding: 24px 30px; text-align: center; color: #64748b; font-size: 12px; border-top: 1px solid #e2e8f0; font-family: inherit;">
+              <p style="margin: 0 0 8px 0; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #475569;">Works Recruiter System (RMS)</p>
+              <p style="margin: 0 0 12px 0; line-height: 1.5;">This is an automated notification. Please do not reply directly to this email.</p>
+              <div style="border-top: 1px solid #cbd5e1; margin: 12px 0;"></div>
+              <p style="margin: 0; font-size: 11px; opacity: 0.8; line-height: 1.4;">Confidentiality Notice: This message contains confidential information and is intended solely for the individual named. If you are not the intended recipient, please destroy this message immediately.</p>
             </td>
           </tr>
         </table>
@@ -412,27 +478,13 @@ function buildHtmlTemplate(subject: string, body: string, hasLogo: boolean): str
 export async function processEmailSendJob(payload: EmailSendJobPayload): Promise<void> {
   const { emailLogId, to, subject, body } = payload;
 
-  const emailLog = await prisma.emailLog.findUnique({
-    where: { id: emailLogId },
-  });
-
-  if (!emailLog) {
-    throw new Error(`EmailLog with id ${emailLogId} not found`);
-  }
-
-  // Idempotency check: if email is already marked as SENT, skip sending it again
-  if (emailLog.status === EmailStatus.SENT) {
-    logger.log(`[Idempotency] Email ${emailLogId} has already been sent. Skipping job.`);
-    return;
-  }
-
   const logoPath = getLogoPath();
   const html = buildHtmlTemplate(subject, body, !!logoPath);
 
   try {
     await transporter.sendMail({
       // 3. SỬA LỖI CHÍNH TẢ: Thay thế 'Works Reruiter' thành 'Works Recruiter' đúng chính tả
-      from: config.SMTP_FROM,
+      from: process.env.SMTP_FROM || 'Works Recruiter <noreply@worksrecruiter.com>',
       to,
       subject,
       text: body,

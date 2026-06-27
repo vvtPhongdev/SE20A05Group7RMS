@@ -7,6 +7,7 @@ import {
   OfferStatus,
   RecruitmentRequestStatus,
   NotificationType,
+  UserRole,
 } from '@wr/contracts';
 import { JOB_NAMES, QUEUE_NAMES } from '@wr/queue';
 import { Queue } from 'bullmq';
@@ -122,7 +123,7 @@ export class OfferLetterService {
     });
   }
 
-  async get(id: string) {
+  async get(id: string, actorUserId?: string, actorRole?: string) {
     const offer = await this.prisma.offerLetter.findUnique({
       where: { id },
       include: { request: true, candidate: true },
@@ -131,6 +132,12 @@ export class OfferLetterService {
       throw new RpcException({
         status: HttpStatus.NOT_FOUND,
         message: `Offer letter ${id} not found`,
+      });
+    }
+    if (actorRole === UserRole.CANDIDATE && offer.candidate.userId !== actorUserId) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'This offer does not belong to the current candidate',
       });
     }
     return offer;
@@ -223,6 +230,16 @@ export class OfferLetterService {
           },
         },
       }),
+      this.prisma.notification.create({
+        data: {
+          userId: offer.candidate.userId,
+          type: NotificationType.OFFER,
+          title: 'Offer Letter Received',
+          body: `An offer letter for the position of ${offer.positionTitle} has been sent to you. Please review and respond.`,
+          relatedEntityId: offer.id,
+          relatedEntityType: 'OfferLetter',
+        },
+      }),
     ]);
 
     await this.prisma.offerLetter.update({
@@ -230,33 +247,32 @@ export class OfferLetterService {
       data: { emailLogId: emailLog.id },
     });
 
-    await this.emailQueue.add(
-      JOB_NAMES.SEND_EMAIL,
-      {
-        emailLogId: emailLog.id,
-        to: offer.candidate.email,
-        subject,
-        body,
-      },
-      {
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 1000 },
-      },
-    );
-
-    // Send in-app notification to candidate
-    this.notificationClient
-      .send('notification.create_notification', {
-        userId: offer.candidate.userId,
-        type: NotificationType.OFFER,
-        title: 'Offer Letter Received',
-        body: `An offer letter for the position of ${offer.positionTitle} has been sent to you. Please review and respond.`,
-        relatedEntityId: offer.id,
-        relatedEntityType: 'OfferLetter',
-      })
-      .subscribe({
-        error: (err) => console.error('Failed to send candidate offer letter notification:', err),
+    let communicationQueued = true;
+    try {
+      await this.emailQueue.add(
+        JOB_NAMES.SEND_EMAIL,
+        {
+          emailLogId: emailLog.id,
+          to: offer.candidate.email,
+          subject,
+          body,
+        },
+        {
+          jobId: `email-log-${emailLog.id}`,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 1000 },
+        },
+      );
+    } catch (error) {
+      communicationQueued = false;
+      await this.prisma.emailLog.update({
+        where: { id: emailLog.id },
+        data: {
+          status: EmailStatus.FAILED,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
       });
+    }
 
     // Send in-app status update notification to Department Head
     this.notificationClient
@@ -272,10 +288,10 @@ export class OfferLetterService {
         error: (err) => console.error('Failed to send dept head offer letter notification:', err),
       });
 
-    return { ...updatedOffer, emailLogId: emailLog.id };
+    return { ...updatedOffer, emailLogId: emailLog.id, communicationQueued };
   }
 
-  async respond(id: string, response: OfferResponse, candidateUserId: string) {
+  async respond(id: string, response: OfferResponse, candidateUserId: string, note?: string) {
     if (!Object.values(OfferResponse).includes(response)) {
       throw new RpcException({
         status: HttpStatus.BAD_REQUEST,
@@ -382,6 +398,8 @@ export class OfferLetterService {
         where: { id },
         data: {
           status: offerStatus,
+          response,
+          responseNote: note?.trim() || null,
           respondedAt: new Date(),
         },
       }),
@@ -420,7 +438,7 @@ export class OfferLetterService {
     // Send in-app status change notification to HR Manager role
     this.notificationClient
       .send('notification.send_to_role', {
-        role: 'HR_MANAGER',
+        role: UserRole.HR_LEADER,
         type: NotificationType.REQUEST_UPDATE,
         title: accepted ? 'Campaign Completed' : 'Offer Declined',
         body: accepted
@@ -433,10 +451,25 @@ export class OfferLetterService {
         error: (err) => console.error('Failed to send HR offer response notification:', err),
       });
 
+    this.notificationClient
+      .send('notification.send_to_role', {
+        role: UserRole.HR_RECRUITER,
+        type: NotificationType.REQUEST_UPDATE,
+        title: accepted ? 'Campaign Completed' : 'Offer Declined',
+        body: accepted
+          ? `The offer for ${offer.positionTitle} was accepted and the recruitment campaign is completed.`
+          : `The offer for ${offer.positionTitle} was declined by the candidate.`,
+        relatedEntityId: offer.requestId,
+        relatedEntityType: 'RecruitmentRequest',
+      })
+      .subscribe({
+        error: (err) => console.error('Failed to send recruiter offer response notification:', err),
+      });
+
     // Send in-app status change notification to ADMIN role
     this.notificationClient
       .send('notification.send_to_role', {
-        role: 'ADMIN',
+        role: UserRole.ADMIN,
         type: NotificationType.REQUEST_UPDATE,
         title: accepted ? 'Campaign Completed' : 'Offer Declined',
         body: accepted

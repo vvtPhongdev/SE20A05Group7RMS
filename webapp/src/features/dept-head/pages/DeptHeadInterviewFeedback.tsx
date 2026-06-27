@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, MessageSquareText, Star, Users } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest, ApiError } from '../../../lib/api';
@@ -92,6 +92,82 @@ const scoreFields = [
   ['culture', 'Culture Fit'],
 ] as const;
 
+const deptHeadFeedbackApi = {
+  list: '/dept-head/interview-feedback',
+  details: (id: string) => `/dept-head/interview-feedback/${id}`,
+  myFeedback: (id: string) => `/dept-head/interview-feedback/${id}/my-feedback`,
+};
+
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+
+const asString = (value: unknown, fallback = '') => (typeof value === 'string' ? value : fallback);
+
+const asNumber = (value: unknown) =>
+  typeof value === 'number' && Number.isFinite(value) ? value : 0;
+
+const asDecision = (value: unknown): Decision => (value === 'FAIL' ? 'FAIL' : 'PASS');
+
+const asRecordingStatus = (value: unknown): RecordingStatus =>
+  value === 'Recorded' ? 'Recorded' : 'Pending Recording';
+
+const normalizeCompletedInterview = (value: unknown): CompletedInterview => {
+  const item = asRecord(value);
+  return {
+    id: asString(item.id),
+    candidate: asString(item.candidate, 'Unknown candidate'),
+    role: asString(item.role, 'Unknown role'),
+    department: asString(item.department, 'Unknown department'),
+    time: asString(item.time, 'Not scheduled'),
+    status: asRecordingStatus(item.status),
+  };
+};
+
+const normalizePanelFeedback = (
+  value: unknown,
+  fallbackUser?: { id: string; displayName: string; role: string } | null,
+): PanelFeedback => {
+  const item = asRecord(value);
+  const member = asString(item.member, fallbackUser?.displayName ?? 'Panel member');
+  return {
+    id: asString(item.id, fallbackUser?.id ?? 'unknown'),
+    member,
+    role: asString(item.role, fallbackUser?.role ?? 'Interviewer'),
+    initials: asString(item.initials, getInitials(member)),
+    decision: asDecision(item.decision),
+    technical: asNumber(item.technical),
+    communication: asNumber(item.communication),
+    culture: asNumber(item.culture),
+    notes: asString(item.notes),
+    isRecorded: Boolean(item.isRecorded),
+  };
+};
+
+const normalizeInterviewDetails = (
+  value: unknown,
+  fallbackUser?: { id: string; displayName: string; role: string } | null,
+): InterviewDetailsResponse => {
+  const item = asRecord(value);
+  const feedbacks = Array.isArray(item.feedbacks)
+    ? item.feedbacks.map((feedback) => normalizePanelFeedback(feedback))
+    : [];
+  const myFeedback = item.myFeedback
+    ? normalizePanelFeedback(item.myFeedback, fallbackUser)
+    : null;
+
+  return {
+    id: asString(item.id),
+    candidate: asString(item.candidate, 'Unknown candidate'),
+    role: asString(item.role, 'Unknown role'),
+    department: asString(item.department, 'Unknown department'),
+    time: asString(item.time, 'Not scheduled'),
+    status: asRecordingStatus(item.status),
+    feedbacks,
+    myFeedback,
+    canSubmitMyFeedback: item.canSubmitMyFeedback !== false,
+  };
+};
+
 export const DeptHeadInterviewFeedback: React.FC = () => {
   const { token, user } = useAuth();
   const [interviews, setInterviews] = useState<CompletedInterview[]>([]);
@@ -107,23 +183,31 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    const loadInterviews = async () => {
+  const loadInterviews = useCallback(
+    async (preserveSelection = false) => {
       setLoading(true);
       setApiError('');
       try {
-        const data = await apiRequest<CompletedInterview[]>('/interviews/completed', token);
-        setInterviews(data);
-        setSelectedId((current) => current || data[0]?.id || '');
+        const data = await apiRequest<unknown[]>(deptHeadFeedbackApi.list, token);
+        const normalized = data.map(normalizeCompletedInterview).filter((item) => item.id);
+        setInterviews(normalized);
+        setSelectedId((current) =>
+          preserveSelection && normalized.some((item) => item.id === current)
+            ? current
+            : current || normalized[0]?.id || '',
+        );
       } catch (error) {
         setApiError(error instanceof Error ? error.message : 'Unable to load interview feedback');
       } finally {
         setLoading(false);
       }
-    };
+    },
+    [token],
+  );
 
+  useEffect(() => {
     void loadInterviews();
-  }, [token]);
+  }, [loadInterviews]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -133,10 +217,11 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
       setSubmitMessage('');
       setSubmitError('');
       try {
-        const details = await apiRequest<InterviewDetailsResponse>(
-          `/interviews/${selectedId}/details`,
+        const detailsResponse = await apiRequest<unknown>(
+          deptHeadFeedbackApi.details(selectedId),
           token,
         );
+        const details = normalizeInterviewDetails(detailsResponse, user);
         const ownFeedback =
           details.myFeedback ||
           details.feedbacks.find((feedback) => feedback.id === user?.id) ||
@@ -187,7 +272,7 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
     setSubmitError('');
     try {
       const response = await apiRequest<MyFeedbackResponse>(
-        `/interviews/${selectedInterview.id}/my-feedback`,
+        deptHeadFeedbackApi.myFeedback(selectedInterview.id),
         token,
         {
           method: 'POST',
@@ -201,14 +286,16 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
         },
       );
 
-      setMyFeedback(response.feedback);
+      const savedFeedback = normalizePanelFeedback(response.feedback, user);
+      setMyFeedback(savedFeedback);
       setPanelFeedback((items) => {
-        const exists = items.some((item) => item.id === response.feedback.id);
+        const exists = items.some((item) => item.id === savedFeedback.id);
         return exists
-          ? items.map((item) => (item.id === response.feedback.id ? response.feedback : item))
-          : [...items, response.feedback];
+          ? items.map((item) => (item.id === savedFeedback.id ? savedFeedback : item))
+          : [...items, savedFeedback];
       });
       setSubmitMessage('Your interview evaluation has been saved.');
+      await loadInterviews(true);
     } catch (error) {
       setSubmitError(error instanceof ApiError ? error.message : 'Unable to save evaluation');
     } finally {
@@ -346,11 +433,15 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
                             <p className="text-xs text-slate-ink">{feedback.role}</p>
                           </div>
                         </div>
-                        <DeptHeadStatusBadge
-                          tone={feedback.decision === 'PASS' ? 'approved' : 'rejected'}
+                        <span
+                          className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] ${
+                            feedback.decision === 'PASS'
+                              ? 'border-approved/20 bg-approved/10 text-approved'
+                              : 'border-rejected/20 bg-rejected/10 text-rejected'
+                          }`}
                         >
-                          {feedback.decision}
-                        </DeptHeadStatusBadge>
+                          {feedback.decision === 'PASS' ? 'Pass' : 'Fail'}
+                        </span>
                       </div>
 
                       <div className="grid grid-cols-3 gap-2">
@@ -390,23 +481,29 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
                   </p>
                 </div>
                 <div className="flex w-fit rounded-lg bg-surface-container-high p-1">
-                  {(['PASS', 'FAIL'] as const).map((decision) => (
-                    <button
-                      className={`rounded-md px-4 py-1.5 text-xs font-bold transition active:scale-[0.98] ${
-                        myFeedback.decision === decision
-                          ? decision === 'PASS'
-                            ? 'bg-approved text-white shadow-sm'
-                            : 'bg-rejected text-white shadow-sm'
-                          : 'text-slate-ink hover:bg-white'
-                      }`}
-                      disabled={!canSubmitMyFeedback || submitting}
-                      key={decision}
-                      onClick={() => setMyFeedback((current) => ({ ...current, decision }))}
-                      type="button"
-                    >
-                      {decision}
-                    </button>
-                  ))}
+                  {(['PASS', 'FAIL'] as const).map((decision) => {
+                    const decisionLabel = decision === 'PASS' ? 'Pass' : 'Fail';
+
+                    return (
+                      <button
+                        className={`rounded-md border px-4 py-1.5 text-xs font-bold transition active:scale-[0.98] ${
+                          myFeedback.decision === decision
+                            ? decision === 'PASS'
+                              ? 'border-approved/30 bg-approved/10 text-approved shadow-sm'
+                              : 'border-rejected/30 bg-rejected/10 text-rejected shadow-sm'
+                            : decision === 'PASS'
+                              ? 'border-transparent text-approved hover:bg-approved/10'
+                              : 'border-transparent text-rejected hover:bg-rejected/10'
+                        }`}
+                        disabled={!canSubmitMyFeedback || submitting}
+                        key={decision}
+                        onClick={() => setMyFeedback((current) => ({ ...current, decision }))}
+                        type="button"
+                      >
+                        {decisionLabel}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

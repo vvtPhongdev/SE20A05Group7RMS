@@ -73,6 +73,24 @@ interface CandidateProfileDetail {
   structuredData?: Record<string, unknown>;
 }
 
+type DecisionFormMode = 'offer' | 'reject' | null;
+
+interface OfferEmailForm {
+  compensation: string;
+  startDate: string;
+  notes: string;
+}
+
+interface RejectEmailForm {
+  notes: string;
+}
+
+const adminInterviewResultsApi = {
+  list: '/admin/interview-results',
+  decision: (requestId: string) => `/admin/interview-results/${requestId}/decision`,
+  requestInfo: (requestId: string) => `/admin/interview-results/${requestId}/request-info`,
+};
+
 const emptyCandidate: CandidateResult = {
   id: '',
   candidateId: '',
@@ -92,6 +110,9 @@ const emptyCandidate: CandidateResult = {
   assessmentSummary: 'No completed interview results are available.',
 };
 
+const defaultOfferStartDate = () =>
+  new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
 export const AdminInterviewResults: React.FC = () => {
   const { token } = useAuth();
   const [candidates, setCandidates] = useState<CandidateResult[]>([]);
@@ -100,17 +121,29 @@ export const AdminInterviewResults: React.FC = () => {
   const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [profileDetail, setProfileDetail] = useState<CandidateProfileDetail | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [decisionFormMode, setDecisionFormMode] = useState<DecisionFormMode>(null);
+  const [offerForm, setOfferForm] = useState<OfferEmailForm>({
+    compensation: 'Negotiable',
+    startDate: defaultOfferStartDate(),
+    notes: '',
+  });
+  const [rejectForm, setRejectForm] = useState<RejectEmailForm>({ notes: '' });
 
   useEffect(() => {
     let cancelled = false;
     const loadResults = async () => {
       setLoading(true);
       setApiError('');
+      setActionMessage('');
       try {
-        const response = await apiRequest<InterviewResultApi[]>('/interviews/completed', token);
+        const response = await apiRequest<InterviewResultApi[]>(
+          adminInterviewResultsApi.list,
+          token,
+        );
         if (cancelled) return;
         const mapped = response.map((result) => ({
           id: result.id,
@@ -182,53 +215,163 @@ export const AdminInterviewResults: React.FC = () => {
     return candidates.filter((c) => c.status === 'Awaiting Decision').length;
   }, [candidates]);
 
-  // Make decision action
-  const handleDecision = async (id: string, action: 'Approved' | 'Rejected' | 'Request Info') => {
-    const candidate = candidates.find((item) => item.id === id);
-    if (!candidate) return;
-    const notes = window.prompt(
-      action === 'Request Info'
-        ? 'Describe the additional information required:'
-        : 'Enter decision notes:',
+  const recordedFeedbackCount = activeCandidate.passCount + activeCandidate.failCount;
+  const canApproveHire =
+    Boolean(activeCandidate.id) && recordedFeedbackCount >= 2 && activeCandidate.passCount > 0;
+
+  const markDecisionState = (
+    candidate: CandidateResult,
+    action: 'Approved' | 'Rejected' | 'Request Info',
+  ) => {
+    setCandidates((prev) =>
+      prev.map((item) =>
+        action === 'Request Info'
+          ? item.id === candidate.id
+            ? { ...item, status: 'Request Info' }
+            : item
+          : item.requestId === candidate.requestId
+            ? { ...item, status: action }
+            : item,
+      ),
     );
-    if (!notes?.trim()) return;
+  };
+
+  const submitOfferEmail = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const candidate = activeCandidate;
+    if (!candidate.id) return;
+    const compensation = offerForm.compensation.trim();
+    const notes = offerForm.notes.trim();
+    const startDateValue = offerForm.startDate;
+
+    if (!compensation || !notes) {
+      setApiError('Offer compensation and email notes are required.');
+      return;
+    }
+    if (!startDateValue || Number.isNaN(new Date(startDateValue).getTime())) {
+      setApiError('A valid offer start date is required.');
+      return;
+    }
 
     setSubmitting(true);
     setApiError('');
+    setActionMessage('');
     try {
-      if (action === 'Request Info') {
-        await apiRequest(`/hiring-decisions/${candidate.requestId}/request-info`, token, {
-          method: 'POST',
-          body: JSON.stringify({
-            candidateId: candidate.candidateId,
-            notes: notes.trim(),
-          }),
-        });
-      } else {
-        await apiRequest(`/hiring-decisions/${candidate.requestId}`, token, {
-          method: 'POST',
-          body: JSON.stringify({
-            decision: action === 'Approved' ? 'HIRE' : 'REJECT',
-            notes: notes.trim(),
-          }),
-        });
-      }
-      setCandidates((prev) =>
-        prev.map((item) =>
-          action === 'Request Info'
-            ? item.id === id
-              ? { ...item, status: 'Request Info' }
-              : item
-            : item.requestId === candidate.requestId
-              ? { ...item, status: action }
-              : item,
-        ),
-      );
+      await apiRequest(adminInterviewResultsApi.decision(candidate.requestId), token, {
+        method: 'POST',
+        body: JSON.stringify({
+          decision: 'HIRE',
+          candidateId: candidate.candidateId,
+          compensation,
+          startDate: new Date(`${startDateValue}T00:00:00.000Z`).toISOString(),
+          notes,
+        }),
+      });
+      markDecisionState(candidate, 'Approved');
+      setDecisionFormMode(null);
+      setActionMessage(`Offer email has been queued for ${candidate.name}.`);
     } catch (error) {
       setApiError(error instanceof Error ? error.message : 'Unable to save the hiring decision');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const submitRejectEmail = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const candidate = activeCandidate;
+    if (!candidate.id) return;
+    const notes = rejectForm.notes.trim();
+    if (!notes) {
+      setApiError('Rejection email reason is required.');
+      return;
+    }
+
+    setSubmitting(true);
+    setApiError('');
+    setActionMessage('');
+    try {
+      await apiRequest(adminInterviewResultsApi.decision(candidate.requestId), token, {
+        method: 'POST',
+        body: JSON.stringify({
+          decision: 'REJECT',
+          notes,
+        }),
+      });
+      markDecisionState(candidate, 'Rejected');
+      setDecisionFormMode(null);
+      setActionMessage(`Rejection email has been queued for ${candidate.name}.`);
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Unable to save the hiring decision');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRequestInfo = async (id: string) => {
+    const candidate = candidates.find((item) => item.id === id);
+    if (!candidate) return;
+    const notes = window.prompt('Describe the additional information required:');
+    if (!notes?.trim()) return;
+
+    let compensation: string | undefined;
+    let startDate: string | undefined;
+    if (action === 'Approved') {
+      const enteredCompensation = window.prompt(
+        `Enter compensation for ${candidate.name}:`,
+        'Negotiable',
+      );
+      if (!enteredCompensation?.trim()) return;
+      const enteredStartDate = window.prompt(
+        'Enter proposed start date (YYYY-MM-DD):',
+        new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      );
+      if (!enteredStartDate || Number.isNaN(new Date(enteredStartDate).getTime())) {
+        setApiError('A valid offer start date is required.');
+        return;
+      }
+      compensation = enteredCompensation.trim();
+      startDate = new Date(`${enteredStartDate}T00:00:00.000Z`).toISOString();
+    }
+
+    setSubmitting(true);
+    setApiError('');
+    setActionMessage('');
+    try {
+      await apiRequest(adminInterviewResultsApi.requestInfo(candidate.requestId), token, {
+        method: 'POST',
+        body: JSON.stringify({
+          candidateId: candidate.candidateId,
+          notes: notes.trim(),
+        }),
+      });
+      markDecisionState(candidate, 'Request Info');
+      setActionMessage(`Information request has been saved for ${candidate.name}.`);
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Unable to save the hiring decision');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const openOfferEmailForm = () => {
+    if (!activeCandidate.id) return;
+    setOfferForm({
+      compensation: 'Negotiable',
+      startDate: defaultOfferStartDate(),
+      notes: `We are pleased to offer ${activeCandidate.name} the ${activeCandidate.role} position in ${activeCandidate.department}.`,
+    });
+    setApiError('');
+    setDecisionFormMode('offer');
+  };
+
+  const openRejectEmailForm = () => {
+    if (!activeCandidate.id) return;
+    setRejectForm({
+      notes: `Thank you for interviewing for the ${activeCandidate.role} position. After careful consideration, we will not move forward with your application at this time.`,
+    });
+    setApiError('');
+    setDecisionFormMode('reject');
   };
 
   const openCandidateProfile = async () => {
@@ -296,6 +439,7 @@ export const AdminInterviewResults: React.FC = () => {
         }
       />
       {apiError && <AdminInlineAlert>{apiError}</AdminInlineAlert>}
+      {actionMessage && <AdminInlineAlert tone="approved">{actionMessage}</AdminInlineAlert>}
 
       {/* Split Pane Layout */}
       <div className="flex flex-grow overflow-hidden gap-6 min-h-0 select-none pb-2">
@@ -447,7 +591,7 @@ export const AdminInterviewResults: React.FC = () => {
               {/* Panelist Feedback */}
               <div className="space-y-4">
                 <h4 className="font-label-md text-label-md text-slate-ink uppercase tracking-wider font-semibold text-xs">
-                  Panel Feedback (3 Members)
+                  Panel Feedback ({activeCandidate.feedbacks.length} Members)
                 </h4>
 
                 {activeCandidate.feedbacks.map((fb, idx) => (
@@ -571,7 +715,7 @@ export const AdminInterviewResults: React.FC = () => {
                   className="px-6 py-2.5 border border-rejected hover:bg-[#fde8e8] text-rejected rounded-lg font-bold text-sm transition-all"
                   type="button"
                   disabled={submitting || !activeCandidate.id}
-                  onClick={() => void handleDecision(activeCandidate.id, 'Rejected')}
+                  onClick={openRejectEmailForm}
                 >
                   Reject
                 </button>
@@ -579,23 +723,254 @@ export const AdminInterviewResults: React.FC = () => {
                   className="px-6 py-2.5 border border-teal-command hover:bg-teal-command/5 text-teal-command rounded-lg font-bold text-sm transition-all"
                   type="button"
                   disabled={submitting || !activeCandidate.id}
-                  onClick={() => void handleDecision(activeCandidate.id, 'Request Info')}
+                  onClick={() => void handleRequestInfo(activeCandidate.id)}
                 >
                   Request More Info
                 </button>
               </div>
               <button
-                className="px-8 py-2.5 bg-teal-command hover:bg-[#09776d] text-white rounded-lg font-bold text-sm transition-all shadow-md flex items-center gap-2 active:scale-[0.98]"
+                className="px-8 py-2.5 bg-teal-command hover:bg-[#09776d] text-white rounded-lg font-bold text-sm transition-all shadow-md flex items-center gap-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                 type="button"
-                disabled={submitting || !activeCandidate.id}
-                onClick={() => void handleDecision(activeCandidate.id, 'Approved')}
+                disabled={submitting || !canApproveHire}
+                onClick={openOfferEmailForm}
+                title={
+                  recordedFeedbackCount < 2
+                    ? 'Need at least 2 recorded interview feedbacks before Hire'
+                    : activeCandidate.passCount === 0
+                      ? 'Candidate needs at least one PASS feedback before Hire'
+                      : undefined
+                }
               >
                 Approve Hire → Send Offer
               </button>
             </div>
+            {activeCandidate.id && recordedFeedbackCount < 2 && (
+              <p className="absolute bottom-[4.75rem] right-4 max-w-sm rounded-lg border border-revision/30 bg-revision/10 px-3 py-2 text-xs font-semibold text-revision shadow-sm">
+                Need at least 2 recorded interview feedbacks to approve hire. Current:{' '}
+                {recordedFeedbackCount}/2.
+              </p>
+            )}
           </div>
         </section>
       </div>
+
+      {decisionFormMode === 'offer' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+          <form
+            className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-border-warm bg-clean-surface shadow-xl"
+            onSubmit={submitOfferEmail}
+          >
+            <div className="border-b border-border-warm px-6 py-4">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-teal-command">
+                Offer Email
+              </p>
+              <h2 className="mt-1 text-lg font-semibold text-deep-charcoal">
+                Send offer to {activeCandidate.name}
+              </h2>
+              <p className="mt-1 text-sm text-slate-ink">
+                This will approve the hire, create an offer letter, and queue an email to the candidate.
+              </p>
+            </div>
+
+            <div className="grid gap-5 p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <div className="space-y-4">
+                <label className="block space-y-2">
+                  <span className="text-sm font-bold text-slate-ink">Candidate</span>
+                  <input
+                    className="h-10 w-full rounded-lg border border-border-warm bg-surface-container px-3 text-sm text-on-surface-variant"
+                    disabled
+                    value={activeCandidate.name}
+                  />
+                </label>
+
+                <label className="block space-y-2">
+                  <span className="text-sm font-bold text-slate-ink">Offer position</span>
+                  <input
+                    className="h-10 w-full rounded-lg border border-border-warm bg-surface-container px-3 text-sm text-on-surface-variant"
+                    disabled
+                    value={`${activeCandidate.role} - ${activeCandidate.department}`}
+                  />
+                </label>
+
+                <label className="block space-y-2">
+                  <span className="text-sm font-bold text-slate-ink">Compensation</span>
+                  <input
+                    className="h-10 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                    disabled={submitting}
+                    onChange={(event) =>
+                      setOfferForm((current) => ({ ...current, compensation: event.target.value }))
+                    }
+                    placeholder="45,000,000 VND gross per month"
+                    value={offerForm.compensation}
+                  />
+                </label>
+
+                <label className="block space-y-2">
+                  <span className="text-sm font-bold text-slate-ink">Proposed start date</span>
+                  <input
+                    className="h-10 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                    disabled={submitting}
+                    onChange={(event) =>
+                      setOfferForm((current) => ({ ...current, startDate: event.target.value }))
+                    }
+                    type="date"
+                    value={offerForm.startDate}
+                  />
+                </label>
+
+                <label className="block space-y-2">
+                  <span className="text-sm font-bold text-slate-ink">Offer notes</span>
+                  <textarea
+                    className="min-h-[120px] w-full rounded-lg border border-border-warm bg-workflow-ivory p-3 text-sm leading-6 outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                    disabled={submitting}
+                    onChange={(event) =>
+                      setOfferForm((current) => ({ ...current, notes: event.target.value }))
+                    }
+                    value={offerForm.notes}
+                  />
+                </label>
+              </div>
+
+              <section className="rounded-lg border border-border-warm bg-workflow-ivory/60 p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">
+                  Email Preview
+                </p>
+                <p className="mt-3 text-sm font-bold text-deep-charcoal">
+                  Subject: Offer Letter: {activeCandidate.role}
+                </p>
+                <pre className="mt-3 whitespace-pre-wrap rounded-lg bg-clean-surface p-4 text-sm leading-6 text-slate-ink">
+{`Dear ${activeCandidate.name},
+
+We are pleased to extend you an offer for the position of ${activeCandidate.role}.
+
+Offer Framework
+Candidate: ${activeCandidate.name}
+Position: ${activeCandidate.role}
+Department: ${activeCandidate.department}
+Compensation: ${offerForm.compensation || '-'}
+Proposed start date: ${offerForm.startDate || '-'}
+
+${offerForm.notes || '-'}
+
+Please review and accept or decline this offer in the candidate portal.`}
+                </pre>
+              </section>
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-border-warm px-6 py-4">
+              <button
+                className="h-10 rounded-lg border border-border-warm px-4 text-sm font-semibold text-slate-ink transition hover:bg-workflow-ivory"
+                disabled={submitting}
+                onClick={() => setDecisionFormMode(null)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="h-10 rounded-lg bg-teal-command px-5 text-sm font-semibold text-white transition hover:bg-primary disabled:opacity-70"
+                disabled={submitting}
+                type="submit"
+              >
+                {submitting ? 'Sending...' : 'Approve and Send Offer'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {decisionFormMode === 'reject' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+          <form
+            className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-border-warm bg-clean-surface shadow-xl"
+            onSubmit={submitRejectEmail}
+          >
+            <div className="border-b border-border-warm px-6 py-4">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-rejected">
+                Rejection Email
+              </p>
+              <h2 className="mt-1 text-lg font-semibold text-deep-charcoal">
+                Send rejection to {activeCandidate.name}
+              </h2>
+              <p className="mt-1 text-sm text-slate-ink">
+                This will mark the request as Not Hired and queue a rejection email to the candidate.
+              </p>
+            </div>
+
+            <div className="grid gap-5 p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <div className="space-y-4">
+                <label className="block space-y-2">
+                  <span className="text-sm font-bold text-slate-ink">Candidate</span>
+                  <input
+                    className="h-10 w-full rounded-lg border border-border-warm bg-surface-container px-3 text-sm text-on-surface-variant"
+                    disabled
+                    value={activeCandidate.name}
+                  />
+                </label>
+
+                <label className="block space-y-2">
+                  <span className="text-sm font-bold text-slate-ink">Position</span>
+                  <input
+                    className="h-10 w-full rounded-lg border border-border-warm bg-surface-container px-3 text-sm text-on-surface-variant"
+                    disabled
+                    value={activeCandidate.role}
+                  />
+                </label>
+
+                <label className="block space-y-2">
+                  <span className="text-sm font-bold text-slate-ink">Rejection reason / feedback</span>
+                  <textarea
+                    className="min-h-[180px] w-full rounded-lg border border-border-warm bg-workflow-ivory p-3 text-sm leading-6 outline-none focus:border-rejected focus:ring-2 focus:ring-rejected/20"
+                    disabled={submitting}
+                    onChange={(event) =>
+                      setRejectForm((current) => ({ ...current, notes: event.target.value }))
+                    }
+                    value={rejectForm.notes}
+                  />
+                </label>
+              </div>
+
+              <section className="rounded-lg border border-border-warm bg-workflow-ivory/60 p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">
+                  Email Preview
+                </p>
+                <p className="mt-3 text-sm font-bold text-deep-charcoal">
+                  Subject: Application Update: {activeCandidate.role}
+                </p>
+                <pre className="mt-3 whitespace-pre-wrap rounded-lg bg-clean-surface p-4 text-sm leading-6 text-slate-ink">
+{`Dear ${activeCandidate.name},
+
+Thank you for your interest in the position of ${activeCandidate.role} and for taking the time to speak with us.
+
+After careful consideration, we regret to inform you that we will not be moving forward with your application at this time.
+
+Feedback:
+${rejectForm.notes || '-'}
+
+We wish you the best of luck in your job search and future professional endeavors.`}
+                </pre>
+              </section>
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-border-warm px-6 py-4">
+              <button
+                className="h-10 rounded-lg border border-border-warm px-4 text-sm font-semibold text-slate-ink transition hover:bg-workflow-ivory"
+                disabled={submitting}
+                onClick={() => setDecisionFormMode(null)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="h-10 rounded-lg bg-rejected px-5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-70"
+                disabled={submitting}
+                type="submit"
+              >
+                {submitting ? 'Sending...' : 'Reject and Send Email'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {(profileDetail || profileLoading) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">

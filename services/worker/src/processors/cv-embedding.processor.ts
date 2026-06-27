@@ -2,12 +2,11 @@ import { PrismaClient } from '@prisma/client';
 import { embeddingToPgVector, getEmbedding } from '@wr/ai';
 import { AuditLogService } from '@wr/database';
 import { AuditAction, AuditEntityType, EmbeddingGenerateJobPayload } from '@wr/contracts';
-import { config } from '../config';
 import { logger } from '../logger';
 
 // Singleton Prisma client (same pattern as other services)
 const prisma = new PrismaClient({
-  log: config.NODE_ENV === 'development' ? ['query', 'warn', 'error'] : ['warn', 'error'],
+  log: ['warn', 'error'],
 });
 
 const auditLog = new AuditLogService(prisma);

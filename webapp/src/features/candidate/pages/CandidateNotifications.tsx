@@ -244,7 +244,9 @@ export const CandidateNotifications: React.FC = () => {
             () => ({ interviews: [] }),
           ),
         ]);
-        const interviewMap = new Map(profile.interviews.map((interview) => [interview.id, interview]));
+        const interviewMap = new Map(
+          profile.interviews.map((interview) => [interview.id, interview]),
+        );
         const mapped = response.map((notification): AlertItem => {
           const type: AlertItem['type'] =
             notification.type === 'INTERVIEW_INVITE'
@@ -272,7 +274,9 @@ export const CandidateNotifications: React.FC = () => {
             unread: !notification.isRead,
             date: startsAt?.toLocaleDateString(),
             time: startsAt?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            format: interview?.location?.startsWith('http') ? 'Online interview' : interview?.location,
+            format: interview?.location?.startsWith('http')
+              ? 'Online interview'
+              : interview?.location,
             relatedJob: interview?.request?.position,
             relatedId: notification.relatedEntityId ?? null,
             relatedType: notification.relatedEntityType ?? null,
@@ -327,7 +331,9 @@ export const CandidateNotifications: React.FC = () => {
     const endpoint = nextUnread ? `/notifications/${id}/unread` : `/notifications/${id}/read`;
     void apiRequest(endpoint, token, { method: 'PATCH' }).catch((readError) => {
       setAlerts((prevAlerts) =>
-        prevAlerts.map((alert) => (alert.id === id ? { ...alert, unread: selected?.unread ?? false } : alert)),
+        prevAlerts.map((alert) =>
+          alert.id === id ? { ...alert, unread: selected?.unread ?? false } : alert,
+        ),
       );
       setApiError(readError instanceof Error ? readError.message : 'Unable to mark notification');
     });
@@ -343,7 +349,9 @@ export const CandidateNotifications: React.FC = () => {
     }
     void apiRequest(`/notifications/${id}`, token, { method: 'DELETE' }).catch((archiveError) => {
       setAlerts(previousAlerts);
-      setApiError(archiveError instanceof Error ? archiveError.message : 'Unable to archive notification');
+      setApiError(
+        archiveError instanceof Error ? archiveError.message : 'Unable to archive notification',
+      );
     });
   };
 
@@ -377,6 +385,10 @@ export const CandidateNotifications: React.FC = () => {
   const handleOpenInterview = (alert: AlertItem) => {
     if (!alert.relatedId) {
       setApiError('Interview schedule is not linked to this notification');
+      return;
+    }
+    if (alert.relatedType === 'OfferLetter') {
+      navigate(`/candidate/offers?id=${alert.relatedId}`);
       return;
     }
     navigate(`/candidate/interviews?id=${alert.relatedId}`);
@@ -723,6 +735,17 @@ export const CandidateNotifications: React.FC = () => {
                     </button>
                   </div>
                 )}
+                {selectedAlert.relatedType === 'OfferLetter' ? (
+                  <div className="mt-auto flex border-t border-border-warm pt-6">
+                    <button
+                      className="rounded-lg bg-teal-command px-6 py-2.5 text-xs font-semibold text-white"
+                      onClick={() => handleOpenInterview(selectedAlert)}
+                      type="button"
+                    >
+                      Review offer
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </div>
           ) : (
