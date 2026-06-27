@@ -19,6 +19,7 @@ import { AdminAnnualReport } from './features/admin/pages/AdminAnnualReport';
 import { AdminDeptStats } from './features/admin/pages/AdminDeptStats';
 import { DeptHeadCreateRequest } from './features/dept-head/pages/DeptHeadCreateRequest';
 import { DeptHeadDashboard } from './features/dept-head/pages/DeptHeadDashboard';
+import { DeptHeadInterviewFeedback } from './features/dept-head/pages/DeptHeadInterviewFeedback';
 import { DeptHeadInterviews } from './features/dept-head/pages/DeptHeadInterviews';
 import { DeptHeadRequests } from './features/dept-head/pages/DeptHeadRequests';
 import { DeptHeadSettings } from './features/dept-head/pages/DeptHeadSettings';
@@ -225,6 +226,16 @@ export function App() {
               <ProtectedRoute allowedRoles={[UserRole.DEPARTMENT_HEAD]}>
                 <Layout>
                   <DeptHeadInterviews />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dept-head/feedback"
+            element={
+              <ProtectedRoute allowedRoles={[UserRole.DEPARTMENT_HEAD]}>
+                <Layout>
+                  <DeptHeadInterviewFeedback />
                 </Layout>
               </ProtectedRoute>
             }

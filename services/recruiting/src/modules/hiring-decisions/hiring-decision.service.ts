@@ -101,14 +101,33 @@ export class HiringDecisionService {
       });
     }
 
-    const incompleteInterviews = request.interviews.filter(
+    const selectedCandidateIds = decision === HiringDecision.HIRE ? [offerDetails!.candidateId] : [];
+    const interviewsForDecision =
+      decision === HiringDecision.HIRE
+        ? request.interviews.filter((interview) => interview.candidateId === offerDetails!.candidateId)
+        : request.interviews;
+
+    if (interviewsForDecision.length === 0) {
+      throw new RpcException({
+        status: HttpStatus.PRECONDITION_FAILED,
+        message:
+          decision === HiringDecision.HIRE
+            ? 'No completed interviews are available for the selected candidate'
+            : 'No completed interviews are available for review',
+      });
+    }
+
+    const incompleteInterviews = interviewsForDecision.filter(
       (interview) =>
         interview.status !== InterviewStatus.COMPLETED || interview.results.length === 0,
     );
     if (incompleteInterviews.length > 0) {
       throw new RpcException({
         status: HttpStatus.PRECONDITION_FAILED,
-        message: 'All interviews must have recorded results before a final decision',
+        message:
+          decision === HiringDecision.HIRE
+            ? 'The selected candidate interview must have recorded results before hire'
+            : 'All interviews must have recorded results before a final decision',
         interviewIds: incompleteInterviews.map((interview) => interview.id),
       });
     }
@@ -120,12 +139,17 @@ export class HiringDecisionService {
       candidateResults.set(interview.candidateId, results);
     }
 
-    const selectedCandidateIds = decision === HiringDecision.HIRE ? [offerDetails!.candidateId] : [];
-
     const selectedResults = offerDetails ? candidateResults.get(offerDetails.candidateId) : undefined;
     const selectedApplication = offerDetails
       ? request.applications.find((application) => application.candidateId === offerDetails.candidateId)
       : undefined;
+    if (decision === HiringDecision.HIRE && (selectedResults?.length ?? 0) < 2) {
+      throw new RpcException({
+        status: HttpStatus.PRECONDITION_FAILED,
+        message: 'The selected candidate must have feedback from at least 2 interviewers before hire',
+      });
+    }
+
     if (
       decision === HiringDecision.HIRE &&
       (!selectedApplication || !selectedResults?.includes(InterviewResult.PASS))
@@ -154,20 +178,60 @@ export class HiringDecisionService {
 
         const emailLogId = randomUUID();
         const offerId = hired ? randomUUID() : undefined;
-        let subject = hired ? `Offer Letter - ${request.position}` : `Application update for ${request.position}`;
+        let subject = hired
+          ? `Offer Letter: ${request.position}`
+          : `Application update for ${request.position}`;
+        const offerContent = hired
+          ? [
+              'OFFER FRAMEWORK',
+              '',
+              `Candidate: ${application.candidate.fullName}`,
+              `Position: ${request.position}`,
+              `Department: ${request.department.name}`,
+              `Compensation: ${offerDetails!.compensation.trim()}`,
+              `Proposed start date: ${offerStartDate!.toISOString().slice(0, 10)}`,
+              '',
+              `You are being offered to join the ${request.department.name} department.`,
+              '',
+              'Decision notes:',
+              note,
+            ].join('\n')
+          : '';
         let body = hired
           ? [
               `Dear ${application.candidate.fullName},`,
               '',
               `We are pleased to offer you the position of ${request.position} in ${request.department.name}.`,
-              `Compensation: ${offerDetails!.compensation.trim()}`,
-              `Proposed start date: ${offerStartDate!.toISOString().slice(0, 10)}`,
+              '',
+              offerContent,
               '',
               'Please review and accept or decline this offer in the candidate portal.',
             ].join('\n')
           : `Your application for ${request.position} was not selected.`;
 
-        if (applicationStatus === RecruitmentRequestStatus.NOT_HIRED) {
+        if (hired) {
+          try {
+            const rendered = await firstValueFrom(
+              this.notificationClient.send('notification.render_template', {
+                templateType: 'OFFER_LETTER',
+                templateData: {
+                  candidateName: application.candidate.fullName,
+                  position: request.position,
+                  offerContent,
+                  nextSteps:
+                    'Please review the offer details and accept or decline the offer in the candidate portal.',
+                  responseDeadline: new Date(
+                    Date.now() + 7 * 24 * 60 * 60 * 1000,
+                  ).toLocaleDateString('en-GB'),
+                },
+              }),
+            );
+            subject = rendered.subject;
+            body = rendered.body;
+          } catch (err) {
+            console.error('Failed to render offer letter email template:', err);
+          }
+        } else if (applicationStatus === RecruitmentRequestStatus.NOT_HIRED) {
           try {
             const rendered = await firstValueFrom(
               this.notificationClient.send('notification.render_template', {

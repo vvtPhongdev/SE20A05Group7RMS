@@ -78,7 +78,8 @@ describe('HiringDecisionService', () => {
           id: 'interview-1',
           candidateId: 'candidate-1',
           status: InterviewStatus.COMPLETED,
-          results: [{ result: InterviewResult.PASS }],
+          interviewers: ['interviewer-1', 'interviewer-2'],
+          results: [{ result: InterviewResult.PASS }, { result: InterviewResult.PASS }],
         },
       ],
       applications: [
@@ -138,6 +139,114 @@ describe('HiringDecisionService', () => {
     );
   });
 
+  it('allows HIRE when the selected candidate has 2 feedback results even if another candidate interview is pending', async () => {
+    prisma.recruitmentRequest.findUnique.mockResolvedValue({
+      id: 'request-1',
+      position: 'Backend Engineer',
+      status: RecruitmentRequestStatus.INTERVIEW_COMPLETED,
+      department: { name: 'Engineering' },
+      interviews: [
+        {
+          id: 'interview-1',
+          candidateId: 'candidate-1',
+          status: InterviewStatus.COMPLETED,
+          interviewers: ['interviewer-1', 'interviewer-2'],
+          results: [{ result: InterviewResult.PASS }, { result: InterviewResult.PASS }],
+        },
+        {
+          id: 'interview-2',
+          candidateId: 'candidate-2',
+          status: InterviewStatus.COMPLETED,
+          interviewers: ['interviewer-1', 'interviewer-2'],
+          results: [],
+        },
+      ],
+      applications: [
+        {
+          id: 'application-1',
+          candidateId: 'candidate-1',
+          candidate: {
+            userId: 'user-1',
+            email: 'candidate@example.com',
+            fullName: 'Jane Doe',
+          },
+        },
+        {
+          id: 'application-2',
+          candidateId: 'candidate-2',
+          candidate: {
+            userId: 'user-2',
+            email: 'other@example.com',
+            fullName: 'John Smith',
+          },
+        },
+      ],
+    });
+
+    const result = await service.decide(
+      'request-1',
+      HiringDecision.HIRE,
+      'Strong panel feedback',
+      'admin-1',
+      {
+        candidateId: 'candidate-1',
+        compensation: '45,000,000 VND gross per month',
+        startDate: '2026-07-15T00:00:00.000Z',
+      },
+    );
+
+    expect(result.selectedCandidateIds).toEqual(['candidate-1']);
+    expect(prisma.recruitmentRequest.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: RecruitmentRequestStatus.OFFER_EXTENDED,
+        }),
+      }),
+    );
+  });
+
+  it('rejects HIRE when the selected candidate has fewer than 2 feedback results', async () => {
+    prisma.recruitmentRequest.findUnique.mockResolvedValue({
+      id: 'request-1',
+      position: 'Backend Engineer',
+      status: RecruitmentRequestStatus.INTERVIEW_COMPLETED,
+      department: { name: 'Engineering' },
+      interviews: [
+        {
+          id: 'interview-1',
+          candidateId: 'candidate-1',
+          status: InterviewStatus.COMPLETED,
+          interviewers: ['interviewer-1', 'interviewer-2'],
+          results: [{ result: InterviewResult.PASS }],
+        },
+      ],
+      applications: [
+        {
+          id: 'application-1',
+          candidateId: 'candidate-1',
+          candidate: {
+            userId: 'user-1',
+            email: 'candidate@example.com',
+            fullName: 'Jane Doe',
+          },
+        },
+      ],
+    });
+
+    await expect(
+      service.decide('request-1', HiringDecision.HIRE, 'Strong panel feedback', 'admin-1', {
+        candidateId: 'candidate-1',
+        compensation: '45,000,000 VND gross per month',
+        startDate: '2026-07-15T00:00:00.000Z',
+      }),
+    ).rejects.toMatchObject({
+      error: expect.objectContaining({
+        status: HttpStatus.PRECONDITION_FAILED,
+        message: 'The selected candidate must have feedback from at least 2 interviewers before hire',
+      }),
+    });
+  });
+
   it('rejects HIRE when offer details are missing', async () => {
     await expect(
       service.decide(
@@ -163,6 +272,7 @@ describe('HiringDecisionService', () => {
           id: 'interview-1',
           candidateId: 'candidate-1',
           status: InterviewStatus.COMPLETED,
+          interviewers: ['interviewer-1', 'interviewer-2'],
           results: [{ result: InterviewResult.FAIL }],
         },
       ],

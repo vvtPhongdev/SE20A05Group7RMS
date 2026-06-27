@@ -32,6 +32,7 @@ type PanelFeedback = {
   communication: number;
   culture: number;
   notes: string;
+  isRecorded?: boolean;
 };
 
 interface InterviewDetailsResponse {
@@ -58,6 +59,13 @@ const RECOMMENDATION_OPTIONS_VALUES: Recommendation[] = [
   'Recommend Reject',
   'Hold for Further',
 ];
+
+const hrInterviewResultsApi = {
+  list: '/hr/interview-results',
+  details: (id: string) => `/hr/interview-results/${id}`,
+  myFeedback: (id: string) => `/hr/interview-results/${id}/my-feedback`,
+  finalRecommendation: (id: string) => `/hr/interview-results/${id}/final-recommendation`,
+};
 
 const iconPaths: Record<string, React.ReactNode> = {
   groups: (
@@ -91,21 +99,49 @@ const statusClass: Record<RecordingStatus, string> = {
   Recorded: 'border-approved/20 bg-approved/10 text-approved',
 };
 
-const recommendationOptions: Array<{ label: Recommendation; icon: string; tone: string }> = [
+const recommendationOptions: Array<{
+  label: Recommendation;
+  icon: string;
+  color: {
+    border: string;
+    background: string;
+    text: string;
+    inactiveBorder: string;
+    inactiveBackground: string;
+  };
+}> = [
   {
     label: 'Recommend Hire',
     icon: 'check',
-    tone: 'peer-checked:border-approved peer-checked:bg-approved/5 peer-checked:ring-approved text-approved',
+    color: {
+      border: '#16a34a',
+      background: '#dcfce7',
+      text: '#15803d',
+      inactiveBorder: '#bbf7d0',
+      inactiveBackground: '#f0fdf4',
+    },
   },
   {
     label: 'Recommend Reject',
     icon: 'x',
-    tone: 'peer-checked:border-rejected peer-checked:bg-rejected/5 peer-checked:ring-rejected text-rejected',
+    color: {
+      border: '#dc2626',
+      background: '#fee2e2',
+      text: '#b91c1c',
+      inactiveBorder: '#fecaca',
+      inactiveBackground: '#fef2f2',
+    },
   },
   {
     label: 'Hold for Further',
     icon: 'hold',
-    tone: 'peer-checked:border-teal-command peer-checked:bg-teal-command/5 peer-checked:ring-teal-command text-pending',
+    color: {
+      border: '#d97706',
+      background: '#fef3c7',
+      text: '#b45309',
+      inactiveBorder: '#fde68a',
+      inactiveBackground: '#fffbeb',
+    },
   },
 ];
 
@@ -128,6 +164,7 @@ const emptyOwnFeedback = (user: { id: string; displayName: string; role: UserRol
   communication: 0,
   culture: 0,
   notes: '',
+  isRecorded: false,
 });
 
 export const HRInterviewResults: React.FC = () => {
@@ -146,14 +183,15 @@ export const HRInterviewResults: React.FC = () => {
   const [submitError, setSubmitError] = useState('');
 
   const canEditOwnFeedback = user?.role === UserRole.HR_LEADER;
-  const canSubmitDecision = user?.role === UserRole.HR_RECRUITER;
+  const canSubmitDecision =
+    user?.role === UserRole.HR_LEADER || user?.role === UserRole.HR_RECRUITER;
 
   useEffect(() => {
     const loadCompleted = async () => {
       setLoading(true);
       setApiError('');
       try {
-        const data = await apiRequest<CompletedInterview[]>('/interviews/completed', token);
+        const data = await apiRequest<CompletedInterview[]>(hrInterviewResultsApi.list, token);
         setCompletedInterviews(data);
         if (data.length > 0) {
           setSelectedId(data[0].id);
@@ -177,7 +215,7 @@ export const HRInterviewResults: React.FC = () => {
       setSubmitError('');
       try {
         const details = await apiRequest<InterviewDetailsResponse>(
-          `/interviews/${selectedId}/details`,
+          hrInterviewResultsApi.details(selectedId),
           token,
         );
         const nextFeedback = [...details.feedbacks];
@@ -218,6 +256,16 @@ export const HRInterviewResults: React.FC = () => {
     );
   }, [completedInterviews, query]);
 
+  const feedbackStats = useMemo(() => {
+    const evaluated = feedback.filter((item) => item.isRecorded === true).length;
+    const participants = feedback.length;
+    return {
+      evaluated,
+      notEvaluated: Math.max(participants - evaluated, 0),
+      participants,
+    };
+  }, [feedback]);
+
   const updateScore = (
     id: string,
     key: 'technical' | 'communication' | 'culture',
@@ -249,7 +297,7 @@ export const HRInterviewResults: React.FC = () => {
         }
 
         const response = await apiRequest<MyFeedbackResponse>(
-          `/interviews/${selectedInterview.id}/my-feedback`,
+          hrInterviewResultsApi.myFeedback(selectedInterview.id),
           token,
           {
             method: 'POST',
@@ -263,10 +311,12 @@ export const HRInterviewResults: React.FC = () => {
           },
         );
 
+        const savedFeedback = { ...response.feedback, isRecorded: true };
+
         setFeedback((items) =>
           items.some((item) => item.id === response.feedback.id)
-            ? items.map((item) => (item.id === response.feedback.id ? response.feedback : item))
-            : [...items, response.feedback],
+            ? items.map((item) => (item.id === response.feedback.id ? savedFeedback : item))
+            : [...items, savedFeedback],
         );
       }
 
@@ -275,10 +325,9 @@ export const HRInterviewResults: React.FC = () => {
         return;
       }
 
-      await apiRequest(`/interviews/${selectedInterview.id}/results`, token, {
+      await apiRequest(hrInterviewResultsApi.finalRecommendation(selectedInterview.id), token, {
         method: 'POST',
         body: JSON.stringify({
-          feedbacks: [],
           finalRecommendation: recommendation,
           summaryNotes,
         }),
@@ -288,7 +337,7 @@ export const HRInterviewResults: React.FC = () => {
           item.id === selectedInterview.id ? { ...item, status: 'Recorded' } : item,
         ),
       );
-      setSubmitMessage('Final decision submitted successfully.');
+      setSubmitMessage('Final recommendation sent to Admin for Hire/Not Hire decision.');
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Unable to submit results');
     } finally {
@@ -301,7 +350,7 @@ export const HRInterviewResults: React.FC = () => {
       <HRPageHeader
         eyebrow="HR Manager Portal"
         title="Interview Results"
-        description="Review panel feedback after completed interviews. HR recruiters record the final hiring decision; HR leaders can submit their own evaluation."
+        description="Review panel feedback after completed interviews. HR sends the final recommendation to Admin, then Admin makes the Hire or Not Hire decision."
         actions={
           <HRSearchInput
             className="w-full max-w-md"
@@ -396,10 +445,23 @@ export const HRInterviewResults: React.FC = () => {
 
             <div className="space-y-8 p-6">
               <section>
-                <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-ink">
-                  <Icon className="h-4 w-4" name="groups" />
-                  Panel Members Feedback
-                </h3>
+                <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.14em] text-slate-ink">
+                    <Icon className="h-4 w-4" name="groups" />
+                    Panel Members Feedback
+                  </h3>
+                  <div className="flex flex-wrap gap-2 text-xs font-bold">
+                    <span className="rounded-full border border-border-warm bg-surface-container-low px-3 py-1 text-slate-ink">
+                      {feedbackStats.participants} Interview Participants
+                    </span>
+                    <span className="rounded-full border border-approved/30 bg-approved/10 px-3 py-1 text-approved">
+                      {feedbackStats.evaluated} Evaluated
+                    </span>
+                    <span className="rounded-full border border-revision/30 bg-revision/10 px-3 py-1 text-revision">
+                      {feedbackStats.notEvaluated} Not Evaluated
+                    </span>
+                  </div>
+                </div>
                 <div className="space-y-5">
                   {feedback.map((item) => {
                     const editable = canEditOwnFeedback && item.id === user?.id;
@@ -417,27 +479,40 @@ export const HRInterviewResults: React.FC = () => {
                             <p className="text-sm font-bold text-deep-charcoal">
                               {item.member} ({item.role})
                             </p>
-                            {editable && (
-                              <span className="rounded-full border border-teal-command/20 bg-teal-command/10 px-2.5 py-1 text-[11px] font-bold text-teal-command">
-                                Your feedback
+                            <div className="flex flex-wrap items-center gap-2">
+                              {editable && (
+                                <span className="rounded-full border border-teal-command/20 bg-teal-command/10 px-2.5 py-1 text-[11px] font-bold text-teal-command">
+                                  Your feedback
+                                </span>
+                              )}
+                              <span
+                                className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
+                                  item.isRecorded
+                                    ? 'border-approved/30 bg-approved/10 text-approved'
+                                    : 'border-revision/30 bg-revision/10 text-revision'
+                                }`}
+                              >
+                                {item.isRecorded ? 'Evaluated' : 'Not Evaluated'}
                               </span>
-                            )}
+                            </div>
                             <div className="flex w-fit rounded-lg bg-surface-container-high p-1">
                               {(['PASS', 'FAIL'] as const).map((decision) => (
                                 <button
-                                  className={`rounded-md px-3 py-1 text-[11px] font-bold transition active:scale-[0.98] ${
+                                  className={`rounded-md border px-3 py-1 text-[11px] font-bold transition active:scale-[0.98] ${
                                     item.decision === decision
                                       ? decision === 'PASS'
-                                        ? 'bg-approved text-white shadow-sm'
-                                        : 'bg-rejected text-white shadow-sm'
-                                      : 'text-slate-ink hover:bg-white'
+                                        ? 'border-approved/30 bg-approved/10 text-approved shadow-sm'
+                                        : 'border-rejected/30 bg-rejected/10 text-rejected shadow-sm'
+                                      : decision === 'PASS'
+                                        ? 'border-transparent text-approved hover:bg-approved/10'
+                                        : 'border-transparent text-rejected hover:bg-rejected/10'
                                   }`}
                                   disabled={!editable || submitting}
                                   key={decision}
                                   onClick={() => updateDecision(item.id, decision)}
                                   type="button"
                                 >
-                                  {decision}
+                                  {decision === 'PASS' ? 'Pass' : 'Fail'}
                                 </button>
                               ))}
                             </div>
@@ -494,24 +569,32 @@ export const HRInterviewResults: React.FC = () => {
                   Final Recommendation
                 </h3>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  {recommendationOptions.map((option) => (
-                    <label className="cursor-pointer" key={option.label}>
-                      <input
-                        checked={recommendation === option.label}
-                        className="peer hidden"
+                  {recommendationOptions.map((option) => {
+                    const selected = recommendation === option.label;
+                    return (
+                      <button
+                        aria-pressed={selected}
+                        className="w-full rounded-lg border-2 p-4 text-center shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
                         disabled={!canSubmitDecision || submitting}
-                        name="recommendation"
-                        onChange={() => setRecommendation(option.label)}
-                        type="radio"
-                      />
-                      <div
-                        className={`rounded-lg border border-border-warm p-4 text-center ring-1 ring-transparent transition ${option.tone}`}
+                        key={option.label}
+                        onClick={() => setRecommendation(option.label)}
+                        style={{
+                          backgroundColor: selected
+                            ? option.color.background
+                            : option.color.inactiveBackground,
+                          borderColor: selected ? option.color.border : option.color.inactiveBorder,
+                          boxShadow: selected
+                            ? `0 0 0 3px ${option.color.border}33`
+                            : '0 1px 2px rgba(15, 23, 42, 0.08)',
+                          color: option.color.text,
+                        }}
+                        type="button"
                       >
-                        <Icon className="mx-auto mb-2 h-6 w-6" name={option.icon} />
-                        <p className="text-sm font-bold text-deep-charcoal">{option.label}</p>
-                      </div>
-                    </label>
-                  ))}
+                        <Icon className="mx-auto mb-2 h-6 w-6 text-current" name={option.icon} />
+                        <p className="text-sm font-bold text-current">{option.label}</p>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 <label className="block space-y-2">
@@ -547,16 +630,6 @@ export const HRInterviewResults: React.FC = () => {
                 {submitError && <span className="font-semibold text-rejected">{submitError}</span>}
               </div>
               <div className="flex flex-col gap-3 sm:flex-row">
-                {canSubmitDecision && (
-                  <button
-                    className="rounded-lg border border-teal-command px-6 py-2.5 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98] disabled:opacity-70"
-                    disabled={submitting}
-                    onClick={submitResults}
-                    type="button"
-                  >
-                    Save as Draft
-                  </button>
-                )}
                 <button
                   className="rounded-lg bg-teal-command px-8 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary active:scale-[0.98] disabled:opacity-70"
                   disabled={submitting}
@@ -566,7 +639,7 @@ export const HRInterviewResults: React.FC = () => {
                   {submitting
                     ? 'Submitting...'
                     : canSubmitDecision
-                      ? 'Submit Hiring Decision'
+                      ? 'Send Recommendation to Admin'
                       : 'Save My Evaluation'}
                 </button>
               </div>
