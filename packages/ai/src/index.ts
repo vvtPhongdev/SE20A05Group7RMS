@@ -5,6 +5,7 @@ export * from './skill-graph/index';
 export * from './matching/index';
 export * from './embedding';
 export * from './cv-parser';
+export * from './cv-extractor';
 export * from './similarity';
 
 /**
@@ -32,7 +33,7 @@ export interface LlmResponse {
 /**
  * Abstract LLM client — implementation injected at runtime.
  * Provider selection is deferred; this interface supports
- * OpenAI, Anthropic, Google, or local models.
+ * Third-party cloud providers or local models.
  */
 export interface LlmClient {
   complete(request: LlmRequest): Promise<LlmResponse>;

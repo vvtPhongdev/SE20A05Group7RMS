@@ -64,6 +64,12 @@ interface UserOption {
   email?: string;
 }
 
+interface CvPreview {
+  candidateName: string;
+  contentType: string;
+  url: string;
+}
+
 const TERMINAL_STATUSES = ['DRAFT', 'REJECTED', 'CANCELLED', 'CLOSED'];
 const TONES: InterviewTone[] = ['teal', 'cyan', 'amber', 'slate'];
 
@@ -131,6 +137,7 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
     notification: <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />,
     help: <path d="M9.5 9a2.5 2.5 0 1 1 4.45 1.55c-.7.64-1.45 1.12-1.45 2.45M12 17h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0" />,
     empty: <path d="M7 3v4m10-4v4M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm5 8h6" />,
+    close: <path d="M18 6 6 18M6 6l12 12" />,
   };
 
   return (
@@ -155,6 +162,7 @@ export const DeptHeadInterviews: React.FC = () => {
   const [sortKey, setSortKey] = useState<SortKey>('earliest');
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [viewingCvId, setViewingCvId] = useState('');
+  const [cvPreview, setCvPreview] = useState<CvPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
 
@@ -244,6 +252,14 @@ export const DeptHeadInterviews: React.FC = () => {
     void loadInterviews();
   }, [token, user?.id]);
 
+  useEffect(() => {
+    return () => {
+      if (cvPreview?.url) {
+        URL.revokeObjectURL(cvPreview.url);
+      }
+    };
+  }, [cvPreview?.url]);
+
   const visibleEvents = useMemo(() => {
     const { start, end } = getPeriodRange(viewMode);
 
@@ -272,8 +288,8 @@ export const DeptHeadInterviews: React.FC = () => {
         headers.set('Authorization', `Bearer ${token}`);
       }
       const response = await fetch(
-        `/api/v1/candidate/cvs/candidate/${event.candidateId}/latest/file`,
-        { headers },
+        `/api/v1/candidate/cvs/candidate/${event.candidateId}/latest/file?t=${Date.now()}`,
+        { cache: 'no-store', headers },
       );
       if (!response.ok) {
         const error = await response.json().catch(() => null);
@@ -281,21 +297,19 @@ export const DeptHeadInterviews: React.FC = () => {
       }
 
       const blobUrl = URL.createObjectURL(await response.blob());
-      const opened = window.open(blobUrl, '_blank');
-      if (!opened) {
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.click();
-      }
-      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+      setCvPreview({
+        candidateName: event.candidates[0] ?? 'Candidate',
+        contentType: response.headers.get('Content-Type')?.split(';')[0] ?? '',
+        url: blobUrl,
+      });
     } catch (viewError) {
       setApiError(viewError instanceof Error ? viewError.message : 'Unable to open candidate CV');
     } finally {
       setViewingCvId('');
     }
   };
+
+  const closeCvPreview = () => setCvPreview(null);
 
   return (
     <DeptHeadDashboardPage className="gap-7">
@@ -504,6 +518,82 @@ export const DeptHeadInterviews: React.FC = () => {
           )}
         </div>
       </section>
+
+      {cvPreview && (
+        <div
+          aria-labelledby="dept-head-cv-preview-title"
+          aria-modal="true"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-deep-charcoal/60 p-4 backdrop-blur-sm"
+          role="dialog"
+        >
+          <div className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-border-warm bg-clean-surface shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-border-warm bg-workflow-ivory/60 px-5 py-4">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-command">
+                  Candidate CV Preview
+                </p>
+                <h3
+                  className="mt-1 truncate text-lg font-semibold text-deep-charcoal"
+                  id="dept-head-cv-preview-title"
+                >
+                  {cvPreview.candidateName}
+                </h3>
+              </div>
+              <button
+                aria-label="Close CV preview"
+                className="rounded-full p-2 text-on-surface-variant transition hover:bg-surface-container-low hover:text-on-surface active:scale-[0.98]"
+                onClick={closeCvPreview}
+                type="button"
+              >
+                <Icon className="h-5 w-5" name="close" />
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 bg-surface-container p-3">
+              {cvPreview.contentType === 'application/pdf' ? (
+                <iframe
+                  className="h-full w-full rounded-lg border border-border-warm bg-white"
+                  src={cvPreview.url}
+                  title={`CV preview for ${cvPreview.candidateName}`}
+                />
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center rounded-lg border border-dashed border-border-warm bg-clean-surface p-6 text-center">
+                  <p className="text-base font-semibold text-deep-charcoal">
+                    PDF preview is not available for this CV file type.
+                  </p>
+                  <p className="mt-2 max-w-md text-sm text-on-surface-variant">
+                    You can download the original CV file from storage to review it locally.
+                  </p>
+                  <a
+                    className="mt-5 rounded-lg bg-teal-command px-4 py-2 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
+                    download={`${cvPreview.candidateName}-CV`}
+                    href={cvPreview.url}
+                  >
+                    Download CV
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-border-warm bg-workflow-ivory px-5 py-4 sm:flex-row sm:justify-end">
+              <button
+                className="rounded-lg border border-border-warm px-5 py-2.5 text-sm font-semibold text-on-surface-variant transition hover:bg-surface-container-low active:scale-[0.98]"
+                onClick={closeCvPreview}
+                type="button"
+              >
+                Close
+              </button>
+              <a
+                className="rounded-lg bg-teal-command px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary active:scale-[0.98]"
+                download={`${cvPreview.candidateName}-CV`}
+                href={cvPreview.url}
+              >
+                Download CV
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </DeptHeadDashboardPage>
   );
 };
