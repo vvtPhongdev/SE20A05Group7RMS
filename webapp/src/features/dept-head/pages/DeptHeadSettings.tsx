@@ -36,6 +36,7 @@ interface ApiUser {
   phone?: string | null;
   department?: ApiDepartment | null;
   departmentsHeaded?: ApiDepartment[];
+  organizationId?: string;
 }
 
 interface UserListResponse {
@@ -60,6 +61,28 @@ interface NotificationPreference {
   description: string;
   enabled: boolean;
   disabled?: boolean;
+}
+
+interface OrganizationResponse {
+  id: string;
+  settings?: Record<string, unknown>;
+}
+
+interface DeptHeadSettingsState {
+  preferences?: NotificationPreference[];
+  selectedPriority?: Priority;
+}
+
+interface EditProfileForm {
+  displayName: string;
+  phone: string;
+}
+
+interface AddMemberForm {
+  displayName: string;
+  email: string;
+  phone: string;
+  password: string;
 }
 
 const initialPreferences: NotificationPreference[] = [
@@ -138,10 +161,18 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
       <path d="M19 7V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-1m0-10h-7a2 2 0 0 0 0 4h7V7Zm-3 2h.01" />
     ),
     edit: <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" />,
-    engineering: <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48 2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48 2.83-2.83M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />,
-    more: <path d="M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM19 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM5 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" />,
-    notifications: <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />,
-    priority: <path d="M12 7v6m0 4h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />,
+    engineering: (
+      <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48 2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48 2.83-2.83M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z" />
+    ),
+    more: (
+      <path d="M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM19 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM5 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" />
+    ),
+    notifications: (
+      <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />
+    ),
+    priority: (
+      <path d="M12 7v6m0 4h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+    ),
     search: <path d="m21 21-4.3-4.3M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" />,
     check: <path d="M20 6 9 17l-5-5" />,
     plus: <path d="M12 5v14M5 12h14" />,
@@ -173,16 +204,28 @@ export const DeptHeadSettings: React.FC = () => {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [preferences, setPreferences] = useState(initialPreferences);
   const [selectedPriority, setSelectedPriority] = useState<Priority>('High');
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(fallbackTeamMembers);
-  const [currentUser, setCurrentUser] = useState<CurrentUserResponse | null>(null);
-  const [department, setDepartment] = useState<DepartmentResponse | null>(null);
   const [organization, setOrganization] = useState<OrganizationResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [apiError, setApiError] = useState('');
   const [saving, setSaving] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
+  const [toastMessage, setToastMessage] = useState('Settings updated successfully.');
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const [editProfileForm, setEditProfileForm] = useState<EditProfileForm>({
+    displayName: '',
+    phone: '',
+  });
+  const [editProfileError, setEditProfileError] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
+  const [addMemberForm, setAddMemberForm] = useState<AddMemberForm>({
+    displayName: '',
+    email: '',
+    phone: '',
+    password: '',
+  });
+  const [addMemberError, setAddMemberError] = useState('');
+  const [memberSaving, setMemberSaving] = useState(false);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -193,14 +236,20 @@ export const DeptHeadSettings: React.FC = () => {
         const department = primaryDepartment(currentProfile);
         const departmentId = department?.id ?? currentProfile.departmentId ?? null;
 
-        const [usersResponse, requestRows, notifications] = await Promise.all([
-          apiRequest<UserListResponse>('/users/interviewers', token).catch(() => ({ data: [] })),
+        const [usersResponse, requestRows, notifications, organizationResponse] = await Promise.all([
+          apiRequest<UserListResponse>('/users?limit=100', token).catch(() => ({ data: [] })),
           apiRequest<RealtimeTrackingItem[]>('/reports/realtime-tracking', token).catch(
             () => [] as RealtimeTrackingItem[],
           ),
           apiRequest<NotificationItem[]>('/notifications', token).catch(
             () => [] as NotificationItem[],
           ),
+          currentProfile.organizationId
+            ? apiRequest<OrganizationResponse>(
+                `/organizations/${currentProfile.organizationId}`,
+                token,
+              ).catch(() => null)
+            : Promise.resolve(null),
         ]);
 
         const sameDepartmentMembers = usersResponse.data.filter((member) => {
@@ -215,6 +264,7 @@ export const DeptHeadSettings: React.FC = () => {
           sameDepartmentMembers.length > 0 ? sameDepartmentMembers : [currentProfile];
 
         setProfile(currentProfile);
+        setOrganization(organizationResponse);
         setTeamMembers(
           normalizedMembers
             .map((member) => toTeamMember(member, currentProfile.id))
@@ -222,6 +272,17 @@ export const DeptHeadSettings: React.FC = () => {
         );
         setRequests(requestRows);
         setUnreadNotifications(notifications.filter((item) => !item.isRead).length);
+
+        const savedSettings = getDepartmentSettings(
+          organizationResponse?.settings,
+          departmentId ?? 'unassigned',
+        );
+        setPreferences(
+          savedSettings.preferences?.length
+            ? mergePreferences(savedSettings.preferences)
+            : initialPreferences,
+        );
+        setSelectedPriority(savedSettings.selectedPriority ?? 'High');
       } catch (loadError) {
         setApiError(loadError instanceof Error ? loadError.message : 'Unable to load settings');
       } finally {
@@ -244,46 +305,6 @@ export const DeptHeadSettings: React.FC = () => {
     totalRequested > 0 ? Math.min(100, Math.round((totalFilled / totalRequested) * 1000) / 10) : 0;
   const targetPercent = 80;
 
-  useEffect(() => {
-    const loadSettings = async () => {
-      setLoading(true);
-      setApiError('');
-      try {
-        const me = await apiRequest<CurrentUserResponse>('/me', token);
-        setCurrentUser(me);
-
-        const [departmentResponse, organizationResponse, usersResponse] = await Promise.all([
-          me.departmentId
-            ? apiRequest<DepartmentResponse>(`/departments/${me.departmentId}`, token)
-            : Promise.resolve(null),
-          apiRequest<OrganizationResponse>(`/organizations/${me.organizationId}`, token),
-          apiRequest<UsersResponse>('/users?limit=100', token),
-        ]);
-
-        setDepartment(departmentResponse);
-        setOrganization(organizationResponse);
-        setTeamMembers(usersResponse.data.map(mapUserToTeamMember));
-
-        const savedSettings = getDepartmentSettings(
-          organizationResponse.settings,
-          me.departmentId ?? 'unassigned',
-        );
-        if (savedSettings.preferences?.length) {
-          setPreferences(mergePreferences(savedSettings.preferences));
-        }
-        if (savedSettings.selectedPriority) {
-          setSelectedPriority(savedSettings.selectedPriority);
-        }
-      } catch (loadError) {
-        setApiError(loadError instanceof Error ? loadError.message : 'Unable to load settings');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void loadSettings();
-  }, [token]);
-
   const filteredMembers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
@@ -296,26 +317,135 @@ export const DeptHeadSettings: React.FC = () => {
     );
   }, [searchQuery]);
 
-  const showSavedToast = () => {
+  const showSavedToast = (message = 'Settings updated successfully.') => {
+    setToastMessage(message);
     setShowToast(true);
     window.setTimeout(() => setShowToast(false), 2400);
+  };
+
+  const openEditProfile = () => {
+    setEditProfileForm({
+      displayName: profile?.displayName ?? user?.displayName ?? '',
+      phone: profile?.phone ?? '',
+    });
+    setEditProfileError('');
+    setEditProfileOpen(true);
+  };
+
+  const submitProfileUpdate = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const displayName = editProfileForm.displayName.trim();
+    const phone = editProfileForm.phone.trim();
+
+    if (!displayName) {
+      setEditProfileError('Display name is required.');
+      return;
+    }
+
+    setProfileSaving(true);
+    setEditProfileError('');
+    try {
+      const updatedProfile = await apiRequest<ApiUser>('/me/profile', token, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          displayName,
+          phone,
+        }),
+      });
+
+      setProfile(updatedProfile);
+      setTeamMembers((members) =>
+        members.map((member) =>
+          member.id === updatedProfile.id ? toTeamMember(updatedProfile, updatedProfile.id) : member,
+        ),
+      );
+      setEditProfileOpen(false);
+      showSavedToast('Profile updated successfully.');
+    } catch (error) {
+      setEditProfileError(error instanceof Error ? error.message : 'Unable to update profile');
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const openAddMember = () => {
+    setAddMemberForm({
+      displayName: '',
+      email: '',
+      phone: '',
+      password: '',
+    });
+    setAddMemberError('');
+    setAddMemberOpen(true);
+  };
+
+  const submitAddMember = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const displayName = addMemberForm.displayName.trim();
+    const email = addMemberForm.email.trim();
+    const phone = addMemberForm.phone.trim();
+    const password = addMemberForm.password.trim();
+
+    if (!displayName || !email) {
+      setAddMemberError('Name and email are required.');
+      return;
+    }
+    if (password && password.length < 8) {
+      setAddMemberError('Temporary password must be at least 8 characters.');
+      return;
+    }
+
+    setMemberSaving(true);
+    setAddMemberError('');
+    try {
+      const createdMember = await apiRequest<ApiUser>(
+        '/dept-head/settings/team-members',
+        token,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            displayName,
+            email,
+            phone,
+            password: password || undefined,
+          }),
+        },
+      );
+
+      setTeamMembers((members) => {
+        const nextMembers = [
+          toTeamMember(createdMember, profile?.id),
+          ...members.filter((member) => member.id !== createdMember.id),
+        ];
+        return nextMembers.sort((a, b) =>
+          a.id === profile?.id ? -1 : b.id === profile?.id ? 1 : a.name.localeCompare(b.name),
+        );
+      });
+      setAddMemberOpen(false);
+      showSavedToast('Team member added successfully.');
+    } catch (error) {
+      setAddMemberError(error instanceof Error ? error.message : 'Unable to add team member');
+    } finally {
+      setMemberSaving(false);
+    }
   };
 
   const persistSettings = async (
     nextPreferences: NotificationPreference[],
     nextPriority: Priority,
   ) => {
-    if (!currentUser || !organization) {
+    if (!profile?.organizationId || !organization) {
       showSavedToast();
       return;
     }
 
+    const departmentId = primaryDepartment(profile)?.id ?? profile.departmentId ?? 'unassigned';
     const previousSettings = organization.settings ?? {};
     const nextSettings = {
       ...previousSettings,
       deptHeadSettings: {
         ...getDeptHeadSettingsMap(previousSettings),
-        [currentUser.departmentId ?? 'unassigned']: {
+        [departmentId]: {
           preferences: nextPreferences,
           selectedPriority: nextPriority,
         },
@@ -326,7 +456,7 @@ export const DeptHeadSettings: React.FC = () => {
     setApiError('');
     try {
       const updated = await apiRequest<OrganizationResponse>(
-        `/organizations/${currentUser.organizationId}/settings`,
+        `/organizations/${profile.organizationId}/settings`,
         token,
         {
           method: 'PATCH',
@@ -340,9 +470,13 @@ export const DeptHeadSettings: React.FC = () => {
       setOrganization({ ...organization, settings: previousSettings });
       const savedSettings = getDepartmentSettings(
         previousSettings,
-        currentUser.departmentId ?? 'unassigned',
+        departmentId,
       );
-      setPreferences(savedSettings.preferences?.length ? mergePreferences(savedSettings.preferences) : initialPreferences);
+      setPreferences(
+        savedSettings.preferences?.length
+          ? mergePreferences(savedSettings.preferences)
+          : initialPreferences,
+      );
       setSelectedPriority(savedSettings.selectedPriority ?? 'High');
     } finally {
       setSaving(false);
@@ -409,7 +543,7 @@ export const DeptHeadSettings: React.FC = () => {
               </div>
               <button
                 className="inline-flex h-10 w-fit items-center gap-2 rounded-lg border border-teal-command px-4 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98]"
-                onClick={showSavedToast}
+                onClick={openEditProfile}
                 type="button"
               >
                 <Icon className="h-4 w-4" name="edit" />
@@ -451,13 +585,17 @@ export const DeptHeadSettings: React.FC = () => {
 
             <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">
               <span>{utilizedPercent}% Filled</span>
-              <span>{activeRequests.length} Active Request{activeRequests.length === 1 ? '' : 's'}</span>
+              <span>
+                {activeRequests.length} Active Request{activeRequests.length === 1 ? '' : 's'}
+              </span>
             </div>
           </div>
 
           <div className="mt-6 flex items-center gap-2 border-t border-border-warm pt-4 text-on-surface-variant">
             <Icon className="h-4 w-4" name="info" />
-            <p className="text-xs">Target fill rate: {targetPercent}% for active recruitment plans</p>
+            <p className="text-xs">
+              Target fill rate: {targetPercent}% for active recruitment plans
+            </p>
           </div>
         </section>
 
@@ -466,7 +604,7 @@ export const DeptHeadSettings: React.FC = () => {
             <h2 className="text-xl font-semibold text-deep-charcoal">Team Management</h2>
             <button
               className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
-              onClick={showSavedToast}
+              onClick={openAddMember}
               type="button"
             >
               <Icon className="h-4 w-4" name="plus" />
@@ -523,7 +661,7 @@ export const DeptHeadSettings: React.FC = () => {
                       <button
                         aria-label={`Open actions for ${member.name}`}
                         className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-on-surface-variant transition hover:bg-surface-container hover:text-teal-command active:scale-[0.98]"
-                        onClick={showSavedToast}
+                        onClick={() => showSavedToast('Team member actions are not available yet.')}
                         type="button"
                       >
                         <Icon className="h-5 w-5" name="more" />
@@ -535,7 +673,7 @@ export const DeptHeadSettings: React.FC = () => {
             </table>
           </div>
 
-                {filteredMembers.length === 0 && (
+          {filteredMembers.length === 0 && (
             <div className="border-t border-border-warm px-6 py-12 text-center">
               <p className="text-sm font-semibold text-deep-charcoal">No team members found</p>
               <p className="mt-1 text-sm text-slate-ink">Try a different search term.</p>
@@ -614,6 +752,207 @@ export const DeptHeadSettings: React.FC = () => {
         </section>
       </div>
 
+      {addMemberOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+          <form
+            className="w-full max-w-lg rounded-lg border border-border-warm bg-clean-surface p-6 shadow-xl"
+            onSubmit={submitAddMember}
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-teal-command">
+                  Department Team
+                </p>
+                <h2 className="mt-1 text-xl font-semibold text-deep-charcoal">Add Member</h2>
+                <p className="mt-1 text-sm text-slate-ink">
+                  New members are added as HR Recruiter in {department?.name ?? 'your department'}.
+                </p>
+              </div>
+              <button
+                className="rounded-lg px-2 py-1 text-sm font-semibold text-slate-ink transition hover:bg-surface-container"
+                disabled={memberSaving}
+                onClick={() => setAddMemberOpen(false)}
+                type="button"
+              >
+                Close
+              </button>
+            </div>
+
+            {addMemberError && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-rejected">
+                {addMemberError}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <label className="block space-y-2">
+                <span className="text-sm font-bold text-slate-ink">Display name</span>
+                <input
+                  className="h-11 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={memberSaving}
+                  onChange={(event) =>
+                    setAddMemberForm((current) => ({
+                      ...current,
+                      displayName: event.target.value,
+                    }))
+                  }
+                  placeholder="Enter member name"
+                  value={addMemberForm.displayName}
+                />
+              </label>
+
+              <label className="block space-y-2">
+                <span className="text-sm font-bold text-slate-ink">Email</span>
+                <input
+                  className="h-11 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={memberSaving}
+                  onChange={(event) =>
+                    setAddMemberForm((current) => ({ ...current, email: event.target.value }))
+                  }
+                  placeholder="member@company.com"
+                  type="email"
+                  value={addMemberForm.email}
+                />
+              </label>
+
+              <label className="block space-y-2">
+                <span className="text-sm font-bold text-slate-ink">Phone</span>
+                <input
+                  className="h-11 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={memberSaving}
+                  onChange={(event) =>
+                    setAddMemberForm((current) => ({ ...current, phone: event.target.value }))
+                  }
+                  placeholder="Enter phone number"
+                  value={addMemberForm.phone}
+                />
+              </label>
+
+              <label className="block space-y-2">
+                <span className="text-sm font-bold text-slate-ink">Temporary password</span>
+                <input
+                  className="h-11 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={memberSaving}
+                  onChange={(event) =>
+                    setAddMemberForm((current) => ({ ...current, password: event.target.value }))
+                  }
+                  placeholder="At least 8 characters"
+                  type="password"
+                  value={addMemberForm.password}
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3 border-t border-border-warm pt-5">
+              <button
+                className="h-10 rounded-lg border border-border-warm px-4 text-sm font-semibold text-slate-ink transition hover:bg-workflow-ivory active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={memberSaving}
+                onClick={() => setAddMemberOpen(false)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="h-10 rounded-lg bg-teal-command px-5 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={memberSaving}
+                type="submit"
+              >
+                {memberSaving ? 'Adding...' : 'Add Member'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {editProfileOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+          <form
+            className="w-full max-w-lg rounded-lg border border-border-warm bg-clean-surface p-6 shadow-xl"
+            onSubmit={submitProfileUpdate}
+          >
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-teal-command">
+                  Department Head Profile
+                </p>
+                <h2 className="mt-1 text-xl font-semibold text-deep-charcoal">Edit Profile</h2>
+              </div>
+              <button
+                className="rounded-lg px-2 py-1 text-sm font-semibold text-slate-ink transition hover:bg-surface-container"
+                disabled={profileSaving}
+                onClick={() => setEditProfileOpen(false)}
+                type="button"
+              >
+                Close
+              </button>
+            </div>
+
+            {editProfileError && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-rejected">
+                {editProfileError}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <label className="block space-y-2">
+                <span className="text-sm font-bold text-slate-ink">Display name</span>
+                <input
+                  className="h-11 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={profileSaving}
+                  onChange={(event) =>
+                    setEditProfileForm((current) => ({
+                      ...current,
+                      displayName: event.target.value,
+                    }))
+                  }
+                  value={editProfileForm.displayName}
+                />
+              </label>
+
+              <label className="block space-y-2">
+                <span className="text-sm font-bold text-slate-ink">Email</span>
+                <input
+                  className="h-11 w-full rounded-lg border border-border-warm bg-surface-container px-3 text-sm text-on-surface-variant"
+                  disabled
+                  value={profile?.email ?? user?.email ?? ''}
+                />
+              </label>
+
+              <label className="block space-y-2">
+                <span className="text-sm font-bold text-slate-ink">Phone</span>
+                <input
+                  className="h-11 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={profileSaving}
+                  onChange={(event) =>
+                    setEditProfileForm((current) => ({ ...current, phone: event.target.value }))
+                  }
+                  placeholder="Enter phone number"
+                  value={editProfileForm.phone}
+                />
+              </label>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3 border-t border-border-warm pt-5">
+              <button
+                className="h-10 rounded-lg border border-border-warm px-4 text-sm font-semibold text-slate-ink transition hover:bg-workflow-ivory active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={profileSaving}
+                onClick={() => setEditProfileOpen(false)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="h-10 rounded-lg bg-teal-command px-5 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={profileSaving}
+                type="submit"
+              >
+                {profileSaving ? 'Saving...' : 'Save Profile'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       <div
         className={`fixed bottom-8 right-8 flex items-center gap-3 rounded-lg bg-inverse-surface px-6 py-3 text-inverse-on-surface shadow-xl transition-all duration-300 ${
           showToast ? 'translate-y-0 opacity-100' : 'translate-y-24 opacity-0'
@@ -621,7 +960,7 @@ export const DeptHeadSettings: React.FC = () => {
       >
         <Icon className="h-5 w-5 text-teal-command" name="check" />
         <p className="text-sm font-semibold">
-          {saving ? 'Saving settings...' : 'Settings updated successfully.'}
+          {saving ? 'Saving settings...' : toastMessage}
         </p>
       </div>
     </DeptHeadDashboardPage>
@@ -637,27 +976,6 @@ const InitialAvatar = ({ name }: { name: string }) => (
       .join('')}
   </div>
 );
-
-const mapUserToTeamMember = (user: UsersResponse['data'][number]): TeamMember => ({
-  id: user.id,
-  name: user.displayName,
-  role: roleLabel(user.role),
-  email: user.email,
-  phone: user.phone || 'No phone provided',
-  permission: permissionForRole(user.role),
-});
-
-const roleLabel = (role: string) =>
-  role
-    .split('_')
-    .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
-    .join(' ');
-
-const permissionForRole = (role: string): Permission => {
-  if (role === 'DEPARTMENT_HEAD') return 'Full Admin';
-  if (role === 'HR_LEADER' || role === 'HR_RECRUITER') return 'Request Reviewer';
-  return 'Interviewer';
-};
 
 const getDeptHeadSettingsMap = (settings: Record<string, unknown>) => {
   const value = settings.deptHeadSettings;

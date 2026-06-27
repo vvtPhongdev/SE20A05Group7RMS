@@ -11,6 +11,7 @@ import {
   HttpCode,
   HttpStatus,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { config as appConfig } from '../config';
@@ -288,6 +289,40 @@ export class UpdateUserDto {
   departmentId?: string;
 }
 
+export class UpdateMyProfileDto {
+  @ApiProperty({ example: 'John Doe Updated', required: false, description: 'Display name' })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  displayName?: string;
+
+  @ApiProperty({ example: '0987654321', required: false, description: 'Phone number' })
+  @IsOptional()
+  @IsString()
+  phone?: string;
+}
+
+export class DeptHeadAddMemberDto {
+  @ApiProperty({ example: 'Jane Recruiter', description: 'Member display name' })
+  @IsString()
+  @IsNotEmpty()
+  displayName!: string;
+
+  @ApiProperty({ example: 'jane.recruiter@acme.com', description: 'Member email' })
+  @IsEmail()
+  email!: string;
+
+  @ApiProperty({ example: '0987654321', required: false, description: 'Phone number' })
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
+  @ApiProperty({ example: 'Password123!', required: false, description: 'Temporary password' })
+  @IsOptional()
+  @IsString()
+  password?: string;
+}
+
 export class UpdateUserRoleDto {
   @ApiProperty({
     example: 'HR_LEADER',
@@ -465,6 +500,38 @@ export class IdentityController {
     return firstValueFrom(this.identityClient.send('users.create', body));
   }
 
+  @Post('dept-head/settings/team-members')
+  @Roles(UserRole.DEPARTMENT_HEAD)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Add a department team member for the current department head' })
+  async addDeptHeadTeamMember(
+    @CurrentUser('sub') userId: string,
+    @Body() body: DeptHeadAddMemberDto,
+  ) {
+    const currentUser = await firstValueFrom(this.identityClient.send('users.get', { id: userId }));
+    const departmentId =
+      currentUser.departmentId ??
+      currentUser.department?.id ??
+      currentUser.departmentsHeaded?.[0]?.id ??
+      null;
+
+    if (!currentUser.organizationId || !departmentId) {
+      throw new BadRequestException('Department head organization and department are required');
+    }
+
+    return firstValueFrom(
+      this.identityClient.send('users.create', {
+        email: body.email,
+        displayName: body.displayName,
+        phone: body.phone || null,
+        password: body.password,
+        role: UserRole.HR_RECRUITER,
+        organizationId: currentUser.organizationId,
+        departmentId,
+      }),
+    );
+  }
+
   @Patch('users/:id')
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
@@ -617,6 +684,13 @@ export class IdentityController {
   @ApiOperation({ summary: 'Get current user details from identity profile' })
   getCurrentUserProfile(@CurrentUser('sub') userId: string) {
     return firstValueFrom(this.identityClient.send('users.get', { id: userId }));
+  }
+
+  @Patch('me/profile')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update current user identity profile' })
+  updateCurrentUserProfile(@CurrentUser('sub') userId: string, @Body() body: UpdateMyProfileDto) {
+    return firstValueFrom(this.identityClient.send('users.update', { id: userId, ...body }));
   }
 
   @Get('me/id')
