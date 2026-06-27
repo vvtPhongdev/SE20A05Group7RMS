@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest } from '../../../lib/api';
 import { HRCard, HRInlineAlert, HRPageHeader } from '../components';
@@ -52,7 +53,8 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
 );
 
 export const CandidateSearch: React.FC = () => {
-  const { token, user } = useAuth();
+  const navigate = useNavigate();
+  const { token } = useAuth();
   const [campaign, setCampaign] = useState('');
   const [query, setQuery] = useState('');
   const [locked, setLocked] = useState(true);
@@ -68,7 +70,7 @@ export const CandidateSearch: React.FC = () => {
   const [scheduleAt, setScheduleAt] = useState('');
   const [scheduleDuration, setScheduleDuration] = useState('60');
   const [scheduleLocation, setScheduleLocation] = useState('');
-  const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
+  const [scheduleSubmitting] = useState(false);
 
   useEffect(() => {
     type JobPosting = {
@@ -187,55 +189,16 @@ export const CandidateSearch: React.FC = () => {
       return;
     }
 
-    setApiError('');
-    setActionMessage('');
-    setScheduleCandidate(result);
-    setScheduleAt('');
-    setScheduleDuration('60');
-    setScheduleLocation('');
+    navigate(
+      `/hr/interviews?requestId=${encodeURIComponent(campaign)}&candidateId=${encodeURIComponent(result.id)}`,
+    );
   };
 
   const createInterviewSchedule = async () => {
-    if (!scheduleCandidate || !campaign || !scheduleAt || !scheduleLocation.trim()) return;
-    if (!user?.id) {
-      setApiError('Unable to schedule interview because the current HR user is unavailable.');
-      return;
-    }
-
-    setScheduleSubmitting(true);
-    setApiError('');
-    try {
-      await apiRequest('/interviews/schedules', token, {
-        method: 'POST',
-        body: JSON.stringify({
-          requestId: campaign,
-          candidateId: scheduleCandidate.id,
-          scheduledAt: new Date(scheduleAt).toISOString(),
-          duration: Number(scheduleDuration),
-          location: scheduleLocation.trim(),
-          interviewers: [user.id],
-        }),
-      });
-      await recordFeedback(scheduleCandidate, 'SCHEDULE_INTERVIEW', {
-        source: 'candidate_search',
-        connected: true,
-      });
-      setResults((current) =>
-        current.map((result) =>
-          result.id === scheduleCandidate.id ? { ...result, hasInterviewInvite: true } : result,
-        ),
-      );
-      setActionMessage(`Interview scheduled for ${scheduleCandidate.name}.`);
-      setScheduleCandidate(null);
-      setScheduleAt('');
-      setScheduleLocation('');
-    } catch (scheduleError) {
-      setApiError(
-        scheduleError instanceof Error ? scheduleError.message : 'Unable to schedule interview',
-      );
-    } finally {
-      setScheduleSubmitting(false);
-    }
+    if (!scheduleCandidate || !campaign) return;
+    navigate(
+      `/hr/interviews?requestId=${encodeURIComponent(campaign)}&candidateId=${encodeURIComponent(scheduleCandidate.id)}`,
+    );
   };
 
   const handleViewCv = async (result: SearchResult) => {
@@ -247,10 +210,9 @@ export const CandidateSearch: React.FC = () => {
       if (token) {
         headers.set('Authorization', `Bearer ${token}`);
       }
-      const response = await fetch(
-        `/api/v1/candidate/cvs/candidate/${result.id}/latest/file`,
-        { headers },
-      );
+      const response = await fetch(`/api/v1/candidate/cvs/candidate/${result.id}/latest/file`, {
+        headers,
+      });
       if (!response.ok) {
         const error = await response.json().catch(() => null);
         throw new Error(error?.message || `Unable to open CV (${response.status})`);
@@ -365,7 +327,7 @@ export const CandidateSearch: React.FC = () => {
                   className="w-full resize-none rounded-lg border border-border-warm bg-workflow-ivory p-4 pr-40 text-sm outline-none transition placeholder:text-slate-ink/40 focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
                   disabled={locked}
                   onChange={(event) => setQuery(event.target.value)}
-                    placeholder="backend developer with Go, PostgreSQL, Redis, and distributed systems experience in fintech"
+                  placeholder="backend developer with Go, PostgreSQL, Redis, and distributed systems experience in fintech"
                   rows={3}
                   value={query}
                 />

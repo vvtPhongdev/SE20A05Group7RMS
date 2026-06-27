@@ -82,14 +82,25 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     }
 
     // 2. TCP microservice errors — RpcException payloads from interview/recruiting/etc.
-    //    services arrive here as plain objects shaped like { status, message, ...extra }.
+    //    services arrive as { status, message, ...extra } or { error: { status, message, ...extra } }.
     if (exception && typeof exception === 'object' && !(exception instanceof Error)) {
       const raw = exception as Record<string, unknown>;
+      const nestedError =
+        raw.error && typeof raw.error === 'object' && !Array.isArray(raw.error)
+          ? (raw.error as Record<string, unknown>)
+          : null;
+      const payload = nestedError ?? raw;
       const status =
-        Number(raw.status ?? raw.statusCode ?? raw.status_code) || HttpStatus.INTERNAL_SERVER_ERROR;
-      const message = typeof raw.message === 'string' ? raw.message : 'Internal server error';
+        Number(payload.status ?? payload.statusCode ?? payload.status_code) ||
+        HttpStatus.INTERNAL_SERVER_ERROR;
+      const message =
+        typeof payload.message === 'string'
+          ? payload.message
+          : typeof raw.message === 'string'
+            ? raw.message
+            : 'Internal server error';
 
-      const extraEntries = Object.entries(raw).filter(
+      const extraEntries = Object.entries(payload).filter(
         ([key]) => !['status', 'statusCode', 'status_code', 'message'].includes(key),
       );
 

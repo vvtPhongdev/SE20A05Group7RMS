@@ -60,6 +60,10 @@ export function getSupabaseClient(): SupabaseClient {
 export function sanitizeStorageSegment(value: string) {
   const safe = value
     .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\u0111/g, 'd')
+    .replace(/\u0110/g, 'D')
     .replace(/[^a-zA-Z0-9._-]+/g, '-')
     .replace(/^-+|-+$/g, '');
   return safe || 'unknown';
@@ -78,6 +82,17 @@ function storageTimestamp(date = new Date()) {
   return date.toISOString().replace(/\D/g, '').slice(0, 14);
 }
 
+export function buildCvStorageFileName(
+  candidateName: string | undefined,
+  originalFileName: string,
+  date = new Date(),
+) {
+  const { extension } = validateCvFileName(originalFileName);
+  const candidateSegment = sanitizeStorageSegment(candidateName || 'candidate');
+  const shortCode = randomUUID().replace(/-/g, '').slice(0, 8);
+  return `${candidateSegment}-CV-${storageTimestamp(date)}-${shortCode}${extension}`;
+}
+
 export function validateCvFileName(fileName: string) {
   const safeFileName = sanitizeFileName(fileName);
   const extension = extname(safeFileName).toLowerCase();
@@ -92,9 +107,17 @@ export function validateCvFileName(fileName: string) {
   };
 }
 
-export function buildCvStoragePath(ownerId: string, originalFileName: string, date = new Date()) {
-  const { extension } = validateCvFileName(originalFileName);
-  return `${sanitizeStorageSegment(ownerId)}/cv-${storageTimestamp(date)}-${randomUUID()}${extension}`;
+export function buildCvStoragePath(
+  ownerId: string,
+  originalFileName: string,
+  date = new Date(),
+  candidateName?: string,
+) {
+  return `${sanitizeStorageSegment(ownerId)}/${buildCvStorageFileName(
+    candidateName,
+    originalFileName,
+    date,
+  )}`;
 }
 
 export async function uploadFile(

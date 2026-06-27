@@ -36,6 +36,9 @@ interface RealtimeTrackingItem {
   handler: string;
   createdAt: string;
   updatedAt: string;
+  pendingAction?: string;
+  currentOwner?: string;
+  taskProgress?: { total: number; completed: number; overdue: number };
 }
 
 interface InterviewSchedule {
@@ -249,9 +252,12 @@ export const HRDashBoard: React.FC = () => {
           position: item.position,
           department: item.department,
           phase: planPhase,
-          progress: PHASE_PROGRESS[planPhase],
+          progress:
+            item.taskProgress && item.taskProgress.total > 0
+              ? Math.round((item.taskProgress.completed / item.taskProgress.total) * 100)
+              : PHASE_PROGRESS[planPhase],
           deadline: item.updatedAt,
-          owner: item.handler,
+          owner: item.handler || item.currentOwner || 'Unassigned',
         };
       }),
     [activePlanItems],

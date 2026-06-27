@@ -97,6 +97,25 @@ describe('GlobalExceptionFilter', () => {
     );
   });
 
+  it('maps a nested RpcException error payload to its mapped HTTP status', () => {
+    filter.catch(
+      {
+        error: { status: 404, message: 'Candidate profile not found' },
+        message: 'Candidate profile not found',
+      },
+      mockHost(),
+    );
+
+    expect(statusMock).toHaveBeenCalledWith(404);
+    expect(jsonMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        statusCode: 404,
+        error: ERROR_CODES.NOT_FOUND,
+        message: 'Candidate profile not found',
+      }),
+    );
+  });
+
   it('folds extra array fields (e.g. conflicts) from RpcException payloads into details', () => {
     const conflicts = [{ scheduleId: 'sched-1', interviewerId: 'int-1' }];
     filter.catch({ status: 409, message: 'Schedule conflict', conflicts }, mockHost());

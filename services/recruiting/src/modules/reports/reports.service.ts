@@ -1,7 +1,7 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { PrismaService } from '../../common/database/prisma.service';
-import { UserRole } from '@wr/contracts';
+import { RecruitmentRequestStatus, UserRole } from '@wr/contracts';
 
 type DepartmentRequestSummary = {
   status: string;
@@ -459,48 +459,144 @@ export class ReportsService {
     });
   }
 
-  async getRealtimeTracking(payload: { userId: string; role: string }) {
+  async getRealtimeTracking(payload: { userId: string; role: string; departmentId?: string }) {
     const { userId, role } = payload;
+    if (role === UserRole.CANDIDATE) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'Candidates cannot access recruitment tracking',
+      });
+    }
 
     const where: any = {};
     if (role === UserRole.DEPARTMENT_HEAD) {
-      where.createdById = userId;
-    } else if (role === UserRole.HR_LEADER || role === UserRole.HR_RECRUITER) {
-      where.reviewedById = userId;
+      const actor = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { departmentId: true },
+      });
+      const departmentId = payload.departmentId ?? actor?.departmentId;
+      where.OR = [{ createdById: userId }, ...(departmentId ? [{ departmentId }] : [])];
+    } else if (role === UserRole.HR_RECRUITER) {
+      where.OR = [
+        { overallPlan: { tasks: { some: { assignedToId: userId } } } },
+        { interviews: { some: { interviewers: { has: userId } } } },
+      ];
+    } else if (role === UserRole.HR_LEADER) {
+      where.OR = [
+        { status: { not: RecruitmentRequestStatus.DRAFT } },
+        { reviewedById: userId },
+        { overallPlan: { tasks: { some: { assignedToId: userId } } } },
+        { interviews: { some: { interviewers: { has: userId } } } },
+      ];
+    } else if (![UserRole.ADMIN, UserRole.HR_LEADER].includes(role as UserRole)) {
+      throw new RpcException({ status: HttpStatus.FORBIDDEN, message: 'Role is not allowed' });
     }
 
     const requests = await this.prisma.recruitmentRequest.findMany({
       where,
       include: {
-        createdBy: {
-          select: { displayName: true },
-        },
-        reviewedBy: {
-          select: { displayName: true },
-        },
-        department: {
-          select: { name: true },
-        },
-        applications: {
-          where: { status: 'OFFER_ACCEPTED' },
-        },
+        createdBy: { select: { id: true, displayName: true, role: true } },
+        reviewedBy: { select: { id: true, displayName: true, role: true } },
+        approvedBy: { select: { id: true, displayName: true, role: true } },
+        department: { select: { id: true, name: true } },
+        overallPlan: { include: { tasks: true } },
+        interviews: { include: { results: true } },
+        applications: true,
+        offers: true,
+        logs: { orderBy: { createdAt: 'desc' }, take: 1 },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { updatedAt: 'desc' },
     });
 
-    return requests.map((req) => {
+    const pendingActions: Record<string, string> = {
+      DRAFT: 'SUBMIT_REQUEST',
+      PENDING_HR_REVIEW: 'HR_REVIEW',
+      PENDING_BOSS_APPROVAL: 'ADMIN_APPROVAL',
+      APPROVED: 'CREATE_PLAN',
+      PLANNING: 'SUBMIT_PLAN',
+      PLAN_PENDING_APPROVAL: 'PLAN_APPROVAL',
+      ACTIVE: 'SOURCE_OR_SCREEN_CANDIDATES',
+      INTERVIEWING: 'INTERVIEW_RESULT',
+      INTERVIEW_COMPLETED: 'HIRING_DECISION',
+      DECISION_PENDING: 'HIRING_DECISION',
+      OFFER_EXTENDED: 'OFFER_RESPONSE',
+      OFFER_ACCEPTED: 'COMPLETE_HIRING',
+      NOT_HIRED: 'CONTINUE_OR_CLOSE',
+      COMPLETED: 'NONE',
+    };
+
+    const ownerFor = (status: string): string => {
+      if (['DRAFT', 'REVISION_NEEDED'].includes(status)) return UserRole.DEPARTMENT_HEAD;
+      if (['PENDING_HR_REVIEW', 'APPROVED', 'PLANNING', 'PLAN_PENDING_APPROVAL'].includes(status)) {
+        return UserRole.HR_LEADER;
+      }
+      if (['PENDING_BOSS_APPROVAL', 'DECISION_PENDING', 'INTERVIEW_COMPLETED'].includes(status)) {
+        return UserRole.ADMIN;
+      }
+      if (['OFFER_EXTENDED'].includes(status)) return UserRole.CANDIDATE;
+      if (['ACTIVE', 'SCREENING', 'INTERVIEWING'].includes(status)) return UserRole.HR_RECRUITER;
+      return 'SYSTEM';
+    };
+
+    const now = Date.now();
+    return requests.map((request) => {
+      const tasks = request.overallPlan?.tasks ?? [];
+      const latestLog = request.logs[0];
+      const hiredCount = request.applications.filter((application) =>
+        ['OFFER_ACCEPTED', 'HIRED'].includes(application.status),
+      ).length;
+      const item = {
+        requestId: request.id,
+        position: request.position,
+        departmentName: request.department.name,
+        status: request.status,
+        currentOwner: ownerFor(request.status),
+        pendingAction: pendingActions[request.status] ?? 'NONE',
+        headcount: request.headcount,
+        hiredCount,
+        taskProgress: {
+          total: tasks.length,
+          completed: tasks.filter((task) => task.status === 'COMPLETED').length,
+          overdue: tasks.filter(
+            (task) => task.status !== 'COMPLETED' && task.endDate.getTime() < now,
+          ).length,
+        },
+        interviewProgress: {
+          scheduled: request.interviews.filter((interview) =>
+            ['SCHEDULED', 'RESCHEDULED', 'CONFIRMED'].includes(interview.status),
+          ).length,
+          completed: request.interviews.filter((interview) => interview.status === 'COMPLETED')
+            .length,
+          cancelled: request.interviews.filter((interview) => interview.status === 'CANCELLED')
+            .length,
+        },
+        offerProgress: {
+          sent: request.offers.filter((offer) => offer.status === 'SENT').length,
+          accepted: request.offers.filter((offer) => offer.status === 'ACCEPTED').length,
+          declined: request.offers.filter((offer) => offer.status === 'DECLINED').length,
+        },
+        latestLog: latestLog
+          ? {
+              action: latestLog.action,
+              at: latestLog.createdAt.toISOString(),
+              performedById: latestLog.performedById,
+            }
+          : undefined,
+        lastUpdatedAt: request.updatedAt.toISOString(),
+      };
+
       return {
-        id: req.id,
-        position: req.position,
-        department: req.department.name,
-        targetHeadcount: req.headcount,
-        filledHeadcount: req.applications.length,
-        status: req.status,
-        createdBy: req.createdBy.displayName,
-        handler: req.reviewedBy ? req.reviewedBy.displayName : 'Not Assigned',
-        rejectionReason: req.rejectionReason,
-        createdAt: req.createdAt,
-        updatedAt: req.updatedAt,
+        ...item,
+        // Backward-compatible aliases for dashboards still on the old response shape.
+        id: item.requestId,
+        department: item.departmentName,
+        targetHeadcount: item.headcount,
+        filledHeadcount: item.hiredCount,
+        createdBy: request.createdBy.displayName,
+        handler: request.reviewedBy?.displayName ?? 'Not Assigned',
+        rejectionReason: request.rejectionReason,
+        createdAt: request.createdAt,
+        updatedAt: request.updatedAt,
       };
     });
   }

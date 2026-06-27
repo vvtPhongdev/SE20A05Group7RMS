@@ -73,6 +73,39 @@ export const useAuth = () => {
   }
   return context;
 };
+
+// Predefined mock users for quick UI evaluation
+const MOCK_USERS: Record<string, User> = {
+  'admin@acme.com': {
+    id: '11111111-1111-1111-1111-111111111111',
+    email: 'admin@acme.com',
+    displayName: 'System Admin',
+    role: UserRole.ADMIN,
+    organizationId: 'org-uuid-1234',
+  },
+  'depthead@acme.com': {
+    id: '22222222-2222-2222-2222-222222222222',
+    email: 'depthead@acme.com',
+    displayName: 'Trưởng Phòng ENG',
+    role: UserRole.DEPARTMENT_HEAD,
+    organizationId: 'org-uuid-1234',
+  },
+  'hr@acme.com': {
+    id: '33333333-3333-3333-3333-333333333333',
+    email: 'hr@acme.com',
+    displayName: 'HR Manager',
+    role: UserRole.HR_LEADER,
+    organizationId: 'org-uuid-1234',
+  },
+  'candidate@acme.com': {
+    id: '44444444-4444-4444-4444-444444444444',
+    email: 'candidate@acme.com',
+    displayName: 'Nguyễn Văn Ứng Viên',
+    role: UserRole.CANDIDATE,
+    organizationId: 'org-uuid-1234',
+  },
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -121,6 +154,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string, rememberMe = false) => {
     setLoading(true);
+    let isApiConnected = false;
+
     try {
       // 1. Try to hit actual login endpoint in the gateway
       const response = await fetch('/api/v1/auth/login', {
@@ -128,6 +163,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
+
+      isApiConnected = true;
 
       if (response.ok) {
         const data = await response.json();
@@ -149,6 +186,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || `Login failed (${response.status})`);
     } catch (err) {
+      if (!isApiConnected) {
+        console.warn('API connection failed, falling back to mock authentication:', err);
+
+        // 2. Mock fallback is only available when the API cannot be reached.
+        const mockUser = MOCK_USERS[email.toLowerCase()];
+        if (mockUser && password === 'Password123!') {
+          const mockToken = `mock-jwt-token-for-${mockUser.role}`;
+          storeAuth(mockToken, mockUser, undefined, rememberMe);
+          setToken(mockToken);
+          setUser(mockUser);
+          setLoading(false);
+          return mockUser;
+        }
+      }
+
       setLoading(false);
       throw err instanceof Error ? err : new Error('Invalid email or password');
     }
@@ -165,31 +217,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(loggedUser);
   };
 
-  const logout = () => {
-    const refreshToken = getStoredRefreshToken();
+const logout = () => {
+  // 1. Lấy token trước khi bộ nhớ bị xóa sạch
+  const refreshToken = getStoredRefreshToken();
 
-    clearStoredAuth();
-    localStorage.setItem(AUTH_LOGOUT_EVENT_KEY, Date.now().toString());
-    setToken(null);
-    setUser(null);
+  // 2. Xóa trạng thái local của tab hiện tại NGAY LẬP TỨC để tối ưu giao diện (UX)
+  clearStoredAuth();
+  setToken(null);
+  setUser(null);
 
-    if (refreshToken) {
-      void fetch('/api/v1/auth/logout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
-        keepalive: true,
+  // 3. Phát tín hiệu đăng xuất sang các tab khác
+  localStorage.setItem(AUTH_LOGOUT_EVENT_KEY, Date.now().toString());
+  
+  // 4. Xóa ngay key này để tránh làm rác localStorage về lâu dài
+  localStorage.removeItem(AUTH_LOGOUT_EVENT_KEY);
+
+  // 5. Gọi API ngầm lên Server (giữ nguyên logic cũ của bạn)
+  if (refreshToken) {
+    void fetch('/api/v1/auth/logout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+      keepalive: true,
+    })
+      .then((response) => {
+        if (!response.ok) {
+          console.warn(`Server logout failed with status ${response.status}`);
+        }
       })
-        .then((response) => {
-          if (!response.ok) {
-            console.warn(`Server logout failed with status ${response.status}`);
-          }
-        })
-        .catch((err) => {
-          console.warn('Server logout failed after local session was cleared:', err);
-        });
-    }
-  };
+      .catch((err) => {
+        console.warn('Server logout failed after local session was cleared:', err);
+      });
+  }
+};
+
+  // const logout = () => {
+  //   const refreshToken = getStoredRefreshToken();
+
+  //   clearStoredAuth();
+  //   localStorage.setItem(AUTH_LOGOUT_EVENT_KEY, Date.now().toString());
+  //   setToken(null);
+  //   setUser(null);
+
+  //   if (refreshToken) {
+  //     void fetch('/api/v1/auth/logout', {
+  //       method: 'POST',
+  //       headers: { 'Content-Type': 'application/json' },
+  //       body: JSON.stringify({ refreshToken }),
+  //       keepalive: true,
+  //     })
+  //       .then((response) => {
+  //         if (!response.ok) {
+  //           console.warn(`Server logout failed with status ${response.status}`);
+  //         }
+  //       })
+  //       .catch((err) => {
+  //         console.warn('Server logout failed after local session was cleared:', err);
+  //       });
+  //   }
+  // };
 
   return (
     <AuthContext.Provider value={{ user, token, loading, login, loginWithToken, logout }}>

@@ -124,6 +124,7 @@ export enum NotificationType {
   OFFER = 'OFFER',
   REJECTION = 'REJECTION',
   PLAN_UPDATE = 'PLAN_UPDATE',
+  TASK_REMINDER = 'TASK_REMINDER',
   SYSTEM = 'SYSTEM',
 }
 
@@ -131,6 +132,7 @@ export enum EmailTemplateType {
   INTERVIEW_INVITATION = 'INTERVIEW_INVITATION',
   OFFER_LETTER = 'OFFER_LETTER',
   REJECTION = 'REJECTION',
+  TASK_DEADLINE_REMINDER = 'TASK_DEADLINE_REMINDER',
 }
 
 // ─── Document Processing (BullMQ) ──────────────────────────────────

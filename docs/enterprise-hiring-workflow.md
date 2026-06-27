@@ -190,3 +190,11 @@ Trưởng phòng ban truy cập dashboard để theo dõi:
 ---
 
 _Last updated: 2026-05-28_
+
+## Requirement v1.0 completion rules
+
+- Interview scheduling is plan-locked and requires a panel of at least two active internal users.
+- Final rejection writes request/application state, a request log, candidate notification, and queued rejection email.
+- A sent offer can be accepted or declined only by its candidate owner; the response, optional note, and timestamp are persisted.
+- Realtime tracking is scoped by role and derives its timeline from `RequestLog`.
+- Incomplete assigned tasks receive idempotent reminders 24 hours before their deadline and at the deadline. Completed tasks are skipped.

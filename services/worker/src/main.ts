@@ -11,6 +11,7 @@ import { processEmailSendJob as emailProcessor } from './processors/email-send.p
 import { config as appConfig } from './config';
 import { wrapWorkerProcessor } from '@wr/logger';
 import { logger } from './logger';
+import { processTaskReminderJob, scanDueTaskReminders } from './processors/task-reminder.processor';
 
 /**
  * Worker bootstrap — starts BullMQ workers for each queue.
@@ -36,6 +37,18 @@ async function bootstrap() {
   const embeddingQueue = new Queue(QUEUE_NAMES.EMBEDDING_GENERATE, {
     connection: client,
   });
+  const emailQueue = new Queue(QUEUE_NAMES.EMAIL_SEND, { connection: client });
+  const taskReminderQueue = new Queue(QUEUE_NAMES.TASK_REMINDER, { connection: client });
+
+  await taskReminderQueue.add(
+    JOB_NAMES.SCAN_TASK_REMINDERS,
+    {},
+    {
+      jobId: 'task-reminder-scanner',
+      repeat: { every: 5 * 60 * 1000 },
+      removeOnComplete: 10,
+    },
+  );
 
   // CV Parse Queue Worker
   const cvParseWorker = new Worker(
@@ -87,13 +100,30 @@ async function bootstrap() {
     workerOptions,
   );
 
+  const taskReminderWorker = new Worker(
+    QUEUE_NAMES.TASK_REMINDER,
+    wrapWorkerProcessor(async (job) => {
+      if (job.name === JOB_NAMES.SCAN_TASK_REMINDERS) {
+        const count = await scanDueTaskReminders(taskReminderQueue);
+        logger.log(`Task reminder scan queued ${count} due reminder(s)`);
+        return;
+      }
+      if (job.name === JOB_NAMES.SEND_TASK_REMINDER) {
+        await processTaskReminderJob(job.data, emailQueue);
+      }
+    }),
+    workerOptions,
+  );
+
   // Graceful shutdown
-  const workers = [cvParseWorker, embeddingWorker, emailWorker];
+  const workers = [cvParseWorker, embeddingWorker, emailWorker, taskReminderWorker];
 
   const shutdown = async () => {
     logger.log('\n🛑 Shutting down workers...');
     await Promise.all(workers.map((w) => w.close()));
     await embeddingQueue.close();
+    await emailQueue.close();
+    await taskReminderQueue.close();
     process.exit(0);
   };
 

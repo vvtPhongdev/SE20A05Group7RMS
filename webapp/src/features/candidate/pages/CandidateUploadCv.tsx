@@ -110,8 +110,11 @@ interface CvDocument {
   id: string;
   name: string;
   uploadedDate: string;
-  parsingStatus: 'Ready' | 'Parsing...';
+  parsingStatus: 'Ready' | 'Parsing...' | 'Failed';
   rawText?: string;
+  processingMethod?: string | null;
+  processingError?: string | null;
+  structuredData?: { resume?: unknown; confidence?: number } | null;
 }
 
 interface CvExperience {
@@ -217,9 +220,7 @@ const parseLanguages = (value: string) =>
     };
   });
 
-type ResumeDraftLanguage = NonNullable<
-  NonNullable<ResumeDraftData['skills']>['languages']
->[number];
+type ResumeDraftLanguage = NonNullable<NonNullable<ResumeDraftData['skills']>['languages']>[number];
 
 const formatLanguages = (languages: ResumeDraftLanguage[] | undefined) =>
   (languages ?? [])
@@ -417,8 +418,7 @@ const getSection = (lines: string[], heading: string) => {
 const readLabeledValue = (text: string, label: string) => {
   const labels = ['Email', 'Phone', 'Address', 'LinkedIn', 'GitHub', 'Portfolio'];
   const labeledText = labels.reduce(
-    (current, currentLabel) =>
-      current.replace(new RegExp(`\\s+(${currentLabel}:)`, 'gi'), '\n$1'),
+    (current, currentLabel) => current.replace(new RegExp(`\\s+(${currentLabel}:)`, 'gi'), '\n$1'),
     text,
   );
   const match = labeledText.match(new RegExp(`^${label}:\\s*(.*)$`, 'im'));
@@ -481,7 +481,9 @@ const parseWorkExperienceSection = (section: string): CvExperience[] => {
     .split('\n')
     .map(cleanExtractedValue)
     .filter(Boolean)
-    .filter((line) => !/strong action verb|measurable achievement|relevant technologies/i.test(line));
+    .filter(
+      (line) => !/strong action verb|measurable achievement|relevant technologies/i.test(line),
+    );
 
   const experience: CvExperience[] = [];
   let current: CvExperience | null = null;
@@ -559,10 +561,7 @@ const parseEducationSection = (section: string): CvEducation[] => {
 
 const parseRawText = (text: string): Partial<CvFormData> => {
   const normalizedText = normalizeRawCvText(text);
-  const lines = normalizedText
-    .split('\n')
-    .map(cleanExtractedValue)
-    .filter(Boolean);
+  const lines = normalizedText.split('\n').map(cleanExtractedValue).filter(Boolean);
   const firstHeadingIndex = lines.findIndex((line) =>
     resumeSectionHeadings.some((heading) => heading.toLowerCase() === line.toLowerCase()),
   );
@@ -685,6 +684,7 @@ export const CandidateUploadCv: React.FC = () => {
   // Drag and Drop Visual State
   const [isDragActive, setIsDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const updateFileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [apiError, setApiError] = useState('');
@@ -693,6 +693,7 @@ export const CandidateUploadCv: React.FC = () => {
   const [savingCv, setSavingCv] = useState(false);
   const [cvSaved, setCvSaved] = useState(false);
   const [importReadIssues, setImportReadIssues] = useState<ImportReadIssues>({});
+  const [isAiImportedDraft, setIsAiImportedDraft] = useState(false);
   const [uploadProgress, setUploadProgress] =
     useState<CvUploadProgressState>(initialUploadProgress);
 
@@ -700,19 +701,35 @@ export const CandidateUploadCv: React.FC = () => {
   const [uploadedCvId, setUploadedCvId] = useState<string | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successParsedCv, setSuccessParsedCv] = useState<CvDocument | null>(null);
+  const [deleteConfirmDoc, setDeleteConfirmDoc] = useState<CvDocument | null>(null);
+  const [deletingCvId, setDeletingCvId] = useState<string | null>(null);
+  const [updatingCvId, setUpdatingCvId] = useState<string | null>(null);
+  const [updateTargetDoc, setUpdateTargetDoc] = useState<CvDocument | null>(null);
 
   const mapDocument = (document: {
     id: string;
     fileName: string;
     parsedAt?: string | null;
     rawText?: string;
+    processingStatus?: string;
+    processingMethod?: string | null;
+    processingError?: string | null;
+    structuredData?: { resume?: unknown; confidence?: number } | null;
     createdAt: string;
   }): CvDocument => ({
     id: document.id,
     name: document.fileName,
     uploadedDate: new Date(document.createdAt).toLocaleDateString(),
-    parsingStatus: document.parsedAt ? 'Ready' : 'Parsing...',
+    parsingStatus:
+      document.processingStatus === 'FAILED'
+        ? 'Failed'
+        : document.processingStatus === 'COMPLETED' || document.parsedAt
+          ? 'Ready'
+          : 'Parsing...',
     rawText: document.rawText,
+    processingMethod: document.processingMethod,
+    processingError: document.processingError,
+    structuredData: document.structuredData,
   });
 
   const clearImportReadIssue = (field: ImportReadIssueKey) => {
@@ -740,29 +757,56 @@ export const CandidateUploadCv: React.FC = () => {
     }
 
     const parsed = parseRawText(doc.rawText);
+    const aiResumeResult = ResumeDraftSchema.safeParse(doc.structuredData?.resume);
+    const aiResume = aiResumeResult.success ? aiResumeResult.data : undefined;
+    const aiPersonalInfo = aiResume?.personalInfo;
+    const aiSkills = aiResume?.skills;
     setImportReadIssues(createImportReadIssues(parsed));
+    setIsAiImportedDraft(true);
 
     setCvSaved(false);
     setCvForm((current) => ({
       ...current,
-      fullName: parsed.fullName || current.fullName,
-      email: parsed.email || current.email,
-      phone: parsed.phone || current.phone,
-      currentRole: parsed.currentRole || current.currentRole,
-      address: parsed.address || current.address,
-      linkedinUrl: parsed.linkedinUrl || current.linkedinUrl,
-      githubUrl: parsed.githubUrl || current.githubUrl,
-      portfolioUrl: parsed.portfolioUrl || current.portfolioUrl,
-      summary: parsed.summary || current.summary,
-      technicalSkills: parsed.technicalSkills || current.technicalSkills,
-      softSkills: parsed.softSkills || current.softSkills,
-      languages: parsed.languages || current.languages,
-      experience:
-        parsed.experience && parsed.experience.length > 0
+      fullName: aiPersonalInfo?.fullName || parsed.fullName || current.fullName,
+      email: aiPersonalInfo?.email || parsed.email || current.email,
+      phone: aiPersonalInfo?.phoneNumber || parsed.phone || current.phone,
+      currentRole: aiResume?.currentRole || parsed.currentRole || current.currentRole,
+      address: aiPersonalInfo?.address || parsed.address || current.address,
+      linkedinUrl:
+        findLink(aiPersonalInfo?.links, 'LINKEDIN') || parsed.linkedinUrl || current.linkedinUrl,
+      githubUrl: findLink(aiPersonalInfo?.links, 'GITHUB') || parsed.githubUrl || current.githubUrl,
+      portfolioUrl:
+        findLink(aiPersonalInfo?.links, 'PORTFOLIO') || parsed.portfolioUrl || current.portfolioUrl,
+      summary: aiResume?.summary || parsed.summary || current.summary,
+      technicalSkills:
+        aiSkills?.technical?.join(', ') || parsed.technicalSkills || current.technicalSkills,
+      softSkills: aiSkills?.softSkills?.join(', ') || parsed.softSkills || current.softSkills,
+      languages: formatLanguages(aiSkills?.languages) || parsed.languages || current.languages,
+      experience: aiResume?.workExperience?.length
+        ? aiResume.workExperience.map((item, index) => ({
+            id: `ai-exp-${index}`,
+            company: item.company || '',
+            position: item.position || '',
+            startDate: item.startDate || '',
+            endDate: item.endDate || '',
+            isCurrent: item.isCurrent || false,
+            achievements: (item.achievements || []).join('\n'),
+          }))
+        : parsed.experience && parsed.experience.length > 0
           ? parsed.experience
           : current.experience,
-      education:
-        parsed.education && parsed.education.length > 0 ? parsed.education : current.education,
+      education: aiResume?.education?.length
+        ? aiResume.education.map((item, index) => ({
+            id: `ai-edu-${index}`,
+            school: item.school || '',
+            major: item.major || '',
+            degree: item.degree || '',
+            startDate: item.startDate || '',
+            endDate: item.endDate || '',
+          }))
+        : parsed.education && parsed.education.length > 0
+          ? parsed.education
+          : current.education,
     }));
 
     setView('builder');
@@ -778,6 +822,10 @@ export const CandidateUploadCv: React.FC = () => {
             fileName: string;
             parsedAt?: string | null;
             rawText?: string;
+            processingStatus?: string;
+            processingMethod?: string | null;
+            processingError?: string | null;
+            structuredData?: { resume?: unknown; confidence?: number } | null;
             createdAt: string;
           }>
         >('/candidate/cvs', token);
@@ -805,6 +853,10 @@ export const CandidateUploadCv: React.FC = () => {
             fileName: string;
             parsedAt?: string | null;
             rawText?: string;
+            processingStatus?: string;
+            processingMethod?: string | null;
+            processingError?: string | null;
+            structuredData?: { resume?: unknown; confidence?: number } | null;
             createdAt: string;
           }>
         >('/candidate/cvs', token);
@@ -823,6 +875,10 @@ export const CandidateUploadCv: React.FC = () => {
               percent: 100,
               message: 'CV uploaded and parsed successfully.',
             });
+          } else if (updatedUploadedDoc?.parsingStatus === 'Failed') {
+            setUploadedCvId(null);
+            setApiError(updatedUploadedDoc.processingError || 'CV OCR and AI extraction failed.');
+            setUploadProgress(initialUploadProgress);
           }
         }
 
@@ -860,14 +916,14 @@ export const CandidateUploadCv: React.FC = () => {
           : [];
 
         setExistingStructuredData(structuredData);
+        setIsAiImportedDraft(false);
         setCvForm({
           fullName: personalInfo.fullName || profile.fullName || '',
           email: personalInfo.email || profile.email || '',
           phone: personalInfo.phoneNumber || profile.phone || '',
           currentRole: resume.currentRole || structuredData.currentRole || '',
           address: personalInfo.address || structuredData.location || '',
-          linkedinUrl:
-            findLink(personalInfo.links, 'LINKEDIN') || structuredData.linkedinUrl || '',
+          linkedinUrl: findLink(personalInfo.links, 'LINKEDIN') || structuredData.linkedinUrl || '',
           githubUrl: findLink(personalInfo.links, 'GITHUB'),
           portfolioUrl: findLink(personalInfo.links, 'PORTFOLIO'),
           summary: resume.summary || profile.summary || '',
@@ -926,6 +982,7 @@ export const CandidateUploadCv: React.FC = () => {
 
   // Trigger file selection dialog
   const handleBrowseFiles = () => {
+    if (updatingCvId) return;
     fileInputRef.current?.click();
   };
 
@@ -968,6 +1025,10 @@ export const CandidateUploadCv: React.FC = () => {
         fileName: string;
         parsedAt?: string | null;
         rawText?: string;
+        processingStatus?: string;
+        processingMethod?: string | null;
+        processingError?: string | null;
+        structuredData?: { resume?: unknown; confidence?: number } | null;
         createdAt: string;
       }>('/candidate/cvs', token, { method: 'POST', body: formData });
       const newDoc = mapDocument(uploaded);
@@ -1007,6 +1068,73 @@ export const CandidateUploadCv: React.FC = () => {
     }
   };
 
+  const handleRequestUpdateDoc = (doc: CvDocument) => {
+    if (doc.parsingStatus === 'Parsing...' || updatingCvId || uploading) return;
+    setUpdateTargetDoc(doc);
+    updateFileInputRef.current?.click();
+  };
+
+  const handleUpdateFile = async (file: File, doc: CvDocument) => {
+    if (!validateCvUploadFile(file)) {
+      if (updateFileInputRef.current) {
+        updateFileInputRef.current.value = '';
+      }
+      setUpdateTargetDoc(null);
+      return;
+    }
+
+    setUpdatingCvId(doc.id);
+    setApiError('');
+    setUploadProgress({
+      phase: 'uploading',
+      fileName: file.name,
+      percent: 30,
+      message: 'Uploading replacement CV...',
+    });
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const updated = await apiRequest<{
+        id: string;
+        fileName: string;
+        parsedAt?: string | null;
+        rawText?: string;
+        processingStatus?: string;
+        processingMethod?: string | null;
+        processingError?: string | null;
+        structuredData?: { resume?: unknown; confidence?: number } | null;
+        createdAt: string;
+      }>(`/candidate/cvs/${doc.id}/file`, token, { method: 'PATCH', body: formData });
+      const updatedDoc = mapDocument(updated);
+      setDocuments((current) =>
+        current.map((item) => (item.id === updatedDoc.id ? updatedDoc : item)),
+      );
+      setUploadedCvId(updatedDoc.id);
+      setUploadProgress({
+        phase: 'parsing',
+        fileName: updatedDoc.name,
+        percent: 70,
+        message: 'Replacement CV uploaded. Parsing new content...',
+      });
+    } catch (updateError) {
+      const message = updateError instanceof Error ? updateError.message : 'Unable to update CV';
+      setApiError(message);
+      setUploadProgress({
+        phase: 'error',
+        fileName: file.name,
+        percent: 100,
+        message,
+      });
+    } finally {
+      setUpdatingCvId(null);
+      setUpdateTargetDoc(null);
+      if (updateFileInputRef.current) {
+        updateFileInputRef.current.value = '';
+      }
+    }
+  };
+
   // Handle Drag Over
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -1023,6 +1151,8 @@ export const CandidateUploadCv: React.FC = () => {
     e.preventDefault();
     setIsDragActive(false);
 
+    if (updatingCvId) return;
+
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
       void handleFileUpload(file);
@@ -1036,16 +1166,41 @@ export const CandidateUploadCv: React.FC = () => {
     }
   };
 
+  const handleUpdateFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0] && updateTargetDoc) {
+      void handleUpdateFile(e.target.files[0], updateTargetDoc);
+    }
+  };
+
+  const isCvDeleteBlocked = (doc: CvDocument) =>
+    uploading ||
+    updatingCvId !== null ||
+    doc.parsingStatus === 'Ready' ||
+    doc.parsingStatus === 'Parsing...' ||
+    doc.id === uploadedCvId ||
+    doc.id === deletingCvId;
+
+  const handleRequestDeleteDoc = (doc: CvDocument) => {
+    if (isCvDeleteBlocked(doc)) return;
+    setDeleteConfirmDoc(doc);
+  };
+
   // Delete document
-  const handleDeleteDoc = async (id: string) => {
+  const handleDeleteDoc = async () => {
+    if (!deleteConfirmDoc || isCvDeleteBlocked(deleteConfirmDoc)) return;
+
     setApiError('');
+    setDeletingCvId(deleteConfirmDoc.id);
     try {
-      await apiRequest<{ success: boolean }>(`/candidate/cvs/${id}`, token, {
+      await apiRequest<{ success: boolean }>(`/candidate/cvs/${deleteConfirmDoc.id}`, token, {
         method: 'DELETE',
       });
-      setDocuments((current) => current.filter((doc) => doc.id !== id));
+      setDocuments((current) => current.filter((doc) => doc.id !== deleteConfirmDoc.id));
+      setDeleteConfirmDoc(null);
     } catch (deleteError) {
       setApiError(deleteError instanceof Error ? deleteError.message : 'Unable to delete CV');
+    } finally {
+      setDeletingCvId(null);
     }
   };
 
@@ -1163,13 +1318,9 @@ export const CandidateUploadCv: React.FC = () => {
     },
     workExperience: cvForm.experience
       .filter((item) =>
-        [
-          item.company,
-          item.position,
-          item.startDate,
-          item.endDate,
-          item.achievements,
-        ].some((value) => value.trim()),
+        [item.company, item.position, item.startDate, item.endDate, item.achievements].some(
+          (value) => value.trim(),
+        ),
       )
       .map((item) => ({
         company: optionalText(item.company),
@@ -1287,23 +1438,20 @@ export const CandidateUploadCv: React.FC = () => {
           description="Complete the form, preview the result, then export it as PDF."
           actions={
             <>
-            <CandidateActionButton onClick={() => setView('upload')} variant="secondary">
-              Upload CV
-            </CandidateActionButton>
-            <DownloadCvTemplateLink />
-            <CandidateActionButton
-              disabled={savingCv}
-              onClick={() => void saveCvForm()}
-              variant="secondary"
-            >
-              {savingCv ? 'Saving...' : cvSaved ? 'Saved' : 'Save Draft'}
-            </CandidateActionButton>
-            <CandidateActionButton
-              disabled={savingCv}
-              onClick={() => void generateCv()}
-            >
-              Generate PDF
-            </CandidateActionButton>
+              <CandidateActionButton onClick={() => setView('upload')} variant="secondary">
+                Upload CV
+              </CandidateActionButton>
+              <DownloadCvTemplateLink />
+              <CandidateActionButton
+                disabled={savingCv}
+                onClick={() => void saveCvForm()}
+                variant="secondary"
+              >
+                {savingCv ? 'Saving...' : cvSaved ? 'Saved' : 'Save Draft'}
+              </CandidateActionButton>
+              <CandidateActionButton disabled={savingCv} onClick={() => void generateCv()}>
+                Generate PDF
+              </CandidateActionButton>
             </>
           }
         />
@@ -1318,6 +1466,8 @@ export const CandidateUploadCv: React.FC = () => {
               void saveCvForm();
             }}
           >
+            {isAiImportedDraft ? <CvAiReviewNotice /> : null}
+
             <CvSection title="Personal Information">
               <div className="grid gap-4 md:grid-cols-2">
                 <CvInput
@@ -1596,6 +1746,13 @@ export const CandidateUploadCv: React.FC = () => {
         className="hidden"
         accept=".pdf,.docx,.doc"
       />
+      <input
+        type="file"
+        ref={updateFileInputRef}
+        onChange={handleUpdateFileChange}
+        className="hidden"
+        accept=".pdf,.docx,.doc"
+      />
 
       {loading ? <CandidateLoadingState label="Loading CV documents..." /> : null}
       {apiError ? <CandidateInlineAlert>{apiError}</CandidateInlineAlert> : null}
@@ -1621,10 +1778,14 @@ export const CandidateUploadCv: React.FC = () => {
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             onClick={handleBrowseFiles}
-            className={`bg-white border-dashed border-2 rounded-lg p-8 flex flex-col items-center justify-center transition-all group cursor-pointer ${
-              isDragActive
-                ? 'border-teal-command bg-teal-command/5 scale-[0.99]'
-                : 'border-border-warm hover:border-teal-command/50'
+            className={`bg-white border-dashed border-2 rounded-lg p-8 flex flex-col items-center justify-center transition-all group ${
+              updatingCvId
+                ? 'cursor-not-allowed border-border-warm opacity-70'
+                : `cursor-pointer ${
+                    isDragActive
+                      ? 'border-teal-command bg-teal-command/5 scale-[0.99]'
+                      : 'border-border-warm hover:border-teal-command/50'
+                  }`
             }`}
           >
             <div className="w-16 h-16 rounded-full bg-surface-container-low flex items-center justify-center text-teal-command mb-4 group-hover:scale-110 transition-transform">
@@ -1634,20 +1795,21 @@ export const CandidateUploadCv: React.FC = () => {
               Drag and drop your CV here
             </h3>
             <p className="text-xs text-on-surface-variant mb-6 text-center max-w-sm font-medium leading-relaxed">
-              Support for PDF, DOCX, and DOC files. Max file size: 10MB. Ensure your contact details and
-              work history are clearly legible for best parsing results.
+              Support for PDF, DOCX, and DOC files. Max file size: 10MB. Ensure your contact details
+              and work history are clearly legible for best parsing results.
             </p>
             <div className="flex gap-3" onClick={(e) => e.stopPropagation()}>
               <button
-                disabled={uploading}
+                disabled={uploading || updatingCvId !== null}
                 onClick={handleBrowseFiles}
-                className="bg-teal-command text-white px-8 py-2.5 rounded-lg font-semibold text-sm active:scale-95 hover:bg-primary transition-all"
+                className="bg-teal-command text-white px-8 py-2.5 rounded-lg font-semibold text-sm active:scale-95 hover:bg-primary transition-all disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {uploading ? 'Uploading...' : 'Upload CV'}
+                {uploading ? 'Uploading...' : updatingCvId ? 'Updating...' : 'Upload CV'}
               </button>
               <button
+                disabled={updatingCvId !== null}
                 onClick={handleBrowseFiles}
-                className="border border-border-warm text-deep-charcoal px-8 py-2.5 rounded-lg font-semibold text-sm hover:bg-surface-container-low transition-colors"
+                className="border border-border-warm text-deep-charcoal px-8 py-2.5 rounded-lg font-semibold text-sm hover:bg-surface-container-low transition-colors disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Browse Files
               </button>
@@ -1674,73 +1836,149 @@ export const CandidateUploadCv: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="text-xs text-deep-charcoal font-medium">
-                  {documents.map((doc) => (
-                    <tr
-                      key={doc.id}
-                      className="border-b border-border-warm hover:bg-teal-command/5 transition-colors group"
-                    >
-                      {/* Name */}
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <Icons.description />
-                          <span className="font-semibold text-deep-charcoal">{doc.name}</span>
-                        </div>
-                      </td>
+                  {documents.map((doc) => {
+                    const deleteBlocked = isCvDeleteBlocked(doc);
+                    const updateDisabled = uploading || updatingCvId !== null;
+                    const updateTitle =
+                      updatingCvId === doc.id
+                        ? 'Updating CV...'
+                        : updateDisabled
+                          ? 'Another CV upload or update is in progress'
+                          : 'Replace this uploaded CV with a new file';
+                    const deleteTitle =
+                      doc.parsingStatus === 'Ready'
+                        ? 'Cannot delete after this CV was uploaded successfully'
+                        : doc.parsingStatus === 'Parsing...'
+                          ? 'Cannot delete while this CV is being uploaded and parsed'
+                          : uploading
+                            ? 'Cannot delete while a CV is being uploaded'
+                            : doc.id === deletingCvId
+                              ? 'Deleting CV...'
+                              : 'Delete CV';
 
-                      {/* Uploaded Date */}
-                      <td className="px-6 py-4 text-on-surface-variant">{doc.uploadedDate}</td>
+                    return (
+                      <tr
+                        key={doc.id}
+                        className="border-b border-border-warm hover:bg-teal-command/5 transition-colors group"
+                      >
+                        {/* Name */}
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <Icons.description />
+                            <span className="font-semibold text-deep-charcoal">{doc.name}</span>
+                          </div>
+                        </td>
 
-                      {/* Parsing Status */}
-                      <td className="px-6 py-4">
-                        {doc.parsingStatus === 'Ready' && (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/50 text-[10px] font-bold">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span> Ready
-                          </span>
-                        )}
-                        {doc.parsingStatus === 'Parsing...' && (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200/50 text-[10px] font-bold">
-                            <Icons.spinner /> Parsing...
-                          </span>
-                        )}
-                      </td>
+                        {/* Uploaded Date */}
+                        <td className="px-6 py-4 text-on-surface-variant">{doc.uploadedDate}</td>
 
-                      {/* Actions */}
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2 items-center">
+                        {/* Parsing Status */}
+                        <td className="px-6 py-4">
                           {doc.parsingStatus === 'Ready' && (
+                            <div className="flex flex-col items-start gap-1">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/50 text-[10px] font-bold">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>{' '}
+                                Ready
+                              </span>
+                              {doc.processingMethod && (
+                                <span className="text-[10px] text-outline">
+                                  {doc.processingMethod === 'AI_VISION'
+                                    ? 'Gemini Vision OCR'
+                                    : doc.processingMethod === 'AI_TEXT'
+                                      ? 'Gemini extraction'
+                                      : 'Local text'}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {doc.parsingStatus === 'Parsing...' && (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200/50 text-[10px] font-bold">
+                              <Icons.spinner /> Parsing...
+                            </span>
+                          )}
+                          {doc.parsingStatus === 'Failed' && (
+                            <span
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-50 text-red-700 border border-red-200/50 text-[10px] font-bold"
+                              title={doc.processingError || 'CV processing failed'}
+                            >
+                              <Icons.warning /> Failed
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex justify-end gap-2 items-center">
+                            {doc.parsingStatus !== 'Parsing...' && (
+                              <button
+                                type="button"
+                                onClick={() => handleImportCv(doc)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-teal-command/10 text-teal-command hover:bg-teal-command/20 text-[10px] font-bold transition-all"
+                                title="Import parsed details into Profile Builder"
+                              >
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <polyline points="9 11 12 14 22 4" />
+                                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                                </svg>
+                                Import
+                              </button>
+                            )}
+                            {doc.parsingStatus === 'Ready' && (
+                              <button
+                                type="button"
+                                onClick={() => handleRequestUpdateDoc(doc)}
+                                disabled={updateDisabled}
+                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[10px] font-bold transition-all ${
+                                  updateDisabled
+                                    ? 'cursor-not-allowed bg-slate-ink/10 text-slate-ink/45'
+                                    : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                                }`}
+                                title={updateTitle}
+                              >
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M21 12a9 9 0 1 1-3-6.7" />
+                                  <path d="M21 3v6h-6" />
+                                </svg>
+                                {updatingCvId === doc.id ? 'Updating...' : 'Update'}
+                              </button>
+                            )}
                             <button
                               type="button"
-                              onClick={() => handleImportCv(doc)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-teal-command/10 text-teal-command hover:bg-teal-command/20 text-[10px] font-bold transition-all"
-                              title="Import parsed details into Profile Builder"
+                              onClick={() => handleRequestDeleteDoc(doc)}
+                              disabled={deleteBlocked}
+                              className={`p-1 transition-colors ${
+                                deleteBlocked
+                                  ? 'cursor-not-allowed text-slate-ink/35'
+                                  : 'text-slate-ink hover:text-red-600'
+                              }`}
+                              title={deleteTitle}
+                              aria-label={deleteTitle}
                             >
-                              <svg
-                                width="12"
-                                height="12"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              >
-                                <polyline points="9 11 12 14 22 4" />
-                                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-                              </svg>
-                              Import
+                              <Icons.delete />
                             </button>
-                          )}
-                          <button
-                            onClick={() => void handleDeleteDoc(doc.id)}
-                            className="p-1 text-slate-ink hover:text-red-600 transition-colors"
-                            title="Delete CV"
-                          >
-                            <Icons.delete />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {!loading && documents.length === 0 ? (
                     <tr>
                       <td
@@ -1765,6 +2003,45 @@ export const CandidateUploadCv: React.FC = () => {
         />
       ) : null}
 
+      {deleteConfirmDoc ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-deep-charcoal/60 px-4 backdrop-blur-sm transition-opacity duration-300 animate-fadeIn">
+          <div className="w-full max-w-md scale-95 transform rounded-2xl border border-border-warm/50 bg-white p-6 shadow-2xl transition-all duration-300 animate-scaleIn">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-600">
+                <Icons.warning />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-lg font-bold text-deep-charcoal">Delete this CV?</h3>
+                <p className="mt-1 text-sm leading-6 text-slate-ink">
+                  Please confirm before deleting{' '}
+                  <span className="font-semibold text-deep-charcoal">{deleteConfirmDoc.name}</span>.
+                  This action cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3 border-t border-border-warm pt-4">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmDoc(null)}
+                disabled={deletingCvId === deleteConfirmDoc.id}
+                className="rounded-lg border border-border-warm px-4 py-2 text-sm font-semibold text-deep-charcoal transition-colors hover:bg-surface-container-low disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDeleteDoc()}
+                disabled={deletingCvId === deleteConfirmDoc.id}
+                className="rounded-lg bg-red-600 px-5 py-2 text-sm font-semibold text-white shadow-md shadow-red-600/10 transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deletingCvId === deleteConfirmDoc.id ? 'Deleting...' : 'Delete CV'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {showSuccessModal && successParsedCv && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-deep-charcoal/60 backdrop-blur-sm transition-opacity duration-300 animate-fadeIn">
           <div className="w-full max-w-lg scale-95 transform rounded-2xl bg-white p-8 shadow-2xl transition-all duration-300 border border-border-warm/50 animate-scaleIn">
@@ -1786,7 +2063,9 @@ export const CandidateUploadCv: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-deep-charcoal">CV Upload Success</h3>
-                  <p className="text-xs text-slate-ink mt-0.5">Your CV has been processed and parsed</p>
+                  <p className="text-xs text-slate-ink mt-0.5">
+                    Your CV has been processed and parsed
+                  </p>
                 </div>
               </div>
               <button
@@ -1812,31 +2091,51 @@ export const CandidateUploadCv: React.FC = () => {
             <div className="mt-6 space-y-4">
               <div className="rounded-xl border border-border-warm bg-surface-container-lowest p-4">
                 <div className="flex items-center justify-between border-b border-border-warm/50 pb-2 mb-3">
-                  <span className="text-xs font-bold text-deep-charcoal uppercase tracking-wider">Extracted Profile Draft</span>
-                  <span className="text-xs text-slate-ink font-semibold">{successParsedCv.name}</span>
+                  <span className="text-xs font-bold text-deep-charcoal uppercase tracking-wider">
+                    Extracted Profile Draft
+                  </span>
+                  <span className="text-xs text-slate-ink font-semibold">
+                    {successParsedCv.name}
+                  </span>
                 </div>
-                
+
                 {(() => {
                   const parsed = parseRawText(successParsedCv.rawText || '');
                   return (
                     <div className="space-y-3">
                       <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-ink tracking-wider block">Full Name</span>
-                        <span className="text-sm font-semibold text-deep-charcoal">{parsed.fullName || 'Not found'}</span>
+                        <span className="text-[10px] uppercase font-bold text-slate-ink tracking-wider block">
+                          Full Name
+                        </span>
+                        <span className="text-sm font-semibold text-deep-charcoal">
+                          {parsed.fullName || 'Not found'}
+                        </span>
                       </div>
                       <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-ink tracking-wider block">Current Role / Title</span>
-                        <span className="text-sm font-semibold text-deep-charcoal">{parsed.currentRole || 'Not found'}</span>
+                        <span className="text-[10px] uppercase font-bold text-slate-ink tracking-wider block">
+                          Current Role / Title
+                        </span>
+                        <span className="text-sm font-semibold text-deep-charcoal">
+                          {parsed.currentRole || 'Not found'}
+                        </span>
                       </div>
                       {parsed.technicalSkills && (
                         <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-ink tracking-wider block">Skills Found</span>
+                          <span className="text-[10px] uppercase font-bold text-slate-ink tracking-wider block">
+                            Skills Found
+                          </span>
                           <div className="flex flex-wrap gap-1.5 mt-1">
-                            {parsed.technicalSkills.split(',').slice(0, 5).map((s) => (
-                              <span key={s} className="rounded bg-teal-command/10 px-2 py-0.5 text-[10px] font-bold text-teal-command">
-                                {s.trim()}
-                              </span>
-                            ))}
+                            {parsed.technicalSkills
+                              .split(',')
+                              .slice(0, 5)
+                              .map((s) => (
+                                <span
+                                  key={s}
+                                  className="rounded bg-teal-command/10 px-2 py-0.5 text-[10px] font-bold text-teal-command"
+                                >
+                                  {s.trim()}
+                                </span>
+                              ))}
                             {parsed.technicalSkills.split(',').length > 5 && (
                               <span className="text-[10px] text-slate-ink font-semibold self-center">
                                 +{parsed.technicalSkills.split(',').length - 5} more
@@ -1851,8 +2150,10 @@ export const CandidateUploadCv: React.FC = () => {
               </div>
 
               <p className="text-xs leading-relaxed text-slate-ink font-medium">
-                You can import this parsed data into your Profile Builder to review, update, and finalize your CV profile.
+                You can import this parsed data into your Profile Builder to review, update, and
+                finalize your CV profile.
               </p>
+              <CvAiReviewNotice />
             </div>
 
             <div className="mt-8 flex justify-end gap-3 border-t border-border-warm pt-4">
@@ -1939,11 +2240,7 @@ const CvUploadProgressPopup = ({
     {
       label: 'Ready',
       state:
-        progress.phase === 'completed'
-          ? 'done'
-          : progress.phase === 'error'
-            ? 'error'
-            : 'pending',
+        progress.phase === 'completed' ? 'done' : progress.phase === 'error' ? 'error' : 'pending',
     },
   ];
 
@@ -2081,6 +2378,34 @@ const CvImportReadIssue = ({ children }: { children: React.ReactNode }) => (
   <p className="mt-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-800">
     {children}
   </p>
+);
+
+const CvAiReviewNotice = () => (
+  <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="mt-0.5 shrink-0 text-amber-600"
+      aria-hidden="true"
+    >
+      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+    <div>
+      <p className="text-sm font-bold">Kiểm tra lại thông tin do AI phân tích</p>
+      <p className="mt-1 text-xs font-medium leading-5 text-amber-800">
+        AI có thể sai sót trong quá trình phân tích CV. Bạn có thể chỉnh sửa thủ công các thông
+        tin bên dưới trước khi lưu hoặc tạo PDF.
+      </p>
+    </div>
+  </div>
 );
 
 const DownloadCvTemplateLink = () => (

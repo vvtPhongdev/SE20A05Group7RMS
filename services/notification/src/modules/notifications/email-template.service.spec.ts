@@ -18,6 +18,19 @@ describe('EmailTemplateService', () => {
   });
 
   describe('render', () => {
+    it('should render a task deadline reminder', () => {
+      const result = service.render(EmailTemplateType.TASK_DEADLINE_REMINDER, {
+        recipientName: 'Task Owner',
+        taskType: 'JOB_POSTING',
+        position: 'Backend Engineer',
+        timing: 'due within 24 hours',
+        deadline: '21 June 2026',
+      });
+
+      expect(result.subject).toContain('Backend Engineer');
+      expect(result.body).toContain('due within 24 hours');
+    });
+
     it('should render INTERVIEW_INVITATION with interpolated placeholders', () => {
       const data = {
         recipientName: 'John Doe',

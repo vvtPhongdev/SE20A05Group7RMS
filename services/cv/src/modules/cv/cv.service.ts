@@ -4,6 +4,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { AuditLogService } from '@wr/database';
 import { AuditAction, AuditEntityType } from '@wr/contracts';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/database/prisma.service';
 import { QUEUE_NAMES, JOB_NAMES } from '@wr/queue';
 import { parseSupabasePublicUrl, removeFile } from '@wr/storage';
@@ -15,7 +16,6 @@ export class CvService {
     private readonly prisma: PrismaService,
     private readonly auditLog: AuditLogService,
     @InjectQueue(QUEUE_NAMES.CV_PARSE) private readonly cvParseQueue: Queue,
-    @InjectQueue(QUEUE_NAMES.EMBEDDING_GENERATE) private readonly embeddingQueue: Queue,
   ) {}
 
   private async removeStoredFile(filePath: string) {
@@ -26,6 +26,25 @@ export class CvService {
     }
 
     await unlink(filePath);
+  }
+
+  private async enqueueParse(cvRecord: { id: string; filePath: string }) {
+    await this.cvParseQueue.add(
+      JOB_NAMES.PARSE_CV,
+      {
+        cvDocumentId: cvRecord.id,
+        filePath: cvRecord.filePath,
+      },
+      {
+        jobId: `cv-parse-${cvRecord.id}-${Date.now()}`,
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 1000,
+        },
+        removeOnFail: true,
+      },
+    );
   }
 
   async uploadCv(payload: {
@@ -61,7 +80,10 @@ export class CvService {
         fileType,
         filePath,
         rawText,
-        parsedAt: rawText ? new Date() : null,
+        parsedAt: null,
+        processingStatus: 'PENDING',
+        processingMethod: null,
+        processingError: null,
       },
     });
 
@@ -76,41 +98,72 @@ export class CvService {
       })
       .catch((err) => console.error('Failed to write audit log for CV_UPLOADED:', err));
 
-    if (!rawText) {
-      await this.cvParseQueue.add(
-        JOB_NAMES.PARSE_CV,
-        {
-          cvDocumentId: cvRecord.id,
-          filePath: cvRecord.filePath,
-        },
-        {
-          jobId: `cv-parse-${cvRecord.id}`,
-          attempts: 3,
-          backoff: {
-            type: 'exponential',
-            delay: 1000,
-          },
-        },
-      );
-    } else {
-      await this.embeddingQueue.add(
-        JOB_NAMES.GENERATE_EMBEDDING,
-        {
-          cvDocumentId: cvRecord.id,
-          rawText: cvRecord.rawText,
-        },
-        {
-          jobId: `cv-embedding-${cvRecord.id}-${Date.now()}`,
-          attempts: 3,
-          backoff: {
-            type: 'exponential',
-            delay: 1000,
-          },
-        },
-      );
-    }
+    await this.enqueueParse(cvRecord);
 
     return cvRecord;
+  }
+
+  async replaceCvForCandidate(payload: {
+    id: string;
+    userId: string;
+    fileName: string;
+    fileType: 'PDF' | 'DOCX' | 'DOC';
+    filePath: string;
+    rawText?: string;
+  }) {
+    const existing = await this.prisma.candidateCV.findFirst({
+      where: {
+        id: payload.id,
+        candidate: { userId: payload.userId },
+      },
+    });
+
+    if (!existing) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `CV Document with ID ${payload.id} not found or access denied`,
+      });
+    }
+
+    const updated = await this.prisma.candidateCV.update({
+      where: { id: existing.id },
+      data: {
+        fileName: payload.fileName,
+        fileType: payload.fileType,
+        filePath: payload.filePath,
+        rawText: payload.rawText?.trim() ?? '',
+        parsedAt: null,
+        processingStatus: 'PENDING',
+        processingMethod: null,
+        processingError: null,
+        structuredData: Prisma.JsonNull,
+        extractedAt: null,
+      },
+    });
+
+    this.auditLog
+      .log({
+        entityType: AuditEntityType.CV,
+        entityId: updated.id,
+        action: AuditAction.CV_UPLOADED,
+        fromStatus: existing.processingStatus,
+        toStatus: 'REPLACED',
+        performedById: payload.userId,
+        metadata: {
+          previousFileName: existing.fileName,
+          fileName: payload.fileName,
+          fileType: payload.fileType,
+        },
+      })
+      .catch((err) => console.error('Failed to write audit log for CV replacement:', err));
+
+    await this.enqueueParse(updated);
+
+    if (existing.filePath !== payload.filePath) {
+      await this.removeStoredFile(existing.filePath).catch(() => undefined);
+    }
+
+    return updated;
   }
 
   async getCv(id: string) {
@@ -144,7 +197,9 @@ export class CvService {
 
     const cvRecord = await this.prisma.candidateCV.findFirst({
       where: { candidateId: profile.id },
-      orderBy: { createdAt: 'desc' },
+      // The department head should see the newest CV the candidate uploaded,
+      // regardless of whether parsing later succeeds or fails.
+      orderBy: [{ createdAt: 'desc' }, { updatedAt: 'desc' }],
     });
 
     if (!cvRecord) {

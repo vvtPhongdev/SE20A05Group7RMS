@@ -80,6 +80,8 @@ interface RealtimeTrackingItem {
   handler: string;
   createdAt: string;
   updatedAt: string;
+  pendingAction?: string;
+  taskProgress?: { total: number; completed: number; overdue: number };
 }
 
 interface InterviewSchedule {
@@ -265,6 +267,7 @@ export const DeptHeadDashboard: React.FC = () => {
       dotClass: display!.dotClass,
       manager: item.handler,
       initials: getInitials(item.handler),
+      pendingAction: item.pendingAction ?? 'NONE',
     };
   });
 

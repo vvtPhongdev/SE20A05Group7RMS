@@ -1,8 +1,16 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { AuditLogService } from '@wr/database';
-import { AuditAction, AuditEntityType, PlanStatus, TaskStatus, TaskType, UserRole } from '@wr/contracts';
+import {
+  AuditAction,
+  AuditEntityType,
+  PlanStatus,
+  TaskStatus,
+  TaskType,
+  UserRole,
+} from '@wr/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
+import type { Prisma, TaskPlan } from '@prisma/client';
 
 @Injectable()
 export class TaskPlanService {
@@ -31,7 +39,11 @@ export class TaskPlanService {
     }
   }
 
-  private parseAndValidateDates(plan: { startDate: Date; endDate: Date }, startDate: string, endDate: string) {
+  private parseAndValidateDates(
+    plan: { startDate: Date; endDate: Date },
+    startDate: string,
+    endDate: string,
+  ) {
     const start = new Date(startDate);
     const end = new Date(endDate);
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
@@ -51,6 +63,51 @@ export class TaskPlanService {
     }
 
     return { start, end };
+  }
+
+  private async upsertTaskReminders(tx: Prisma.TransactionClient, task: TaskPlan) {
+    const now = new Date();
+    const candidates = [
+      {
+        reminderKey: '24h-before',
+        scheduledFor: new Date(task.endDate.getTime() - 24 * 60 * 60 * 1000),
+      },
+      { reminderKey: 'deadline', scheduledFor: task.endDate },
+    ];
+    const reminders = candidates.filter((item) => item.scheduledFor > now);
+
+    for (const reminder of reminders) {
+      await tx.taskReminder.upsert({
+        where: {
+          taskPlanId_reminderKey: {
+            taskPlanId: task.id,
+            reminderKey: reminder.reminderKey,
+          },
+        },
+        create: {
+          taskPlanId: task.id,
+          reminderKey: reminder.reminderKey,
+          scheduledFor: reminder.scheduledFor,
+        },
+        update: {
+          scheduledFor: reminder.scheduledFor,
+          sentAt: null,
+          emailLogId: null,
+          errorMessage: null,
+          status: 'PENDING',
+        },
+      });
+    }
+
+    const activeKeys = reminders.map((item) => item.reminderKey);
+    await tx.taskReminder.updateMany({
+      where: {
+        taskPlanId: task.id,
+        status: 'PENDING',
+        ...(activeKeys.length ? { reminderKey: { notIn: activeKeys } } : {}),
+      },
+      data: { status: 'SKIPPED' },
+    });
   }
 
   async create(payload: {
@@ -84,22 +141,29 @@ export class TaskPlanService {
       this.rpc(HttpStatus.NOT_FOUND, `Assigned HR member ${assignedToId} not found`);
     }
 
-    if (!assignee.isActive || ![UserRole.HR_LEADER, UserRole.HR_RECRUITER].includes(assignee.role as UserRole)) {
+    if (
+      !assignee.isActive ||
+      ![UserRole.HR_LEADER, UserRole.HR_RECRUITER].includes(assignee.role as UserRole)
+    ) {
       this.rpc(HttpStatus.BAD_REQUEST, 'Task can only be assigned to an active HR member');
     }
 
     const { start, end } = this.parseAndValidateDates(plan, startDate, endDate);
 
-    const task = await this.prisma.taskPlan.create({
-      data: {
-        overallPlanId,
-        taskType,
-        assignedToId,
-        startDate: start,
-        endDate: end,
-        status: TaskStatus.PENDING,
-      },
-      include: { assignedTo: { select: { id: true, displayName: true, email: true } } },
+    const task = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.taskPlan.create({
+        data: {
+          overallPlanId,
+          taskType,
+          assignedToId,
+          startDate: start,
+          endDate: end,
+          status: TaskStatus.PENDING,
+        },
+        include: { assignedTo: { select: { id: true, displayName: true, email: true } } },
+      });
+      await this.upsertTaskReminders(tx, created);
+      return created;
     });
 
     this.auditLog
@@ -145,14 +209,20 @@ export class TaskPlanService {
       payload.endDate ?? task.endDate.toISOString(),
     );
 
-    const updated = await this.prisma.taskPlan.update({
-      where: { id: payload.id },
-      data: {
-        taskType: nextTaskType,
-        startDate: start,
-        endDate: end,
-      },
-      include: { assignedTo: { select: { id: true, displayName: true, email: true, role: true } } },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const next = await tx.taskPlan.update({
+        where: { id: payload.id },
+        data: {
+          taskType: nextTaskType,
+          startDate: start,
+          endDate: end,
+        },
+        include: {
+          assignedTo: { select: { id: true, displayName: true, email: true, role: true } },
+        },
+      });
+      await this.upsertTaskReminders(tx, next);
+      return next;
     });
 
     this.auditLog
@@ -183,14 +253,18 @@ export class TaskPlanService {
     if (!task) this.rpc(HttpStatus.NOT_FOUND, `TaskPlan ${payload.id} not found`);
 
     if (task.overallPlan.status !== PlanStatus.APPROVED) {
-      this.rpc(HttpStatus.BAD_REQUEST, 'Recruiters can only be assigned after Admin approves the plan');
+      this.rpc(
+        HttpStatus.BAD_REQUEST,
+        'Recruiters can only be assigned after Admin approves the plan',
+      );
     }
 
     const assignee = await this.prisma.user.findUnique({
       where: { id: payload.assignedToId },
       select: { id: true, role: true, isActive: true },
     });
-    if (!assignee) this.rpc(HttpStatus.NOT_FOUND, `Assigned HR recruiter ${payload.assignedToId} not found`);
+    if (!assignee)
+      this.rpc(HttpStatus.NOT_FOUND, `Assigned HR recruiter ${payload.assignedToId} not found`);
     if (!assignee.isActive || assignee.role !== UserRole.HR_RECRUITER) {
       this.rpc(HttpStatus.BAD_REQUEST, 'Task must be assigned to an active HR recruiter');
     }
@@ -270,7 +344,10 @@ export class TaskPlanService {
 
     return this.prisma.taskPlan.findMany({
       where: { overallPlanId },
-      include: { assignedTo: { select: { id: true, displayName: true } } },
+      include: {
+        assignedTo: { select: { id: true, displayName: true, email: true, role: true } },
+        reminders: { orderBy: { scheduledFor: 'asc' } },
+      },
       orderBy: { startDate: 'asc' },
     });
   }
@@ -315,6 +392,7 @@ export class TaskPlanService {
 
     const tasks = await this.prisma.taskPlan.findMany({
       where,
+      include: { reminders: { orderBy: { scheduledFor: 'asc' } } },
       orderBy: { startDate: 'asc' },
     });
 
@@ -373,7 +451,7 @@ export class TaskPlanService {
     return tasks.map((task) => {
       const plan = planMap.get(task.overallPlanId);
       const request = plan ? requestMap.get(plan.requestId) : null;
-      const department = request ? departmentMap.get(request.departmentId) ?? null : null;
+      const department = request ? (departmentMap.get(request.departmentId) ?? null) : null;
 
       return {
         ...task,
