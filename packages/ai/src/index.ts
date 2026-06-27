@@ -5,6 +5,7 @@ export * from './skill-graph/index';
 export * from './matching/index';
 export * from './embedding';
 export * from './cv-parser';
+export * from './cv-extractor';
 export * from './similarity';
 
 /**

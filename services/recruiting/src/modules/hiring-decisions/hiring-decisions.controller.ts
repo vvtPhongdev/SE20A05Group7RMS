@@ -15,9 +15,24 @@ export class HiringDecisionsController {
       decision: HiringDecision;
       notes: string;
       adminId: string;
+      candidateId?: string;
+      compensation?: string;
+      startDate?: string;
     },
   ) {
-    return this.service.decide(payload.requestId, payload.decision, payload.notes, payload.adminId);
+    return this.service.decide(
+      payload.requestId,
+      payload.decision,
+      payload.notes,
+      payload.adminId,
+      payload.candidateId && payload.compensation && payload.startDate
+        ? {
+            candidateId: payload.candidateId,
+            compensation: payload.compensation,
+            startDate: payload.startDate,
+          }
+        : undefined,
+    );
   }
 
   @MessagePattern('recruiting.hiring_decision.request_info')

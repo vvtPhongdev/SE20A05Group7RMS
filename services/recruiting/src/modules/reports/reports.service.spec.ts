@@ -11,6 +11,7 @@ describe('ReportsService - T-087 Annual Reports & Tracking', () => {
     requestLog: {
       findMany: jest.fn(),
     },
+    user: { findUnique: jest.fn() },
   };
   const service = new ReportsService(prisma as any);
 
@@ -18,6 +19,7 @@ describe('ReportsService - T-087 Annual Reports & Tracking', () => {
     jest.clearAllMocks();
     prisma.interviewSchedule.count.mockResolvedValue(0);
     prisma.requestLog.findMany.mockResolvedValue([]);
+    prisma.user.findUnique.mockResolvedValue({ departmentId: 'dept-1' });
   });
 
   describe('getAnnualReport', () => {
@@ -107,9 +109,14 @@ describe('ReportsService - T-087 Annual Reports & Tracking', () => {
           position: 'Dev',
           headcount: 2,
           status: 'INTERVIEWING',
-          department: { name: 'Engineering' },
-          createdBy: { displayName: 'Head' },
+          department: { id: 'dept-1', name: 'Engineering' },
+          createdBy: { id: 'user-1', displayName: 'Head', role: 'DEPARTMENT_HEAD' },
           reviewedBy: { displayName: 'HR Manager' },
+          approvedBy: null,
+          overallPlan: { tasks: [] },
+          interviews: [],
+          offers: [],
+          logs: [],
           applications: [{ status: 'OFFER_ACCEPTED' }],
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -123,7 +130,9 @@ describe('ReportsService - T-087 Annual Reports & Tracking', () => {
 
       expect(prisma.recruitmentRequest.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { createdById: 'user-1' },
+          where: {
+            OR: [{ createdById: 'user-1' }, { departmentId: 'dept-1' }],
+          },
         }),
       );
       expect(result).toHaveLength(1);
@@ -148,6 +157,25 @@ describe('ReportsService - T-087 Annual Reports & Tracking', () => {
       expect(prisma.recruitmentRequest.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {},
+        }),
+      );
+    });
+
+    it('excludes unassigned DRAFT requests from HR Leader tracking', async () => {
+      prisma.recruitmentRequest.findMany.mockResolvedValue([]);
+
+      await service.getRealtimeTracking({ userId: 'leader-1', role: 'HR_LEADER' });
+
+      expect(prisma.recruitmentRequest.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            OR: [
+              { status: { not: 'DRAFT' } },
+              { reviewedById: 'leader-1' },
+              { overallPlan: { tasks: { some: { assignedToId: 'leader-1' } } } },
+              { interviews: { some: { interviewers: { has: 'leader-1' } } } },
+            ],
+          },
         }),
       );
     });

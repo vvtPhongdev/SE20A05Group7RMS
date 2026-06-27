@@ -53,6 +53,16 @@ Validated at startup via `@wr/config` Zod schemas.
 | `PROFILES_PORT`   | ❌       | `3012`                  | Profiles TCP port            |
 | `REVIEW_PORT`     | ❌       | `3013`                  | Review TCP port              |
 
+### CV OCR and AI extraction
+
+Set `GEMINI_API_KEY` to enable Gemini vision OCR and structured extraction for scanned PDFs and multi-column Canva CVs. `GEMINI_BASE_URL` defaults to `https://generativelanguage.googleapis.com/v1beta`, and `GEMINI_CV_MODEL` defaults to `gemini-3.5-flash`. Without a key, text-based PDF/DOCX files continue to use local extraction while image-only documents are marked `FAILED` with a configuration message.
+
+AI output is stored on `CandidateCV.structuredData`, merged into `CandidateProfile.structuredData.resume`, and converted into enriched text for the existing 384-dimensional vector embedding pipeline. Apply migrations before starting workers:
+
+```bash
+npm --workspace=@wr/database run migrate:dev
+```
+
 ## Development Commands
 
 ### Root Workspace

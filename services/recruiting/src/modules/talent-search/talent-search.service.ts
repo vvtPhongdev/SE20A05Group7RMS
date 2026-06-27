@@ -104,6 +104,13 @@ export class TalentSearchService {
         ) {
           return null;
         }
+        if (
+          filters?.maxYearsExperience &&
+          (capabilities?.yearsOfExperience ?? Number.POSITIVE_INFINITY) >
+            Number(filters.maxYearsExperience)
+        ) {
+          return null;
+        }
         if (capabilities?.visibility === 'PRIVATE' && filters?.visibility !== 'PRIVATE') {
           return null;
         }

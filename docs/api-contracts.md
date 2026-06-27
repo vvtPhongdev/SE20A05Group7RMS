@@ -326,3 +326,45 @@
 | View Reports            | ✅       | ✅ (own dept)   | ✅ (pipeline) | ❌        |
 | Notifications           | ✅       | ✅              | ✅            | ✅        |
 | Tracking Dashboard      | ❌       | ✅              | ❌            | ❌        |
+
+## Requirement v1.0 workflow contracts (T-085)
+
+### Interview schedule panel
+
+`POST /api/v1/interviews/schedules` requires `interviewers` to contain at least two distinct UUIDs. Every member must exist, be active, and have one of these roles: `ADMIN`, `HR_LEADER`, `HR_RECRUITER`, or `DEPARTMENT_HEAD`.
+
+Successful responses include:
+
+```json
+{
+  "interviewers": ["uuid-1", "uuid-2"],
+  "panel": [
+    {
+      "id": "uuid-1",
+      "displayName": "Interviewer",
+      "email": "user@example.com",
+      "role": "HR_LEADER"
+    }
+  ]
+}
+```
+
+### Candidate offer response
+
+`POST /api/v1/hiring-decisions/:requestId` requires the following additional fields when `decision` is `HIRE`: `candidateId`, `compensation`, and ISO-8601 `startDate`. The selected candidate must have a PASS result. The mutation atomically creates a `SENT` offer, email log, candidate notification, application/request transitions, and request log before queueing delivery.
+
+`POST /api/v1/offers/:id/respond` is candidate-only and ownership checked.
+
+```json
+{ "response": "ACCEPT", "note": "I accept the offer." }
+```
+
+Only `SENT` offers can be answered. The response is immutable after the first answer.
+
+### Realtime tracking
+
+`GET /api/v1/reports/realtime-tracking` returns an array with `requestId`, `position`, `departmentName`, `status`, `currentOwner`, `pendingAction`, `headcount`, `hiredCount`, `taskProgress`, `interviewProgress`, `offerProgress`, `latestLog`, and `lastUpdatedAt`. Scope is enforced by the authenticated role. HR Leaders receive HR-managed requests plus requests they review or handle through an assigned task/interview; unassigned drafts are excluded.
+
+### Task reminders
+
+Task reminder jobs use the shared payload `{ taskPlanId, reminderKey, scheduledFor }`, where `reminderKey` is `24h-before` or `deadline`. `(taskPlanId, reminderKey)` is unique and delivery attempts are traceable through `TaskReminder` and `EmailLog`. Only incomplete tasks in approved plans and active recruitment requests are eligible. Queue failures return the reminder to `PENDING` and reuse its existing email log on retry.

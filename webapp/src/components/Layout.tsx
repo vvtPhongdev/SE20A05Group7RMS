@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { UserRole } from '@wr/contracts';
 import { useAuth } from '../context/AuthContext';
+import { ApiError, apiRequest } from '../lib/api';
 import metadata from '../metadata.json';
 import {
   Sidebar,
@@ -68,6 +69,12 @@ interface MetadataNavItem {
 interface LayoutProps {
   children: React.ReactNode;
 }
+
+type ProfileAvatarResponse = {
+  structuredData?: {
+    avatar?: unknown;
+  } | null;
+};
 
 const iconMap: Record<IconKey, LucideIcon> = {
   dashboard: LayoutDashboard,
@@ -155,6 +162,21 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       }
 
       try {
+        const profile = await apiRequest<ProfileAvatarResponse>(
+          '/candidate-profiles/me',
+          token,
+        ).catch((error) => {
+          if (error instanceof ApiError && error.status === 404) {
+            return null;
+          }
+          throw error;
+        });
+
+        if (!profile?.structuredData?.avatar) {
+          clearAvatar();
+          return;
+        }
+
         const response = await fetch('/api/v1/candidate-profiles/me/avatar', {
           headers: { Authorization: `Bearer ${token}` },
           cache: 'no-store',

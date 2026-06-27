@@ -1,13 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest } from '../../../lib/api';
-import {
-  HRActionButton,
-  HRCard,
-  HRInlineAlert,
-  HRLoadingState,
-  HRPageHeader,
-} from '../components';
+import { HRActionButton, HRCard, HRInlineAlert, HRLoadingState, HRPageHeader } from '../components';
 
 type InterviewStatus = 'Scheduled' | 'Rescheduled' | 'Completed';
 
@@ -179,6 +174,7 @@ const buildInterviewerOptions = (
 };
 
 export const HRInterviewSchedule: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const { token, user } = useAuth();
   const [filter, setFilter] = useState<InterviewStatus | 'All'>('All');
   const [checking, setChecking] = useState(false);
@@ -212,9 +208,7 @@ export const HRInterviewSchedule: React.FC = () => {
         Promise.all(
           requestList.map((request) =>
             apiRequest<InterviewSchedule[]>(`/interviews/requests/${request.id}/schedules`, token)
-              .then((list) =>
-                list.map((schedule) => ({ ...schedule, position: request.position })),
-              )
+              .then((list) => list.map((schedule) => ({ ...schedule, position: request.position })))
               .catch(() => [] as ScheduleWithPosition[]),
           ),
         ),
@@ -225,18 +219,24 @@ export const HRInterviewSchedule: React.FC = () => {
             ),
           ),
         ),
-        apiRequest<{ data: UserOption[] }>('/users/interviewers', token).catch(
-          () => ({ data: [] as UserOption[] }),
-        ),
+        apiRequest<{ data: UserOption[] }>('/users/interviewers', token).catch(() => ({
+          data: [] as UserOption[],
+        })),
       ]);
 
       setRequests(requestList);
       setApplications(applicationLists.flat());
       setSchedules(scheduleLists.flat().filter((schedule) => schedule.status !== 'CANCELLED'));
       setInterviewerOptions(buildInterviewerOptions(usersResponse.data, user));
-      setSelectedRequestId((current) =>
-        requestList.some((request) => request.id === current) ? current : requestList[0]?.id || '',
-      );
+      setSelectedRequestId((current) => {
+        const requestedId = searchParams.get('requestId');
+        if (requestedId && requestList.some((request) => request.id === requestedId)) {
+          return requestedId;
+        }
+        return requestList.some((request) => request.id === current)
+          ? current
+          : requestList[0]?.id || '';
+      });
       setSelectedInterviewerIds((current) =>
         current.length > 0 ? current : user?.id ? [user.id] : [],
       );
@@ -281,12 +281,16 @@ export const HRInterviewSchedule: React.FC = () => {
   }, [applications, schedules, selectedRequestId]);
 
   useEffect(() => {
-    setSelectedCandidateId((current) =>
-      candidateOptions.some((application) => application.candidateId === current)
+    setSelectedCandidateId((current) => {
+      const requestedId = searchParams.get('candidateId');
+      if (requestedId && candidateOptions.some((item) => item.candidateId === requestedId)) {
+        return requestedId;
+      }
+      return candidateOptions.some((application) => application.candidateId === current)
         ? current
-        : candidateOptions[0]?.candidateId || '',
-    );
-  }, [candidateOptions]);
+        : candidateOptions[0]?.candidateId || '';
+    });
+  }, [candidateOptions, searchParams]);
 
   const panelAvailability = useMemo(() => {
     const selectedStart =
@@ -377,8 +381,9 @@ export const HRInterviewSchedule: React.FC = () => {
       );
     }).length;
 
-    const rescheduleRequests = schedules.filter((schedule) => schedule.status === 'RESCHEDULED')
-      .length;
+    const rescheduleRequests = schedules.filter(
+      (schedule) => schedule.status === 'RESCHEDULED',
+    ).length;
 
     const awaitingConfirmation = schedules.filter(
       (schedule) => schedule.status === 'SCHEDULED' && new Date(schedule.scheduledAt) > now,
@@ -442,8 +447,8 @@ export const HRInterviewSchedule: React.FC = () => {
     setActionMessage('');
     window.setTimeout(() => {
       setChecking(false);
-      if (!scheduleDate || !scheduleTime || selectedInterviewerIds.length === 0) {
-        setApiError('Select date, time, and interviewers before checking availability.');
+      if (!scheduleDate || !scheduleTime || selectedInterviewerIds.length < 2) {
+        setApiError('Select date, time, and at least 2 interviewers before checking availability.');
         return;
       }
 
@@ -478,7 +483,7 @@ export const HRInterviewSchedule: React.FC = () => {
       !scheduleDate ||
       !scheduleTime ||
       !scheduleLocation.trim() ||
-      selectedInterviewerIds.length === 0
+      selectedInterviewerIds.length < 2
     ) {
       setApiError('Please complete campaign, candidate, interviewers, date, time, and location.');
       return;
@@ -786,7 +791,7 @@ export const HRInterviewSchedule: React.FC = () => {
                 ))}
               </select>
               <span className="text-xs text-slate-ink">
-                Hold Ctrl/Cmd to select multiple members.
+                Select at least 2 panel members. Hold Ctrl/Cmd to select multiple members.
               </span>
             </label>
             <div className="grid grid-cols-2 gap-3">
@@ -860,7 +865,7 @@ export const HRInterviewSchedule: React.FC = () => {
                 ))}
                 {panelAvailability.length === 0 ? (
                   <p className="rounded-lg bg-surface-container-low p-2 text-xs font-semibold text-slate-ink">
-                    Select at least one interviewer.
+                    Select at least 2 interviewers.
                   </p>
                 ) : null}
               </div>
@@ -884,7 +889,7 @@ export const HRInterviewSchedule: React.FC = () => {
                   !scheduleDate ||
                   !scheduleTime ||
                   !scheduleLocation.trim() ||
-                  selectedInterviewerIds.length === 0
+                  selectedInterviewerIds.length < 2
                 }
                 onClick={() => void createSchedule()}
                 type="submit"

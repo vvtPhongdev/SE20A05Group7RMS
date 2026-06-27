@@ -24,6 +24,7 @@ import {
   IsInt,
   IsBoolean,
   Min,
+  ValidateIf,
 } from 'class-validator';
 
 export class CreateJobPostingDto {
@@ -136,6 +137,11 @@ export class OfferResponseDto {
   @ApiProperty({ enum: OfferResponse, example: OfferResponse.ACCEPT })
   @IsEnum(OfferResponse)
   response!: OfferResponse;
+
+  @ApiProperty({ required: false, example: 'I accept the offer.' })
+  @IsOptional()
+  @IsString()
+  note?: string;
 }
 
 export class CreateRecruitmentRequestDto {
@@ -390,6 +396,22 @@ export class HiringDecisionDto {
   @IsString()
   @IsNotEmpty()
   notes!: string;
+
+  @ApiProperty({ required: false, description: 'Required for HIRE decisions' })
+  @ValidateIf((dto: HiringDecisionDto) => dto.decision === HiringDecision.HIRE)
+  @IsUUID()
+  candidateId?: string;
+
+  @ApiProperty({ required: false, example: '45,000,000 VND gross per month' })
+  @ValidateIf((dto: HiringDecisionDto) => dto.decision === HiringDecision.HIRE)
+  @IsString()
+  @IsNotEmpty()
+  compensation?: string;
+
+  @ApiProperty({ required: false, example: '2026-07-15T00:00:00.000Z' })
+  @ValidateIf((dto: HiringDecisionDto) => dto.decision === HiringDecision.HIRE)
+  @IsDateString()
+  startDate?: string;
 }
 
 export class RequestHiringInfoDto {
@@ -696,6 +718,9 @@ export class RecruitingController {
         decision: body.decision,
         notes: body.notes,
         adminId: userId,
+        candidateId: body.candidateId,
+        compensation: body.compensation,
+        startDate: body.startDate,
       }),
     );
   }
@@ -832,8 +857,14 @@ export class RecruitingController {
   @Get('offers/:id')
   @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN, UserRole.CANDIDATE)
   @ApiOperation({ summary: 'Review an offer letter' })
-  getOffer(@Param('id') id: string) {
-    return firstValueFrom(this.recruitingClient.send('recruiting.offers.get', { id }));
+  getOffer(@Param('id') id: string, @CurrentUser() user: any) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruiting.offers.get', {
+        id,
+        actorUserId: user.sub,
+        actorRole: user.role,
+      }),
+    );
   }
 
   @Post('offers/:id/send')
@@ -860,6 +891,7 @@ export class RecruitingController {
       this.recruitingClient.send('recruiting.offers.respond', {
         id,
         response: body.response,
+        note: body.note,
         candidateUserId: user.sub,
       }),
     );
