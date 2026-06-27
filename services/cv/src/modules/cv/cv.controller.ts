@@ -40,6 +40,21 @@ export class CvController {
     return this.service.uploadCv(payload);
   }
 
+  @MessagePattern('cv.replace_for_candidate')
+  async replaceCandidateCv(
+    @Payload()
+    payload: {
+      id: string;
+      userId: string;
+      fileName: string;
+      fileType: 'PDF' | 'DOCX' | 'DOC';
+      filePath: string;
+      rawText?: string;
+    },
+  ) {
+    return this.service.replaceCvForCandidate(payload);
+  }
+
   @MessagePattern('cv.get')
   async getCv(@Payload() payload: { id: string }) {
     return this.service.getCv(payload.id);

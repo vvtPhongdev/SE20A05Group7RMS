@@ -55,7 +55,7 @@ Validated at startup via `@wr/config` Zod schemas.
 
 ### CV OCR and AI extraction
 
-Set `GEMINI_API_KEY` to enable Gemini vision OCR and structured extraction for scanned PDFs and multi-column Canva CVs. `GEMINI_BASE_URL` defaults to `https://generativelanguage.googleapis.com/v1beta`, and `GEMINI_CV_MODEL` defaults to `gemini-3.5-flash`. Without a key, text-based PDF/DOCX files continue to use local extraction while image-only documents are marked `FAILED` with a configuration message.
+Set `GEMINI_API_KEY` to enable Gemini vision OCR and structured extraction for scanned PDFs and multi-column Canva CVs. Use `GEMINI_API_KEYS` with comma-separated keys when you want the worker to try the next key after rate limits or API failures. `GEMINI_BASE_URL` defaults to `https://generativelanguage.googleapis.com/v1beta`, and `GEMINI_CV_MODEL` defaults to `gemini-3.5-flash`. If a model is temporarily overloaded, add comma-separated fallbacks in `GEMINI_CV_MODELS`; transient 500/502/503/504 responses are retried using `GEMINI_CV_RETRY_ATTEMPTS` and `GEMINI_CV_RETRY_BASE_DELAY_MS`. Without a key, text-based PDF/DOCX files continue to use local extraction while image-only documents are marked `FAILED` with a configuration message.
 
 AI output is stored on `CandidateCV.structuredData`, merged into `CandidateProfile.structuredData.resume`, and converted into enriched text for the existing 384-dimensional vector embedding pipeline. Apply migrations before starting workers:
 

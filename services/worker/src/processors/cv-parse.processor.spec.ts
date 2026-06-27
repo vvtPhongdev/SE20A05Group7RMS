@@ -168,7 +168,7 @@ describe('processCvParseJob', () => {
     (extractText as jest.Mock).mockResolvedValue('');
 
     await expect(processCvParseJob({ cvDocumentId: 'cv-4', filePath: 'scan.pdf' })).rejects.toThrow(
-      'GEMINI_API_KEY',
+      'GEMINI_API_KEY or GEMINI_API_KEYS',
     );
     expect(prismaMock.candidateCV.update).toHaveBeenLastCalledWith(
       expect.objectContaining({

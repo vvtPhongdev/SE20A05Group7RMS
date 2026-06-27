@@ -80,7 +80,7 @@ export async function processCvParseJob(
 
     if (!extraction && !hasReliableLocalText) {
       throw new Error(
-        'No readable text was found. Configure GEMINI_API_KEY to OCR scanned or image-based CV files.',
+        'No readable text was found. Configure GEMINI_API_KEY or GEMINI_API_KEYS to OCR scanned or image-based CV files.',
       );
     }
 

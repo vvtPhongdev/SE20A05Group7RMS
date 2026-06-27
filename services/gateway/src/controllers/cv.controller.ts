@@ -7,6 +7,7 @@ import {
   Logger,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Res,
   UploadedFile,
@@ -27,7 +28,7 @@ import {
   validateCvFileName,
 } from '@wr/storage';
 import { firstValueFrom } from 'rxjs';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentUser, JwtPayload } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { SERVICE_TOKENS } from '../constants';
 import { Response } from 'express';
@@ -40,7 +41,10 @@ import { basename } from 'path';
 export class CvController {
   private readonly logger = new Logger(CvController.name);
 
-  constructor(@Inject(SERVICE_TOKENS.CV) private readonly cvClient: ClientProxy) {}
+  constructor(
+    @Inject(SERVICE_TOKENS.CV) private readonly cvClient: ClientProxy,
+    @Inject(SERVICE_TOKENS.PROFILES) private readonly profilesClient: ClientProxy,
+  ) {}
 
   private cvContentType(fileName: string) {
     const extension = fileName.slice(fileName.lastIndexOf('.')).toLowerCase();
@@ -50,6 +54,14 @@ export class CvController {
     }
     if (extension === '.doc') return 'application/msword';
     return 'application/octet-stream';
+  }
+
+  private async getCandidateNameForStorage(userId: string, fallbackName?: string) {
+    const profile = await firstValueFrom(
+      this.profilesClient.send<{ fullName?: string }>('profiles.get', { id: userId }),
+    ).catch(() => null);
+
+    return profile?.fullName || fallbackName || userId;
   }
 
   @Get('candidate/:candidateId/latest')
@@ -67,6 +79,10 @@ export class CvController {
     if (!cv?.filePath) {
       throw new NotFoundException('Candidate CV file is not available');
     }
+
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('X-CV-Document-Id', cv.id);
 
     const storageLocation = parseSupabasePublicUrl(cv.filePath);
     if (storageLocation) {
@@ -112,7 +128,7 @@ export class CvController {
   @ApiOperation({ summary: 'Upload a CV for the current candidate' })
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
   async uploadMine(
-    @CurrentUser('sub') userId: string,
+    @CurrentUser() user: JwtPayload,
     @UploadedFile()
     file?: { buffer: Buffer; originalname: string; mimetype: string; size: number },
   ) {
@@ -127,6 +143,7 @@ export class CvController {
       throw new BadRequestException('Only PDF, DOCX, and DOC files are supported');
     }
 
+    const userId = user.sub;
     const fileType = extension === '.docx' ? 'DOCX' : extension === '.doc' ? 'DOC' : 'PDF';
     const rawTextPromise = extractTextFromBuffer(file.buffer, fileType).catch((error) => {
       this.logger.warn(
@@ -138,7 +155,9 @@ export class CvController {
     });
 
     const bucket = storageBuckets.cvs;
-    const path = buildCvStoragePath(userId, file.originalname);
+    const candidateName = await this.getCandidateNameForStorage(userId, user.displayName);
+    const path = buildCvStoragePath(userId, file.originalname, new Date(), candidateName);
+    const storedFileName = basename(path);
     const uploadedPromise = uploadFile(bucket, path, file.buffer, {
       contentType: file.mimetype,
     }).catch(() => {
@@ -150,7 +169,67 @@ export class CvController {
       return await firstValueFrom(
         this.cvClient.send('cv.upload_candidate', {
           candidateId: userId,
-          fileName: file.originalname,
+          fileName: storedFileName,
+          fileType,
+          filePath: uploaded.publicUrl,
+          rawText,
+        }),
+      );
+    } catch (error) {
+      await removeFile(uploaded.bucket, uploaded.path).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  @Patch(':id/file')
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Replace an uploaded CV owned by the current candidate' })
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  async replaceMine(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+    @UploadedFile()
+    file?: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+  ) {
+    if (!file) {
+      throw new BadRequestException('CV file is required');
+    }
+
+    let extension: '.pdf' | '.docx' | '.doc';
+    try {
+      extension = validateCvFileName(file.originalname).extension;
+    } catch {
+      throw new BadRequestException('Only PDF, DOCX, and DOC files are supported');
+    }
+
+    const userId = user.sub;
+    const fileType = extension === '.docx' ? 'DOCX' : extension === '.doc' ? 'DOC' : 'PDF';
+    const rawTextPromise = extractTextFromBuffer(file.buffer, fileType).catch((error) => {
+      this.logger.warn(
+        `Fast CV parse failed for updated ${file.originalname}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return '';
+    });
+
+    const bucket = storageBuckets.cvs;
+    const candidateName = await this.getCandidateNameForStorage(userId, user.displayName);
+    const path = buildCvStoragePath(userId, file.originalname, new Date(), candidateName);
+    const storedFileName = basename(path);
+    const uploadedPromise = uploadFile(bucket, path, file.buffer, {
+      contentType: file.mimetype,
+    }).catch(() => {
+      throw new BadRequestException('Failed to upload replacement CV');
+    });
+    const [uploaded, rawText] = await Promise.all([uploadedPromise, rawTextPromise]);
+
+    try {
+      return await firstValueFrom(
+        this.cvClient.send('cv.replace_for_candidate', {
+          id,
+          userId,
+          fileName: storedFileName,
           fileType,
           filePath: uploaded.publicUrl,
           rawText,

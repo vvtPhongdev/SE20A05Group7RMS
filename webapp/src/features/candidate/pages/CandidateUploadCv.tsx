@@ -684,6 +684,7 @@ export const CandidateUploadCv: React.FC = () => {
   // Drag and Drop Visual State
   const [isDragActive, setIsDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const updateFileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [apiError, setApiError] = useState('');
@@ -692,6 +693,7 @@ export const CandidateUploadCv: React.FC = () => {
   const [savingCv, setSavingCv] = useState(false);
   const [cvSaved, setCvSaved] = useState(false);
   const [importReadIssues, setImportReadIssues] = useState<ImportReadIssues>({});
+  const [isAiImportedDraft, setIsAiImportedDraft] = useState(false);
   const [uploadProgress, setUploadProgress] =
     useState<CvUploadProgressState>(initialUploadProgress);
 
@@ -701,6 +703,8 @@ export const CandidateUploadCv: React.FC = () => {
   const [successParsedCv, setSuccessParsedCv] = useState<CvDocument | null>(null);
   const [deleteConfirmDoc, setDeleteConfirmDoc] = useState<CvDocument | null>(null);
   const [deletingCvId, setDeletingCvId] = useState<string | null>(null);
+  const [updatingCvId, setUpdatingCvId] = useState<string | null>(null);
+  const [updateTargetDoc, setUpdateTargetDoc] = useState<CvDocument | null>(null);
 
   const mapDocument = (document: {
     id: string;
@@ -758,6 +762,7 @@ export const CandidateUploadCv: React.FC = () => {
     const aiPersonalInfo = aiResume?.personalInfo;
     const aiSkills = aiResume?.skills;
     setImportReadIssues(createImportReadIssues(parsed));
+    setIsAiImportedDraft(true);
 
     setCvSaved(false);
     setCvForm((current) => ({
@@ -911,6 +916,7 @@ export const CandidateUploadCv: React.FC = () => {
           : [];
 
         setExistingStructuredData(structuredData);
+        setIsAiImportedDraft(false);
         setCvForm({
           fullName: personalInfo.fullName || profile.fullName || '',
           email: personalInfo.email || profile.email || '',
@@ -976,6 +982,7 @@ export const CandidateUploadCv: React.FC = () => {
 
   // Trigger file selection dialog
   const handleBrowseFiles = () => {
+    if (updatingCvId) return;
     fileInputRef.current?.click();
   };
 
@@ -1061,6 +1068,73 @@ export const CandidateUploadCv: React.FC = () => {
     }
   };
 
+  const handleRequestUpdateDoc = (doc: CvDocument) => {
+    if (doc.parsingStatus === 'Parsing...' || updatingCvId || uploading) return;
+    setUpdateTargetDoc(doc);
+    updateFileInputRef.current?.click();
+  };
+
+  const handleUpdateFile = async (file: File, doc: CvDocument) => {
+    if (!validateCvUploadFile(file)) {
+      if (updateFileInputRef.current) {
+        updateFileInputRef.current.value = '';
+      }
+      setUpdateTargetDoc(null);
+      return;
+    }
+
+    setUpdatingCvId(doc.id);
+    setApiError('');
+    setUploadProgress({
+      phase: 'uploading',
+      fileName: file.name,
+      percent: 30,
+      message: 'Uploading replacement CV...',
+    });
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const updated = await apiRequest<{
+        id: string;
+        fileName: string;
+        parsedAt?: string | null;
+        rawText?: string;
+        processingStatus?: string;
+        processingMethod?: string | null;
+        processingError?: string | null;
+        structuredData?: { resume?: unknown; confidence?: number } | null;
+        createdAt: string;
+      }>(`/candidate/cvs/${doc.id}/file`, token, { method: 'PATCH', body: formData });
+      const updatedDoc = mapDocument(updated);
+      setDocuments((current) =>
+        current.map((item) => (item.id === updatedDoc.id ? updatedDoc : item)),
+      );
+      setUploadedCvId(updatedDoc.id);
+      setUploadProgress({
+        phase: 'parsing',
+        fileName: updatedDoc.name,
+        percent: 70,
+        message: 'Replacement CV uploaded. Parsing new content...',
+      });
+    } catch (updateError) {
+      const message = updateError instanceof Error ? updateError.message : 'Unable to update CV';
+      setApiError(message);
+      setUploadProgress({
+        phase: 'error',
+        fileName: file.name,
+        percent: 100,
+        message,
+      });
+    } finally {
+      setUpdatingCvId(null);
+      setUpdateTargetDoc(null);
+      if (updateFileInputRef.current) {
+        updateFileInputRef.current.value = '';
+      }
+    }
+  };
+
   // Handle Drag Over
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -1077,6 +1151,8 @@ export const CandidateUploadCv: React.FC = () => {
     e.preventDefault();
     setIsDragActive(false);
 
+    if (updatingCvId) return;
+
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
       void handleFileUpload(file);
@@ -1090,8 +1166,19 @@ export const CandidateUploadCv: React.FC = () => {
     }
   };
 
+  const handleUpdateFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0] && updateTargetDoc) {
+      void handleUpdateFile(e.target.files[0], updateTargetDoc);
+    }
+  };
+
   const isCvDeleteBlocked = (doc: CvDocument) =>
-    doc.parsingStatus === 'Parsing...' || doc.id === uploadedCvId || doc.id === deletingCvId;
+    uploading ||
+    updatingCvId !== null ||
+    doc.parsingStatus === 'Ready' ||
+    doc.parsingStatus === 'Parsing...' ||
+    doc.id === uploadedCvId ||
+    doc.id === deletingCvId;
 
   const handleRequestDeleteDoc = (doc: CvDocument) => {
     if (isCvDeleteBlocked(doc)) return;
@@ -1379,6 +1466,8 @@ export const CandidateUploadCv: React.FC = () => {
               void saveCvForm();
             }}
           >
+            {isAiImportedDraft ? <CvAiReviewNotice /> : null}
+
             <CvSection title="Personal Information">
               <div className="grid gap-4 md:grid-cols-2">
                 <CvInput
@@ -1657,6 +1746,13 @@ export const CandidateUploadCv: React.FC = () => {
         className="hidden"
         accept=".pdf,.docx,.doc"
       />
+      <input
+        type="file"
+        ref={updateFileInputRef}
+        onChange={handleUpdateFileChange}
+        className="hidden"
+        accept=".pdf,.docx,.doc"
+      />
 
       {loading ? <CandidateLoadingState label="Loading CV documents..." /> : null}
       {apiError ? <CandidateInlineAlert>{apiError}</CandidateInlineAlert> : null}
@@ -1682,10 +1778,14 @@ export const CandidateUploadCv: React.FC = () => {
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             onClick={handleBrowseFiles}
-            className={`bg-white border-dashed border-2 rounded-lg p-8 flex flex-col items-center justify-center transition-all group cursor-pointer ${
-              isDragActive
-                ? 'border-teal-command bg-teal-command/5 scale-[0.99]'
-                : 'border-border-warm hover:border-teal-command/50'
+            className={`bg-white border-dashed border-2 rounded-lg p-8 flex flex-col items-center justify-center transition-all group ${
+              updatingCvId
+                ? 'cursor-not-allowed border-border-warm opacity-70'
+                : `cursor-pointer ${
+                    isDragActive
+                      ? 'border-teal-command bg-teal-command/5 scale-[0.99]'
+                      : 'border-border-warm hover:border-teal-command/50'
+                  }`
             }`}
           >
             <div className="w-16 h-16 rounded-full bg-surface-container-low flex items-center justify-center text-teal-command mb-4 group-hover:scale-110 transition-transform">
@@ -1700,15 +1800,16 @@ export const CandidateUploadCv: React.FC = () => {
             </p>
             <div className="flex gap-3" onClick={(e) => e.stopPropagation()}>
               <button
-                disabled={uploading}
+                disabled={uploading || updatingCvId !== null}
                 onClick={handleBrowseFiles}
-                className="bg-teal-command text-white px-8 py-2.5 rounded-lg font-semibold text-sm active:scale-95 hover:bg-primary transition-all"
+                className="bg-teal-command text-white px-8 py-2.5 rounded-lg font-semibold text-sm active:scale-95 hover:bg-primary transition-all disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {uploading ? 'Uploading...' : 'Upload CV'}
+                {uploading ? 'Uploading...' : updatingCvId ? 'Updating...' : 'Upload CV'}
               </button>
               <button
+                disabled={updatingCvId !== null}
                 onClick={handleBrowseFiles}
-                className="border border-border-warm text-deep-charcoal px-8 py-2.5 rounded-lg font-semibold text-sm hover:bg-surface-container-low transition-colors"
+                className="border border-border-warm text-deep-charcoal px-8 py-2.5 rounded-lg font-semibold text-sm hover:bg-surface-container-low transition-colors disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Browse Files
               </button>
@@ -1737,12 +1838,23 @@ export const CandidateUploadCv: React.FC = () => {
                 <tbody className="text-xs text-deep-charcoal font-medium">
                   {documents.map((doc) => {
                     const deleteBlocked = isCvDeleteBlocked(doc);
+                    const updateDisabled = uploading || updatingCvId !== null;
+                    const updateTitle =
+                      updatingCvId === doc.id
+                        ? 'Updating CV...'
+                        : updateDisabled
+                          ? 'Another CV upload or update is in progress'
+                          : 'Replace this uploaded CV with a new file';
                     const deleteTitle =
-                      doc.parsingStatus === 'Parsing...'
-                        ? 'Cannot delete while this CV is being uploaded and parsed'
-                        : doc.id === deletingCvId
-                          ? 'Deleting CV...'
-                          : 'Delete CV';
+                      doc.parsingStatus === 'Ready'
+                        ? 'Cannot delete after this CV was uploaded successfully'
+                        : doc.parsingStatus === 'Parsing...'
+                          ? 'Cannot delete while this CV is being uploaded and parsed'
+                          : uploading
+                            ? 'Cannot delete while a CV is being uploaded'
+                            : doc.id === deletingCvId
+                              ? 'Deleting CV...'
+                              : 'Delete CV';
 
                     return (
                       <tr
@@ -1797,7 +1909,7 @@ export const CandidateUploadCv: React.FC = () => {
                         {/* Actions */}
                         <td className="px-6 py-4 text-right">
                           <div className="flex justify-end gap-2 items-center">
-                            {doc.parsingStatus === 'Ready' && (
+                            {doc.parsingStatus !== 'Parsing...' && (
                               <button
                                 type="button"
                                 onClick={() => handleImportCv(doc)}
@@ -1818,6 +1930,34 @@ export const CandidateUploadCv: React.FC = () => {
                                   <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
                                 </svg>
                                 Import
+                              </button>
+                            )}
+                            {doc.parsingStatus === 'Ready' && (
+                              <button
+                                type="button"
+                                onClick={() => handleRequestUpdateDoc(doc)}
+                                disabled={updateDisabled}
+                                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-[10px] font-bold transition-all ${
+                                  updateDisabled
+                                    ? 'cursor-not-allowed bg-slate-ink/10 text-slate-ink/45'
+                                    : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                                }`}
+                                title={updateTitle}
+                              >
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.5"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M21 12a9 9 0 1 1-3-6.7" />
+                                  <path d="M21 3v6h-6" />
+                                </svg>
+                                {updatingCvId === doc.id ? 'Updating...' : 'Update'}
                               </button>
                             )}
                             <button
@@ -2013,6 +2153,7 @@ export const CandidateUploadCv: React.FC = () => {
                 You can import this parsed data into your Profile Builder to review, update, and
                 finalize your CV profile.
               </p>
+              <CvAiReviewNotice />
             </div>
 
             <div className="mt-8 flex justify-end gap-3 border-t border-border-warm pt-4">
@@ -2237,6 +2378,34 @@ const CvImportReadIssue = ({ children }: { children: React.ReactNode }) => (
   <p className="mt-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-800">
     {children}
   </p>
+);
+
+const CvAiReviewNotice = () => (
+  <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="mt-0.5 shrink-0 text-amber-600"
+      aria-hidden="true"
+    >
+      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+    <div>
+      <p className="text-sm font-bold">Kiểm tra lại thông tin do AI phân tích</p>
+      <p className="mt-1 text-xs font-medium leading-5 text-amber-800">
+        AI có thể sai sót trong quá trình phân tích CV. Bạn có thể chỉnh sửa thủ công các thông
+        tin bên dưới trước khi lưu hoặc tạo PDF.
+      </p>
+    </div>
+  </div>
 );
 
 const DownloadCvTemplateLink = () => (

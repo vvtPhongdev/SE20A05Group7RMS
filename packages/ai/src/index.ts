@@ -33,7 +33,7 @@ export interface LlmResponse {
 /**
  * Abstract LLM client — implementation injected at runtime.
  * Provider selection is deferred; this interface supports
- * OpenAI, Anthropic, Google, or local models.
+ * Third-party cloud providers or local models.
  */
 export interface LlmClient {
   complete(request: LlmRequest): Promise<LlmResponse>;
