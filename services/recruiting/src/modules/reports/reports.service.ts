@@ -499,7 +499,15 @@ export class ReportsService {
         reviewedBy: { select: { id: true, displayName: true, role: true } },
         approvedBy: { select: { id: true, displayName: true, role: true } },
         department: { select: { id: true, name: true } },
-        overallPlan: { include: { tasks: true } },
+        overallPlan: {
+          include: {
+            tasks: {
+              include: {
+                assignedTo: { select: { id: true, displayName: true, role: true, email: true } },
+              },
+            },
+          },
+        },
         interviews: { include: { results: true } },
         applications: true,
         offers: true,
@@ -561,6 +569,22 @@ export class ReportsService {
             (task) => task.status !== 'COMPLETED' && task.endDate.getTime() < now,
           ).length,
         },
+        taskBreakdown: tasks.map((task) => ({
+          id: task.id,
+          taskType: task.taskType,
+          status: task.status,
+          startDate: task.startDate.toISOString(),
+          endDate: task.endDate.toISOString(),
+          isOverdue: task.status !== 'COMPLETED' && task.endDate.getTime() < now,
+          assignedTo: task.assignedTo
+            ? {
+                id: task.assignedTo.id,
+                displayName: task.assignedTo.displayName,
+                role: task.assignedTo.role,
+                email: task.assignedTo.email,
+              }
+            : null,
+        })),
         interviewProgress: {
           scheduled: request.interviews.filter((interview) =>
             ['SCHEDULED', 'RESCHEDULED', 'CONFIRMED'].includes(interview.status),

@@ -1081,7 +1081,7 @@ export class RecruitingController {
   }
 
   @Get('reports/time-to-hire')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER)
   @ApiOperation({ summary: 'Get time-to-hire metrics report' })
   getTimeToHireReport() {
     return firstValueFrom(this.recruitingClient.send('recruiting.time_to_hire', {}));
