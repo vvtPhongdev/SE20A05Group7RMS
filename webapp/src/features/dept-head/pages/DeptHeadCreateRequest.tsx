@@ -109,6 +109,40 @@ const readonlyClass =
 const textareaClass =
   'w-full resize-none rounded-lg border border-border-warm bg-workflow-ivory px-4 py-3 text-sm leading-6 text-on-surface outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20';
 
+const priorityStyles: Record<
+  Priority,
+  { border: string; idleBg: string; activeBg: string; idleText: string; ring: string }
+> = {
+  Low: {
+    border: '#16a34a',
+    idleBg: '#f0fdf4',
+    activeBg: '#16a34a',
+    idleText: '#15803d',
+    ring: 'rgba(22, 163, 74, 0.22)',
+  },
+  Medium: {
+    border: '#0f766e',
+    idleBg: '#f0fdfa',
+    activeBg: '#0f766e',
+    idleText: '#0f766e',
+    ring: 'rgba(15, 118, 110, 0.22)',
+  },
+  High: {
+    border: '#d97706',
+    idleBg: '#fffbeb',
+    activeBg: '#d97706',
+    idleText: '#b45309',
+    ring: 'rgba(217, 119, 6, 0.24)',
+  },
+  Critical: {
+    border: '#dc2626',
+    idleBg: '#fef2f2',
+    activeBg: '#dc2626',
+    idleText: '#b91c1c',
+    ring: 'rgba(220, 38, 38, 0.22)',
+  },
+};
+
 const Field = ({
   label,
   required,
@@ -749,24 +783,31 @@ export const DeptHeadCreateRequest: React.FC = () => {
               <div className="flex flex-wrap gap-3">
                 {(['Low', 'Medium', 'High', 'Critical'] as Priority[]).map((priority) => {
                   const checked = form.priority === priority;
-                  const checkedClass =
-                    priority === 'Critical'
-                      ? 'bg-rejected text-white border-rejected'
-                      : priority === 'High'
-                        ? 'bg-revision text-white border-revision'
-                        : priority === 'Medium'
-                          ? 'bg-primary-container text-white border-primary-container'
-                          : 'bg-secondary-container text-on-secondary-container border-secondary';
+                  const tone = priorityStyles[priority];
 
                   return (
                     <button
-                      className={`rounded-lg border px-4 py-2 text-xs font-semibold transition hover:bg-surface-container-low ${
-                        checked ? checkedClass : 'border-border-warm bg-clean-surface text-on-surface'
-                      }`}
+                      aria-pressed={checked}
+                      className="inline-flex items-center gap-2 rounded-lg border-2 px-4 py-2 text-xs font-bold transition hover:-translate-y-0.5 hover:shadow-sm active:scale-[0.98] focus:outline-none"
                       key={priority}
                       onClick={() => update('priority', priority)}
+                      style={{
+                        backgroundColor: checked ? tone.activeBg : tone.idleBg,
+                        borderColor: tone.border,
+                        boxShadow: checked ? `0 0 0 3px ${tone.ring}` : 'none',
+                        color: checked ? '#ffffff' : tone.idleText,
+                      }}
                       type="button"
                     >
+                      <span
+                        className="flex h-4 w-4 items-center justify-center rounded-full border"
+                        style={{
+                          backgroundColor: checked ? 'rgba(255, 255, 255, 0.22)' : '#ffffff',
+                          borderColor: checked ? 'rgba(255, 255, 255, 0.75)' : tone.border,
+                        }}
+                      >
+                        {checked && <Icon className="h-3 w-3" name="check" />}
+                      </span>
                       {priority}
                     </button>
                   );
