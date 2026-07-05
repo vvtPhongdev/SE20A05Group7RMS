@@ -5,7 +5,7 @@ import { apiRequest, ApiError } from '../../../lib/api';
 import { mapPlanStatus, type PlanStatus } from '../../../lib/planStatus';
 
 type KanbanStage = 'applied' | 'cv_screening' | 'interview' | 'final_review' | 'offer';
-type DetailTab = 'kanban' | 'calendar' | 'tasks';
+type DetailTab = 'kanban' | 'calendar';
 
 type Candidate = {
   id: string;
@@ -73,8 +73,8 @@ interface TaskPlanApiItem {
   overallPlanId: string;
   taskType: string;
   status: string;
-  startDate: string;
-  endDate: string;
+  startDate: string | null;
+  endDate: string | null;
   assignedTo: { id: string; displayName: string; role?: string; email?: string } | null;
   reminders?: Array<{ reminderKey: string; scheduledFor: string; status: string }>;
 }
@@ -122,6 +122,8 @@ interface JobPostingApiItem {
   title: string;
   status: string;
   visibility: string;
+  startDate?: string | null;
+  expireDate?: string | null;
 }
 
 type HrMemberOption = {
@@ -310,22 +312,14 @@ export const HRCampaignDetail: React.FC = () => {
 
   const [actionError, setActionError] = useState('');
   const [actionSubmitting, setActionSubmitting] = useState(false);
-  const [quickActionError, setQuickActionError] = useState('');
-  const [quickActionSubmitting, setQuickActionSubmitting] = useState<string | null>(null);
 
   const [taskActionError, setTaskActionError] = useState('');
   const [taskBusyId, setTaskBusyId] = useState<string | null>(null);
-  const [showAddTask, setShowAddTask] = useState(false);
-  const [newTaskType, setNewTaskType] = useState('JOB_POSTING');
-  const [newTaskStart, setNewTaskStart] = useState('');
-  const [newTaskDue, setNewTaskDue] = useState('');
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [editTaskType, setEditTaskType] = useState('JOB_POSTING');
   const [editTaskStart, setEditTaskStart] = useState('');
   const [editTaskDue, setEditTaskDue] = useState('');
   const [hrMembers, setHrMembers] = useState<HrMemberOption[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
-  const [addTaskSubmitting, setAddTaskSubmitting] = useState(false);
 
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [scheduleCandidateId, setScheduleCandidateId] = useState('');
@@ -423,25 +417,38 @@ export const HRCampaignDetail: React.FC = () => {
 
   const tasks: TaskItem[] = useMemo(
     () =>
-      (plan?.tasks ?? []).map((task) => ({
-        id: task.id,
-        taskType: task.taskType,
-        title: TASK_TYPE_LABELS[task.taskType] ?? task.taskType,
-        done: task.status === 'COMPLETED',
-        startDate: formatDate(task.startDate),
-        startDateInput: toDateInputValue(task.startDate),
-        dueDate: formatDate(task.endDate),
-        dueDateInput: toDateInputValue(task.endDate),
-        assigneeId: task.assignedTo?.role === 'HR_RECRUITER' ? task.assignedTo.id : undefined,
-        assigneeName:
-          task.assignedTo?.role === 'HR_RECRUITER' ? task.assignedTo.displayName : undefined,
-        assigneeRole: task.assignedTo?.role,
-        reminderStatus: task.reminders?.some((reminder) => reminder.status === 'SENT')
-          ? 'Reminder sent'
-          : task.reminders?.some((reminder) => reminder.status === 'PENDING')
-            ? 'Reminder scheduled'
-            : undefined,
-      })),
+      (plan?.tasks ?? []).map((task) => {
+        const usesPlanWindowDefaults = Boolean(
+          task.startDate &&
+          task.endDate &&
+          plan &&
+          toDateInputValue(task.startDate) === toDateInputValue(plan.startDate) &&
+          toDateInputValue(task.endDate) === toDateInputValue(plan.endDate),
+        );
+        const hasScheduledDates = Boolean(
+          task.startDate && task.endDate && !usesPlanWindowDefaults,
+        );
+
+        return {
+          id: task.id,
+          taskType: task.taskType,
+          title: TASK_TYPE_LABELS[task.taskType] ?? task.taskType,
+          done: task.status === 'COMPLETED',
+          startDate: hasScheduledDates ? formatDate(task.startDate ?? '') : '',
+          startDateInput: hasScheduledDates ? toDateInputValue(task.startDate ?? '') : '',
+          dueDate: hasScheduledDates ? formatDate(task.endDate ?? '') : '',
+          dueDateInput: hasScheduledDates ? toDateInputValue(task.endDate ?? '') : '',
+          assigneeId: task.assignedTo?.role === 'HR_RECRUITER' ? task.assignedTo.id : undefined,
+          assigneeName:
+            task.assignedTo?.role === 'HR_RECRUITER' ? task.assignedTo.displayName : undefined,
+          assigneeRole: task.assignedTo?.role,
+          reminderStatus: task.reminders?.some((reminder) => reminder.status === 'SENT')
+            ? 'Reminder sent'
+            : task.reminders?.some((reminder) => reminder.status === 'PENDING')
+              ? 'Reminder scheduled'
+              : undefined,
+        };
+      }),
     [plan],
   );
 
@@ -638,18 +645,20 @@ export const HRCampaignDetail: React.FC = () => {
     Boolean(plan) &&
     ['DRAFT', 'REJECTED'].includes(plan?.status ?? '') &&
     tasks.length > 0;
-  const canAssignRecruiters = canManagePlan && plan?.status === 'APPROVED';
+  const canAssignRecruiters =
+    canManagePlan &&
+    Boolean(plan) &&
+    ['DRAFT', 'REJECTED', 'PENDING_APPROVAL', 'APPROVED'].includes(plan?.status ?? '');
   const canStartCampaign =
-    canAssignRecruiters &&
+    canManagePlan &&
+    plan?.status === 'APPROVED' &&
     request?.status !== 'ACTIVE' &&
     tasks.length > 0 &&
-    tasks.every((task) => task.assigneeId);
-  const hasJobPostingTask = tasks.some((task) => task.taskType === 'JOB_POSTING');
+    tasks.every((task) => task.assigneeId && task.startDateInput && task.dueDateInput);
   const hasInterviewTask = tasks.some((task) => task.taskType === 'INTERVIEW_COORDINATION');
   const hasCandidateSearchTask =
     tasks.some((task) => task.taskType === 'CV_COLLECTION') ||
     tasks.some((task) => task.taskType === 'CV_SCREENING');
-  const canCreateJobPosting = canManagePlan && request?.status === 'ACTIVE' && hasJobPostingTask;
   const canScheduleInterview =
     request?.status === 'ACTIVE' &&
     hasInterviewTask &&
@@ -744,7 +753,6 @@ export const HRCampaignDetail: React.FC = () => {
 
   const openEditTask = (task: TaskItem) => {
     setEditingTaskId(task.id);
-    setEditTaskType(task.taskType);
     setEditTaskStart(task.startDateInput);
     setEditTaskDue(task.dueDateInput);
     setTaskActionError('');
@@ -767,7 +775,6 @@ export const HRCampaignDetail: React.FC = () => {
       await apiRequest(`/task-plan/${editingTaskId}`, token, {
         method: 'PATCH',
         body: JSON.stringify({
-          taskType: editTaskType,
           startDate: taskStart.toISOString(),
           endDate: taskEnd.toISOString(),
         }),
@@ -778,91 +785,6 @@ export const HRCampaignDetail: React.FC = () => {
       setTaskActionError(taskErr instanceof ApiError ? taskErr.message : 'Unable to update task');
     } finally {
       setTaskBusyId(null);
-    }
-  };
-
-  const addTask = async () => {
-    if (!plan || !newTaskStart || !newTaskDue) return;
-
-    setAddTaskSubmitting(true);
-    setTaskActionError('');
-    try {
-      const taskStart = new Date(`${newTaskStart}T00:00:00`);
-      const taskEnd = new Date(`${newTaskDue}T23:59:59`);
-
-      if (taskEnd <= taskStart) {
-        setTaskActionError('Task due date must be after the task start date');
-        return;
-      }
-
-      await apiRequest('/task-plan', token, {
-        method: 'POST',
-        body: JSON.stringify({
-          overallPlanId: plan.id,
-          taskType: newTaskType,
-          startDate: taskStart.toISOString(),
-          endDate: taskEnd.toISOString(),
-        }),
-      });
-      setShowAddTask(false);
-      setNewTaskStart('');
-      setNewTaskDue('');
-      await loadCampaign();
-    } catch (taskErr) {
-      setTaskActionError(taskErr instanceof ApiError ? taskErr.message : 'Unable to add task');
-    } finally {
-      setAddTaskSubmitting(false);
-    }
-  };
-
-  const createJobPosting = async () => {
-    if (!request || !canCreateJobPosting) return;
-
-    setQuickActionSubmitting('job-posting');
-    setQuickActionError('');
-    try {
-      const created = await apiRequest<JobPostingApiItem>('/job-postings', token, {
-        method: 'POST',
-        body: JSON.stringify({
-          requestId: request.id,
-          title: request.position,
-          description: request.jobDescription,
-          requirements: request.skillRequirements ?? {},
-          visibility: 'PUBLIC',
-        }),
-      });
-      setJobPosting(created);
-    } catch (jobErr) {
-      if (jobErr instanceof ApiError && jobErr.status === 409) {
-        await loadCampaign();
-      } else {
-        setQuickActionError(
-          jobErr instanceof ApiError ? jobErr.message : 'Unable to create job posting',
-        );
-      }
-    } finally {
-      setQuickActionSubmitting(null);
-    }
-  };
-
-  const publishJobPosting = async () => {
-    if (!jobPosting || !canCreateJobPosting) return;
-
-    setQuickActionSubmitting('publish-job');
-    setQuickActionError('');
-    try {
-      const published = await apiRequest<JobPostingApiItem>(
-        `/job-postings/${jobPosting.id}/publish`,
-        token,
-        { method: 'POST', body: JSON.stringify({}) },
-      );
-      setJobPosting(published);
-    } catch (publishErr) {
-      setQuickActionError(
-        publishErr instanceof ApiError ? publishErr.message : 'Unable to publish job posting',
-      );
-    } finally {
-      setQuickActionSubmitting(null);
     }
   };
 
@@ -1030,7 +952,6 @@ export const HRCampaignDetail: React.FC = () => {
             {[
               { key: 'kanban', label: 'Pipeline Kanban', icon: 'kanban' },
               { key: 'calendar', label: 'Interview Calendar', icon: 'calendar' },
-              { key: 'tasks', label: 'Tasks', icon: 'checklist' },
             ].map((tab) => (
               <button
                 className={`inline-flex h-10 items-center gap-2 rounded-md px-4 text-sm font-semibold transition active:scale-[0.98] ${
@@ -1166,318 +1087,228 @@ export const HRCampaignDetail: React.FC = () => {
             </section>
           ) : null}
 
-          {activeTab === 'tasks' ? (
-            <section className="overflow-hidden rounded-lg border border-border-warm bg-clean-surface">
-              <div className="flex flex-col gap-3 border-b border-border-warm bg-workflow-ivory/50 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <section className="overflow-hidden rounded-lg border border-border-warm bg-clean-surface">
+            <div className="flex flex-col gap-3 border-b border-border-warm bg-workflow-ivory/50 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-deep-charcoal">Campaign Tasks</h2>
+                <p className="mt-1 text-xs text-on-surface-variant">
+                  {isHrRecruiter
+                    ? `${visibleCompletedTasks} of ${visibleTasks.length} assigned tasks completed`
+                    : `${completedTasks} of ${tasks.length} completed`}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="h-1.5 w-32 overflow-hidden rounded-full bg-surface-variant">
+                  <div
+                    className="h-full rounded-full bg-teal-command"
+                    style={{ width: `${isHrRecruiter ? visibleTaskProgress : taskProgress}%` }}
+                  />
+                </div>
+                <span className="font-mono text-xs text-on-surface-variant">
+                  {isHrRecruiter ? visibleTaskProgress : taskProgress}%
+                </span>
+              </div>
+            </div>
+            {taskActionError && (
+              <div className="border-b border-border-warm bg-red-50 px-6 py-2 text-xs font-semibold text-rejected">
+                {taskActionError}
+              </div>
+            )}
+            <div className="border-b border-border-warm px-6 py-4">
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold text-deep-charcoal">Campaign Tasks</h2>
-                  <p className="mt-1 text-xs text-on-surface-variant">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                    {isHrRecruiter ? 'My Assignment' : 'Campaign HR Members'}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-ink">
                     {isHrRecruiter
-                      ? `${visibleCompletedTasks} of ${visibleTasks.length} assigned tasks completed`
-                      : `${completedTasks} of ${tasks.length} completed`}
+                      ? 'You can act only on tasks assigned to you by the HR Leader.'
+                      : 'Members are added to this campaign when they are assigned a task.'}
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="h-1.5 w-32 overflow-hidden rounded-full bg-surface-variant">
-                    <div
-                      className="h-full rounded-full bg-teal-command"
-                      style={{ width: `${isHrRecruiter ? visibleTaskProgress : taskProgress}%` }}
-                    />
-                  </div>
-                  <span className="font-mono text-xs text-on-surface-variant">
-                    {isHrRecruiter ? visibleTaskProgress : taskProgress}%
+                {canAssignRecruiters && request?.status !== 'ACTIVE' ? (
+                  <span className="rounded-lg border border-teal-command/20 bg-teal-command/5 px-3 py-2 text-xs font-semibold text-teal-command">
+                    Assign recruiters before starting
                   </span>
-                </div>
+                ) : null}
               </div>
-              {taskActionError && (
-                <div className="border-b border-border-warm bg-red-50 px-6 py-2 text-xs font-semibold text-rejected">
-                  {taskActionError}
+              {campaignMembers.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {campaignMembers.map((member) => (
+                    <span
+                      className="inline-flex items-center gap-2 rounded-full border border-border-warm bg-workflow-ivory px-3 py-1 text-xs font-semibold text-deep-charcoal"
+                      key={member.id}
+                    >
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-teal-command/10 text-[10px] font-bold text-teal-command">
+                        {getInitials(member.name)}
+                      </span>
+                      {member.name}
+                      <span className="font-mono text-on-surface-variant">
+                        {member.taskCount} tasks
+                      </span>
+                      <span className="font-mono text-teal-command">
+                        {member.collectedCount} CVs
+                      </span>
+                    </span>
+                  ))}
                 </div>
+              ) : (
+                <p className="text-sm text-on-surface-variant">
+                  No HR recruiter has been assigned to this campaign yet.
+                </p>
               )}
-              <div className="border-b border-border-warm px-6 py-4">
-                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                      {isHrRecruiter ? 'My Assignment' : 'Campaign HR Members'}
+            </div>
+            <ul className="divide-y divide-border-warm">
+              {visibleTasks.map((task) => (
+                <li
+                  className={`flex items-center gap-4 px-6 py-4 transition ${task.done ? 'bg-workflow-ivory/30' : 'hover:bg-workflow-ivory/50'}`}
+                  key={task.id}
+                >
+                  <span
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${task.done ? 'border-approved bg-approved text-white' : 'border-border-warm'}`}
+                  >
+                    {task.done ? <Icon className="h-3 w-3" name="check" /> : null}
+                  </span>
+                  {editingTaskId === task.id ? (
+                    <div className="grid flex-1 gap-3 md:grid-cols-[minmax(180px,1fr)_150px_150px_auto] md:items-end">
+                      <div className="min-w-0">
+                        <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                          Task
+                        </span>
+                        <p className="truncate text-sm font-semibold text-deep-charcoal">
+                          {task.title}
+                        </p>
+                      </div>
+                      <label className="block">
+                        <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                          Start Date
+                        </span>
+                        <input
+                          className="h-9 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-xs text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                          max={plan?.endDate.slice(0, 10)}
+                          min={plan?.startDate.slice(0, 10)}
+                          onChange={(event) => setEditTaskStart(event.target.value)}
+                          type="date"
+                          value={editTaskStart}
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                          Due Date
+                        </span>
+                        <input
+                          className="h-9 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-xs text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                          max={plan?.endDate.slice(0, 10)}
+                          min={plan?.startDate.slice(0, 10)}
+                          onChange={(event) => setEditTaskDue(event.target.value)}
+                          type="date"
+                          value={editTaskDue}
+                        />
+                      </label>
+                      <div className="flex gap-2">
+                        <button
+                          className="h-9 rounded-lg bg-teal-command px-3 text-xs font-bold text-white transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={!editTaskStart || !editTaskDue || taskBusyId === task.id}
+                          onClick={() => void updateTask()}
+                          type="button"
+                        >
+                          Save
+                        </button>
+                        <button
+                          className="h-9 rounded-lg border border-border-warm px-3 text-xs font-semibold text-secondary transition hover:bg-surface-variant/40"
+                          onClick={() => setEditingTaskId(null)}
+                          type="button"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p
+                      className={`flex-1 text-sm ${task.done ? 'text-on-surface-variant line-through' : 'font-medium text-deep-charcoal'}`}
+                    >
+                      {task.title}
+                      {task.assigneeName && (
+                        <span className="ml-2 text-xs font-normal text-slate-ink/80 bg-workflow-ivory px-2 py-0.5 rounded-full border border-border-warm">
+                          {task.assigneeName}
+                        </span>
+                      )}
+                      {task.taskType === 'CV_COLLECTION' && task.assigneeId ? (
+                        <span className="ml-2 text-xs font-normal text-teal-command bg-teal-command/5 px-2 py-0.5 rounded-full border border-teal-command/20">
+                          {collectionCountsByRecruiter.get(task.assigneeId) ?? 0} CVs collected
+                        </span>
+                      ) : null}
                     </p>
-                    <p className="mt-1 text-xs text-slate-ink">
-                      {isHrRecruiter
-                        ? 'You can act only on tasks assigned to you by the HR Leader.'
-                        : 'Members are added to this campaign when they are assigned a task.'}
-                    </p>
-                  </div>
-                  {canAssignRecruiters && request?.status !== 'ACTIVE' ? (
-                    <span className="rounded-lg border border-teal-command/20 bg-teal-command/5 px-3 py-2 text-xs font-semibold text-teal-command">
-                      Assign recruiters before starting
+                  )}
+                  {editingTaskId !== task.id &&
+                  canAssignRecruiters &&
+                  request?.status !== 'ACTIVE' ? (
+                    <select
+                      className="h-9 min-w-[200px] rounded-lg border border-border-warm bg-clean-surface px-3 text-xs font-semibold text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                      disabled={membersLoading || taskBusyId === task.id}
+                      onChange={(event) => void assignRecruiter(task.id, event.target.value)}
+                      value={task.assigneeId ?? ''}
+                    >
+                      <option value="">
+                        {membersLoading ? 'Loading recruiters...' : 'Assign HR recruiter'}
+                      </option>
+                      {hrMembers.map((member) => (
+                        <option key={member.id} value={member.id}>
+                          {member.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
+                  {editingTaskId !== task.id ? (
+                    <span
+                      className={`font-mono text-xs ${
+                        task.done
+                          ? 'text-on-surface-variant'
+                          : task.startDate && task.dueDate
+                            ? 'text-slate-ink'
+                            : 'text-revision'
+                      }`}
+                    >
+                      {task.startDate && task.dueDate
+                        ? `${task.startDate} - ${task.dueDate}`
+                        : 'Set dates'}
+                      {task.reminderStatus ? ` / ${task.reminderStatus}` : ''}
                     </span>
                   ) : null}
-                </div>
-                {campaignMembers.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {campaignMembers.map((member) => (
-                      <span
-                        className="inline-flex items-center gap-2 rounded-full border border-border-warm bg-workflow-ivory px-3 py-1 text-xs font-semibold text-deep-charcoal"
-                        key={member.id}
-                      >
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-teal-command/10 text-[10px] font-bold text-teal-command">
-                          {getInitials(member.name)}
-                        </span>
-                        {member.name}
-                        <span className="font-mono text-on-surface-variant">
-                          {member.taskCount} tasks
-                        </span>
-                        <span className="font-mono text-teal-command">
-                          {member.collectedCount} CVs
-                        </span>
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-on-surface-variant">
-                    No HR recruiter has been assigned to this campaign yet.
-                  </p>
-                )}
-              </div>
-              <ul className="divide-y divide-border-warm">
-                {visibleTasks.map((task) => (
-                  <li
-                    className={`flex items-center gap-4 px-6 py-4 transition ${task.done ? 'bg-workflow-ivory/30' : 'hover:bg-workflow-ivory/50'}`}
-                    key={task.id}
-                  >
-                    <span
-                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${task.done ? 'border-approved bg-approved text-white' : 'border-border-warm'}`}
+                  {editingTaskId !== task.id && canEditDraftTasks ? (
+                    <button
+                      className="text-xs font-semibold text-teal-command transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={taskBusyId === task.id}
+                      onClick={() => openEditTask(task)}
+                      type="button"
                     >
-                      {task.done ? <Icon className="h-3 w-3" name="check" /> : null}
-                    </span>
-                    {editingTaskId === task.id ? (
-                      <div className="grid flex-1 gap-3 md:grid-cols-[minmax(180px,1fr)_150px_150px_auto] md:items-end">
-                        <label className="block">
-                          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                            Task Type
-                          </span>
-                          <select
-                            className="h-9 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-xs font-semibold text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                            onChange={(event) => setEditTaskType(event.target.value)}
-                            value={editTaskType}
-                          >
-                            {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
-                              <option key={value} value={value}>
-                                {label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="block">
-                          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                            Start Date
-                          </span>
-                          <input
-                            className="h-9 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-xs text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                            max={plan?.endDate.slice(0, 10)}
-                            min={plan?.startDate.slice(0, 10)}
-                            onChange={(event) => setEditTaskStart(event.target.value)}
-                            type="date"
-                            value={editTaskStart}
-                          />
-                        </label>
-                        <label className="block">
-                          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                            Due Date
-                          </span>
-                          <input
-                            className="h-9 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-xs text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                            max={plan?.endDate.slice(0, 10)}
-                            min={plan?.startDate.slice(0, 10)}
-                            onChange={(event) => setEditTaskDue(event.target.value)}
-                            type="date"
-                            value={editTaskDue}
-                          />
-                        </label>
-                        <div className="flex gap-2">
-                          <button
-                            className="h-9 rounded-lg bg-teal-command px-3 text-xs font-bold text-white transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
-                            disabled={!editTaskStart || !editTaskDue || taskBusyId === task.id}
-                            onClick={() => void updateTask()}
-                            type="button"
-                          >
-                            Save
-                          </button>
-                          <button
-                            className="h-9 rounded-lg border border-border-warm px-3 text-xs font-semibold text-secondary transition hover:bg-surface-variant/40"
-                            onClick={() => setEditingTaskId(null)}
-                            type="button"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <p
-                        className={`flex-1 text-sm ${task.done ? 'text-on-surface-variant line-through' : 'font-medium text-deep-charcoal'}`}
-                      >
-                        {task.title}
-                        {task.assigneeName && (
-                          <span className="ml-2 text-xs font-normal text-slate-ink/80 bg-workflow-ivory px-2 py-0.5 rounded-full border border-border-warm">
-                            {task.assigneeName}
-                          </span>
-                        )}
-                        {task.taskType === 'CV_COLLECTION' && task.assigneeId ? (
-                          <span className="ml-2 text-xs font-normal text-teal-command bg-teal-command/5 px-2 py-0.5 rounded-full border border-teal-command/20">
-                            {collectionCountsByRecruiter.get(task.assigneeId) ?? 0} CVs collected
-                          </span>
-                        ) : null}
-                      </p>
-                    )}
-                    {editingTaskId !== task.id &&
-                    canAssignRecruiters &&
-                    request?.status !== 'ACTIVE' ? (
-                      <select
-                        className="h-9 min-w-[200px] rounded-lg border border-border-warm bg-clean-surface px-3 text-xs font-semibold text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                        disabled={membersLoading || taskBusyId === task.id}
-                        onChange={(event) => void assignRecruiter(task.id, event.target.value)}
-                        value={task.assigneeId ?? ''}
-                      >
-                        <option value="">
-                          {membersLoading ? 'Loading recruiters...' : 'Assign HR recruiter'}
-                        </option>
-                        {hrMembers.map((member) => (
-                          <option key={member.id} value={member.id}>
-                            {member.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : null}
-                    {editingTaskId !== task.id ? (
-                      <span
-                        className={`font-mono text-xs ${task.done ? 'text-on-surface-variant' : 'text-slate-ink'}`}
-                      >
-                        {task.startDate} - {task.dueDate}
-                        {task.reminderStatus ? ` · ${task.reminderStatus}` : ''}
-                      </span>
-                    ) : null}
-                    {editingTaskId !== task.id && canEditDraftTasks ? (
-                      <button
-                        className="text-xs font-semibold text-teal-command transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={taskBusyId === task.id}
-                        onClick={() => openEditTask(task)}
-                        type="button"
-                      >
-                        Edit
-                      </button>
-                    ) : null}
-                    {editingTaskId !== task.id &&
-                    !task.done &&
-                    request?.status === 'ACTIVE' &&
-                    (canManagePlan || task.assigneeId === user?.id) ? (
-                      <button
-                        className="text-xs font-semibold text-teal-command transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={taskBusyId === task.id}
-                        onClick={() => void markTaskDone(task.id)}
-                        type="button"
-                      >
-                        {taskBusyId === task.id ? 'Updating...' : 'Mark done'}
-                      </button>
-                    ) : null}
-                  </li>
-                ))}
-                {visibleTasks.length === 0 ? (
-                  <li className="px-6 py-8 text-center text-sm text-on-surface-variant">
-                    {isHrRecruiter
-                      ? 'No tasks have been assigned to you for this campaign.'
-                      : 'No tasks have been added to this plan yet.'}
-                  </li>
-                ) : null}
-              </ul>
-              <div className="border-t border-border-warm bg-workflow-ivory/50 px-6 py-3">
-                {showAddTask ? (
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                    <label className="block">
-                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                        Task Type
-                      </span>
-                      <select
-                        className="h-10 w-full min-w-[200px] rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                        onChange={(event) => setNewTaskType(event.target.value)}
-                        value={newTaskType}
-                      >
-                        {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
-                          <option key={value} value={value}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="block">
-                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                        Start Date
-                      </span>
-                      <input
-                        className="h-10 rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                        max={plan?.endDate.slice(0, 10)}
-                        min={plan?.startDate.slice(0, 10)}
-                        onChange={(event) => setNewTaskStart(event.target.value)}
-                        type="date"
-                        value={newTaskStart}
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                        Due Date
-                      </span>
-                      <input
-                        className="h-10 rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                        max={plan?.endDate.slice(0, 10)}
-                        min={plan?.startDate.slice(0, 10)}
-                        onChange={(event) => setNewTaskDue(event.target.value)}
-                        type="date"
-                        value={newTaskDue}
-                      />
-                    </label>
-                    <div className="flex gap-2">
-                      <button
-                        className="h-10 rounded-lg bg-teal-command px-4 text-sm font-bold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                        disabled={!newTaskStart || !newTaskDue || addTaskSubmitting}
-                        onClick={() => void addTask()}
-                        type="button"
-                      >
-                        {addTaskSubmitting ? 'Adding...' : 'Save'}
-                      </button>
-                      <button
-                        className="h-10 rounded-lg border border-border-warm px-4 text-sm font-semibold text-secondary transition hover:bg-surface-variant/40 active:scale-[0.98]"
-                        onClick={() => {
-                          setShowAddTask(false);
-                          setNewTaskStart('');
-                          setNewTaskDue('');
-                        }}
-                        type="button"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    className="inline-flex items-center gap-2 text-sm font-semibold text-teal-command transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={!canEditDraftTasks}
-                    onClick={() => setShowAddTask(true)}
-                    title={
-                      !plan
-                        ? 'Create an Overall Plan first.'
-                        : !canManagePlan
-                          ? 'Only HR Leader can add campaign tasks.'
-                          : !canEditDraftTasks
-                            ? 'Tasks can only be added before Admin approves the plan.'
-                            : undefined
-                    }
-                    type="button"
-                  >
-                    <Icon className="h-4 w-4" name="plus" />
-                    Add task
-                  </button>
-                )}
-              </div>
-            </section>
-          ) : null}
+                      Edit
+                    </button>
+                  ) : null}
+                  {editingTaskId !== task.id &&
+                  !task.done &&
+                  request?.status === 'ACTIVE' &&
+                  (canManagePlan || task.assigneeId === user?.id) ? (
+                    <button
+                      className="text-xs font-semibold text-teal-command transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={taskBusyId === task.id}
+                      onClick={() => void markTaskDone(task.id)}
+                      type="button"
+                    >
+                      {taskBusyId === task.id ? 'Updating...' : 'Mark done'}
+                    </button>
+                  ) : null}
+                </li>
+              ))}
+              {visibleTasks.length === 0 ? (
+                <li className="px-6 py-8 text-center text-sm text-on-surface-variant">
+                  {isHrRecruiter
+                    ? 'No tasks have been assigned to you for this campaign.'
+                    : 'No tasks have been added to this plan yet.'}
+                </li>
+              ) : null}
+            </ul>
+          </section>
         </main>
 
         <aside className="space-y-4">
@@ -1548,7 +1379,10 @@ export const HRCampaignDetail: React.FC = () => {
             </div>
           </section>
 
-          <section className="space-y-4 rounded-lg border border-border-warm bg-clean-surface p-5">
+          <section
+            className="space-y-4 rounded-lg border border-border-warm bg-clean-surface p-5"
+            id="job-posting-task"
+          >
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
               Plan Summary
             </p>
@@ -1591,43 +1425,26 @@ export const HRCampaignDetail: React.FC = () => {
                   {jobPosting.status} / {jobPosting.visibility}
                 </p>
               ) : null}
+              {jobPosting?.startDate || jobPosting?.expireDate ? (
+                <p className="mt-1 text-xs text-on-surface-variant">
+                  {jobPosting.startDate
+                    ? `Opens ${new Date(jobPosting.startDate).toLocaleDateString()}`
+                    : 'Open date not set'}
+                  {' / '}
+                  {jobPosting.expireDate
+                    ? `Closes ${new Date(jobPosting.expireDate).toLocaleDateString()}`
+                    : 'Close date not set'}
+                </p>
+              ) : null}
             </div>
-            {quickActionError ? (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-rejected">
-                {quickActionError}
-              </div>
-            ) : null}
-            {!jobPosting ? (
-              <button
-                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={quickActionSubmitting === 'job-posting' || !canCreateJobPosting}
-                onClick={() => void createJobPosting()}
-                title={
-                  !canCreateJobPosting
-                    ? 'Admin-approved plan and JOB_POSTING task are required.'
-                    : undefined
-                }
-                type="button"
-              >
-                <Icon className="h-4 w-4" name="plus" />
-                {quickActionSubmitting === 'job-posting' ? 'Creating...' : 'Create Job Posting'}
-              </button>
-            ) : jobPosting.status === 'DRAFT' ? (
-              <button
-                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={quickActionSubmitting === 'publish-job' || !canCreateJobPosting}
-                onClick={() => void publishJobPosting()}
-                title={
-                  !canCreateJobPosting
-                    ? 'Admin-approved plan and JOB_POSTING task are required.'
-                    : undefined
-                }
-                type="button"
-              >
-                <Icon className="h-4 w-4" name="send" />
-                {quickActionSubmitting === 'publish-job' ? 'Publishing...' : 'Publish Job Posting'}
-              </button>
-            ) : null}
+            <button
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
+              onClick={() => navigate(`/hr/job-postings/${campaignId}`)}
+              type="button"
+            >
+              <Icon className="h-4 w-4" name="send" />
+              Open Job Posting Workspace
+            </button>
           </section>
 
           <section className="space-y-4 rounded-lg border border-border-warm bg-clean-surface p-5">
@@ -1713,13 +1530,12 @@ export const HRCampaignDetail: React.FC = () => {
                     disabled={
                       !scheduleCandidateId ||
                       !scheduleAt ||
-                      !scheduleLocation.trim() ||
-                      quickActionSubmitting === 'schedule-interview'
+                      !scheduleLocation.trim()
                     }
                     onClick={() => void createInterviewSchedule()}
                     type="button"
                   >
-                    {quickActionSubmitting === 'schedule-interview' ? 'Scheduling...' : 'Schedule'}
+                    Schedule
                   </button>
                   <button
                     className="h-10 rounded-lg border border-border-warm px-4 text-sm font-semibold text-secondary transition hover:bg-surface-variant/40 active:scale-[0.98]"

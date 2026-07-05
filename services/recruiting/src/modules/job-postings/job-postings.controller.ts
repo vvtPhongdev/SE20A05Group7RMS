@@ -36,18 +36,21 @@ export class JobPostingsController {
   }
 
   @MessagePattern('recruiting.job_posting.update')
-  async update(@Payload() payload: { id: string } & UpdateJobPostingInput) {
+  async update(
+    @Payload()
+    payload: { id: string; actorUserId?: string; actorRole?: string } & UpdateJobPostingInput,
+  ) {
     const { id, ...data } = payload;
     return this.service.update(id, data);
   }
 
   @MessagePattern('recruiting.job_posting.publish')
-  async publish(@Payload() payload: { id: string }) {
-    return this.service.publish(payload.id);
+  async publish(@Payload() payload: { id: string; actorUserId?: string; actorRole?: string }) {
+    return this.service.publish(payload);
   }
 
   @MessagePattern('recruiting.job_posting.close')
-  async close(@Payload() payload: { id: string }) {
-    return this.service.close(payload.id);
+  async close(@Payload() payload: { id: string; actorUserId?: string; actorRole?: string }) {
+    return this.service.close(payload);
   }
 }
