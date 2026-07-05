@@ -37,9 +37,20 @@ type TaskPlanApiItem = {
   };
 };
 
+type CvCollectionStats = {
+  total: number;
+  byCollector: Record<string, number>;
+};
+
+type ApplicationApiItem = {
+  id: string;
+  requestId: string;
+  collectedBy: { id: string; displayName: string; email?: string } | null;
+};
+
 const TASK_TYPE_LABELS: Record<TaskType, string> = {
   JOB_POSTING: 'Job Posting',
-  CV_COLLECTION: 'CV Collection',
+  CV_COLLECTION: 'Sourcing',
   CV_SCREENING: 'CV Screening',
   INTERVIEW_COORDINATION: 'Interview Coordination',
 };
@@ -120,6 +131,7 @@ export const TaskPlanner: React.FC = () => {
   const [assignee, setAssignee] = useState('All Personnel');
   const [status, setStatus] = useState<TaskStatus | 'Any Status'>('Any Status');
   const [selectedTask, setSelectedTask] = useState<TaskPlanApiItem | null>(null);
+  const [cvCollectionStats, setCvCollectionStats] = useState<Record<string, CvCollectionStats>>({});
 
   const loadTasks = async () => {
     setLoading(true);
@@ -127,6 +139,28 @@ export const TaskPlanner: React.FC = () => {
     try {
       const response = await apiRequest<TaskPlanApiItem[]>('/task-plan', token);
       setTasks(response);
+      const sourcingRequestIds = [
+        ...new Set(
+          response
+            .filter((task) => task.taskType === 'CV_COLLECTION')
+            .map((task) => task.overallPlan.requestId),
+        ),
+      ];
+      const statsEntries = await Promise.all(
+        sourcingRequestIds.map(async (requestId) => {
+          const applications = await apiRequest<ApplicationApiItem[]>(
+            `/applications?requestId=${requestId}`,
+            token,
+          ).catch(() => []);
+          const byCollector = applications.reduce<Record<string, number>>((acc, application) => {
+            const collectorId = application.collectedBy?.id;
+            if (collectorId) acc[collectorId] = (acc[collectorId] ?? 0) + 1;
+            return acc;
+          }, {});
+          return [requestId, { total: applications.length, byCollector }] as const;
+        }),
+      );
+      setCvCollectionStats(Object.fromEntries(statsEntries));
       setSelectedTask((current) =>
         current
           ? (response.find((task) => task.id === current.id) ?? response[0] ?? null)
@@ -135,6 +169,7 @@ export const TaskPlanner: React.FC = () => {
     } catch (loadError) {
       setApiError(loadError instanceof Error ? loadError.message : 'Unable to load task plans');
       setTasks([]);
+      setCvCollectionStats({});
       setSelectedTask(null);
     } finally {
       setLoading(false);
@@ -210,6 +245,18 @@ export const TaskPlanner: React.FC = () => {
     setStatus('Any Status');
   };
 
+  const getSourcingStats = (task: TaskPlanApiItem) => {
+    if (task.taskType !== 'CV_COLLECTION') return null;
+    const stats = cvCollectionStats[task.overallPlan.requestId] ?? { total: 0, byCollector: {} };
+    const assigneeCollected = task.assignedToId
+      ? (stats.byCollector[task.assignedToId] ?? 0)
+      : 0;
+    return {
+      total: stats.total,
+      assigneeCollected,
+    };
+  };
+
   const updateTaskStatus = async (taskId: string, nextStatus: TaskStatus) => {
     setUpdatingId(taskId);
     setApiError('');
@@ -222,10 +269,38 @@ export const TaskPlanner: React.FC = () => {
         current.map((task) => (task.id === taskId ? { ...task, ...updated } : task)),
       );
       setSelectedTask((current) => (current?.id === taskId ? { ...current, ...updated } : current));
+      return true;
     } catch (updateError) {
       setApiError(updateError instanceof ApiError ? updateError.message : 'Unable to update task');
+      return false;
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const getTaskWorkUrl = (task: TaskPlanApiItem) => {
+    const requestId = encodeURIComponent(task.overallPlan.requestId);
+    switch (task.taskType) {
+      case 'JOB_POSTING':
+        return `/hr/job-postings/${requestId}`;
+      case 'CV_COLLECTION':
+        return `/hr/candidates?requestId=${requestId}&task=CV_COLLECTION`;
+      case 'CV_SCREENING':
+        return `/hr/search?requestId=${requestId}&task=CV_SCREENING`;
+      case 'INTERVIEW_COORDINATION':
+        return `/hr/interviews?requestId=${requestId}&task=INTERVIEW_COORDINATION`;
+      default:
+        return `/hr/campaigns/${requestId}`;
+    }
+  };
+
+  const startTask = async (task: TaskPlanApiItem) => {
+    const canNavigate =
+      task.status === 'PENDING'
+        ? await updateTaskStatus(task.id, 'IN_PROGRESS')
+        : task.status === 'IN_PROGRESS';
+    if (canNavigate) {
+      navigate(getTaskWorkUrl(task));
     }
   };
 
@@ -363,6 +438,7 @@ export const TaskPlanner: React.FC = () => {
                 {visibleTasks.map((task, index) => {
                   const assigneeName = task.assignedTo?.displayName ?? 'Unassigned';
                   const isOverdue = task.status !== 'COMPLETED' && new Date(task.endDate) < now;
+                  const sourcingStats = getSourcingStats(task);
 
                   return (
                     <tr
@@ -373,7 +449,12 @@ export const TaskPlanner: React.FC = () => {
                       onClick={() => setSelectedTask(task)}
                     >
                       <td className="px-5 py-4 font-mono text-sm font-semibold text-deep-charcoal">
-                        {TASK_TYPE_LABELS[task.taskType]}
+                        <div>{TASK_TYPE_LABELS[task.taskType]}</div>
+                        {sourcingStats ? (
+                          <span className="mt-1 inline-flex rounded-full border border-teal-command/20 bg-teal-command/10 px-2 py-0.5 text-[11px] font-bold text-teal-command">
+                            {sourcingStats.assigneeCollected}/{sourcingStats.total} CVs collected
+                          </span>
+                        ) : null}
                       </td>
                       <td className="px-5 py-4 text-sm text-deep-charcoal">
                         {task.overallPlan.request.position}
@@ -423,10 +504,20 @@ export const TaskPlanner: React.FC = () => {
                           <button
                             className="text-xs font-semibold text-teal-command transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                             disabled={updatingId === task.id}
-                            onClick={() => void updateTaskStatus(task.id, 'IN_PROGRESS')}
+                            onClick={() => void startTask(task)}
                             type="button"
                           >
-                            Start
+                            Start Plan
+                          </button>
+                        ) : null}
+                        {task.status === 'IN_PROGRESS' ? (
+                          <button
+                            className="text-xs font-semibold text-teal-command transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={updatingId === task.id}
+                            onClick={() => void startTask(task)}
+                            type="button"
+                          >
+                            Open Work
                           </button>
                         ) : null}
                         {task.status !== 'COMPLETED' ? (
@@ -533,6 +624,28 @@ export const TaskPlanner: React.FC = () => {
                 </div>
               </section>
 
+              {selectedTask.taskType === 'CV_COLLECTION' ? (
+                <section>
+                  <p className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-secondary">
+                    Sourcing Output
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded border border-teal-command/20 bg-teal-command/10 p-3">
+                      <p className="font-mono text-2xl font-bold text-teal-command">
+                        {getSourcingStats(selectedTask)?.total ?? 0}
+                      </p>
+                      <p className="text-xs font-semibold text-slate-ink">Campaign CVs</p>
+                    </div>
+                    <div className="rounded border border-approved/20 bg-approved/10 p-3">
+                      <p className="font-mono text-2xl font-bold text-approved">
+                        {getSourcingStats(selectedTask)?.assigneeCollected ?? 0}
+                      </p>
+                      <p className="text-xs font-semibold text-slate-ink">Assignee CVs</p>
+                    </div>
+                  </div>
+                </section>
+              ) : null}
+
               <section>
                 <p className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-secondary">
                   Status
@@ -556,10 +669,10 @@ export const TaskPlanner: React.FC = () => {
                 <button
                   className="h-10 rounded-lg border border-teal-command bg-clean-surface text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={selectedTask.status !== 'PENDING' || updatingId === selectedTask.id}
-                  onClick={() => void updateTaskStatus(selectedTask.id, 'IN_PROGRESS')}
+                  onClick={() => void startTask(selectedTask)}
                   type="button"
                 >
-                  Start
+                  Start Plan
                 </button>
                 <button
                   className="h-10 rounded-lg bg-teal-command text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"

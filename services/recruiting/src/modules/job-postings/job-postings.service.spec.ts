@@ -16,6 +16,9 @@ describe('JobPostingsService', () => {
     jobPosting: {
       findUnique: jest.fn(),
       create: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
     },
   };
 
@@ -26,6 +29,12 @@ describe('JobPostingsService', () => {
     skillRequirements: { skills: ['TypeScript', 'PostgreSQL'] },
     status: RecruitmentRequestStatus.ACTIVE,
   };
+  const postingStartDate = '2026-07-01T00:00:00.000Z';
+  const postingExpireDate = '2026-07-31T17:00:00.000Z';
+  const postingSchedule = {
+    startDate: postingStartDate,
+    expireDate: postingExpireDate,
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -35,6 +44,7 @@ describe('JobPostingsService', () => {
     service = module.get(JobPostingsService);
     prisma = module.get(PrismaService);
     jest.clearAllMocks();
+    mockPrismaService.jobPosting.updateMany.mockResolvedValue({ count: 0 });
   });
 
   describe('create', () => {
@@ -46,6 +56,7 @@ describe('JobPostingsService', () => {
 
       const result = await service.create({
         requestId: activeRequest.id,
+        ...postingSchedule,
       } as any);
 
       expect(prisma.recruitmentRequest.findUnique).toHaveBeenCalledWith({
@@ -59,7 +70,8 @@ describe('JobPostingsService', () => {
           requirements: activeRequest.skillRequirements,
           visibility: JobVisibility.PRIVATE,
           status: JobPostingStatus.DRAFT,
-          expireDate: null,
+          startDate: new Date(postingStartDate),
+          expireDate: new Date(postingExpireDate),
         },
         include: { request: true },
       });
@@ -67,7 +79,6 @@ describe('JobPostingsService', () => {
     });
 
     it('persists public visibility, custom content, and the expiration date', async () => {
-      const expireDate = '2026-07-31T17:00:00.000Z';
       const requirements = { skills: ['NestJS'], experienceYears: 3 };
       mockPrismaService.recruitmentRequest.findUnique.mockResolvedValue(activeRequest);
       mockPrismaService.jobPosting.findUnique.mockResolvedValue(null);
@@ -79,7 +90,7 @@ describe('JobPostingsService', () => {
         description: 'Own the recruiting platform.',
         requirements,
         visibility: JobVisibility.PUBLIC,
-        expireDate,
+        ...postingSchedule,
       });
 
       expect(prisma.jobPosting.create).toHaveBeenCalledWith({
@@ -90,7 +101,8 @@ describe('JobPostingsService', () => {
           requirements,
           visibility: JobVisibility.PUBLIC,
           status: JobPostingStatus.DRAFT,
-          expireDate: new Date(expireDate),
+          startDate: new Date(postingStartDate),
+          expireDate: new Date(postingExpireDate),
         },
         include: { request: true },
       });
@@ -115,6 +127,7 @@ describe('JobPostingsService', () => {
           requestId: activeRequest.id,
           requirements: {},
           visibility: JobVisibility.PRIVATE,
+          ...postingSchedule,
         }),
       ).resolves.toEqual({ id: 'posting-1' });
     });
@@ -125,6 +138,7 @@ describe('JobPostingsService', () => {
           requestId: '',
           requirements: {},
           visibility: JobVisibility.PRIVATE,
+          ...postingSchedule,
         }),
       ).rejects.toThrow(
         new RpcException({
@@ -144,6 +158,7 @@ describe('JobPostingsService', () => {
           requestId: 'missing-request',
           requirements: {},
           visibility: JobVisibility.PRIVATE,
+          ...postingSchedule,
         }),
       ).rejects.toThrow(
         new RpcException({
@@ -177,6 +192,7 @@ describe('JobPostingsService', () => {
           requestId: activeRequest.id,
           requirements: {},
           visibility: JobVisibility.PRIVATE,
+          ...postingSchedule,
         }),
       ).rejects.toThrow(
         new RpcException({
@@ -198,6 +214,7 @@ describe('JobPostingsService', () => {
           requestId: activeRequest.id,
           requirements: {},
           visibility: JobVisibility.PRIVATE,
+          ...postingSchedule,
         }),
       ).rejects.toThrow(
         new RpcException({
@@ -207,6 +224,54 @@ describe('JobPostingsService', () => {
       );
 
       expect(prisma.jobPosting.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects creation when posting schedule is missing', async () => {
+      mockPrismaService.recruitmentRequest.findUnique.mockResolvedValue(activeRequest);
+      mockPrismaService.jobPosting.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.create({
+          requestId: activeRequest.id,
+          requirements: {},
+          visibility: JobVisibility.PUBLIC,
+        } as any),
+      ).rejects.toThrow(
+        new RpcException({
+          status: HttpStatus.BAD_REQUEST,
+          message: 'startDate and expireDate are required',
+        }),
+      );
+
+      expect(prisma.jobPosting.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('list', () => {
+    it('closes expired published postings and hides inactive windows from candidates', async () => {
+      mockPrismaService.jobPosting.findMany.mockResolvedValue([]);
+
+      await service.list({ userRole: 'CANDIDATE' });
+
+      expect(prisma.jobPosting.updateMany).toHaveBeenCalledWith({
+        where: {
+          status: JobPostingStatus.PUBLISHED,
+          expireDate: { lte: expect.any(Date) },
+        },
+        data: { status: JobPostingStatus.CLOSED },
+      });
+      expect(prisma.jobPosting.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            status: JobPostingStatus.PUBLISHED,
+            visibility: JobVisibility.PUBLIC,
+            AND: [
+              { OR: [{ startDate: null }, { startDate: { lte: expect.any(Date) } }] },
+              { OR: [{ expireDate: null }, { expireDate: { gt: expect.any(Date) } }] },
+            ],
+          }),
+        }),
+      );
     });
   });
 });

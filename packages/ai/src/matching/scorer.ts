@@ -42,8 +42,13 @@ export class MatchScorer {
     // Identify gaps
     const gaps = this.classifyGaps(requiredSkills, graphResult.matches);
 
-    // Assign readiness label
-    const readinessLabel = this.assignReadinessLabel(overallScore, gaps, coverageScore);
+    // Assign readiness label from a calibrated bucket so near-identical CVs do not
+    // flip categories because of tiny vector similarity differences.
+    const readinessLabel = this.assignReadinessLabel(
+      this.calibrateForReadiness(overallScore),
+      gaps,
+      coverageScore,
+    );
 
     return {
       candidateProfileId,
@@ -134,5 +139,9 @@ export class MatchScorer {
       return 'INSUFFICIENT_EVIDENCE';
     }
     return 'OUT_OF_SCOPE';
+  }
+
+  private calibrateForReadiness(score: number) {
+    return Math.round(score * 20) / 20;
   }
 }

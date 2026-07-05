@@ -72,7 +72,11 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: IconName; className?: str
 
 interface RealtimeTrackingItem {
   id: string;
+  requestId?: string;
   position: string;
+  departmentId?: string;
+  departmentName?: string;
+  department?: string;
   targetHeadcount: number;
   filledHeadcount: number;
   status: string;
@@ -82,6 +86,20 @@ interface RealtimeTrackingItem {
   updatedAt: string;
   pendingAction?: string;
   taskProgress?: { total: number; completed: number; overdue: number };
+}
+
+interface ApiDepartment {
+  id: string;
+  name: string;
+  code?: string | null;
+}
+
+interface ApiUserProfile {
+  id: string;
+  displayName: string;
+  departmentId?: string | null;
+  department?: ApiDepartment | null;
+  departmentsHeaded?: ApiDepartment[];
 }
 
 interface InterviewSchedule {
@@ -99,30 +117,37 @@ interface UpcomingInterview extends InterviewSchedule {
   position: string;
 }
 
-const TERMINAL_STATUSES = ['DRAFT', 'REJECTED', 'CANCELLED', 'CLOSED'];
+const TERMINAL_STATUSES = ['DRAFT', 'REJECTED', 'CANCELLED', 'CLOSED', 'COMPLETED', 'NOT_HIRED'];
 
 const STATUS_DISPLAY: Record<string, { label: string; statusClass: string; dotClass: string }> = {
   DRAFT: { label: 'Draft', statusClass: 'bg-surface-container-high text-on-surface-variant', dotClass: 'bg-on-surface-variant' },
   PENDING_REVIEW: { label: 'Pending Review', statusClass: 'bg-pending/10 text-pending', dotClass: 'bg-pending' },
+  PENDING_HR_REVIEW: { label: 'Pending HR Review', statusClass: 'bg-pending/10 text-pending', dotClass: 'bg-pending' },
+  PENDING_BOSS_APPROVAL: { label: 'Pending Approval', statusClass: 'bg-pending/10 text-pending', dotClass: 'bg-pending' },
   APPROVED: { label: 'Approved', statusClass: 'bg-approved/10 text-approved', dotClass: 'bg-approved' },
   REJECTED: { label: 'Rejected', statusClass: 'bg-rejected/10 text-rejected', dotClass: 'bg-rejected' },
   REVISION_NEEDED: { label: 'Revision Needed', statusClass: 'bg-revision/10 text-revision', dotClass: 'bg-revision' },
   PLANNING: { label: 'Planning', statusClass: 'bg-teal-command/10 text-teal-command', dotClass: 'bg-teal-command' },
   PLAN_APPROVED: { label: 'Plan Approved', statusClass: 'bg-teal-command/10 text-teal-command', dotClass: 'bg-teal-command' },
+  PLAN_PENDING_APPROVAL: { label: 'Plan Pending Approval', statusClass: 'bg-pending/10 text-pending', dotClass: 'bg-pending' },
+  ACTIVE: { label: 'Active', statusClass: 'bg-teal-command/10 text-teal-command', dotClass: 'bg-teal-command' },
   SCREENING: { label: 'Screening', statusClass: 'bg-pending/10 text-pending', dotClass: 'bg-pending' },
   INTERVIEWING: { label: 'Interviewing', statusClass: 'bg-pending/10 text-pending', dotClass: 'bg-pending' },
   INTERVIEW_COMPLETED: { label: 'Interview Completed', statusClass: 'bg-approved/10 text-approved', dotClass: 'bg-approved' },
+  DECISION_PENDING: { label: 'Decision Pending', statusClass: 'bg-pending/10 text-pending', dotClass: 'bg-pending' },
   OFFER_EXTENDED: { label: 'Offer Extended', statusClass: 'bg-approved/10 text-approved', dotClass: 'bg-approved' },
   OFFER_ACCEPTED: { label: 'Offer Accepted', statusClass: 'bg-approved/10 text-approved', dotClass: 'bg-approved' },
   OFFER_DECLINED: { label: 'Offer Declined', statusClass: 'bg-rejected/10 text-rejected', dotClass: 'bg-rejected' },
+  COMPLETED: { label: 'Completed', statusClass: 'bg-approved/10 text-approved', dotClass: 'bg-approved' },
+  NOT_HIRED: { label: 'Not Hired', statusClass: 'bg-rejected/10 text-rejected', dotClass: 'bg-rejected' },
   CLOSED: { label: 'Closed', statusClass: 'bg-approved/10 text-approved', dotClass: 'bg-approved' },
   CANCELLED: { label: 'Cancelled', statusClass: 'bg-rejected/10 text-rejected', dotClass: 'bg-rejected' },
 };
 
 const PIPELINE_BUCKETS: { label: string; statuses: string[]; ring: string; text: string }[] = [
-  { label: 'Sourcing', statuses: ['PENDING_REVIEW', 'APPROVED', 'PLANNING', 'PLAN_APPROVED'], ring: 'border-teal-command/20', text: 'text-teal-command' },
+  { label: 'Sourcing', statuses: ['PENDING_REVIEW', 'PENDING_HR_REVIEW', 'PENDING_BOSS_APPROVAL', 'APPROVED', 'PLANNING', 'PLAN_APPROVED', 'PLAN_PENDING_APPROVAL', 'ACTIVE'], ring: 'border-teal-command/20', text: 'text-teal-command' },
   { label: 'Screening', statuses: ['SCREENING'], ring: 'border-pending/20', text: 'text-pending' },
-  { label: 'Interviewing', statuses: ['INTERVIEWING', 'INTERVIEW_COMPLETED'], ring: 'border-revision/20', text: 'text-revision' },
+  { label: 'Interviewing', statuses: ['INTERVIEWING', 'INTERVIEW_COMPLETED', 'DECISION_PENDING'], ring: 'border-revision/20', text: 'text-revision' },
   { label: 'Offer Stage', statuses: ['OFFER_EXTENDED', 'OFFER_ACCEPTED', 'OFFER_DECLINED'], ring: 'border-approved/20', text: 'text-approved' },
 ];
 
@@ -146,6 +171,22 @@ const formatRelativeTime = (iso: string) => {
   return `${days} day${days === 1 ? '' : 's'} ago`;
 };
 
+const normalizeDepartmentName = (value?: string | null) => value?.trim().toLowerCase() ?? '';
+
+const primaryDepartment = (profile: ApiUserProfile | null | undefined): ApiDepartment | null =>
+  profile?.department ?? profile?.departmentsHeaded?.[0] ?? null;
+
+const matchesDepartment = (item: RealtimeTrackingItem, department: ApiDepartment | null) => {
+  if (!department) return false;
+  if (department.id && item.departmentId === department.id) return true;
+
+  const itemDepartment = normalizeDepartmentName(item.departmentName ?? item.department);
+  return (
+    itemDepartment === normalizeDepartmentName(department.name) ||
+    itemDepartment === normalizeDepartmentName(department.code)
+  );
+};
+
 const Card = DeptHeadCard;
 
 export const DeptHeadDashboard: React.FC = () => {
@@ -153,6 +194,8 @@ export const DeptHeadDashboard: React.FC = () => {
   const { token, user } = useAuth();
   const [requests, setRequests] = useState<RealtimeTrackingItem[]>([]);
   const [schedules, setSchedules] = useState<UpcomingInterview[]>([]);
+  const [department, setDepartment] = useState<ApiDepartment | null>(() => primaryDepartment(user));
+  const [refreshKey, setRefreshKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
 
@@ -161,10 +204,18 @@ export const DeptHeadDashboard: React.FC = () => {
       setLoading(true);
       setApiError('');
       try {
-        const data = await apiRequest<RealtimeTrackingItem[]>('/reports/realtime-tracking', token);
-        setRequests(data);
+        const [profile, data] = await Promise.all([
+          apiRequest<ApiUserProfile>('/me/profile', token).catch(() => null),
+          apiRequest<RealtimeTrackingItem[]>('/reports/realtime-tracking', token),
+        ]);
+        const currentDepartment = primaryDepartment(profile) ?? primaryDepartment(user);
+        const scopedData = currentDepartment
+          ? data.filter((item) => matchesDepartment(item, currentDepartment))
+          : [];
+        setDepartment(currentDepartment);
+        setRequests(scopedData);
 
-        const activeRequests = data.filter((item) => !TERMINAL_STATUSES.includes(item.status));
+        const activeRequests = scopedData.filter((item) => !TERMINAL_STATUSES.includes(item.status));
         const scheduleLists = await Promise.all(
           activeRequests.map((item) =>
             apiRequest<InterviewSchedule[]>(`/interviews/requests/${item.id}/schedules`, token)
@@ -180,7 +231,7 @@ export const DeptHeadDashboard: React.FC = () => {
       }
     };
     void loadDashboard();
-  }, [token]);
+  }, [refreshKey, token, user]);
 
   const activeRequests = useMemo(
     () => requests.filter((item) => !TERMINAL_STATUSES.includes(item.status)),
@@ -188,7 +239,10 @@ export const DeptHeadDashboard: React.FC = () => {
   );
 
   const pendingCount = useMemo(
-    () => requests.filter((item) => item.status === 'PENDING_REVIEW').length,
+    () =>
+      requests.filter((item) =>
+        ['PENDING_REVIEW', 'PENDING_HR_REVIEW', 'PENDING_BOSS_APPROVAL'].includes(item.status),
+      ).length,
     [requests],
   );
 
@@ -208,6 +262,25 @@ export const DeptHeadDashboard: React.FC = () => {
     const today = new Date().toDateString();
     return schedules.filter((schedule) => new Date(schedule.scheduledAt).toDateString() === today)
       .length;
+  }, [schedules]);
+
+  const weeklyInterviewStats = useMemo(() => {
+    const start = new Date();
+    const day = start.getDay();
+    start.setDate(start.getDate() - (day === 0 ? 6 : day - 1));
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 7);
+
+    const thisWeek = schedules.filter((schedule) => {
+      const scheduledAt = new Date(schedule.scheduledAt);
+      return scheduledAt >= start && scheduledAt < end;
+    });
+
+    return {
+      conducted: thisWeek.filter((schedule) => schedule.status === 'COMPLETED').length,
+      rescheduled: thisWeek.filter((schedule) => schedule.status === 'RESCHEDULED').length,
+    };
   }, [schedules]);
 
   const metrics = [
@@ -362,7 +435,7 @@ export const DeptHeadDashboard: React.FC = () => {
               <Icon className="h-4 w-4" name="download" />
               Export Report
             </DeptHeadActionButton>
-            <DeptHeadActionButton>
+            <DeptHeadActionButton onClick={() => setRefreshKey((current) => current + 1)}>
               <Icon className="h-4 w-4" name="refresh" />
               Refresh Data
             </DeptHeadActionButton>
@@ -404,10 +477,14 @@ export const DeptHeadDashboard: React.FC = () => {
         <Card className="p-6 xl:col-span-8">
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-xl font-semibold text-on-surface">My Recruitment Pipeline</h2>
-            <select className="w-fit rounded-lg border border-border-warm bg-workflow-ivory py-1.5 pl-3 pr-8 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20">
-              <option>All Departments</option>
-              <option>Engineering</option>
-              <option>Product</option>
+            <select
+              className="w-fit rounded-lg border border-border-warm bg-workflow-ivory py-1.5 pl-3 pr-8 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+              disabled
+              value={department?.id ?? 'unassigned'}
+            >
+              <option value={department?.id ?? 'unassigned'}>
+                {department?.name ?? 'My Department'}
+              </option>
             </select>
           </div>
 
@@ -540,11 +617,15 @@ export const DeptHeadDashboard: React.FC = () => {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg bg-surface-container-low p-3 text-center">
-                <p className="text-xl font-bold text-teal-command">18</p>
+                <p className="text-xl font-bold text-teal-command">
+                  {String(weeklyInterviewStats.conducted).padStart(2, '0')}
+                </p>
                 <p className="text-[10px] font-bold uppercase text-outline">Conducted</p>
               </div>
               <div className="rounded-lg bg-surface-container-low p-3 text-center">
-                <p className="text-xl font-bold text-revision">04</p>
+                <p className="text-xl font-bold text-revision">
+                  {String(weeklyInterviewStats.rescheduled).padStart(2, '0')}
+                </p>
                 <p className="text-[10px] font-bold uppercase text-outline">Rescheduled</p>
               </div>
             </div>

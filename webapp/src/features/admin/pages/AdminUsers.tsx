@@ -11,6 +11,7 @@ import {
 
 type RoleKey = 'Admin' | 'Department Head' | 'HR Leader' | 'HR Recruiter' | 'Candidate';
 type UserStatus = 'Active' | 'Inactive' | 'Pending';
+type EmailCheckState = 'idle' | 'checking' | 'available' | 'exists';
 
 interface ManagedUser {
   id: string;
@@ -42,6 +43,16 @@ const roles: Array<RoleKey | 'All'> = [
 ];
 const statuses: Array<UserStatus | 'All'> = ['All', 'Active', 'Inactive'];
 
+const roleBadgeClasses: Record<RoleKey, string> = {
+  Admin: 'bg-deep-charcoal text-white',
+  // Department Head: Đổi bg sang vàng nhạt (bg-yellow-100), chữ text-revision đậm hơn (font-bold hoặc font-semibold)
+  'Department Head': 'bg-yellow-100 font-semibold text-revision',
+  'HR Leader': 'bg-teal-command text-white',
+  'HR Recruiter': 'bg-teal-command text-white',
+  // Candidate: Giữ nền xám/tím nhạt bằng cách dùng border/bg hiện tại (hoặc dùng bg-slate-100), chữ text-draft thay vì chữ trắng
+  Candidate: 'border border-draft/30 bg-draft/15 text-draft',
+};
+
 export const AdminUsers: React.FC = () => {
   const { token } = useAuth();
   const [users, setUsers] = useState<ManagedUser[]>([]);
@@ -65,6 +76,9 @@ export const AdminUsers: React.FC = () => {
   const [form, setForm] = useState<UserForm>(emptyForm);
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [emailCheck, setEmailCheck] = useState<EmailCheckState>('idle');
+  const [emailCheckMessage, setEmailCheckMessage] = useState<string | null>(null);
+  const [verifiedEmail, setVerifiedEmail] = useState('');
 
   // Dropdown Menu State
   const [activeMenuUserId, setActiveMenuUserId] = useState<string | null>(null);
@@ -210,6 +224,9 @@ export const AdminUsers: React.FC = () => {
     setForm(emptyForm);
     setPassword('');
     setError(null);
+    setEmailCheck('idle');
+    setEmailCheckMessage(null);
+    setVerifiedEmail('');
     setModalOpen(true);
   };
 
@@ -224,6 +241,9 @@ export const AdminUsers: React.FC = () => {
     });
     setPassword('');
     setError(null);
+    setEmailCheck('idle');
+    setEmailCheckMessage(null);
+    setVerifiedEmail('');
     setModalOpen(true);
   };
 
@@ -231,6 +251,9 @@ export const AdminUsers: React.FC = () => {
     setModalOpen(false);
     setEditingUser(null);
     setError(null);
+    setEmailCheck('idle');
+    setEmailCheckMessage(null);
+    setVerifiedEmail('');
   };
 
   const toggleStatus = async (id: string) => {
@@ -249,6 +272,63 @@ export const AdminUsers: React.FC = () => {
     }
   };
 
+  const resetEmailVerification = () => {
+    setEmailCheck('idle');
+    setEmailCheckMessage(null);
+    setVerifiedEmail('');
+  };
+
+  const verifyEmailAvailability = async () => {
+    const email = form.email.trim().toLowerCase();
+    setError(null);
+
+    if (!email) {
+      setEmailCheck('idle');
+      setEmailCheckMessage(null);
+      setError('Email is required.');
+      return false;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailCheck('idle');
+      setEmailCheckMessage(null);
+      setError('Use a valid email address.');
+      return false;
+    }
+
+    setEmailCheck('checking');
+    setEmailCheckMessage('Checking email...');
+
+    try {
+      const result = await apiRequest<{ exists: boolean; isActive: boolean }>(
+        `/users/email-exists?email=${encodeURIComponent(email)}`,
+        token,
+      );
+
+      if (result.exists) {
+        setEmailCheck('exists');
+        setEmailCheckMessage(
+          result.isActive
+            ? 'This email already belongs to an active account.'
+            : 'This email already exists in the database.',
+        );
+        setVerifiedEmail('');
+        return false;
+      }
+
+      setEmailCheck('available');
+      setEmailCheckMessage('Email is available.');
+      setVerifiedEmail(email);
+      return true;
+    } catch (checkError) {
+      setEmailCheck('idle');
+      setEmailCheckMessage(null);
+      setVerifiedEmail('');
+      setError(checkError instanceof Error ? checkError.message : 'Unable to verify email');
+      return false;
+    }
+  };
+
   const saveUser = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
@@ -262,6 +342,8 @@ export const AdminUsers: React.FC = () => {
       setError('Use a valid email address.');
       return;
     }
+
+    const normalizedEmail = form.email.trim().toLowerCase();
 
     const departmentId =
       form.department === '-'
@@ -297,10 +379,16 @@ export const AdminUsers: React.FC = () => {
           setError('A password of at least 8 characters is required.');
           return;
         }
+
+        if (emailCheck !== 'available' || verifiedEmail !== normalizedEmail) {
+          setError('Please verify this email before creating the user.');
+          return;
+        }
+
         await apiRequest('/users', token, {
           method: 'POST',
           body: JSON.stringify({
-            email: form.email,
+            email: normalizedEmail,
             displayName: form.name,
             role: apiRole(form.role),
             organizationId,
@@ -603,15 +691,7 @@ export const AdminUsers: React.FC = () => {
                   </td>
                   <td className="px-margin-md py-4">
                     <span
-                      className={`inline-flex items-center px-3 py-1 rounded-full text-[12px] font-semibold text-white ${
-                        user.role === 'Admin'
-                          ? 'bg-deep-charcoal'
-                          : user.role === 'HR Leader' || user.role === 'HR Recruiter'
-                            ? 'bg-teal-command'
-                            : user.role === 'Department Head'
-                              ? 'bg-revision'
-                              : 'bg-draft'
-                      }`}
+                      className={`inline-flex items-center rounded-full px-3 py-1 text-[12px] font-semibold ${roleBadgeClasses[user.role]}`}
                     >
                       {user.role === 'Department Head' ? 'Dept Head' : user.role}
                     </span>
@@ -786,10 +866,38 @@ export const AdminUsers: React.FC = () => {
                     disabled={Boolean(editingUser)}
                     type="email"
                     value={form.email}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, email: event.target.value }))
-                    }
+                    onChange={(event) => {
+                      setForm((current) => ({ ...current, email: event.target.value }));
+                      if (!editingUser) {
+                        resetEmailVerification();
+                      }
+                    }}
                   />
+                  {!editingUser ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        className="h-8 rounded-lg border border-teal-command/30 bg-white px-3 text-xs font-semibold text-teal-command transition hover:border-teal-command hover:bg-teal-command/5 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={emailCheck === 'checking' || !form.email.trim()}
+                        onClick={verifyEmailAvailability}
+                        type="button"
+                      >
+                        {emailCheck === 'checking' ? 'Checking...' : 'Verify email'}
+                      </button>
+                      {emailCheckMessage ? (
+                        <span
+                          className={`text-xs font-medium ${
+                            emailCheck === 'available'
+                              ? 'text-approved'
+                              : emailCheck === 'exists'
+                                ? 'text-rejected'
+                                : 'text-slate-ink'
+                          }`}
+                        >
+                          {emailCheckMessage}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </label>
                 {!editingUser ? (
                   <label className="space-y-2 block sm:col-span-2">
@@ -871,7 +979,12 @@ export const AdminUsers: React.FC = () => {
                   Cancel
                 </button>
                 <button
-                  className="h-10 rounded-lg bg-teal-command px-5 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
+                  className="h-10 rounded-lg bg-teal-command px-5 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={
+                    !editingUser &&
+                    (emailCheck !== 'available' ||
+                      verifiedEmail !== form.email.trim().toLowerCase())
+                  }
                   type="submit"
                 >
                   {editingUser ? 'Save changes' : 'Create user'}

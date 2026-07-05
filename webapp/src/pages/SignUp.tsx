@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { UserRole } from '@wr/contracts';
+import { getRoleHomePath } from '../lib/auth';
 
 const accountTypes = [
   {
@@ -75,6 +77,7 @@ const EyeIcon = ({ hidden }: { hidden: boolean }) => (
 
 export const SignUp: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [organization, setOrganization] = useState('');
@@ -84,16 +87,25 @@ export const SignUp: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [isGoogleSignup, setIsGoogleSignup] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   // States and refs for registration OTP verification flow
-  const { loginWithToken } = useAuth();
+  const {
+    loginWithToken,
+    signInWithGoogle,
+    completeSupabaseLogin,
+    registerWithSupabaseSession,
+    getSupabaseProfile,
+  } = useAuth();
   const [otpDigits, setOtpDigits] = useState<string[]>(Array(6).fill(''));
   const [otpSecondsLeft, setOtpSecondsLeft] = useState(272);
   const [otpError, setOtpError] = useState<string | null>(null);
   const [otpLoading, setOtpLoading] = useState(false);
   const [otpVerified, setOtpVerified] = useState(false);
   const otpInputRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const authMode = searchParams.get('auth');
 
   const maskedEmail = useMemo(() => {
     const [localPart, domain] = email.split('@');
@@ -119,6 +131,35 @@ export const SignUp: React.FC = () => {
 
     return () => window.clearInterval(timer);
   }, [submitted, otpSecondsLeft, otpVerified]);
+
+  useEffect(() => {
+    if (authMode !== 'google') return;
+
+    const prepareGoogleSignup = async () => {
+      setError(null);
+      setGoogleLoading(true);
+
+      try {
+        const profile = await getSupabaseProfile();
+        if (profile) {
+          setEmail(profile.email);
+          setFullName((current) => current || profile.displayName);
+          setIsGoogleSignup(true);
+        }
+
+        const loggedUser = await completeSupabaseLogin();
+        navigate(getRoleHomePath(loggedUser.role), { replace: true });
+      } catch (err: any) {
+        if (err.status !== 404 && err.code !== 'RMS_ACCOUNT_NOT_REGISTERED') {
+          setError(err.message || 'Google sign-up could not be completed.');
+        }
+      } finally {
+        setGoogleLoading(false);
+      }
+    };
+
+    void prepareGoogleSignup();
+  }, [authMode, navigate]);
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -241,6 +282,33 @@ export const SignUp: React.FC = () => {
     ].filter(Boolean).length;
   }, [password]);
 
+  const mapRole = (frontendRole: string): UserRole => {
+    switch (frontendRole) {
+      case 'department-head':
+        return UserRole.DEPARTMENT_HEAD;
+      case 'hr-leader':
+        return UserRole.HR_LEADER;
+      case 'hr-recruiter':
+        return UserRole.HR_RECRUITER;
+      case 'candidate':
+        return UserRole.CANDIDATE;
+      default:
+        return UserRole.CANDIDATE;
+    }
+  };
+
+  const handleGoogleSignUp = async () => {
+    setError(null);
+    setGoogleLoading(true);
+
+    try {
+      await signInWithGoogle('/signup?auth=google');
+    } catch (err: any) {
+      setGoogleLoading(false);
+      setError(err.message || 'Could not start Google sign-up.');
+    }
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
@@ -250,7 +318,7 @@ export const SignUp: React.FC = () => {
       return;
     }
 
-    if (passwordScore < 3) {
+    if (!isGoogleSignup && passwordScore < 3) {
       setError('Use at least 8 characters with an uppercase letter, number, or symbol.');
       return;
     }
@@ -262,22 +330,16 @@ export const SignUp: React.FC = () => {
 
     setLoading(true);
 
-    const mapRole = (frontendRole: string): string => {
-      switch (frontendRole) {
-        case 'department-head':
-          return 'DEPARTMENT_HEAD';
-        case 'hr-leader':
-          return 'HR_LEADER';
-        case 'hr-recruiter':
-          return 'HR_RECRUITER';
-        case 'candidate':
-          return 'CANDIDATE';
-        default:
-          return 'CANDIDATE';
-      }
-    };
-
     try {
+      if (isGoogleSignup) {
+        const loggedUser = await registerWithSupabaseSession({
+          displayName: fullName,
+          role: mapRole(accountType),
+        });
+        navigate(getRoleHomePath(loggedUser.role), { replace: true });
+        return;
+      }
+
       const response = await fetch('/api/v1/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -574,6 +636,30 @@ export const SignUp: React.FC = () => {
                     </div>
                   )}
 
+                  <button
+                    className="mb-5 flex h-12 w-full items-center justify-center gap-3 rounded-[var(--wr-radius-lg)] border border-[var(--wr-border-default)] bg-[#fefdfb] px-4 text-sm font-semibold text-[var(--wr-text-primary)] transition duration-200 ease-out hover:-translate-y-[1px] hover:border-[var(--wr-border-strong)] hover:bg-[var(--wr-bg-elevated)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
+                    disabled={loading || googleLoading}
+                    type="button"
+                    onClick={handleGoogleSignUp}
+                  >
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--wr-border-subtle)] bg-white font-semibold text-[#4285f4]">
+                      G
+                    </span>
+                    {googleLoading
+                      ? 'Connecting to Google...'
+                      : isGoogleSignup
+                        ? 'Google account connected'
+                        : 'Continue with Google'}
+                  </button>
+
+                  {!isGoogleSignup && (
+                    <div className="mb-5 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--wr-text-muted)]">
+                      <span className="h-px flex-1 bg-[var(--wr-border-subtle)]" />
+                      <span>or</span>
+                      <span className="h-px flex-1 bg-[var(--wr-border-subtle)]" />
+                    </div>
+                  )}
+
                   <form className="space-y-5" onSubmit={handleSubmit}>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
@@ -619,6 +705,7 @@ export const SignUp: React.FC = () => {
                         placeholder="your.name@company.com"
                         type="email"
                         value={email}
+                        readOnly={isGoogleSignup}
                         onChange={(event) => setEmail(event.target.value)}
                       />
                       <p className="text-xs text-[var(--wr-text-muted)]">
@@ -657,40 +744,42 @@ export const SignUp: React.FC = () => {
                       </div>
                     </fieldset>
 
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium" htmlFor="password">
-                        Password
-                      </label>
-                      <div className="relative">
-                        <input
-                          className="h-12 w-full rounded-[var(--wr-radius-lg)] border border-[var(--wr-border-default)] bg-[#fefdfb] px-4 pr-12 text-sm outline-none transition focus:border-[var(--wr-focus-ring)] focus:bg-white focus:ring-2 focus:ring-[var(--wr-focus-ring)]/20"
-                          id="password"
-                          placeholder="Create a password"
-                          type={showPassword ? 'text' : 'password'}
-                          value={password}
-                          onChange={(event) => setPassword(event.target.value)}
-                        />
-                        <button
-                          aria-label={showPassword ? 'Hide password' : 'Show password'}
-                          className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-[var(--wr-radius-md)] text-[var(--wr-text-secondary)] transition hover:bg-[var(--wr-bg-elevated)] hover:text-[var(--wr-text-primary)]"
-                          onClick={() => setShowPassword(!showPassword)}
-                          type="button"
-                        >
-                          <EyeIcon hidden={showPassword} />
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-4 gap-2" aria-hidden="true">
-                        {[0, 1, 2, 3].map((step) => (
-                          <span
-                            className={`h-1.5 rounded-full ${step < passwordScore ? 'bg-[var(--wr-accent-primary)]' : 'bg-[var(--wr-bg-elevated)]'}`}
-                            key={step}
+                    {!isGoogleSignup && (
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium" htmlFor="password">
+                          Password
+                        </label>
+                        <div className="relative">
+                          <input
+                            className="h-12 w-full rounded-[var(--wr-radius-lg)] border border-[var(--wr-border-default)] bg-[#fefdfb] px-4 pr-12 text-sm outline-none transition focus:border-[var(--wr-focus-ring)] focus:bg-white focus:ring-2 focus:ring-[var(--wr-focus-ring)]/20"
+                            id="password"
+                            placeholder="Create a password"
+                            type={showPassword ? 'text' : 'password'}
+                            value={password}
+                            onChange={(event) => setPassword(event.target.value)}
                           />
-                        ))}
+                          <button
+                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                            className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-[var(--wr-radius-md)] text-[var(--wr-text-secondary)] transition hover:bg-[var(--wr-bg-elevated)] hover:text-[var(--wr-text-primary)]"
+                            onClick={() => setShowPassword(!showPassword)}
+                            type="button"
+                          >
+                            <EyeIcon hidden={showPassword} />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-4 gap-2" aria-hidden="true">
+                          {[0, 1, 2, 3].map((step) => (
+                            <span
+                              className={`h-1.5 rounded-full ${step < passwordScore ? 'bg-[var(--wr-accent-primary)]' : 'bg-[var(--wr-bg-elevated)]'}`}
+                              key={step}
+                            />
+                          ))}
+                        </div>
+                        <p className="text-xs text-[var(--wr-text-muted)]">
+                          Use 8+ characters with mixed character types.
+                        </p>
                       </div>
-                      <p className="text-xs text-[var(--wr-text-muted)]">
-                        Use 8+ characters with mixed character types.
-                      </p>
-                    </div>
+                    )}
 
                     <label className="flex items-start gap-3 text-sm text-[var(--wr-text-secondary)]">
                       <input
@@ -707,7 +796,7 @@ export const SignUp: React.FC = () => {
 
                     <button
                       className="flex h-12 w-full items-center justify-center rounded-[var(--wr-radius-lg)] bg-[var(--wr-accent-primary)] px-4 text-sm font-semibold text-white shadow-[var(--wr-shadow-sm)] transition duration-200 ease-out hover:-translate-y-[1px] hover:bg-[var(--wr-accent-primary-hover)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
-                      disabled={loading}
+                      disabled={loading || googleLoading}
                       type="submit"
                     >
                       {loading ? (
@@ -720,7 +809,7 @@ export const SignUp: React.FC = () => {
                           <span className="h-1.5 w-5 rounded-full bg-white/45 animate-pulse [animation-delay:240ms]" />
                         </span>
                       ) : (
-                        'Create account'
+                        isGoogleSignup ? 'Create RMS account' : 'Create account'
                       )}
                     </button>
                   </form>

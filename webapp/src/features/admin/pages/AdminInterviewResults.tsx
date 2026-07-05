@@ -28,6 +28,7 @@ interface CandidateResult {
   name: string;
   role: string;
   department: string;
+  location: string;
   interviewDate: string;
   requestId: string;
   status: DecisionStatus;
@@ -43,6 +44,7 @@ interface CandidateResult {
   };
   recommendation: 'Hire' | 'Reject' | 'More Info';
   assessmentSummary: string;
+  offlineEvidence?: OfflineEvidence | null;
 }
 type FilterType = 'All Pending Decisions' | 'All Decisions' | 'Decision Made';
 
@@ -62,6 +64,15 @@ interface InterviewResultApi {
   scores: CandidateResult['scores'];
   finalRecommendation: string;
   summaryNotes: string;
+  location: string;
+}
+
+interface OfflineEvidence {
+  location: string;
+  report: string;
+  photoName?: string;
+  photoDataUrl?: string;
+  recordedAt?: string;
 }
 
 interface CandidateProfileDetail {
@@ -97,6 +108,7 @@ const emptyCandidate: CandidateResult = {
   name: 'No interview selected',
   role: '',
   department: '',
+  location: '',
   interviewDate: '',
   requestId: '',
   status: 'Awaiting Decision',
@@ -108,10 +120,34 @@ const emptyCandidate: CandidateResult = {
   scores: { tech: 0, comm: 0, fit: 0 },
   recommendation: 'More Info',
   assessmentSummary: 'No completed interview results are available.',
+  offlineEvidence: null,
 };
 
 const defaultOfferStartDate = () =>
   new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+const OFFLINE_EVIDENCE_START = '[OFFLINE_INTERVIEW_EVIDENCE]';
+const OFFLINE_EVIDENCE_END = '[/OFFLINE_INTERVIEW_EVIDENCE]';
+
+const isOnlineInterviewLocation = (value: string) =>
+  /^https?:\/\//i.test(value.trim()) || /meet\.google\.com|zoom|teams\.microsoft/i.test(value);
+
+const parseOfflineEvidence = (value: string) => {
+  const pattern = new RegExp(
+    `${OFFLINE_EVIDENCE_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s\\S]*?)${OFFLINE_EVIDENCE_END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
+  );
+  const match = value.match(pattern);
+  if (!match) return { cleanSummary: value, evidence: null as OfflineEvidence | null };
+
+  try {
+    return {
+      cleanSummary: value.replace(pattern, '').trim(),
+      evidence: JSON.parse(match[1].trim()) as OfflineEvidence,
+    };
+  } catch {
+    return { cleanSummary: value.replace(pattern, '').trim(), evidence: null };
+  }
+};
 
 export const AdminInterviewResults: React.FC = () => {
   const { token } = useAuth();
@@ -145,29 +181,35 @@ export const AdminInterviewResults: React.FC = () => {
           token,
         );
         if (cancelled) return;
-        const mapped = response.map((result) => ({
-          id: result.id,
-          candidateId: result.candidateId,
-          name: result.candidate,
-          role: result.role,
-          department: result.department,
-          interviewDate: new Date(result.interviewDate).toLocaleDateString(),
-          requestId: result.requestId,
-          status: result.decisionStatus,
-          photoUrl: '',
-          passCount: result.passCount,
-          failCount: result.failCount,
-          pendingCount: result.pendingCount,
-          feedbacks: result.feedbacks,
-          scores: result.scores,
-          recommendation: result.finalRecommendation.toLowerCase().includes('hire')
-            ? ('Hire' as const)
-            : result.finalRecommendation.toLowerCase().includes('reject')
-              ? ('Reject' as const)
-              : ('More Info' as const),
-          assessmentSummary:
-            result.summaryNotes || 'The interview panel has not provided an overall summary.',
-        }));
+        const mapped = response.map((result) => {
+          const parsedSummary = parseOfflineEvidence(result.summaryNotes || '');
+          return {
+            id: result.id,
+            candidateId: result.candidateId,
+            name: result.candidate,
+            role: result.role,
+            department: result.department,
+            location: result.location || '',
+            interviewDate: new Date(result.interviewDate).toLocaleDateString(),
+            requestId: result.requestId,
+            status: result.decisionStatus,
+            photoUrl: '',
+            passCount: result.passCount,
+            failCount: result.failCount,
+            pendingCount: result.pendingCount,
+            feedbacks: result.feedbacks,
+            scores: result.scores,
+            recommendation: result.finalRecommendation.toLowerCase().includes('hire')
+              ? ('Hire' as const)
+              : result.finalRecommendation.toLowerCase().includes('reject')
+                ? ('Reject' as const)
+                : ('More Info' as const),
+            assessmentSummary:
+              parsedSummary.cleanSummary ||
+              'The interview panel has not provided an overall summary.',
+            offlineEvidence: parsedSummary.evidence,
+          };
+        });
         setCandidates(mapped);
         setSelectedId((current) =>
           mapped.some((candidate) => candidate.id === current) ? current : mapped[0]?.id || '',
@@ -218,6 +260,9 @@ export const AdminInterviewResults: React.FC = () => {
   const recordedFeedbackCount = activeCandidate.passCount + activeCandidate.failCount;
   const canApproveHire =
     Boolean(activeCandidate.id) && recordedFeedbackCount >= 2 && activeCandidate.passCount > 0;
+  const isOfflineInterview = Boolean(
+    activeCandidate.location && !isOnlineInterviewLocation(activeCandidate.location),
+  );
 
   const markDecisionState = (
     candidate: CandidateResult,
@@ -314,26 +359,6 @@ export const AdminInterviewResults: React.FC = () => {
     const notes = window.prompt('Describe the additional information required:');
     if (!notes?.trim()) return;
 
-    let compensation: string | undefined;
-    let startDate: string | undefined;
-    if (action === 'Approved') {
-      const enteredCompensation = window.prompt(
-        `Enter compensation for ${candidate.name}:`,
-        'Negotiable',
-      );
-      if (!enteredCompensation?.trim()) return;
-      const enteredStartDate = window.prompt(
-        'Enter proposed start date (YYYY-MM-DD):',
-        new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-      );
-      if (!enteredStartDate || Number.isNaN(new Date(enteredStartDate).getTime())) {
-        setApiError('A valid offer start date is required.');
-        return;
-      }
-      compensation = enteredCompensation.trim();
-      startDate = new Date(`${enteredStartDate}T00:00:00.000Z`).toISOString();
-    }
-
     setSubmitting(true);
     setApiError('');
     setActionMessage('');
@@ -416,23 +441,25 @@ export const AdminInterviewResults: React.FC = () => {
             </button>
             {isFilterDropdownOpen && (
               <div className="absolute right-0 z-50 mt-2 w-64 rounded-lg border border-border-warm bg-clean-surface py-1 text-sm font-semibold shadow-lg">
-                {(['All Pending Decisions', 'Decision Made', 'All Decisions'] as const).map((opt) => (
-                  <button
-                    key={opt}
-                    className="w-full px-4 py-2 text-left text-sm font-semibold outline-none transition-colors hover:bg-surface-container-high"
-                    type="button"
-                    onClick={() => {
-                      setFilterType(opt);
-                      setIsFilterDropdownOpen(false);
-                    }}
-                  >
-                    {opt === 'All Pending Decisions'
-                      ? `All Pending Decisions (${pendingCount})`
-                      : opt === 'Decision Made'
-                        ? `Decision Made (${candidates.length - pendingCount})`
-                        : `All Decisions (${candidates.length})`}
-                  </button>
-                ))}
+                {(['All Pending Decisions', 'Decision Made', 'All Decisions'] as const).map(
+                  (opt) => (
+                    <button
+                      key={opt}
+                      className="w-full px-4 py-2 text-left text-sm font-semibold outline-none transition-colors hover:bg-surface-container-high"
+                      type="button"
+                      onClick={() => {
+                        setFilterType(opt);
+                        setIsFilterDropdownOpen(false);
+                      }}
+                    >
+                      {opt === 'All Pending Decisions'
+                        ? `All Pending Decisions (${pendingCount})`
+                        : opt === 'Decision Made'
+                          ? `Decision Made (${candidates.length - pendingCount})`
+                          : `All Decisions (${candidates.length})`}
+                    </button>
+                  ),
+                )}
               </div>
             )}
           </div>
@@ -582,6 +609,14 @@ export const AdminInterviewResults: React.FC = () => {
                     <span className="material-symbols-outlined text-[16px]">event</span>
                     Interviewed: {activeCandidate.interviewDate}
                   </span>
+                  {activeCandidate.location && (
+                    <span className="px-3 py-1 bg-parchment-lift text-deep-charcoal text-xs font-semibold rounded-lg flex items-center gap-1.5 border border-border-warm">
+                      <span className="material-symbols-outlined text-[16px]">
+                        {isOfflineInterview ? 'meeting_room' : 'videocam'}
+                      </span>
+                      {isOfflineInterview ? 'Offline' : 'Online'}: {activeCandidate.location}
+                    </span>
+                  )}
                   <span className="px-3 py-1 bg-parchment-lift text-slate-ink font-data-mono text-xs font-semibold rounded-lg border border-border-warm">
                     {activeCandidate.requestId}
                   </span>
@@ -705,6 +740,49 @@ export const AdminInterviewResults: React.FC = () => {
                     {activeCandidate.assessmentSummary}
                   </p>
                 </div>
+                {isOfflineInterview && (
+                  <div className="rounded-lg border border-revision/30 bg-revision/5 p-4 shadow-sm">
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-revision text-[22px]">
+                        fact_check
+                      </span>
+                      <span className="text-sm font-bold text-deep-charcoal">
+                        Offline Interview Evidence
+                      </span>
+                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-ink">
+                          Location
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-deep-charcoal">
+                          {activeCandidate.offlineEvidence?.location || activeCandidate.location}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-ink">
+                          HR Report
+                        </p>
+                        <p className="mt-1 whitespace-pre-wrap text-sm font-semibold leading-6 text-slate-ink">
+                          {activeCandidate.offlineEvidence?.report ||
+                            'No written report was submitted.'}
+                        </p>
+                      </div>
+                      {activeCandidate.offlineEvidence?.photoDataUrl && (
+                        <div>
+                          <p className="mb-2 text-xs font-bold uppercase tracking-[0.1em] text-slate-ink">
+                            {activeCandidate.offlineEvidence.photoName || 'Meeting photo'}
+                          </p>
+                          <img
+                            alt="Offline interview evidence"
+                            className="max-h-80 w-full rounded-lg border border-border-warm bg-clean-surface object-contain"
+                            src={activeCandidate.offlineEvidence.photoDataUrl}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -768,7 +846,8 @@ export const AdminInterviewResults: React.FC = () => {
                 Send offer to {activeCandidate.name}
               </h2>
               <p className="mt-1 text-sm text-slate-ink">
-                This will approve the hire, create an offer letter, and queue an email to the candidate.
+                This will approve the hire, create an offer letter, and queue an email to the
+                candidate.
               </p>
             </div>
 
@@ -839,7 +918,7 @@ export const AdminInterviewResults: React.FC = () => {
                   Subject: Offer Letter: {activeCandidate.role}
                 </p>
                 <pre className="mt-3 whitespace-pre-wrap rounded-lg bg-clean-surface p-4 text-sm leading-6 text-slate-ink">
-{`Dear ${activeCandidate.name},
+                  {`Dear ${activeCandidate.name},
 
 We are pleased to extend you an offer for the position of ${activeCandidate.role}.
 
@@ -892,7 +971,8 @@ Please review and accept or decline this offer in the candidate portal.`}
                 Send rejection to {activeCandidate.name}
               </h2>
               <p className="mt-1 text-sm text-slate-ink">
-                This will mark the request as Not Hired and queue a rejection email to the candidate.
+                This will mark the request as Not Hired and queue a rejection email to the
+                candidate.
               </p>
             </div>
 
@@ -917,7 +997,9 @@ Please review and accept or decline this offer in the candidate portal.`}
                 </label>
 
                 <label className="block space-y-2">
-                  <span className="text-sm font-bold text-slate-ink">Rejection reason / feedback</span>
+                  <span className="text-sm font-bold text-slate-ink">
+                    Rejection reason / feedback
+                  </span>
                   <textarea
                     className="min-h-[180px] w-full rounded-lg border border-border-warm bg-workflow-ivory p-3 text-sm leading-6 outline-none focus:border-rejected focus:ring-2 focus:ring-rejected/20"
                     disabled={submitting}
@@ -937,7 +1019,7 @@ Please review and accept or decline this offer in the candidate portal.`}
                   Subject: Application Update: {activeCandidate.role}
                 </p>
                 <pre className="mt-3 whitespace-pre-wrap rounded-lg bg-clean-surface p-4 text-sm leading-6 text-slate-ink">
-{`Dear ${activeCandidate.name},
+                  {`Dear ${activeCandidate.name},
 
 Thank you for your interest in the position of ${activeCandidate.role} and for taking the time to speak with us.
 
@@ -979,7 +1061,9 @@ We wish you the best of luck in your job search and future professional endeavor
               <div>
                 <h2 className="text-lg font-semibold text-deep-charcoal">Candidate Profile</h2>
                 <p className="text-sm text-slate-ink">
-                  {profileLoading ? 'Loading profile...' : profileDetail?.fullName ?? activeCandidate.name}
+                  {profileLoading
+                    ? 'Loading profile...'
+                    : (profileDetail?.fullName ?? activeCandidate.name)}
                 </p>
               </div>
               <button

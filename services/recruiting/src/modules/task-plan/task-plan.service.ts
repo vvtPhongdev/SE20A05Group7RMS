@@ -40,7 +40,7 @@ export class TaskPlanService {
   }
 
   private parseAndValidateDates(
-    plan: { startDate: Date; endDate: Date },
+    plan: { startDate: Date | null; endDate: Date | null },
     startDate: string,
     endDate: string,
   ) {
@@ -51,6 +51,10 @@ export class TaskPlanService {
     }
     if (end <= start) {
       this.rpc(HttpStatus.BAD_REQUEST, 'endDate must be after startDate');
+    }
+
+    if (!plan.startDate || !plan.endDate) {
+      this.rpc(HttpStatus.BAD_REQUEST, 'Overall plan timeline is required before scheduling tasks');
     }
 
     const planStart = new Date(plan.startDate);
@@ -66,6 +70,17 @@ export class TaskPlanService {
   }
 
   private async upsertTaskReminders(tx: Prisma.TransactionClient, task: TaskPlan) {
+    if (!task.endDate) {
+      await tx.taskReminder.updateMany({
+        where: {
+          taskPlanId: task.id,
+          status: 'PENDING',
+        },
+        data: { status: 'SKIPPED' },
+      });
+      return;
+    }
+
     const now = new Date();
     const candidates = [
       {
@@ -203,11 +218,14 @@ export class TaskPlanService {
       );
     }
 
-    const { start, end } = this.parseAndValidateDates(
-      task.overallPlan,
-      payload.startDate ?? task.startDate.toISOString(),
-      payload.endDate ?? task.endDate.toISOString(),
-    );
+    const nextStartDate = payload.startDate ?? task.startDate?.toISOString();
+    const nextEndDate = payload.endDate ?? task.endDate?.toISOString();
+
+    if (!nextStartDate || !nextEndDate) {
+      this.rpc(HttpStatus.BAD_REQUEST, 'startDate and endDate are required for task scheduling');
+    }
+
+    const { start, end } = this.parseAndValidateDates(task.overallPlan, nextStartDate, nextEndDate);
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const next = await tx.taskPlan.update({
@@ -234,9 +252,9 @@ export class TaskPlanService {
         metadata: {
           previousTaskType: task.taskType,
           taskType: nextTaskType,
-          previousStartDate: task.startDate.toISOString(),
+          previousStartDate: task.startDate?.toISOString() ?? null,
           startDate: start.toISOString(),
-          previousEndDate: task.endDate.toISOString(),
+          previousEndDate: task.endDate?.toISOString() ?? null,
           endDate: end.toISOString(),
         },
       })
@@ -252,10 +270,17 @@ export class TaskPlanService {
     });
     if (!task) this.rpc(HttpStatus.NOT_FOUND, `TaskPlan ${payload.id} not found`);
 
-    if (task.overallPlan.status !== PlanStatus.APPROVED) {
+    if (
+      ![
+        PlanStatus.DRAFT,
+        PlanStatus.REJECTED,
+        PlanStatus.PENDING_APPROVAL,
+        PlanStatus.APPROVED,
+      ].includes(task.overallPlan.status as PlanStatus)
+    ) {
       this.rpc(
         HttpStatus.BAD_REQUEST,
-        'Recruiters can only be assigned after Admin approves the plan',
+        `Recruiters cannot be assigned while the plan is in status "${task.overallPlan.status}"`,
       );
     }
 

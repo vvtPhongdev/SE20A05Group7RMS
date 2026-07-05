@@ -217,6 +217,51 @@ describe('UsersService', () => {
     });
   });
 
+  describe('checkEmail', () => {
+    it('should return exists true when the email is already in the database', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: 'existing-user',
+        isActive: true,
+      });
+
+      const result = await service.checkEmail({ email: ' Existing@Example.com ' });
+
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { email: 'existing@example.com' },
+        select: {
+          id: true,
+          isActive: true,
+        },
+      });
+      expect(result).toEqual({
+        email: 'existing@example.com',
+        exists: true,
+        isActive: true,
+      });
+    });
+
+    it('should return exists false when the email is available', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      const result = await service.checkEmail({ email: 'new@example.com' });
+
+      expect(result).toEqual({
+        email: 'new@example.com',
+        exists: false,
+        isActive: false,
+      });
+    });
+
+    it('should throw BAD_REQUEST RpcException for invalid email', async () => {
+      await expect(service.checkEmail({ email: 'not-an-email' })).rejects.toThrow(
+        new RpcException({
+          status: HttpStatus.BAD_REQUEST,
+          message: 'Use a valid email address.',
+        }),
+      );
+    });
+  });
+
   describe('update', () => {
     const mockUserId = '22222222-2222-2222-2222-222222222222';
     const mockNewDeptId = '33333333-3333-3333-3333-333333333333';

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { ApiError, apiRequest } from '../../../lib/api';
 import {
@@ -36,10 +37,12 @@ type Candidate = {
   phone: string;
   location: string;
   photo?: string;
+  departments: string[];
   recentApplications: RecentApplication[];
   aiScore?: number;
   vectorScore?: number;
   graphScore?: number;
+  feedbackScore?: number;
   readinessLabel?: string;
 };
 
@@ -109,6 +112,8 @@ type TalentSearchResponse = {
     overallScore: number;
     vectorScore: number;
     graphScore: number;
+    feedbackScore?: number;
+    baseOverallScore?: number;
     readinessLabel: string;
     matchedSkills?: Array<{ skill: string; confidence: number }>;
   }>;
@@ -116,6 +121,9 @@ type TalentSearchResponse = {
     expandedQuery?: {
       resolved?: string | null;
       expandedSkills?: string[];
+    };
+    query?: {
+      source?: string;
     };
   };
 };
@@ -172,6 +180,19 @@ const mapCandidate = (item: CandidateApiItem): Candidate => {
 
   const avatar = structuredData.avatar as { fileName?: string } | undefined;
   const photo = avatar ? `/api/v1/candidate-profiles/${item.id}/avatar` : undefined;
+  const recentApplications = item.applications.map((application) => ({
+    requestId: application.requestId,
+    position: application.request?.position ?? 'Unknown role',
+    department: application.request?.department?.name ?? null,
+    status: application.status,
+  }));
+  const departments = Array.from(
+    new Set(
+      recentApplications
+        .map((application) => application.department)
+        .filter((department): department is string => Boolean(department)),
+    ),
+  ).sort();
 
   return {
     id: item.id,
@@ -189,12 +210,8 @@ const mapCandidate = (item: CandidateApiItem): Candidate => {
     phone: item.phone || '—',
     location,
     photo,
-    recentApplications: item.applications.map((application) => ({
-      requestId: application.requestId,
-      position: application.request?.position ?? 'Unknown role',
-      department: application.request?.department?.name ?? null,
-      status: application.status,
-    })),
+    departments,
+    recentApplications,
   };
 };
 
@@ -233,6 +250,8 @@ const statusClass: Record<ParseStatus, string> = {
 };
 
 export const HRTalentPool: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const requestedCampaignId = searchParams.get('requestId') ?? '';
   const { token, user } = useAuth();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [meta, setMeta] = useState({
@@ -249,6 +268,7 @@ export const HRTalentPool: React.FC = () => {
   const [query, setQuery] = useState('');
   const [searchMode, setSearchMode] = useState<'PROFILE' | 'AI_VECTOR'>('AI_VECTOR');
   const [role, setRole] = useState('All Roles');
+  const [department, setDepartment] = useState('All Departments');
   const [selectedCampaignId, setSelectedCampaignId] = useState('');
   const [parseStatus, setParseStatus] = useState('All Status');
   const [skill, setSkill] = useState('All Skills');
@@ -289,7 +309,7 @@ export const HRTalentPool: React.FC = () => {
   const applyAiSearch = useCallback(
     async (searchVal: string, requestId: string) => {
       const trimmed = searchVal.trim();
-      if (!trimmed || !requestId) return;
+      if (!requestId) return;
 
       setAiSearching(true);
       setApiError('');
@@ -309,17 +329,18 @@ export const HRTalentPool: React.FC = () => {
 
         const candidatesById = new Map(candidateResponse.data.map((item) => [item.id, item]));
         const ranked = searchResponse.data.reduce<Candidate[]>((acc, match) => {
-            const candidate = candidatesById.get(match.candidateProfileId);
-            if (!candidate) return acc;
-            acc.push({
-              ...mapCandidate(candidate),
-              aiScore: match.overallScore,
-              vectorScore: match.vectorScore,
-              graphScore: match.graphScore,
-              readinessLabel: match.readinessLabel,
-            });
-            return acc;
-          }, []);
+          const candidate = candidatesById.get(match.candidateProfileId);
+          if (!candidate) return acc;
+          acc.push({
+            ...mapCandidate(candidate),
+            aiScore: match.overallScore,
+            vectorScore: match.vectorScore,
+            graphScore: match.graphScore,
+            feedbackScore: match.feedbackScore,
+            readinessLabel: match.readinessLabel,
+          });
+          return acc;
+        }, []);
 
         setCandidates(ranked);
         setMeta({
@@ -334,10 +355,17 @@ export const HRTalentPool: React.FC = () => {
             : ranked[0]?.id || '',
         );
         const expandedSkills = searchResponse.meta.expandedQuery?.expandedSkills ?? [];
+        const isCampaignJdSearch = searchResponse.meta.query?.source === 'campaign_jd';
         setAiSummary(
-          expandedSkills.length
-            ? `AI expanded this search with: ${expandedSkills.slice(0, 5).join(', ')}`
-            : 'AI vector search ranked candidates by CV similarity and skill graph fit.',
+          isCampaignJdSearch
+            ? `AI ranked candidates using this campaign JD, required skills, CV similarity, and HR feedback signals${
+                expandedSkills.length
+                  ? `; expanded with: ${expandedSkills.slice(0, 5).join(', ')}`
+                  : ''
+              }.`
+            : expandedSkills.length
+              ? `AI expanded this search with: ${expandedSkills.slice(0, 5).join(', ')}`
+              : 'AI vector search ranked candidates by CV similarity, skill graph fit, and HR feedback signals.',
         );
       } catch (searchError) {
         setApiError(searchError instanceof Error ? searchError.message : 'Unable to run AI search');
@@ -401,14 +429,17 @@ export const HRTalentPool: React.FC = () => {
       );
       setCampaigns(mapped);
       setSelectedCampaignId((current) =>
-        current && mapped.some((campaign) => campaign.requestId === current)
-          ? current
-          : mapped[0]?.requestId || '',
+        requestedCampaignId &&
+        mapped.some((campaign) => campaign.requestId === requestedCampaignId)
+          ? requestedCampaignId
+          : current && mapped.some((campaign) => campaign.requestId === current)
+            ? current
+            : mapped[0]?.requestId || '',
       );
     } catch (loadError) {
       setApiError(loadError instanceof Error ? loadError.message : 'Unable to load campaigns');
     }
-  }, [token, user?.role]);
+  }, [requestedCampaignId, token, user?.role]);
 
   useEffect(() => {
     void loadCampaigns();
@@ -422,7 +453,7 @@ export const HRTalentPool: React.FC = () => {
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       if (searchMode === 'AI_VECTOR') {
-        if (query.trim() && selectedCampaign?.canSearch) {
+        if (selectedCampaign?.canSearch) {
           setLoading(true);
           void applyAiSearch(query, selectedCampaign.requestId);
         } else {
@@ -445,7 +476,9 @@ export const HRTalentPool: React.FC = () => {
       return;
     }
     if (!selectedCampaign?.canCollect) {
-      setApiError('HR Leader must assign you CV collection work for this campaign before collecting CVs.');
+      setApiError(
+        'HR Leader must assign you CV collection work for this campaign before collecting CVs.',
+      );
       return;
     }
 
@@ -465,7 +498,9 @@ export const HRTalentPool: React.FC = () => {
         await loadCandidates(false);
       } else {
         setApiError(
-          assignError instanceof Error ? assignError.message : 'Unable to add candidate to campaign',
+          assignError instanceof Error
+            ? assignError.message
+            : 'Unable to add candidate to campaign',
         );
       }
     } finally {
@@ -521,6 +556,19 @@ export const HRTalentPool: React.FC = () => {
     return Array.from(skills).sort();
   }, [candidates]);
 
+  const uniqueDepartments = useMemo(() => {
+    const departments = new Set<string>();
+    let hasUnassigned = false;
+    candidates.forEach((candidate) => {
+      if (candidate.departments.length === 0) {
+        hasUnassigned = true;
+        return;
+      }
+      candidate.departments.forEach((candidateDepartment) => departments.add(candidateDepartment));
+    });
+    return [...Array.from(departments).sort(), ...(hasUnassigned ? ['No Department'] : [])];
+  }, [candidates]);
+
   const visibleCandidates = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
@@ -532,17 +580,30 @@ export const HRTalentPool: React.FC = () => {
           candidate.name,
           candidate.title,
           candidate.role,
+          ...candidate.departments,
           candidate.stage,
           candidate.email,
           ...candidate.skills,
         ].some((value) => value.toLowerCase().includes(normalizedQuery));
       const matchesRole = role === 'All Roles' || candidate.role === role;
+      const matchesDepartment =
+        department === 'All Departments' ||
+        (department === 'No Department'
+          ? candidate.departments.length === 0
+          : candidate.departments.includes(department));
       const matchesSkill = skill === 'All Skills' || candidate.skills.includes(skill);
       const matchesParse = parseStatus === 'All Status' || candidate.parseStatus === parseStatus;
       const matchesEligibility = !eligibleOnly || candidate.parseStatus === 'Parsed';
-      return matchesQuery && matchesRole && matchesSkill && matchesParse && matchesEligibility;
+      return (
+        matchesQuery &&
+        matchesRole &&
+        matchesDepartment &&
+        matchesSkill &&
+        matchesParse &&
+        matchesEligibility
+      );
     });
-  }, [candidates, eligibleOnly, parseStatus, query, role, searchMode, skill]);
+  }, [candidates, department, eligibleOnly, parseStatus, query, role, searchMode, skill]);
 
   const selected =
     candidates.find((candidate) => candidate.id === selectedId) ??
@@ -552,6 +613,7 @@ export const HRTalentPool: React.FC = () => {
   const resetFilters = () => {
     setQuery('');
     setRole('All Roles');
+    setDepartment('All Departments');
     setSkill('All Skills');
     setParseStatus('All Status');
     setEligibleOnly(true);
@@ -637,7 +699,9 @@ export const HRTalentPool: React.FC = () => {
             </p>
           ) : null}
           {aiSearching ? (
-            <p className="mt-3 text-xs font-semibold text-teal-command">Running AI vector search...</p>
+            <p className="mt-3 text-xs font-semibold text-teal-command">
+              Running AI vector search...
+            </p>
           ) : aiSummary ? (
             <p className="mt-3 text-xs text-slate-ink">{aiSummary}</p>
           ) : null}
@@ -662,24 +726,33 @@ export const HRTalentPool: React.FC = () => {
           ))}
         </section>
 
-        <section className="rounded-lg border border-border-warm bg-clean-surface p-4 shadow-sm">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto] xl:items-end">
+        <section className="overflow-hidden rounded-lg border border-border-warm bg-clean-surface p-4 shadow-sm">
+          <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3 xl:items-end">
             <HRSelectControl
+              className="min-w-0"
               label="Role"
               onChange={setRole}
               options={['All Roles', ...uniqueRoles]}
               value={role}
             />
             <HRSelectControl
+              className="min-w-0"
+              label="Department"
+              onChange={setDepartment}
+              options={['All Departments', ...uniqueDepartments]}
+              value={department}
+            />
+            <HRSelectControl
+              className="min-w-0"
               label="Skills"
               onChange={setSkill}
               options={['All Skills', ...uniqueSkills]}
               value={skill}
             />
-            <label className="flex flex-col gap-1">
+            <label className="flex min-w-0 flex-col gap-1">
               <span className="text-xs font-semibold text-on-surface-variant">Campaign</span>
               <select
-                className="h-10 rounded-lg border border-border-warm bg-clean-surface px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                className="h-10 w-full min-w-0 truncate rounded-lg border border-border-warm bg-clean-surface px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
                 onChange={(event) => setSelectedCampaignId(event.target.value)}
                 value={selectedCampaignId}
               >
@@ -693,10 +766,10 @@ export const HRTalentPool: React.FC = () => {
                 ))}
               </select>
             </label>
-            <label className="flex flex-col gap-1">
+            <label className="flex min-w-0 flex-col gap-1">
               <span className="text-xs font-semibold text-on-surface-variant">Parsing Status</span>
               <select
-                className="h-10 rounded-lg border border-border-warm bg-clean-surface px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                className="h-10 w-full min-w-0 rounded-lg border border-border-warm bg-clean-surface px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
                 onChange={(event) => setParseStatus(event.target.value)}
                 value={parseStatus}
               >
@@ -705,7 +778,7 @@ export const HRTalentPool: React.FC = () => {
                 <option>Pending</option>
               </select>
             </label>
-            <div className="flex items-center gap-3">
+            <div className="flex min-w-0 items-center justify-start gap-3">
               <button
                 aria-pressed={eligibleOnly}
                 className={`relative h-6 w-11 rounded-full transition ${eligibleOnly ? 'bg-teal-command' : 'bg-surface-container'}`}
@@ -774,7 +847,7 @@ export const HRTalentPool: React.FC = () => {
                 </div>
 
                 {searchMode === 'AI_VECTOR' && candidate.aiScore !== undefined ? (
-                  <div className="mb-4 grid grid-cols-3 gap-2 rounded-lg border border-border-warm bg-workflow-ivory p-2 text-center">
+                  <div className="mb-4 grid grid-cols-4 gap-2 rounded-lg border border-border-warm bg-workflow-ivory p-2 text-center">
                     <div>
                       <p className="text-[10px] font-bold uppercase text-on-surface-variant">AI</p>
                       <p className="font-mono text-sm font-bold text-teal-command">
@@ -797,6 +870,16 @@ export const HRTalentPool: React.FC = () => {
                         {Math.round((candidate.graphScore ?? 0) * 100)}%
                       </p>
                     </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase text-on-surface-variant">
+                        HR
+                      </p>
+                      <p className="font-mono text-sm font-bold text-deep-charcoal">
+                        {candidate.feedbackScore
+                          ? `${candidate.feedbackScore > 0 ? '+' : ''}${Math.round(candidate.feedbackScore * 100)}%`
+                          : '0%'}
+                      </p>
+                    </div>
                   </div>
                 ) : null}
 
@@ -809,6 +892,19 @@ export const HRTalentPool: React.FC = () => {
                       {skill}
                     </span>
                   ))}
+                </div>
+
+                <div className="mb-4 flex flex-wrap gap-2">
+                  {(candidate.departments.length ? candidate.departments : ['No Department']).map(
+                    (candidateDepartment) => (
+                      <span
+                        className="rounded-full border border-teal-command/20 bg-teal-command/10 px-2 py-1 text-xs font-semibold text-teal-command"
+                        key={candidateDepartment}
+                      >
+                        {candidateDepartment}
+                      </span>
+                    ),
+                  )}
                 </div>
 
                 <div className="mb-5 grid grid-cols-2 gap-4 text-xs font-semibold">
@@ -840,9 +936,14 @@ export const HRTalentPool: React.FC = () => {
                         : ''
                     }`}
                     disabled={
-                      !selectedCampaignId || !canCollectSelected || assigningId !== '' || alreadyAdded
+                      !selectedCampaignId ||
+                      !canCollectSelected ||
+                      assigningId !== '' ||
+                      alreadyAdded
                     }
-                    title={!canCollectSelected ? 'Requires CV_COLLECTION task assignment' : undefined}
+                    title={
+                      !canCollectSelected ? 'Requires CV_COLLECTION task assignment' : undefined
+                    }
                     onClick={(e) => {
                       e.stopPropagation();
                       void assignCandidate(candidate.id);
@@ -891,158 +992,187 @@ export const HRTalentPool: React.FC = () => {
               const canCollectSelected = Boolean(selectedCampaign?.canCollect);
               return (
                 <>
-            <div className="px-6 pb-6">
-              <div className="mb-8 flex flex-col items-center text-center">
-                <div className="mb-4 flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-clean-surface text-2xl font-bold text-teal-command shadow-md">
-                  {selected.photo ? (
-                    <img
-                      alt={`${selected.name} profile`}
-                      className="h-full w-full object-cover"
-                      src={selected.photo}
-                    />
-                  ) : (
-                    selected.initials
-                  )}
-                </div>
-                <h3 className="text-2xl font-bold text-deep-charcoal">{selected.name}</h3>
-                <p className="mb-2 font-semibold text-teal-command">{selected.title}</p>
-                <div className="flex flex-wrap justify-center gap-2">
-                  <span className="rounded-full bg-teal-command px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white">
-                    CV {selected.parseStatus}
-                  </span>
-                  {selected.readinessLabel ? (
-                    <span className="rounded-full bg-deep-charcoal/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-deep-charcoal">
-                      {selected.readinessLabel.replace(/_/g, ' ')}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                <section className="space-y-3 rounded-lg border border-border-warm bg-clean-surface p-4 shadow-sm">
-                  {[
-                    { icon: 'mail', value: selected.email },
-                    { icon: 'phone', value: selected.phone },
-                    { icon: 'location', value: selected.location },
-                  ].map((item) => (
-                    <div className="flex items-center gap-3" key={item.icon}>
-                      <Icon className="h-4 w-4 text-teal-command/70" name={item.icon} />
-                      <span className="text-sm font-semibold text-deep-charcoal">{item.value}</span>
-                    </div>
-                  ))}
-                </section>
-
-                <section>
-                  <h4 className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-on-surface-variant">
-                    Structured Skills
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {selected.skills.length === 0 ? (
-                      <p className="text-sm text-slate-ink">No structured skills parsed yet.</p>
-                    ) : (
-                      selected.skills.map((skill) => (
-                        <span
-                          className="rounded-lg border border-border-warm bg-white px-3 py-1.5 text-sm font-semibold text-deep-charcoal"
-                          key={skill}
-                        >
-                          {skill}
+                  <div className="px-6 pb-6">
+                    <div className="mb-8 flex flex-col items-center text-center">
+                      <div className="mb-4 flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-clean-surface text-2xl font-bold text-teal-command shadow-md">
+                        {selected.photo ? (
+                          <img
+                            alt={`${selected.name} profile`}
+                            className="h-full w-full object-cover"
+                            src={selected.photo}
+                          />
+                        ) : (
+                          selected.initials
+                        )}
+                      </div>
+                      <h3 className="text-2xl font-bold text-deep-charcoal">{selected.name}</h3>
+                      <p className="mb-2 font-semibold text-teal-command">{selected.title}</p>
+                      <div className="flex flex-wrap justify-center gap-2">
+                        <span className="rounded-full bg-teal-command px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white">
+                          CV {selected.parseStatus}
                         </span>
-                      ))
-                    )}
-                  </div>
-                </section>
+                        {selected.readinessLabel ? (
+                          <span className="rounded-full bg-deep-charcoal/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-deep-charcoal">
+                            {selected.readinessLabel.replace(/_/g, ' ')}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
 
-                <section>
-                  <h4 className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-on-surface-variant">
-                    Recent Applications
-                  </h4>
-                  {selected.recentApplications.length === 0 ? (
-                    <p className="text-sm text-slate-ink">No applications yet.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {selected.recentApplications.map((application, index) => (
-                        <div
-                          className="overflow-hidden rounded-lg border border-border-warm bg-white shadow-sm"
-                          key={`${application.position}-${index}`}
-                        >
-                          <div className="flex items-center justify-between gap-3 p-3">
-                            <div>
-                              <p className="text-sm font-bold text-deep-charcoal">
-                                {application.position}
-                              </p>
-                              <p className="text-xs text-on-surface-variant">
-                                {application.department ?? 'Unassigned department'}
-                              </p>
-                            </div>
-                            <span className="rounded bg-pending/5 px-2 py-1 text-[11px] font-bold text-pending">
-                              {APPLICATION_STATUS_LABEL[application.status] ?? application.status}
+                    <div className="space-y-6">
+                      <section className="space-y-3 rounded-lg border border-border-warm bg-clean-surface p-4 shadow-sm">
+                        {[
+                          { icon: 'mail', value: selected.email },
+                          { icon: 'phone', value: selected.phone },
+                          { icon: 'location', value: selected.location },
+                        ].map((item) => (
+                          <div className="flex items-center gap-3" key={item.icon}>
+                            <Icon className="h-4 w-4 text-teal-command/70" name={item.icon} />
+                            <span className="text-sm font-semibold text-deep-charcoal">
+                              {item.value}
                             </span>
                           </div>
+                        ))}
+                      </section>
+
+                      <section>
+                        <h4 className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-on-surface-variant">
+                          Departments
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {(selected.departments.length
+                            ? selected.departments
+                            : ['No Department']
+                          ).map((candidateDepartment) => (
+                            <span
+                              className="rounded-lg border border-teal-command/20 bg-teal-command/10 px-3 py-1.5 text-sm font-semibold text-teal-command"
+                              key={candidateDepartment}
+                            >
+                              {candidateDepartment}
+                            </span>
+                          ))}
                         </div>
-                      ))}
+                      </section>
+
+                      <section>
+                        <h4 className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-on-surface-variant">
+                          Structured Skills
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {selected.skills.length === 0 ? (
+                            <p className="text-sm text-slate-ink">
+                              No structured skills parsed yet.
+                            </p>
+                          ) : (
+                            selected.skills.map((skill) => (
+                              <span
+                                className="rounded-lg border border-border-warm bg-white px-3 py-1.5 text-sm font-semibold text-deep-charcoal"
+                                key={skill}
+                              >
+                                {skill}
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </section>
+
+                      <section>
+                        <h4 className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-on-surface-variant">
+                          Recent Applications
+                        </h4>
+                        {selected.recentApplications.length === 0 ? (
+                          <p className="text-sm text-slate-ink">No applications yet.</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {selected.recentApplications.map((application, index) => (
+                              <div
+                                className="overflow-hidden rounded-lg border border-border-warm bg-white shadow-sm"
+                                key={`${application.position}-${index}`}
+                              >
+                                <div className="flex items-center justify-between gap-3 p-3">
+                                  <div>
+                                    <p className="text-sm font-bold text-deep-charcoal">
+                                      {application.position}
+                                    </p>
+                                    <p className="text-xs text-on-surface-variant">
+                                      {application.department ?? 'Unassigned department'}
+                                    </p>
+                                  </div>
+                                  <span className="rounded bg-pending/5 px-2 py-1 text-[11px] font-bold text-pending">
+                                    {APPLICATION_STATUS_LABEL[application.status] ??
+                                      application.status}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </section>
+
+                      <section className="flex gap-3 rounded-lg border border-border-warm bg-surface-container-high p-4">
+                        <Icon className="h-5 w-5 text-revision" name="lock" />
+                        <p className="text-xs leading-5 text-on-surface-variant">
+                          Candidate assignment requires approved request and approved overall plan.
+                        </p>
+                      </section>
                     </div>
-                  )}
-                </section>
+                  </div>
 
-                <section className="flex gap-3 rounded-lg border border-border-warm bg-surface-container-high p-4">
-                  <Icon className="h-5 w-5 text-revision" name="lock" />
-                  <p className="text-xs leading-5 text-on-surface-variant">
-                    Candidate assignment requires approved request and approved overall plan.
-                  </p>
-                </section>
-              </div>
-            </div>
-
-            <footer className="space-y-4 border-t border-border-warm bg-workflow-ivory p-6">
-              <label className="flex flex-col gap-1">
-                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
-                  Select Campaign
-                </span>
-                <select
-                  className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                  onChange={(event) => setSelectedCampaignId(event.target.value)}
-                  value={selectedCampaignId}
-                >
-                  <option value="">-- Choose Campaign --</option>
-                  {campaigns.map((item) => (
-                    <option key={item.requestId} value={item.requestId}>
-                      {item.label}
-                      {item.canSearch ? ' / AI' : ''}
-                      {item.canCollect ? ' / Collect' : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="flex items-start gap-2">
-                <Icon className="mt-0.5 h-4 w-4 text-on-surface-variant" name="shield" />
-                <p className="text-[11px] leading-5 text-on-surface-variant">
-                  Privacy Note: Data encrypted and stored according to GDPR/local compliance.
-                </p>
-              </div>
-              <button
-                className={`inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-teal-command font-bold text-white transition active:scale-[0.98] ${
-                  !selectedCampaignId || !canCollectSelected || assigningId || selectedAlreadyAdded
-                    ? 'opacity-50 cursor-not-allowed'
-                    : 'hover:bg-primary'
-                }`}
-                disabled={
-                  !selectedCampaignId ||
-                  !canCollectSelected ||
-                  assigningId !== '' ||
-                  selectedAlreadyAdded
-                }
-                title={!canCollectSelected ? 'Requires CV_COLLECTION task assignment' : undefined}
-                onClick={() => void assignCandidate(selected.id)}
-                type="button"
-              >
-                <Icon className="h-4 w-4" name="send" />
-                {selectedAlreadyAdded
-                  ? 'Already Added'
-                  : assigningId === selected.id
-                    ? 'Adding...'
-                    : 'Add to Campaign'}
-              </button>
-            </footer>
+                  <footer className="space-y-4 border-t border-border-warm bg-workflow-ivory p-6">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
+                        Select Campaign
+                      </span>
+                      <select
+                        className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                        onChange={(event) => setSelectedCampaignId(event.target.value)}
+                        value={selectedCampaignId}
+                      >
+                        <option value="">-- Choose Campaign --</option>
+                        {campaigns.map((item) => (
+                          <option key={item.requestId} value={item.requestId}>
+                            {item.label}
+                            {item.canSearch ? ' / AI' : ''}
+                            {item.canCollect ? ' / Collect' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="flex items-start gap-2">
+                      <Icon className="mt-0.5 h-4 w-4 text-on-surface-variant" name="shield" />
+                      <p className="text-[11px] leading-5 text-on-surface-variant">
+                        Privacy Note: Data encrypted and stored according to GDPR/local compliance.
+                      </p>
+                    </div>
+                    <button
+                      className={`inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-teal-command font-bold text-white transition active:scale-[0.98] ${
+                        !selectedCampaignId ||
+                        !canCollectSelected ||
+                        assigningId ||
+                        selectedAlreadyAdded
+                          ? 'opacity-50 cursor-not-allowed'
+                          : 'hover:bg-primary'
+                      }`}
+                      disabled={
+                        !selectedCampaignId ||
+                        !canCollectSelected ||
+                        assigningId !== '' ||
+                        selectedAlreadyAdded
+                      }
+                      title={
+                        !canCollectSelected ? 'Requires CV_COLLECTION task assignment' : undefined
+                      }
+                      onClick={() => void assignCandidate(selected.id)}
+                      type="button"
+                    >
+                      <Icon className="h-4 w-4" name="send" />
+                      {selectedAlreadyAdded
+                        ? 'Already Added'
+                        : assigningId === selected.id
+                          ? 'Adding...'
+                          : 'Add to Campaign'}
+                    </button>
+                  </footer>
                 </>
               );
             })()}
