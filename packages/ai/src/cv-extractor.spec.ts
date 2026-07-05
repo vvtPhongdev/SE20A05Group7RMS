@@ -27,6 +27,12 @@ describe('Gemini CV extractor', () => {
   const originalFetch = global.fetch;
   const envKeys = [
     'GEMINI_API_KEY',
+    'GEMINI_API_KEY_1',
+    'GEMINI_API_KEY_2',
+    'GEMINI_API_KEY_3',
+    'GEMINI_API_KEY_4',
+    'GEMINI_API_KEY_5',
+    'GEMINI_API_KEY_6',
     'GEMINI_API_KEYS',
     'GEMINI_CV_MODEL',
     'GEMINI_CV_MODELS',
@@ -273,6 +279,72 @@ describe('Gemini CV extractor', () => {
     );
   });
 
+  it('tries numbered Gemini API key fallback slots in order', async () => {
+    delete process.env.GEMINI_API_KEY;
+    delete process.env.GEMINI_API_KEYS;
+    process.env.GEMINI_API_KEY_1 = 'slot-one-key';
+    process.env.GEMINI_API_KEY_2 = 'slot-two-key';
+    process.env.GEMINI_CV_MODEL = 'gemini-test-model';
+    const output = {
+      documentText: 'Jane Doe\nSenior Engineer\nTypeScript',
+      confidence: 0.91,
+      warnings: [],
+      resume: {
+        personalInfo: {
+          fullName: 'Jane Doe',
+          email: 'jane@example.com',
+          links: [],
+        },
+        currentRole: 'Senior Engineer',
+        skills: {
+          technical: ['TypeScript'],
+          softSkills: [],
+          languages: [],
+        },
+        workExperience: [],
+        education: [],
+      },
+    };
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        statusText: 'Too Many Requests',
+        json: async () => ({ error: { message: 'rate limit exceeded' } }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          candidates: [{ content: { parts: [{ text: JSON.stringify(output) }] } }],
+        }),
+      });
+    global.fetch = fetchMock as typeof fetch;
+
+    const result = await extractCvWithAi({
+      fileName: 'text-cv.docx',
+      fileType: 'DOCX',
+      fileUrl: 'https://storage.example/text-cv.docx',
+      rawText: 'Jane Doe Senior Engineer TypeScript',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect((fetchMock.mock.calls[0][1] as RequestInit).headers).toEqual(
+      expect.objectContaining({ 'x-goog-api-key': 'slot-one-key' }),
+    );
+    expect((fetchMock.mock.calls[1][1] as RequestInit).headers).toEqual(
+      expect.objectContaining({ 'x-goog-api-key': 'slot-two-key' }),
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        method: 'AI_TEXT',
+        model: 'gemini-test-model',
+        confidence: 0.91,
+      }),
+    );
+  });
+
   it('parses Gemini JSON output wrapped in a markdown code fence', async () => {
     process.env.GEMINI_API_KEY = 'test-gemini-key';
     process.env.GEMINI_CV_MODEL = 'gemini-test-model';
@@ -497,6 +569,6 @@ describe('Gemini CV extractor', () => {
         fileType: 'PDF',
         fileUrl: 'https://storage.example/scan.pdf',
       }),
-    ).rejects.toThrow('GEMINI_API_KEY or GEMINI_API_KEYS');
+    ).rejects.toThrow('GEMINI_API_KEY, GEMINI_API_KEY_1..6, or GEMINI_API_KEYS');
   });
 });

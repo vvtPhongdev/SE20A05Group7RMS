@@ -7,12 +7,18 @@ const splitApiKeys = (value: string | undefined) =>
     .map((key) => key.trim())
     .filter(Boolean);
 
+const numberedGeminiApiKeys = () =>
+  Array.from({ length: 6 }, (_, index) => process.env[`GEMINI_API_KEY_${index + 1}`])
+    .map((key) => key?.trim())
+    .filter((key): key is string => Boolean(key));
+
 const isGeminiModelName = (value: string) => /^gemini-[a-z0-9][a-z0-9.-]*$/i.test(value);
 
 function geminiConfig() {
   const apiKeys = [
-    ...splitApiKeys(process.env.GEMINI_API_KEYS),
     ...splitApiKeys(process.env.GEMINI_API_KEY),
+    ...numberedGeminiApiKeys(),
+    ...splitApiKeys(process.env.GEMINI_API_KEYS),
   ].filter((key, index, keys) => keys.indexOf(key) === index);
   const primaryModel = process.env.GEMINI_CV_MODEL || 'gemini-3.5-flash';
   const requestedModels = [
@@ -513,7 +519,9 @@ function extractJsonText(value: string) {
 export async function extractCvWithAi(input: CvExtractionInput): Promise<CvExtractionData> {
   const config = geminiConfig();
   if (config.apiKeys.length === 0) {
-    throw new Error('GEMINI_API_KEY or GEMINI_API_KEYS is required to OCR image-based CV files');
+    throw new Error(
+      'GEMINI_API_KEY, GEMINI_API_KEY_1..6, or GEMINI_API_KEYS is required to OCR image-based CV files',
+    );
   }
   if (config.invalidModels.length > 0) {
     throw new Error(
