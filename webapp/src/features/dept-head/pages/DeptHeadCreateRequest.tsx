@@ -9,6 +9,12 @@ import {
   DeptHeadPageHeader,
   DeptHeadSearchInput,
 } from '../components';
+import {
+  buildTemplateFieldValues,
+  getRequestTemplateByKey,
+  resolveDepartmentRequestTemplate,
+  type EmploymentType,
+} from '../requestTemplates';
 
 type Priority = 'Low' | 'Medium' | 'High' | 'Critical';
 
@@ -16,7 +22,7 @@ interface FormState {
   positionTitle: string;
   department: string;
   jobLevel: string;
-  employmentType: 'Full-time' | 'Contract';
+  employmentType: EmploymentType;
   headcount: number;
   skillInput: string;
   experience: string;
@@ -27,6 +33,21 @@ interface FormState {
   salaryMax: string;
   startDate: string;
   priority: Priority;
+  templateKey: string;
+  templateName: string;
+  templateFields: Record<string, string>;
+}
+
+interface ApiDepartment {
+  id?: string;
+  name?: string;
+  code?: string | null;
+}
+
+interface ApiUserProfile {
+  departmentId?: string | null;
+  department?: ApiDepartment | null;
+  departmentsHeaded?: ApiDepartment[];
 }
 
 interface RecruitmentRequestApi {
@@ -38,7 +59,7 @@ interface RecruitmentRequestApi {
   urgency: string;
   status: string;
   rejectionReason?: string | null;
-  department?: { name: string } | null;
+  department?: ApiDepartment | null;
   skillRequirements?: Record<string, unknown> | null;
   hrRevisionSuggestion?: {
     feedback?: string;
@@ -58,21 +79,26 @@ interface SuggestedRequest {
 
 type IconName = 'close' | 'send' | 'search' | 'help' | 'x' | 'check' | 'plus';
 
+const defaultTemplate = getRequestTemplateByKey('general');
+
 const initialForm: FormState = {
   positionTitle: '',
-  department: 'Engineering Department',
-  jobLevel: 'Senior',
-  employmentType: 'Full-time',
+  department: 'Your Department',
+  jobLevel: defaultTemplate.defaultJobLevel,
+  employmentType: defaultTemplate.defaultEmploymentType,
   headcount: 1,
   skillInput: '',
-  experience: '3-5 years',
-  education: '',
+  experience: defaultTemplate.defaultExperience,
+  education: defaultTemplate.defaultEducation,
   description: '',
   notes: '',
   salaryMin: '',
   salaryMax: '',
   startDate: '',
   priority: 'Medium',
+  templateKey: defaultTemplate.key,
+  templateName: defaultTemplate.name,
+  templateFields: buildTemplateFieldValues(defaultTemplate),
 };
 
 const Icon = ({ name, className = 'h-5 w-5' }: { name: IconName; className?: string }) => {
@@ -80,7 +106,9 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: IconName; className?: str
     close: <path d="M18 6 6 18M6 6l12 12" />,
     send: <path d="m22 2-7 20-4-9-9-4 20-7Z" />,
     search: <path d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" />,
-    help: <path d="M9.1 9a3 3 0 1 1 5.8 1c-.7 1.5-2.4 1.7-2.8 3m-.1 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
+    help: (
+      <path d="M9.1 9a3 3 0 1 1 5.8 1c-.7 1.5-2.4 1.7-2.8 3m-.1 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+    ),
     x: <path d="M18 6 6 18M6 6l12 12" />,
     check: <path d="m5 12 4 4L19 6" />,
     plus: <path d="M12 5v14M5 12h14" />,
@@ -109,39 +137,37 @@ const readonlyClass =
 const textareaClass =
   'w-full resize-none rounded-lg border border-border-warm bg-workflow-ivory px-4 py-3 text-sm leading-6 text-on-surface outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20';
 
-const priorityStyles: Record<
-  Priority,
-  { border: string; idleBg: string; activeBg: string; idleText: string; ring: string }
-> = {
+const priorityButtonStyles: Record<Priority, { idle: string; selected: string }> = {
   Low: {
-    border: '#16a34a',
-    idleBg: '#f0fdf4',
-    activeBg: '#16a34a',
-    idleText: '#15803d',
-    ring: 'rgba(22, 163, 74, 0.22)',
+    idle: 'border-slate-ink/25 bg-slate-ink/10 text-slate-ink hover:border-slate-ink/40 hover:bg-slate-ink/15',
+    selected: 'border-slate-ink bg-slate-ink text-white shadow-sm ring-2 ring-slate-ink/20',
   },
   Medium: {
-    border: '#0f766e',
-    idleBg: '#f0fdfa',
-    activeBg: '#0f766e',
-    idleText: '#0f766e',
-    ring: 'rgba(15, 118, 110, 0.22)',
+    idle: 'border-teal-command/25 bg-teal-command/10 text-teal-command hover:border-teal-command/40 hover:bg-teal-command/15',
+    selected:
+      'border-teal-command bg-teal-command text-white shadow-sm ring-2 ring-teal-command/20',
   },
   High: {
-    border: '#d97706',
-    idleBg: '#fffbeb',
-    activeBg: '#d97706',
-    idleText: '#b45309',
-    ring: 'rgba(217, 119, 6, 0.24)',
+    idle: 'border-[#d97706]/30 bg-[#d97706]/10 text-[#b45309] hover:border-[#d97706]/50 hover:bg-[#d97706]/15',
+    selected: 'border-[#d97706] bg-[#d97706] text-white shadow-sm ring-2 ring-[#d97706]/25',
   },
   Critical: {
-    border: '#dc2626',
-    idleBg: '#fef2f2',
-    activeBg: '#dc2626',
-    idleText: '#b91c1c',
-    ring: 'rgba(220, 38, 38, 0.22)',
+    idle: 'border-[#dc2626]/30 bg-[#dc2626]/10 text-[#b91c1c] hover:border-[#dc2626]/50 hover:bg-[#dc2626]/15',
+    selected: 'border-[#dc2626] bg-[#dc2626] text-white shadow-sm ring-2 ring-[#dc2626]/25',
   },
 };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const parseSkillInput = (value: string) =>
+  value
+    .split(/[;,]/)
+    .map((skill) => skill.trim())
+    .filter(Boolean);
+
+const primaryDepartment = (profile: ApiUserProfile | null | undefined): ApiDepartment | null =>
+  profile?.department ?? profile?.departmentsHeaded?.[0] ?? null;
 
 const Field = ({
   label,
@@ -161,13 +187,7 @@ const Field = ({
   </label>
 );
 
-const Section = ({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) => (
+const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
   <section className="rounded-xl border border-border-warm bg-clean-surface p-6 shadow-sm md:p-8">
     <div className="mb-6 flex items-center gap-2">
       <div className="h-6 w-1 rounded-full bg-teal-command" />
@@ -180,10 +200,10 @@ const Section = ({
 export const DeptHeadCreateRequest: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const requestId = searchParams.get('requestId');
   const [form, setForm] = useState<FormState>(initialForm);
-  const [skills, setSkills] = useState(['React', 'TypeScript', 'Node.js']);
+  const [skills, setSkills] = useState(defaultTemplate.defaultSkills);
   const [notice, setNotice] = useState<string | null>(null);
   const [noticeIsError, setNoticeIsError] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -195,6 +215,56 @@ export const DeptHeadCreateRequest: React.FC = () => {
     useState<RecruitmentRequestApi['hrRevisionSuggestion']>(null);
   const [acceptedHrSuggestion, setAcceptedHrSuggestion] = useState<boolean | null>(null);
   const [revisionResponse, setRevisionResponse] = useState('');
+
+  const currentTemplate = useMemo(
+    () => getRequestTemplateByKey(form.templateKey),
+    [form.templateKey],
+  );
+
+  useEffect(() => {
+    if (requestId || !token) return;
+
+    let cancelled = false;
+    const applyDepartmentTemplate = (department: ApiDepartment | null) => {
+      const template = resolveDepartmentRequestTemplate(department?.name, department?.code);
+      setForm((current) => ({
+        ...current,
+        department: department?.name ?? current.department,
+        jobLevel: template.defaultJobLevel,
+        employmentType: template.defaultEmploymentType,
+        experience: template.defaultExperience,
+        education: template.defaultEducation,
+        templateKey: template.key,
+        templateName: template.name,
+        templateFields: buildTemplateFieldValues(template),
+      }));
+      setSkills(template.defaultSkills);
+    };
+
+    const storedDepartment = primaryDepartment(user);
+    if (storedDepartment) {
+      applyDepartmentTemplate(storedDepartment);
+    }
+
+    const loadProfileTemplate = async () => {
+      try {
+        const profile = await apiRequest<ApiUserProfile>('/me/profile', token);
+        if (cancelled) return;
+
+        const profileDepartment = primaryDepartment(profile);
+        if (profileDepartment) {
+          applyDepartmentTemplate(profileDepartment);
+        }
+      } catch {
+        // Keep the general template if profile details are not available in mock/dev mode.
+      }
+    };
+
+    void loadProfileTemplate();
+    return () => {
+      cancelled = true;
+    };
+  }, [requestId, token, user]);
 
   useEffect(() => {
     if (!requestId) return;
@@ -217,14 +287,19 @@ export const DeptHeadCreateRequest: React.FC = () => {
         setRevisionResponse('');
 
         const requirements = request.skillRequirements ?? {};
+        const template =
+          typeof requirements.templateKey === 'string'
+            ? getRequestTemplateByKey(requirements.templateKey)
+            : resolveDepartmentRequestTemplate(request.department?.name, request.department?.code);
+        const templateFieldSource = isRecord(requirements.templateFields)
+          ? requirements.templateFields
+          : requirements;
         const loadedSkills = Array.isArray(requirements.skills)
           ? requirements.skills.map(String)
-          : [];
+          : template.defaultSkills;
         const priorityValue = request.urgency.toLowerCase();
         const priority =
-          priorityValue === 'low' ||
-          priorityValue === 'high' ||
-          priorityValue === 'critical'
+          priorityValue === 'low' || priorityValue === 'high' || priorityValue === 'critical'
             ? ((priorityValue[0]?.toUpperCase() + priorityValue.slice(1)) as Priority)
             : 'Medium';
         const employmentType =
@@ -245,6 +320,9 @@ export const DeptHeadCreateRequest: React.FC = () => {
           salaryMax: String(requirements.salaryMax ?? ''),
           startDate: String(requirements.startDate ?? ''),
           priority,
+          templateKey: template.key,
+          templateName: template.name,
+          templateFields: buildTemplateFieldValues(template, templateFieldSource),
         });
         setSkills(loadedSkills);
       } catch (loadError) {
@@ -265,16 +343,28 @@ export const DeptHeadCreateRequest: React.FC = () => {
   }, [requestId, token]);
 
   const readiness = useMemo(() => {
-    const complete = [
+    const checks = [
       Boolean(form.positionTitle.trim()),
       skills.length > 0,
       Boolean(form.description.trim()),
       Boolean(form.startDate),
       form.headcount > 0,
-    ].filter(Boolean).length;
+      ...currentTemplate.fields
+        .filter((field) => field.required)
+        .map((field) => Boolean(form.templateFields[field.key]?.trim())),
+    ];
+    const complete = checks.filter(Boolean).length;
 
-    return Math.round((complete / 5) * 100);
-  }, [form.description, form.headcount, form.positionTitle, form.startDate, skills.length]);
+    return Math.round((complete / checks.length) * 100);
+  }, [
+    currentTemplate.fields,
+    form.description,
+    form.headcount,
+    form.positionTitle,
+    form.startDate,
+    form.templateFields,
+    skills.length,
+  ]);
 
   const update = <K extends keyof FormState>(field: K, value: FormState[K]) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -287,10 +377,43 @@ export const DeptHeadCreateRequest: React.FC = () => {
     setNoticeIsError(false);
   };
 
+  const updateTemplateField = (field: string, value: string) => {
+    setForm((current) => ({
+      ...current,
+      templateFields: { ...current.templateFields, [field]: value },
+    }));
+    setErrors((current) => {
+      const next = { ...current };
+      delete next[`templateFields.${field}`];
+      return next;
+    });
+    setNotice(null);
+    setNoticeIsError(false);
+  };
+
   const addSkill = () => {
-    const value = form.skillInput.trim();
-    if (!value || skills.includes(value)) return;
-    setSkills((current) => [...current, value]);
+    const parsedSkills = parseSkillInput(form.skillInput);
+    if (parsedSkills.length === 0) return;
+
+    setSkills((current) => {
+      const existing = new Set(current.map((skill) => skill.toLowerCase()));
+      const next = [...current];
+
+      parsedSkills.forEach((skill) => {
+        const key = skill.toLowerCase();
+        if (!existing.has(key)) {
+          existing.add(key);
+          next.push(skill);
+        }
+      });
+
+      return next;
+    });
+    setErrors((current) => {
+      const next = { ...current };
+      delete next.skills;
+      return next;
+    });
     update('skillInput', '');
   };
 
@@ -300,6 +423,13 @@ export const DeptHeadCreateRequest: React.FC = () => {
 
   const applySuggestedRequest = (suggestion: SuggestedRequest) => {
     const requirements = suggestion.skillRequirements ?? {};
+    const template =
+      typeof requirements.templateKey === 'string'
+        ? getRequestTemplateByKey(requirements.templateKey)
+        : currentTemplate;
+    const templateFieldSource = isRecord(requirements.templateFields)
+      ? requirements.templateFields
+      : requirements;
     const suggestionUrgency = String(suggestion.urgency ?? 'MEDIUM').toLowerCase();
     const priority =
       suggestionUrgency === 'low' ||
@@ -325,6 +455,9 @@ export const DeptHeadCreateRequest: React.FC = () => {
       salaryMax: String(requirements.salaryMax ?? current.salaryMax),
       startDate: String(requirements.startDate ?? current.startDate),
       priority,
+      templateKey: template.key,
+      templateName: template.name,
+      templateFields: buildTemplateFieldValues(template, templateFieldSource),
     }));
     if (suggestedSkills.length > 0) setSkills(suggestedSkills);
     setAcceptedHrSuggestion(true);
@@ -340,6 +473,11 @@ export const DeptHeadCreateRequest: React.FC = () => {
     if (skills.length === 0) nextErrors.skills = 'Add at least one required skill.';
     if (!form.startDate) nextErrors.startDate = 'Expected start date is required.';
     if (form.headcount < 1) nextErrors.headcount = 'Number of positions must be at least 1.';
+    currentTemplate.fields.forEach((field) => {
+      if (field.required && !form.templateFields[field.key]?.trim()) {
+        nextErrors[`templateFields.${field.key}`] = `${field.label} is required.`;
+      }
+    });
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -359,6 +497,9 @@ export const DeptHeadCreateRequest: React.FC = () => {
       salaryMin: form.salaryMin,
       salaryMax: form.salaryMax,
       startDate: form.startDate,
+      templateKey: currentTemplate.key,
+      templateName: currentTemplate.name,
+      templateFields: form.templateFields,
     },
     ...(submitForReview === undefined ? {} : { submit: submitForReview }),
   });
@@ -444,7 +585,9 @@ export const DeptHeadCreateRequest: React.FC = () => {
       navigate('/dept-head/requests');
     } catch (submitError) {
       setNoticeIsError(true);
-      setNotice(submitError instanceof ApiError ? submitError.message : 'Unable to submit request.');
+      setNotice(
+        submitError instanceof ApiError ? submitError.message : 'Unable to submit request.',
+      );
     } finally {
       setSubmitting(false);
     }
@@ -456,29 +599,46 @@ export const DeptHeadCreateRequest: React.FC = () => {
         title={requestId ? 'Edit Recruitment Request' : 'Create Recruitment Request'}
         actions={
           <>
-          <DeptHeadSearchInput
-            className="hidden sm:block sm:w-64"
-            label="Search resources"
-            onChange={() => undefined}
-            placeholder="Search resources..."
-            value=""
-          />
-          <button
-            aria-label="Help"
-            className="rounded-lg p-2 text-on-surface-variant transition hover:bg-surface-container hover:text-teal-command"
-            type="button"
-          >
-            <Icon name="help" />
-          </button>
+            <DeptHeadSearchInput
+              className="hidden sm:block sm:w-64"
+              label="Search resources"
+              onChange={() => undefined}
+              placeholder="Search resources..."
+              value=""
+            />
+            <button
+              aria-label="Help"
+              className="rounded-lg p-2 text-on-surface-variant transition hover:bg-surface-container hover:text-teal-command"
+              type="button"
+            >
+              <Icon name="help" />
+            </button>
           </>
         }
       />
 
       {notice && (
-        <DeptHeadInlineAlert tone={noticeIsError ? 'rejected' : 'teal'}>{notice}</DeptHeadInlineAlert>
+        <DeptHeadInlineAlert tone={noticeIsError ? 'rejected' : 'teal'}>
+          {notice}
+        </DeptHeadInlineAlert>
       )}
 
       {loadingRequest && <DeptHeadLoadingState label="Loading recruitment request..." />}
+
+      <div className="mb-6 grid gap-3 rounded-xl border border-border-warm bg-clean-surface p-4 shadow-sm md:grid-cols-2">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+            Department
+          </p>
+          <p className="mt-1 text-sm font-semibold text-deep-charcoal">{form.department}</p>
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+            Request Template
+          </p>
+          <p className="mt-1 text-sm font-semibold text-teal-command">{currentTemplate.name}</p>
+        </div>
+      </div>
 
       {requestStatus === 'REVISION_NEEDED' && rejectionReason && (
         <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm">
@@ -576,7 +736,7 @@ export const DeptHeadCreateRequest: React.FC = () => {
                 <input
                   className={fieldClass}
                   onChange={(event) => update('positionTitle', event.target.value)}
-                  placeholder="e.g. Senior Frontend Engineer"
+                  placeholder={currentTemplate.defaultPositionTitle || 'e.g. Senior Frontend Engineer'}
                   type="text"
                   value={form.positionTitle}
                 />
@@ -596,16 +756,15 @@ export const DeptHeadCreateRequest: React.FC = () => {
                 onChange={(event) => update('jobLevel', event.target.value)}
                 value={form.jobLevel}
               >
-                <option>Junior</option>
-                <option>Mid</option>
-                <option>Senior</option>
-                <option>Lead</option>
+                {currentTemplate.jobLevelOptions.map((level) => (
+                  <option key={level}>{level}</option>
+                ))}
               </select>
             </Field>
 
             <Field label="Employment Type">
               <div className="flex h-11 items-center gap-4">
-                {(['Full-time', 'Contract'] as const).map((type) => (
+                {currentTemplate.employmentTypeOptions.map((type) => (
                   <label className="flex cursor-pointer items-center gap-2 text-sm" key={type}>
                     <input
                       checked={form.employmentType === type}
@@ -665,7 +824,7 @@ export const DeptHeadCreateRequest: React.FC = () => {
                         addSkill();
                       }
                     }}
-                    placeholder="Add more..."
+                    placeholder="Add skills, separated by , or ;"
                     type="text"
                     value={form.skillInput}
                   />
@@ -691,9 +850,9 @@ export const DeptHeadCreateRequest: React.FC = () => {
                   onChange={(event) => update('experience', event.target.value)}
                   value={form.experience}
                 >
-                  <option>1-3 years</option>
-                  <option>3-5 years</option>
-                  <option>5+ years</option>
+                  {currentTemplate.experienceOptions.map((experience) => (
+                    <option key={experience}>{experience}</option>
+                  ))}
                 </select>
               </Field>
 
@@ -706,6 +865,59 @@ export const DeptHeadCreateRequest: React.FC = () => {
                   value={form.education}
                 />
               </Field>
+            </div>
+
+            <div className="rounded-lg border border-border-warm bg-workflow-ivory/45 p-4">
+              <div className="mb-4">
+                <p className="text-sm font-semibold text-deep-charcoal">{currentTemplate.name}</p>
+              </div>
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                {currentTemplate.fields.map((field) => {
+                  const error = errors[`templateFields.${field.key}`];
+                  const value = form.templateFields[field.key] ?? '';
+                  const className = field.type === 'textarea' ? textareaClass : fieldClass;
+
+                  return (
+                    <div
+                      className={field.type === 'textarea' ? 'md:col-span-2' : undefined}
+                      key={field.key}
+                    >
+                      <Field label={field.label} required={field.required}>
+                        {field.type === 'select' ? (
+                          <select
+                            className={fieldClass}
+                            onChange={(event) => updateTemplateField(field.key, event.target.value)}
+                            value={value}
+                          >
+                            {field.options?.map((option) => (
+                              <option key={option}>{option}</option>
+                            ))}
+                          </select>
+                        ) : field.type === 'textarea' ? (
+                          <textarea
+                            className={className}
+                            onChange={(event) => updateTemplateField(field.key, event.target.value)}
+                            placeholder={field.placeholder}
+                            rows={3}
+                            value={value}
+                          />
+                        ) : (
+                          <input
+                            className={className}
+                            onChange={(event) => updateTemplateField(field.key, event.target.value)}
+                            placeholder={field.placeholder}
+                            type="text"
+                            value={value}
+                          />
+                        )}
+                        {error && (
+                          <p className="mt-2 text-xs font-semibold text-rejected">{error}</p>
+                        )}
+                      </Field>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             <Field label="Job Description">
@@ -783,12 +995,14 @@ export const DeptHeadCreateRequest: React.FC = () => {
               <div className="flex flex-wrap gap-3">
                 {(['Low', 'Medium', 'High', 'Critical'] as Priority[]).map((priority) => {
                   const checked = form.priority === priority;
-                  const tone = priorityStyles[priority];
+                  const styles = priorityButtonStyles[priority];
 
                   return (
                     <button
                       aria-pressed={checked}
-                      className="inline-flex items-center gap-2 rounded-lg border-2 px-4 py-2 text-xs font-bold transition hover:-translate-y-0.5 hover:shadow-sm active:scale-[0.98] focus:outline-none"
+                      className={`min-w-[88px] rounded-lg border px-4 py-2 text-xs font-semibold transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${
+                        checked ? styles.selected : styles.idle
+                      }`}
                       key={priority}
                       onClick={() => update('priority', priority)}
                       style={{
@@ -831,7 +1045,10 @@ export const DeptHeadCreateRequest: React.FC = () => {
           <div className="mr-0 flex items-center gap-3 text-xs text-slate-ink sm:mr-2">
             <span className="font-semibold">Readiness</span>
             <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface-container">
-              <div className="h-full rounded-full bg-teal-command" style={{ width: `${readiness}%` }} />
+              <div
+                className="h-full rounded-full bg-teal-command"
+                style={{ width: `${readiness}%` }}
+              />
             </div>
             <span className="font-mono">{readiness}%</span>
           </div>

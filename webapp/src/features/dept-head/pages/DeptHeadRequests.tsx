@@ -10,8 +10,19 @@ import {
   DeptHeadPageHeader,
   DeptHeadSearchInput,
 } from '../components';
+import {
+  getRequestTemplateByKey,
+  getTemplateFieldsForDisplay,
+  resolveDepartmentRequestTemplate,
+} from '../requestTemplates';
 
-type RequestStatus = 'Draft' | 'Pending' | 'Approved' | 'Revision Required' | 'Completed' | 'Rejected';
+type RequestStatus =
+  | 'Draft'
+  | 'Pending'
+  | 'Approved'
+  | 'Revision Required'
+  | 'Completed'
+  | 'Rejected';
 type Priority = 'Low' | 'Medium' | 'High' | 'Critical';
 type FilterKey = 'All' | 'Pending' | 'Approved' | 'Revision' | 'Completed';
 type SortKey = 'submitted' | 'priority' | 'status' | 'quantity';
@@ -48,15 +59,24 @@ interface RecruitmentRequestDetails {
   headcount: number;
   status: string;
   urgency: string;
+  department?: {
+    name?: string;
+    code?: string | null;
+  } | null;
   jobDescription?: string | null;
   justification?: string | null;
   skillRequirements?: {
     jobLevel?: string;
     employmentType?: string;
+    experience?: string;
+    education?: string;
     salaryMin?: string | number;
     salaryMax?: string | number;
     startDate?: string;
     skills?: string[];
+    templateKey?: string;
+    templateName?: string;
+    templateFields?: Record<string, unknown>;
   } | null;
 }
 
@@ -91,7 +111,11 @@ const priorityFromUrgency = (urgency?: string): Priority => {
   }
 };
 
-const statusFromApi = (status: string, filledHeadcount: number, targetHeadcount: number): RequestStatus => {
+const statusFromApi = (
+  status: string,
+  filledHeadcount: number,
+  targetHeadcount: number,
+): RequestStatus => {
   switch (status) {
     case 'DRAFT':
       return 'Draft';
@@ -141,11 +165,15 @@ const mapRequest = (item: RealtimeTrackingItem): DeptRequest => ({
 });
 
 const priorityStyles: Record<Priority, string> = {
-  Critical: 'text-rejected',
-  High: 'text-revision',
-  Medium: 'text-on-surface-variant',
-  Low: 'text-slate-ink',
+  Critical: 'rounded-full border border-[#dc2626]/30 bg-[#dc2626]/10 px-2.5 py-1 text-[#b91c1c]',
+  High: 'rounded-full border border-[#d97706]/30 bg-[#d97706]/10 px-2.5 py-1 text-[#b45309]',
+  Medium:
+    'rounded-full border border-teal-command/25 bg-teal-command/10 px-2.5 py-1 text-teal-command',
+  Low: 'rounded-full border border-slate-ink/25 bg-slate-ink/10 px-2.5 py-1 text-slate-ink',
 };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: string }) => {
   const paths: Record<string, React.ReactNode> = {
@@ -195,7 +223,8 @@ export const DeptHeadRequests: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [selectedRequestDetails, setSelectedRequestDetails] = useState<RecruitmentRequestDetails | null>(null);
+  const [selectedRequestDetails, setSelectedRequestDetails] =
+    useState<RecruitmentRequestDetails | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
   useEffect(() => {
@@ -225,7 +254,10 @@ export const DeptHeadRequests: React.FC = () => {
     const loadDetails = async () => {
       setLoadingDetails(true);
       try {
-        const data = await apiRequest<RecruitmentRequestDetails>(`/recruitment-requests/${selectedRequestId}`, token);
+        const data = await apiRequest<RecruitmentRequestDetails>(
+          `/recruitment-requests/${selectedRequestId}`,
+          token,
+        );
         if (cancelled) return;
         setSelectedRequestDetails(data);
       } catch (err) {
@@ -300,6 +332,19 @@ export const DeptHeadRequests: React.FC = () => {
     targetHeadcountSum > 0 ? Math.round((filledCount / targetHeadcountSum) * 100) : 0;
   const circumference = 2 * Math.PI * 24;
   const strokeOffset = circumference - (completionPercent / 100) * circumference;
+  const selectedSkillRequirements = selectedRequestDetails?.skillRequirements ?? null;
+  const selectedTemplate = selectedSkillRequirements?.templateKey
+    ? getRequestTemplateByKey(selectedSkillRequirements.templateKey)
+    : resolveDepartmentRequestTemplate(
+        selectedRequestDetails?.department?.name,
+        selectedRequestDetails?.department?.code,
+      );
+  const selectedTemplateFieldValues = getTemplateFieldsForDisplay(
+    selectedTemplate,
+    isRecord(selectedSkillRequirements?.templateFields)
+      ? selectedSkillRequirements?.templateFields
+      : selectedSkillRequirements,
+  );
 
   return (
     <DeptHeadDashboardPage>
@@ -307,34 +352,34 @@ export const DeptHeadRequests: React.FC = () => {
         title="Request Status Dashboard"
         actions={
           <>
-          <DeptHeadSearchInput
-            className="w-full md:w-56"
-            label="Search requests"
-            onChange={setQuery}
-            placeholder="Search requests..."
-            value={query}
-          />
-          <DeptHeadActionButton onClick={() => navigate('/dept-head/create-request')}>
-            <Icon className="h-4 w-4" name="add" />
-            New Request
-          </DeptHeadActionButton>
-          <div className="hidden h-8 w-px bg-border-warm md:block" />
-          <div className="flex gap-2 text-on-surface-variant">
-            <button
-              aria-label="Notifications"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg transition hover:bg-surface-container-high hover:text-teal-command active:scale-[0.98]"
-              type="button"
-            >
-              <Icon className="h-5 w-5" name="notification" />
-            </button>
-            <button
-              aria-label="History"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg transition hover:bg-surface-container-high hover:text-teal-command active:scale-[0.98]"
-              type="button"
-            >
-              <Icon className="h-5 w-5" name="history" />
-            </button>
-          </div>
+            <DeptHeadSearchInput
+              className="w-full md:w-56"
+              label="Search requests"
+              onChange={setQuery}
+              placeholder="Search requests..."
+              value={query}
+            />
+            <DeptHeadActionButton onClick={() => navigate('/dept-head/create-request')}>
+              <Icon className="h-4 w-4" name="add" />
+              New Request
+            </DeptHeadActionButton>
+            <div className="hidden h-8 w-px bg-border-warm md:block" />
+            <div className="flex gap-2 text-on-surface-variant">
+              <button
+                aria-label="Notifications"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg transition hover:bg-surface-container-high hover:text-teal-command active:scale-[0.98]"
+                type="button"
+              >
+                <Icon className="h-5 w-5" name="notification" />
+              </button>
+              <button
+                aria-label="History"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg transition hover:bg-surface-container-high hover:text-teal-command active:scale-[0.98]"
+                type="button"
+              >
+                <Icon className="h-5 w-5" name="history" />
+              </button>
+            </div>
           </>
         }
       />
@@ -343,7 +388,10 @@ export const DeptHeadRequests: React.FC = () => {
 
       {loading && <DeptHeadLoadingState label="Loading requests..." />}
 
-      <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4" aria-label="Request metrics">
+      <section
+        className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4"
+        aria-label="Request metrics"
+      >
         <MetricCard icon="assignment" label="Total Requests" value={totalRequests} />
         <MetricCard icon="hourglass" label="Pending Approval" value={pendingCount} />
         <MetricCard icon="check" label="Approved & Active" value={approvedActiveCount} />
@@ -471,7 +519,9 @@ export const DeptHeadRequests: React.FC = () => {
                         {request.priority}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-on-surface-variant">{request.submitted}</td>
+                    <td className="px-6 py-4 text-sm text-on-surface-variant">
+                      {request.submitted}
+                    </td>
                     <td className="px-6 py-4">
                       <span
                         className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${statusStyles[request.status]}`}
@@ -485,7 +535,9 @@ export const DeptHeadRequests: React.FC = () => {
                           <>
                             <button
                               className="text-xs font-semibold text-teal-command transition hover:underline active:scale-[0.98]"
-                              onClick={() => navigate(`/dept-head/create-request?requestId=${request.id}`)}
+                              onClick={() =>
+                                navigate(`/dept-head/create-request?requestId=${request.id}`)
+                              }
                               type="button"
                             >
                               Edit
@@ -502,7 +554,9 @@ export const DeptHeadRequests: React.FC = () => {
                         {request.status === 'Revision Required' && (
                           <button
                             className="text-xs font-semibold text-teal-command transition hover:underline active:scale-[0.98]"
-                            onClick={() => navigate(`/dept-head/create-request?requestId=${request.id}`)}
+                            onClick={() =>
+                              navigate(`/dept-head/create-request?requestId=${request.id}`)
+                            }
                             type="button"
                           >
                             Edit
@@ -596,26 +650,44 @@ export const DeptHeadRequests: React.FC = () => {
                 ['Quantity', selectedRequest.quantity],
                 ['Priority', selectedRequest.priority],
                 ['Submitted', selectedRequest.submitted],
-                ['Next action', selectedRequest.status === 'Draft' ? 'Submit request' : 'Monitor status'],
+                [
+                  'Next action',
+                  selectedRequest.status === 'Draft' ? 'Submit request' : 'Monitor status',
+                ],
               ].map(([label, value]) => (
-                <div className="rounded-lg border border-border-warm bg-workflow-ivory/70 p-4" key={label}>
+                <div
+                  className="rounded-lg border border-border-warm bg-workflow-ivory/70 p-4"
+                  key={label}
+                >
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
                     {label}
                   </p>
-                  <p className="mt-2 text-sm font-semibold text-deep-charcoal">{value}</p>
+                  {label === 'Priority' ? (
+                    <span
+                      className={`mt-2 inline-flex items-center gap-1.5 text-xs font-bold uppercase ${priorityStyles[value as Priority]}`}
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                      {value}
+                    </span>
+                  ) : (
+                    <p className="mt-2 text-sm font-semibold text-deep-charcoal">{value}</p>
+                  )}
                 </div>
               ))}
             </div>
 
             <div className="mt-5 grid gap-4 lg:grid-cols-2">
-              {selectedRequest.status === 'Revision Required' && selectedRequest.rejectionReason && (
-                <div className="lg:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-900 mb-1">
-                    Feedback / Revision Instructions
-                  </p>
-                  <p className="leading-relaxed font-semibold">{selectedRequest.rejectionReason}</p>
-                </div>
-              )}
+              {selectedRequest.status === 'Revision Required' &&
+                selectedRequest.rejectionReason && (
+                  <div className="lg:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-900 mb-1">
+                      Feedback / Revision Instructions
+                    </p>
+                    <p className="leading-relaxed font-semibold">
+                      {selectedRequest.rejectionReason}
+                    </p>
+                  </div>
+                )}
               <div className="rounded-lg border border-border-warm p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
                   Status summary
@@ -641,7 +713,9 @@ export const DeptHeadRequests: React.FC = () => {
                     selectedRequest.status === 'Revision Required') && (
                     <button
                       className="inline-flex h-9 items-center justify-center rounded-lg border border-border-warm px-3 text-xs font-semibold text-teal-command transition hover:border-teal-command active:scale-[0.98]"
-                      onClick={() => navigate('/dept-head/create-request')}
+                      onClick={() =>
+                        navigate(`/dept-head/create-request?requestId=${selectedRequest.id}`)
+                      }
                       type="button"
                     >
                       Edit Request
@@ -698,14 +772,17 @@ export const DeptHeadRequests: React.FC = () => {
             {/* Body */}
             <div className="flex-grow p-6 overflow-y-auto custom-scrollbar space-y-6">
               {/* Revision feedback banner if status is Revision Required */}
-              {selectedRequest.status === 'Revision Required' && selectedRequest.rejectionReason && (
-                <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-900 mb-1">
-                    Feedback / Revision Instructions
-                  </p>
-                  <p className="leading-relaxed font-semibold">{selectedRequest.rejectionReason}</p>
-                </div>
-              )}
+              {selectedRequest.status === 'Revision Required' &&
+                selectedRequest.rejectionReason && (
+                  <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-900 mb-1">
+                      Feedback / Revision Instructions
+                    </p>
+                    <p className="leading-relaxed font-semibold">
+                      {selectedRequest.rejectionReason}
+                    </p>
+                  </div>
+                )}
 
               {/* Status and urgency section */}
               <div className="grid grid-cols-2 gap-4">
@@ -761,7 +838,32 @@ export const DeptHeadRequests: React.FC = () => {
                         Employment Type
                       </p>
                       <p className="mt-2 text-sm font-semibold text-deep-charcoal">
-                        {selectedRequestDetails?.skillRequirements?.employmentType || 'Not specified'}
+                        {selectedRequestDetails?.skillRequirements?.employmentType ||
+                          'Not specified'}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border-warm p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                        Request Template
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-teal-command">
+                        {selectedSkillRequirements?.templateName || selectedTemplate.name}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border-warm p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                        Experience
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-deep-charcoal">
+                        {selectedSkillRequirements?.experience || 'Not specified'}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border-warm p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                        Education
+                      </p>
+                      <p className="mt-2 text-sm font-semibold text-deep-charcoal">
+                        {selectedSkillRequirements?.education || 'Not specified'}
                       </p>
                     </div>
                     <div className="rounded-lg border border-border-warm p-4">
@@ -769,7 +871,8 @@ export const DeptHeadRequests: React.FC = () => {
                         Salary Range
                       </p>
                       <p className="mt-2 text-sm font-semibold text-teal-command">
-                        {selectedRequestDetails?.skillRequirements?.salaryMin && selectedRequestDetails?.skillRequirements?.salaryMax
+                        {selectedRequestDetails?.skillRequirements?.salaryMin &&
+                        selectedRequestDetails?.skillRequirements?.salaryMax
                           ? `${Number(selectedRequestDetails.skillRequirements.salaryMin).toLocaleString()} - ${Number(selectedRequestDetails.skillRequirements.salaryMax).toLocaleString()} VND`
                           : 'Not specified'}
                       </p>
@@ -780,30 +883,56 @@ export const DeptHeadRequests: React.FC = () => {
                       </p>
                       <p className="mt-2 text-sm font-semibold text-deep-charcoal">
                         {selectedRequestDetails?.skillRequirements?.startDate
-                          ? new Date(selectedRequestDetails.skillRequirements.startDate).toLocaleDateString()
+                          ? new Date(
+                              selectedRequestDetails.skillRequirements.startDate,
+                            ).toLocaleDateString()
                           : 'Not specified'}
                       </p>
                     </div>
                   </div>
 
-                  {/* Skills tags */}
-                  {selectedRequestDetails?.skillRequirements?.skills && selectedRequestDetails.skillRequirements.skills.length > 0 && (
+                  {selectedTemplateFieldValues.length > 0 && (
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant mb-2">
-                        Required Skills
+                        Template Details
                       </p>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedRequestDetails.skillRequirements.skills.map((skill: string) => (
-                          <span
-                            key={skill}
-                            className="inline-flex items-center rounded-full bg-secondary-container px-3 py-1 text-xs font-semibold text-on-secondary-container"
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        {selectedTemplateFieldValues.map((field) => (
+                          <div
+                            className="rounded-lg border border-border-warm bg-workflow-ivory/40 p-3"
+                            key={field.key}
                           >
-                            {skill}
-                          </span>
+                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                              {field.label}
+                            </p>
+                            <p className="mt-2 whitespace-pre-wrap text-sm font-semibold leading-6 text-deep-charcoal">
+                              {field.value}
+                            </p>
+                          </div>
                         ))}
                       </div>
                     </div>
                   )}
+
+                  {/* Skills tags */}
+                  {selectedRequestDetails?.skillRequirements?.skills &&
+                    selectedRequestDetails.skillRequirements.skills.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant mb-2">
+                          Required Skills
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedRequestDetails.skillRequirements.skills.map((skill: string) => (
+                            <span
+                              key={skill}
+                              className="inline-flex items-center rounded-full bg-secondary-container px-3 py-1 text-xs font-semibold text-on-secondary-container"
+                            >
+                              {skill}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                   {/* Job Description */}
                   <div>
@@ -837,7 +966,8 @@ export const DeptHeadRequests: React.FC = () => {
               >
                 Close
               </button>
-              {(selectedRequest.status === 'Draft' || selectedRequest.status === 'Revision Required') && (
+              {(selectedRequest.status === 'Draft' ||
+                selectedRequest.status === 'Revision Required') && (
                 <button
                   className="rounded-lg bg-teal-command hover:bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition active:scale-[0.98]"
                   onClick={() => {
