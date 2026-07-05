@@ -1,7 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { Prisma } from '@prisma/client';
-import { RecruitmentRequestStatus, UserRole } from '@wr/contracts';
+import { isHrRole, RecruitmentRequestStatus, UserRole } from '@wr/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
 
 export type UUID = string;
@@ -158,17 +158,6 @@ export class RecruitmentRequestsService {
     if (payload.departmentId) where.departmentId = payload.departmentId;
     if (payload.urgency) where.urgency = payload.urgency;
     if (payload.reviewedById) where.reviewedById = payload.reviewedById;
-    if (payload.role === UserRole.HR_RECRUITER && payload.userId) {
-      where.overallPlan = {
-        is: {
-          tasks: {
-            some: {
-              assignedToId: payload.userId,
-            },
-          },
-        },
-      };
-    }
     if (payload.q?.trim()) {
       where.OR = [
         { position: { contains: payload.q.trim(), mode: 'insensitive' } },
@@ -327,9 +316,7 @@ export class RecruitmentRequestsService {
     const canAccess =
       payload.role === UserRole.ADMIN ||
       (payload.role === UserRole.DEPARTMENT_HEAD && request.createdById === payload.userId) ||
-      payload.role === UserRole.HR_LEADER ||
-      (payload.role === UserRole.HR_RECRUITER &&
-        request.overallPlan?.tasks.some((task) => task.assignedToId === payload.userId));
+      isHrRole(payload.role);
 
     if (!canAccess) {
       throw new RpcException({
@@ -422,7 +409,7 @@ export class RecruitmentRequestsService {
     }
 
     const isOwner = request.createdById === payload.userId;
-    const isHrLeader = payload.role === 'HR_LEADER';
+    const isHrLeader = isHrRole(payload.role);
 
     if (!isOwner && !isHrLeader) {
       throw new RpcException({
@@ -443,7 +430,7 @@ export class RecruitmentRequestsService {
       ) {
         throw new RpcException({
           status: HttpStatus.CONFLICT,
-          message: `HR Leaders can only propose edits while the request is pending HR review`,
+          message: `HR can only propose edits while the request is pending HR review`,
         });
       }
 
@@ -584,10 +571,10 @@ export class RecruitmentRequestsService {
         message: `Recruitment request with ID ${payload.id} not found`,
       });
     }
-    if (!hrManager || hrManager.role !== UserRole.HR_LEADER || !hrManager.isActive) {
+    if (!hrManager || !isHrRole(hrManager.role) || !hrManager.isActive) {
       throw new RpcException({
         status: HttpStatus.BAD_REQUEST,
-        message: 'The selected user must be an active HR Leader',
+        message: 'The selected user must be an active HR member',
       });
     }
 
@@ -640,7 +627,7 @@ export class RecruitmentRequestsService {
       });
     }
 
-    const isHrLeader = payload.role === 'HR_LEADER';
+    const isHrLeader = isHrRole(payload.role);
     if (isHrLeader) {
       if (!HR_REVIEW_STATUSES.includes(request.status as RecruitmentRequestStatus)) {
         throw new RpcException({
@@ -651,7 +638,7 @@ export class RecruitmentRequestsService {
       if (payload.decision !== 'REJECTED') {
         throw new RpcException({
           status: HttpStatus.BAD_REQUEST,
-          message: 'HR Leaders can only reject recruitment requests, not approve them directly',
+          message: 'HR can only reject recruitment requests, not approve them directly',
         });
       }
       if (request.reviewedById !== payload.adminId) {

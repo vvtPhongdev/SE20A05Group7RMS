@@ -1048,9 +1048,10 @@ export const AdminApprovalQueue: React.FC = () => {
                             {TASK_TYPE_LABELS[task.taskType] ?? task.taskType}
                           </p>
                           <p className="mt-0.5 text-xs text-on-surface-variant">
-                            {task.assignedTo?.role === 'HR_RECRUITER'
+                            {task.assignedTo?.role === 'HR_RECRUITER' ||
+                            task.assignedTo?.role === 'HR_LEADER'
                               ? task.assignedTo.displayName
-                              : 'Recruiter will be assigned after approval'}
+                              : 'HR member will be assigned after approval'}
                           </p>
                         </div>
                         <div className="mt-3 grid grid-cols-2 gap-3 border-t border-border-warm pt-3">

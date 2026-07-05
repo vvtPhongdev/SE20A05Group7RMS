@@ -11,9 +11,15 @@ export enum UserRole {
   ADMIN = 'ADMIN',
   DEPARTMENT_HEAD = 'DEPARTMENT_HEAD',
   HR_LEADER = 'HR_LEADER',
+  // Legacy value retained so existing accounts keep working. New HR accounts use HR_LEADER.
   HR_RECRUITER = 'HR_RECRUITER',
   CANDIDATE = 'CANDIDATE',
 }
+
+export const HR_ROLES = [UserRole.HR_LEADER, UserRole.HR_RECRUITER] as const;
+
+export const isHrRole = (role: unknown): role is (typeof HR_ROLES)[number] =>
+  role === UserRole.HR_LEADER || role === UserRole.HR_RECRUITER;
 
 // ─── Recruitment Request Lifecycle ─────────────────────────────────
 

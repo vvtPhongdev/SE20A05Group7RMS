@@ -266,7 +266,7 @@ export function App() {
           <Route
             path="/hr/requests"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
                 <Layout>
                   <HRRequestQueue />
                 </Layout>
@@ -356,7 +356,7 @@ export function App() {
           <Route
             path="/hr/reports"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
                 <Layout>
                   <HRPipelineReports />
                 </Layout>

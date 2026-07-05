@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { isHrRole } from '@wr/contracts';
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest, ApiError } from '../../../lib/api';
 import { mapPlanStatus, type OverallPlanSummary, type PlanStatus } from '../../../lib/planStatus';
@@ -26,14 +27,6 @@ type Campaign = {
   planId: string | null;
   approverName: string;
   updatedAt: string | null;
-};
-
-type TaskPlanApiItem = {
-  id: string;
-  taskType: string;
-  overallPlan: {
-    requestId: string;
-  };
 };
 
 interface RecruitmentRequestApiItem {
@@ -201,24 +194,12 @@ export const HRCampaigns: React.FC = () => {
     setLoading(true);
     setApiError('');
     try {
-      const isRecruiter = user?.role === 'HR_RECRUITER';
-      const [response, assignedTasks] = await Promise.all([
-        apiRequest<RecruitmentRequestListResponse>('/recruitment-requests?limit=100', token),
-        isRecruiter
-          ? apiRequest<TaskPlanApiItem[]>('/task-plan', token).catch(() => [])
-          : Promise.resolve([]),
-      ]);
-      const assignedRequestIds = new Set(
-        assignedTasks
-          .map((task) => task.overallPlan?.requestId)
-          .filter((requestId): requestId is string => Boolean(requestId)),
+      const response = await apiRequest<RecruitmentRequestListResponse>(
+        '/recruitment-requests?limit=100',
+        token,
       );
       const mapped = response.data
-        .filter(
-          (item) =>
-            !EXCLUDED_CAMPAIGN_STATUSES.has(item.status) &&
-            (!isRecruiter || assignedRequestIds.has(item.id)),
-        )
+        .filter((item) => !EXCLUDED_CAMPAIGN_STATUSES.has(item.status))
         .map(mapCampaign);
       setCampaigns(mapped);
       setSelectedId((current) =>
@@ -237,7 +218,7 @@ export const HRCampaigns: React.FC = () => {
     void loadCampaigns();
   }, [token, user?.id, user?.role]);
 
-  const canCreatePlans = user?.role === 'HR_LEADER';
+  const canCreatePlans = isHrRole(user?.role);
 
   useEffect(() => {
     const createRequestIdParam = searchParams.get('createRequestId');
@@ -516,9 +497,7 @@ export const HRCampaigns: React.FC = () => {
                 No campaigns match this view.
               </p>
               <p className="mt-1 text-sm text-slate-ink">
-                {user?.role === 'HR_RECRUITER'
-                  ? 'Only campaigns with tasks assigned to you are shown here.'
-                  : 'Adjust the search term or status filter.'}
+                Adjust the search term or status filter.
               </p>
             </div>
           ) : null}

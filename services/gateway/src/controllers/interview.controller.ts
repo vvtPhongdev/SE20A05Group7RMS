@@ -214,7 +214,7 @@ export class InterviewController {
   }
 
   @Post('schedules/:id/results')
-  @Roles(UserRole.HR_RECRUITER)
+  @Roles(UserRole.HR_LEADER)
   @ApiOperation({
     summary: 'FR-14: Record detailed panel feedbacks and final recommendation (Legacy path)',
   })
@@ -246,7 +246,7 @@ export class InterviewController {
   }
 
   @Post(':id/results')
-  @Roles(UserRole.HR_RECRUITER)
+  @Roles(UserRole.HR_LEADER)
   @ApiOperation({ summary: 'FR-14: Record detailed panel feedbacks and final recommendation' })
   recordResult(
     @Param('id') interviewId: string,

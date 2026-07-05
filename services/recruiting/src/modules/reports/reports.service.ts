@@ -1,7 +1,7 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { PrismaService } from '../../common/database/prisma.service';
-import { RecruitmentRequestStatus, UserRole } from '@wr/contracts';
+import { isHrRole, RecruitmentRequestStatus, UserRole } from '@wr/contracts';
 
 type DepartmentRequestSummary = {
   status: string;
@@ -476,19 +476,14 @@ export class ReportsService {
       });
       const departmentId = payload.departmentId ?? actor?.departmentId;
       where.OR = [{ createdById: userId }, ...(departmentId ? [{ departmentId }] : [])];
-    } else if (role === UserRole.HR_RECRUITER) {
-      where.OR = [
-        { overallPlan: { tasks: { some: { assignedToId: userId } } } },
-        { interviews: { some: { interviewers: { has: userId } } } },
-      ];
-    } else if (role === UserRole.HR_LEADER) {
+    } else if (isHrRole(role)) {
       where.OR = [
         { status: { not: RecruitmentRequestStatus.DRAFT } },
         { reviewedById: userId },
         { overallPlan: { tasks: { some: { assignedToId: userId } } } },
         { interviews: { some: { interviewers: { has: userId } } } },
       ];
-    } else if (![UserRole.ADMIN, UserRole.HR_LEADER].includes(role as UserRole)) {
+    } else if (role !== UserRole.ADMIN) {
       throw new RpcException({ status: HttpStatus.FORBIDDEN, message: 'Role is not allowed' });
     }
 
@@ -542,7 +537,7 @@ export class ReportsService {
         return UserRole.ADMIN;
       }
       if (['OFFER_EXTENDED'].includes(status)) return UserRole.CANDIDATE;
-      if (['ACTIVE', 'SCREENING', 'INTERVIEWING'].includes(status)) return UserRole.HR_RECRUITER;
+      if (['ACTIVE', 'SCREENING', 'INTERVIEWING'].includes(status)) return UserRole.HR_LEADER;
       return 'SYSTEM';
     };
 

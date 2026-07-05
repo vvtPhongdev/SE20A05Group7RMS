@@ -4,12 +4,12 @@ import { AuditLogService } from '@wr/database';
 import {
   AuditAction,
   AuditEntityType,
+  isHrRole,
   NotificationType,
   PlanStatus,
   RecruitmentRequestStatus,
   TaskStatus,
   TaskType,
-  UserRole,
 } from '@wr/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
 
@@ -484,12 +484,6 @@ export class OverallPlanService {
         HttpStatus.NOT_FOUND,
         `No OverallPlan found for RecruitmentRequest ${payload.hiringRequestId}`,
       );
-    if (
-      payload.role === UserRole.HR_RECRUITER &&
-      !plan.tasks.some((task) => task.assignedTo?.id === payload.userId)
-    ) {
-      this.rpc(HttpStatus.FORBIDDEN, 'HR recruiters can only view plans assigned to them');
-    }
     return plan;
   }
 
@@ -517,7 +511,7 @@ export class OverallPlanService {
 
     const invalidTask = plan.tasks.find(
       (task) =>
-        task.assignedTo.role !== 'HR_RECRUITER' ||
+        !isHrRole(task.assignedTo.role) ||
         !task.assignedTo.isActive ||
         !task.startDate ||
         !task.endDate,
@@ -525,7 +519,7 @@ export class OverallPlanService {
     if (invalidTask) {
       this.rpc(
         HttpStatus.BAD_REQUEST,
-        'Every task must be assigned to an active HR recruiter with start date and deadline before starting the campaign',
+        'Every task must be assigned to an active HR member with start date and deadline before starting the campaign',
       );
     }
 

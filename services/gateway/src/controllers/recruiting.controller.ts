@@ -22,6 +22,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import {
   HiringDecision,
+  isHrRole,
   OfferResponse,
   TaskStatus,
   TaskType,
@@ -647,7 +648,7 @@ export class RecruitingController {
 
   @Patch('overall-plan/:id/start-campaign')
   @Roles(UserRole.HR_LEADER)
-  @ApiOperation({ summary: 'Start an approved campaign and notify assigned HR recruiters' })
+  @ApiOperation({ summary: 'Start an approved campaign and notify assigned HR members' })
   startCampaign(@Param('id') id: string, @CurrentUser('sub') userId: string) {
     return firstValueFrom(
       this.recruitingClient.send('overall-plan.start_campaign', { id, performedById: userId }),
@@ -839,7 +840,7 @@ export class RecruitingController {
 
   @Patch('task-plan/:id/assign-recruiter')
   @Roles(UserRole.HR_LEADER)
-  @ApiOperation({ summary: 'Assign an approved campaign task to an HR recruiter' })
+  @ApiOperation({ summary: 'Assign an approved campaign task to an HR member' })
   assignTaskPlanRecruiter(
     @Param('id') id: string,
     @Body() body: AssignTaskPlanRecruiterDto,
@@ -1023,22 +1024,9 @@ export class RecruitingController {
       throw new BadRequestException('requestId is required');
     }
 
-    const plan = await firstValueFrom(
-      this.recruitingClient.send('overall-plan.getByRequest', {
-        hiringRequestId: body.requestId,
-        userId: user?.sub,
-        role: user?.role,
-      }),
-    );
-    const canUpload =
-      user?.role === UserRole.HR_LEADER ||
-      user?.role === UserRole.ADMIN ||
-      (user?.role === UserRole.HR_RECRUITER &&
-        plan?.tasks?.some(
-          (task: any) => task.taskType === TaskType.JOB_POSTING && task.assignedTo?.id === user.sub,
-        ));
+    const canUpload = user?.role === UserRole.ADMIN || isHrRole(user?.role);
     if (!canUpload) {
-      throw new ForbiddenException('Only the HR recruiter assigned to JOB_POSTING can upload media');
+      throw new ForbiddenException('Only HR can upload job posting media');
     }
 
     const allowedTypes: Record<string, string> = {

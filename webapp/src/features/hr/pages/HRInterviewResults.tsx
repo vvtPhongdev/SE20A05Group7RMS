@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { UserRole } from '@wr/contracts';
+import { isHrRole, UserRole } from '@wr/contracts';
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest } from '../../../lib/api';
 import {
@@ -72,11 +72,71 @@ type MeetingPhotoEvidence = {
   recordedAt?: string;
 };
 
+type SalaryDeal = {
+  expectedSalary: string;
+  proposedSalary: string;
+  status: 'NEGOTIATING' | 'AGREED' | 'DECLINED' | 'PENDING';
+  notes: string;
+};
+
 const RECOMMENDATION_OPTIONS_VALUES: Recommendation[] = [
   'Recommend Hire',
   'Recommend Reject',
   'Hold for Further',
 ];
+
+const emptySalaryDeal = (): SalaryDeal => ({
+  expectedSalary: '',
+  proposedSalary: '',
+  status: 'NEGOTIATING',
+  notes: '',
+});
+
+const SALARY_DEAL_START = '[INTERVIEW_SALARY_DEAL]';
+const SALARY_DEAL_END = '[/INTERVIEW_SALARY_DEAL]';
+const salaryDealPattern = new RegExp(
+  `${SALARY_DEAL_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s\\S]*?)${SALARY_DEAL_END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
+);
+
+const parseSalaryDeal = (value: string) => {
+  const match = value.match(salaryDealPattern);
+  if (!match) return { cleanSummary: value, deal: null as SalaryDeal | null };
+
+  try {
+    const deal = JSON.parse(match[1].trim()) as Partial<SalaryDeal>;
+    return {
+      cleanSummary: value.replace(salaryDealPattern, '').trim(),
+      deal: {
+        expectedSalary: deal.expectedSalary ?? '',
+        proposedSalary: deal.proposedSalary ?? '',
+        status: deal.status ?? 'NEGOTIATING',
+        notes: deal.notes ?? '',
+      },
+    };
+  } catch {
+    return { cleanSummary: value.replace(salaryDealPattern, '').trim(), deal: null };
+  }
+};
+
+const hasSalaryDeal = (deal: SalaryDeal) =>
+  Boolean(deal.expectedSalary.trim() || deal.proposedSalary.trim() || deal.notes.trim());
+
+const composeSalaryDeal = (summary: string, deal: SalaryDeal) => {
+  const cleanSummary = summary.trim();
+  if (!hasSalaryDeal(deal)) return cleanSummary;
+
+  return [
+    cleanSummary,
+    `${SALARY_DEAL_START}${JSON.stringify({
+      ...deal,
+      expectedSalary: deal.expectedSalary.trim(),
+      proposedSalary: deal.proposedSalary.trim(),
+      notes: deal.notes.trim(),
+    })}${SALARY_DEAL_END}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+};
 
 const MEETING_PHOTO_START = '[INTERVIEW_MEETING_PHOTO]';
 const MEETING_PHOTO_END = '[/INTERVIEW_MEETING_PHOTO]';
@@ -274,6 +334,7 @@ export const HRInterviewResults: React.FC = () => {
   const [offlineEvidenceReport, setOfflineEvidenceReport] = useState('');
   const [offlineEvidencePhotoName, setOfflineEvidencePhotoName] = useState('');
   const [offlineEvidencePhotoDataUrl, setOfflineEvidencePhotoDataUrl] = useState('');
+  const [salaryDeal, setSalaryDeal] = useState<SalaryDeal>(() => emptySalaryDeal());
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
   const [detailsLoading, setDetailsLoading] = useState(false);
@@ -283,7 +344,7 @@ export const HRInterviewResults: React.FC = () => {
   const [canSubmitMyFeedback, setCanSubmitMyFeedback] = useState(false);
 
   const canEditOwnFeedback = canSubmitMyFeedback;
-  const canSubmitDecision = user?.role === UserRole.HR_LEADER;
+  const canSubmitDecision = isHrRole(user?.role);
   const canSubmitCurrentResult = canEditOwnFeedback || canSubmitDecision;
 
   useEffect(() => {
@@ -335,8 +396,10 @@ export const HRInterviewResults: React.FC = () => {
             ? (details.finalRecommendation as Recommendation)
             : 'Hold for Further',
         );
-        const parsedSummary = parseOfflineEvidence(details.summaryNotes ?? '');
+        const parsedDeal = parseSalaryDeal(details.summaryNotes ?? '');
+        const parsedSummary = parseOfflineEvidence(parsedDeal.cleanSummary);
         setSummaryNotes(parsedSummary.cleanSummary);
+        setSalaryDeal(parsedDeal.deal ?? emptySalaryDeal());
         setOfflineEvidenceReport(parsedSummary.evidence?.report ?? '');
         setOfflineEvidencePhotoName(parsedSummary.evidence?.photoName ?? '');
         setOfflineEvidencePhotoDataUrl(parsedSummary.evidence?.photoDataUrl ?? '');
@@ -344,6 +407,7 @@ export const HRInterviewResults: React.FC = () => {
         setFeedback([]);
         setCanSubmitMyFeedback(false);
         setSummaryNotes('');
+        setSalaryDeal(emptySalaryDeal());
         setOfflineEvidenceReport('');
         setOfflineEvidencePhotoName('');
         setOfflineEvidencePhotoDataUrl('');
@@ -522,15 +586,16 @@ export const HRInterviewResults: React.FC = () => {
         );
       }
 
+      const summaryWithSalaryDeal = composeSalaryDeal(summaryNotes, salaryDeal);
       const submittedSummaryNotes = isOfflineInterview
-        ? composeOfflineEvidence(summaryNotes, {
+        ? composeOfflineEvidence(summaryWithSalaryDeal, {
             location: selectedInterview.location,
             report: offlineEvidenceReport.trim(),
             photoName: offlineEvidencePhotoName || undefined,
             photoDataUrl: offlineEvidencePhotoDataUrl || undefined,
             recordedAt: new Date().toISOString(),
           })
-        : summaryNotes;
+        : summaryWithSalaryDeal;
 
       await apiRequest(hrInterviewResultsApi.finalRecommendation(selectedInterview.id), token, {
         method: 'POST',
@@ -557,7 +622,7 @@ export const HRInterviewResults: React.FC = () => {
       <HRPageHeader
         eyebrow="HR Manager Portal"
         title="Interview Results"
-        description="Invited HR interviewers record their own candidate evaluation. HR Leader reviews panel feedback and sends the final recommendation to Admin."
+        description="HR records candidate evaluations, reviews panel feedback, and sends the final recommendation to Admin."
         actions={
           <HRSearchInput
             className="w-full max-w-md"
@@ -867,6 +932,90 @@ export const HRInterviewResults: React.FC = () => {
                       })}
                     </div>
 
+                    <section className="space-y-4 rounded-lg border border-border-warm bg-workflow-ivory/50 p-4">
+                      <div>
+                        <h4 className="text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">
+                          Salary Deal
+                        </h4>
+                        <p className="mt-1 text-sm leading-6 text-slate-ink">
+                          Record the candidate compensation discussion so Admin can prepare the
+                          offer with the right framework.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <label className="block space-y-2">
+                          <span className="text-sm font-bold text-slate-ink">
+                            Candidate Expected Salary
+                          </span>
+                          <input
+                            className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-70"
+                            disabled={submitting}
+                            onChange={(event) =>
+                              setSalaryDeal((current) => ({
+                                ...current,
+                                expectedSalary: event.target.value,
+                              }))
+                            }
+                            placeholder="e.g. 45,000,000 VND gross/month"
+                            value={salaryDeal.expectedSalary}
+                          />
+                        </label>
+                        <label className="block space-y-2">
+                          <span className="text-sm font-bold text-slate-ink">
+                            HR Proposed Salary
+                          </span>
+                          <input
+                            className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-70"
+                            disabled={submitting}
+                            onChange={(event) =>
+                              setSalaryDeal((current) => ({
+                                ...current,
+                                proposedSalary: event.target.value,
+                              }))
+                            }
+                            placeholder="e.g. Negotiable"
+                            value={salaryDeal.proposedSalary}
+                          />
+                        </label>
+                        <label className="block space-y-2">
+                          <span className="text-sm font-bold text-slate-ink">Deal Status</span>
+                          <select
+                            className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-70"
+                            disabled={submitting}
+                            onChange={(event) =>
+                              setSalaryDeal((current) => ({
+                                ...current,
+                                status: event.target.value as SalaryDeal['status'],
+                              }))
+                            }
+                            value={salaryDeal.status}
+                          >
+                            <option value="NEGOTIATING">Negotiating</option>
+                            <option value="AGREED">Agreed</option>
+                            <option value="PENDING">Pending Candidate Response</option>
+                            <option value="DECLINED">Declined</option>
+                          </select>
+                        </label>
+                      </div>
+                      <label className="block space-y-2">
+                        <span className="text-sm font-bold text-slate-ink">
+                          Salary Discussion Notes
+                        </span>
+                        <textarea
+                          className="min-h-[88px] w-full rounded-lg border border-border-warm bg-clean-surface p-3 text-sm leading-6 outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-70"
+                          disabled={submitting}
+                          onChange={(event) =>
+                            setSalaryDeal((current) => ({
+                              ...current,
+                              notes: event.target.value,
+                            }))
+                          }
+                          placeholder="Capture candidate expectation, HR proposed range, benefits discussion, or follow-up terms..."
+                          value={salaryDeal.notes}
+                        />
+                      </label>
+                    </section>
+
                     <label className="block space-y-2">
                       <span className="text-sm font-bold text-slate-ink">
                         Executive Summary Notes
@@ -935,7 +1084,7 @@ export const HRInterviewResults: React.FC = () => {
                   </>
                 ) : (
                   <div className="rounded-lg border border-border-warm bg-workflow-ivory p-4 text-sm leading-6 text-slate-ink">
-                    Final Recommendation and Admin submission are only available to HR Leader. Your
+                    Final Recommendation and Admin submission are available to HR. Your
                     role can save personal candidate evaluation when you are invited to this
                     interview.
                   </div>

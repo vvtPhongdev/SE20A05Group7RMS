@@ -579,10 +579,6 @@ export class IdentityController {
   async listUsers(@Query() query: ListUsersQueryDto, @CurrentUser() user: JwtPayload) {
     const scopedQuery = { ...query };
 
-    if (user.role === UserRole.HR_LEADER) {
-      scopedQuery.role = UserRole.HR_RECRUITER;
-    }
-
     if (user.role === UserRole.DEPARTMENT_HEAD) {
       const currentUser = await firstValueFrom(
         this.identityClient.send('users.get', { id: user.sub }),
@@ -662,7 +658,7 @@ export class IdentityController {
         displayName: body.displayName,
         phone: body.phone || null,
         password: body.password,
-        role: UserRole.HR_RECRUITER,
+        role: UserRole.HR_LEADER,
         organizationId: currentUser.organizationId,
         departmentId,
       }),

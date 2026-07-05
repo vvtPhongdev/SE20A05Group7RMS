@@ -111,8 +111,8 @@ Object.values(UserRole).forEach((role) => {
 const roleLabels: Record<UserRole, string> = {
   [UserRole.ADMIN]: 'System Admin',
   [UserRole.DEPARTMENT_HEAD]: 'Department Head',
-  [UserRole.HR_LEADER]: 'HR Leader',
-  [UserRole.HR_RECRUITER]: 'HR Recruiter',
+  [UserRole.HR_LEADER]: 'HR',
+  [UserRole.HR_RECRUITER]: 'HR',
   [UserRole.CANDIDATE]: 'Candidate',
 };
 

@@ -9,7 +9,7 @@ import {
   AdminPageHeader,
 } from '../components';
 
-type RoleKey = 'Admin' | 'Department Head' | 'HR Leader' | 'HR Recruiter' | 'Candidate';
+type RoleKey = 'Admin' | 'Department Head' | 'HR' | 'Candidate';
 type UserStatus = 'Active' | 'Inactive' | 'Pending';
 type EmailCheckState = 'idle' | 'checking' | 'available' | 'exists';
 
@@ -33,22 +33,14 @@ const emptyForm: UserForm = {
   status: 'Active',
 };
 
-const roles: Array<RoleKey | 'All'> = [
-  'All',
-  'Admin',
-  'Department Head',
-  'HR Leader',
-  'HR Recruiter',
-  'Candidate',
-];
+const roles: Array<RoleKey | 'All'> = ['All', 'Admin', 'Department Head', 'HR', 'Candidate'];
 const statuses: Array<UserStatus | 'All'> = ['All', 'Active', 'Inactive'];
 
 const roleBadgeClasses: Record<RoleKey, string> = {
   Admin: 'bg-deep-charcoal text-white',
   // Department Head: Đổi bg sang vàng nhạt (bg-yellow-100), chữ text-revision đậm hơn (font-bold hoặc font-semibold)
   'Department Head': 'bg-yellow-100 font-semibold text-revision',
-  'HR Leader': 'bg-teal-command text-white',
-  'HR Recruiter': 'bg-teal-command text-white',
+  HR: 'bg-teal-command text-white',
   // Candidate: Giữ nền xám/tím nhạt bằng cách dùng border/bg hiện tại (hoặc dùng bg-slate-100), chữ text-draft thay vì chữ trắng
   Candidate: 'border border-draft/30 bg-draft/15 text-draft',
 };
@@ -97,8 +89,7 @@ export const AdminUsers: React.FC = () => {
   const mapRole = (role: string): RoleKey => {
     if (role === 'ADMIN') return 'Admin';
     if (role === 'DEPARTMENT_HEAD') return 'Department Head';
-    if (role === 'HR_LEADER') return 'HR Leader';
-    if (role === 'HR_RECRUITER') return 'HR Recruiter';
+    if (role === 'HR_LEADER' || role === 'HR_RECRUITER') return 'HR';
     return 'Candidate';
   };
 
@@ -106,8 +97,7 @@ export const AdminUsers: React.FC = () => {
     ({
       Admin: 'ADMIN',
       'Department Head': 'DEPARTMENT_HEAD',
-      'HR Leader': 'HR_LEADER',
-      'HR Recruiter': 'HR_RECRUITER',
+      HR: 'HR_LEADER',
       Candidate: 'CANDIDATE',
     })[role];
 
@@ -165,8 +155,7 @@ export const AdminUsers: React.FC = () => {
     return {
       total: users.length,
       admins: users.filter((u) => u.role === 'Admin').length,
-      hrLeaders: users.filter((u) => u.role === 'HR Leader').length,
-      hrRecruiters: users.filter((u) => u.role === 'HR Recruiter').length,
+      hr: users.filter((u) => u.role === 'HR').length,
       deptHeads: users.filter((u) => u.role === 'Department Head').length,
       candidates: users.filter((u) => u.role === 'Candidate').length,
     };
@@ -570,11 +559,7 @@ export const AdminUsers: React.FC = () => {
         </div>
         <div className="flex items-center px-4 py-2 bg-clean-surface border border-border-warm rounded-full gap-2">
           <span className="w-2 h-2 rounded-full bg-teal-command"></span>
-          <span className="font-label-md text-on-surface">{counts.hrLeaders} HR Leaders</span>
-        </div>
-        <div className="flex items-center px-4 py-2 bg-clean-surface border border-border-warm rounded-full gap-2">
-          <span className="w-2 h-2 rounded-full bg-teal-command"></span>
-          <span className="font-label-md text-on-surface">{counts.hrRecruiters} HR Recruiters</span>
+          <span className="font-label-md text-on-surface">{counts.hr} HR</span>
         </div>
         <div className="flex items-center px-4 py-2 bg-clean-surface border border-border-warm rounded-full gap-2">
           <span className="w-2 h-2 rounded-full bg-revision"></span>
@@ -608,8 +593,7 @@ export const AdminUsers: React.FC = () => {
           <option value="All">Role</option>
           <option value="Admin">Admin</option>
           <option value="Department Head">Department Head</option>
-          <option value="HR Leader">HR Leader</option>
-          <option value="HR Recruiter">HR Recruiter</option>
+          <option value="HR">HR</option>
           <option value="Candidate">Candidate</option>
         </select>
         <select

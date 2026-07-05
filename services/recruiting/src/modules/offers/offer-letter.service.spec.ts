@@ -72,9 +72,14 @@ describe('OfferLetterService', () => {
     );
 
     expect(result.status).toBe(OfferStatus.DRAFT);
-    expect(result.content).toContain('Backend Engineer');
+    expect(result.content).toContain('Dear CANDIDATE ONE,');
+    expect(result.content).toContain('formal offer of employment for the position of Backend Engineer');
+    expect(result.content).toContain('Candidate: CANDIDATE ONE');
+    expect(result.content).toContain('Position: Backend Engineer');
     expect(result.content).toContain('Engineering');
     expect(result.content).toContain('45,000,000 VND');
+    expect(result.content).toContain('Proposed Start Date: 2026-07-15');
+    expect(result.content).toContain('Warm regards,');
   });
 
   it('queues the reviewed offer for email delivery', async () => {
@@ -111,8 +116,18 @@ describe('OfferLetterService', () => {
       expect.objectContaining({
         emailLogId: 'email-1',
         to: 'candidate@example.com',
+        subject: 'Job Offer: Backend Engineer - [Company Name]',
+        body: 'Offer letter content',
       }),
       expect.any(Object),
+    );
+    expect(prisma.emailLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          subject: 'Job Offer: Backend Engineer - [Company Name]',
+          body: 'Offer letter content',
+        }),
+      }),
     );
   });
 

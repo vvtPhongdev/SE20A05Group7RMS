@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { UserRole } from '@wr/contracts';
+import { isHrRole, UserRole } from '@wr/contracts';
 import { useAuth } from '../../../context/AuthContext';
 import { ApiError, apiRequest } from '../../../lib/api';
 import {
@@ -278,10 +278,7 @@ export const HRJobPostingWorkspace: React.FC = () => {
     () => plan?.tasks.find((task) => task.taskType === 'JOB_POSTING') ?? null,
     [plan],
   );
-  const canUseWorkspace =
-    user?.role === UserRole.HR_LEADER ||
-    user?.role === UserRole.ADMIN ||
-    (user?.role === UserRole.HR_RECRUITER && jobPostingTask?.assignedTo?.id === user.id);
+  const canUseWorkspace = user?.role === UserRole.ADMIN || isHrRole(user?.role);
   const banner = media.find((item) => item.kind === 'BANNER') ?? null;
   const noticeImages = media.filter((item) => item.kind === 'NOTICE');
   const requirements = asRecord(posting?.requirements ?? request?.skillRequirements);

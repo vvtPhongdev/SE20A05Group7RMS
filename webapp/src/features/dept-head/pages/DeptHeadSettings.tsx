@@ -765,7 +765,7 @@ export const DeptHeadSettings: React.FC = () => {
                 </p>
                 <h2 className="mt-1 text-xl font-semibold text-deep-charcoal">Add Member</h2>
                 <p className="mt-1 text-sm text-slate-ink">
-                  New members are added as HR Recruiter in {department?.name ?? 'your department'}.
+                  New members are added as HR in {department?.name ?? 'your department'}.
                 </p>
               </div>
               <button
