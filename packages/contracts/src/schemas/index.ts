@@ -63,6 +63,15 @@ export const VerifyRegisterSchema = z.object({
   code: z.string().length(6),
 });
 
+export const SupabaseLoginSchema = z.object({
+  accessToken: z.string().min(1),
+});
+
+export const SupabaseRegisterSchema = SupabaseLoginSchema.extend({
+  displayName: z.string().min(1).max(255),
+  role: z.nativeEnum(UserRole),
+});
+
 export const UpdateUserSchema = z.object({
   displayName: z.string().min(1).max(255).optional(),
   phone: z.string().max(20).optional().nullable(),
@@ -85,6 +94,8 @@ export const AuthTokenResponseSchema = z.object({
 export type CreateUserInput = z.infer<typeof CreateUserSchema>;
 export type RegisterUserInput = z.infer<typeof RegisterUserSchema>;
 export type VerifyRegisterInput = z.infer<typeof VerifyRegisterSchema>;
+export type SupabaseLoginInput = z.infer<typeof SupabaseLoginSchema>;
+export type SupabaseRegisterInput = z.infer<typeof SupabaseRegisterSchema>;
 export type LoginInput = z.infer<typeof LoginSchema>;
 export type UpdateUserInput = z.infer<typeof UpdateUserSchema>;
 export type ForgotPasswordInput = z.infer<typeof ForgotPasswordSchema>;
@@ -353,7 +364,8 @@ export const CreateJobPostingSchema = z.object({
   description: z.string().min(1).optional(),
   requirements: z.record(z.unknown()).default({}),
   visibility: z.nativeEnum(JobVisibility).default(JobVisibility.PRIVATE),
-  expireDate: z.string().datetime().optional().nullable(),
+  startDate: z.string().datetime(),
+  expireDate: z.string().datetime(),
 });
 
 export const UpdateJobPostingSchema = CreateJobPostingSchema.partial().extend({

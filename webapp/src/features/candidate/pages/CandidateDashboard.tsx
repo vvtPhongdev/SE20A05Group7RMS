@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { JobDetailsModal } from '../../../components/JobDetailsModal';
 import { useAuth } from '../../../context/AuthContext';
 import { ApiError, apiRequest } from '../../../lib/api';
 import {
@@ -35,6 +36,8 @@ type JobPosting = {
   requestId: string;
   title: string;
   description: string;
+  requirements?: Record<string, unknown> | null;
+  startDate?: string | null;
   expireDate?: string | null;
   request?: {
     department?: { name: string } | null;
@@ -61,6 +64,23 @@ type ProfileResponse = {
     };
   }>;
   interviews: Interview[];
+};
+
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+
+const getJobBannerUrl = (job: JobPosting) => {
+  const media = asRecord(job.requirements).recruitmentMedia;
+  if (!Array.isArray(media)) return '';
+
+  const banner = media.find((item) => {
+    const record = asRecord(item);
+    return record.kind === 'BANNER' && typeof record.url === 'string';
+  });
+
+  return typeof asRecord(banner).url === 'string' ? (asRecord(banner).url as string) : '';
 };
 
 const steps: Step[] = ['Applied', 'CV Review', 'Interview', 'Final Decision'];
@@ -125,6 +145,7 @@ export const CandidateDashboard: React.FC = () => {
   const [error, setError] = useState('');
   const [actionMessage, setActionMessage] = useState('');
   const [applyingRequestId, setApplyingRequestId] = useState('');
+  const [selectedJob, setSelectedJob] = useState<JobPosting | null>(null);
 
   useEffect(() => {
     const loadDashboard = async () => {
@@ -133,7 +154,10 @@ export const CandidateDashboard: React.FC = () => {
       try {
         const [profile, jobs] = await Promise.all([
           apiRequest<ProfileResponse>('/candidate-profiles/me', token),
-          apiRequest<JobPosting[]>('/job-postings', token).catch(() => []),
+          apiRequest<JobPosting[]>(
+            '/public/job-postings?status=PUBLISHED&visibility=PUBLIC',
+            null,
+          ).catch(() => []),
         ]);
         const mapped = profile.applications.map((application): Application => {
           const status = application.status.toUpperCase();
@@ -194,6 +218,10 @@ export const CandidateDashboard: React.FC = () => {
     () => openJobs.filter((job) => !applications.some((app) => app.requestId === job.requestId)),
     [applications, openJobs],
   );
+  const openJobsEmptyTitle =
+    openJobs.length === 0
+      ? 'No published jobs are available right now.'
+      : 'You have already applied to every published job.';
 
   const handleApplicationAction = (application: Application) => {
     if (application.interviewId) {
@@ -283,7 +311,9 @@ export const CandidateDashboard: React.FC = () => {
 
       {loading ? <CandidateLoadingState label="Loading applications..." /> : null}
       {error ? <CandidateInlineAlert>{error}</CandidateInlineAlert> : null}
-      {actionMessage ? <CandidateInlineAlert tone="teal">{actionMessage}</CandidateInlineAlert> : null}
+      {actionMessage ? (
+        <CandidateInlineAlert tone="teal">{actionMessage}</CandidateInlineAlert>
+      ) : null}
 
       <section className="mb-12" id="open-jobs">
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -301,39 +331,65 @@ export const CandidateDashboard: React.FC = () => {
         </div>
 
         {availableJobs.length === 0 ? (
-          <CandidateEmptyState title="No published jobs are available right now." />
+          <CandidateEmptyState title={openJobsEmptyTitle} />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {availableJobs.map((job) => (
-              <CandidateCard
-                as="article"
-                className="flex min-h-60 flex-col p-5"
-                key={job.id}
-              >
-                <div className="mb-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-teal-command">
-                    {job.request?.department?.name ?? 'Hiring team'}
-                  </p>
-                  <h3 className="mt-2 text-lg font-semibold text-deep-charcoal">{job.title}</h3>
-                </div>
-                <p className="line-clamp-4 flex-1 text-sm leading-6 text-secondary">
-                  {job.description}
-                </p>
-                <div className="mt-5 flex items-center justify-between gap-3">
-                  <span className="text-xs font-semibold text-secondary">
-                    {job.expireDate
-                      ? `Closes ${new Date(job.expireDate).toLocaleDateString()}`
-                      : 'Open until filled'}
-                  </span>
-                  <CandidateActionButton
-                    disabled={applyingRequestId === job.requestId}
-                    onClick={() => void applyToJob(job)}
-                  >
-                    {applyingRequestId === job.requestId ? 'Applying...' : 'Apply'}
-                  </CandidateActionButton>
-                </div>
-              </CandidateCard>
-            ))}
+            {availableJobs.map((job) => {
+              const bannerUrl = getJobBannerUrl(job);
+
+              return (
+                <CandidateCard
+                  as="article"
+                  className="flex min-h-60 flex-col overflow-hidden !p-0"
+                  key={job.id}
+                >
+                  {bannerUrl ? (
+                    <div className="aspect-[16/7] w-full border-b border-border-warm bg-surface-container-low">
+                      <img
+                        alt={`${job.title} recruitment banner`}
+                        className="h-full w-full object-contain"
+                        loading="lazy"
+                        src={bannerUrl}
+                      />
+                    </div>
+                  ) : null}
+
+                  <div className="flex flex-1 flex-col p-5">
+                    <div className="mb-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-teal-command">
+                        {job.request?.department?.name ?? 'Hiring team'}
+                      </p>
+                      <h3 className="mt-2 text-lg font-semibold text-deep-charcoal">{job.title}</h3>
+                    </div>
+                    <p className="line-clamp-4 flex-1 text-sm leading-6 text-secondary">
+                      {job.description}
+                    </p>
+                    <div className="mt-5 flex items-center justify-between gap-3">
+                      <span className="text-xs font-semibold text-secondary">
+                        {job.expireDate
+                          ? `Closes ${new Date(job.expireDate).toLocaleDateString()}`
+                          : 'Open until filled'}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="inline-flex h-10 items-center rounded-lg border border-teal-command px-3 text-sm font-semibold text-teal-command transition hover:bg-teal-command hover:text-white"
+                          onClick={() => setSelectedJob(job)}
+                          type="button"
+                        >
+                          Details
+                        </button>
+                        <CandidateActionButton
+                          disabled={applyingRequestId === job.requestId}
+                          onClick={() => void applyToJob(job)}
+                        >
+                          {applyingRequestId === job.requestId ? 'Applying...' : 'Apply'}
+                        </CandidateActionButton>
+                      </div>
+                    </div>
+                  </div>
+                </CandidateCard>
+              );
+            })}
           </div>
         )}
       </section>
@@ -430,13 +486,30 @@ export const CandidateDashboard: React.FC = () => {
       <div className="flex justify-center border-t border-border-warm pt-8">
         <button
           className="inline-flex items-center gap-2 text-sm font-semibold text-teal-command transition hover:underline active:scale-[0.98]"
-          onClick={() => document.getElementById('open-jobs')?.scrollIntoView({ behavior: 'smooth' })}
+          onClick={() =>
+            document.getElementById('open-jobs')?.scrollIntoView({ behavior: 'smooth' })
+          }
           type="button"
         >
           Browse Open Positions
           <Icon className="h-4 w-4" name="arrow" />
         </button>
       </div>
+
+      <JobDetailsModal
+        action={
+          selectedJob ? (
+            <CandidateActionButton
+              disabled={applyingRequestId === selectedJob.requestId}
+              onClick={() => void applyToJob(selectedJob)}
+            >
+              {applyingRequestId === selectedJob.requestId ? 'Applying...' : 'Apply Now'}
+            </CandidateActionButton>
+          ) : null
+        }
+        job={selectedJob}
+        onClose={() => setSelectedJob(null)}
+      />
     </CandidateDashboardPage>
   );
 };
