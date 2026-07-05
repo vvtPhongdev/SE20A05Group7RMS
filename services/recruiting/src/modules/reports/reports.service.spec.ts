@@ -139,6 +139,7 @@ describe('ReportsService - T-087 Annual Reports & Tracking', () => {
       expect(result[0]).toEqual(
         expect.objectContaining({
           position: 'Dev',
+          departmentId: 'dept-1',
           targetHeadcount: 2,
           filledHeadcount: 1,
           status: 'INTERVIEWING',
@@ -157,6 +158,68 @@ describe('ReportsService - T-087 Annual Reports & Tracking', () => {
       expect(prisma.recruitmentRequest.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {},
+        }),
+      );
+    });
+
+    it('keeps unscheduled task dates nullable and excludes them from overdue count', async () => {
+      prisma.recruitmentRequest.findMany.mockResolvedValue([
+        {
+          id: 'req-1',
+          position: 'Dev',
+          headcount: 2,
+          status: 'ACTIVE',
+          department: { id: 'dept-1', name: 'Engineering' },
+          createdBy: { id: 'user-1', displayName: 'Head', role: 'DEPARTMENT_HEAD' },
+          reviewedBy: null,
+          approvedBy: null,
+          overallPlan: {
+            tasks: [
+              {
+                id: 'task-1',
+                taskType: 'CV_COLLECTION',
+                status: 'PENDING',
+                startDate: null,
+                endDate: null,
+                assignedTo: null,
+              },
+              {
+                id: 'task-2',
+                taskType: 'CV_SCREENING',
+                status: 'IN_PROGRESS',
+                startDate: new Date('2026-06-01T00:00:00.000Z'),
+                endDate: new Date('2026-06-02T00:00:00.000Z'),
+                assignedTo: null,
+              },
+            ],
+          },
+          interviews: [],
+          offers: [],
+          logs: [],
+          applications: [],
+          createdAt: new Date('2026-06-01T00:00:00.000Z'),
+          updatedAt: new Date('2026-06-03T00:00:00.000Z'),
+        },
+      ]);
+
+      const result = await service.getRealtimeTracking({
+        userId: 'admin-1',
+        role: 'ADMIN',
+      });
+
+      expect(result[0]?.taskProgress).toEqual({ total: 2, completed: 0, overdue: 1 });
+      expect(result[0]?.taskBreakdown?.[0]).toEqual(
+        expect.objectContaining({
+          startDate: null,
+          endDate: null,
+          isOverdue: false,
+        }),
+      );
+      expect(result[0]?.taskBreakdown?.[1]).toEqual(
+        expect.objectContaining({
+          startDate: '2026-06-01T00:00:00.000Z',
+          endDate: '2026-06-02T00:00:00.000Z',
+          isOverdue: true,
         }),
       );
     });

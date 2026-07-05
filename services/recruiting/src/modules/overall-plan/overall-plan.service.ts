@@ -7,9 +7,18 @@ import {
   NotificationType,
   PlanStatus,
   RecruitmentRequestStatus,
+  TaskStatus,
+  TaskType,
   UserRole,
 } from '@wr/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
+
+const DEFAULT_CAMPAIGN_TASK_TYPES = [
+  TaskType.JOB_POSTING,
+  TaskType.CV_COLLECTION,
+  TaskType.CV_SCREENING,
+  TaskType.INTERVIEW_COORDINATION,
+];
 
 @Injectable()
 export class OverallPlanService {
@@ -21,6 +30,32 @@ export class OverallPlanService {
 
   private rpc(status: HttpStatus, message: string): never {
     throw new RpcException({ status, message });
+  }
+
+  private async ensureDefaultCampaignTasks(plan: {
+    id: string;
+    createdById: string;
+    startDate: Date | null;
+    endDate: Date | null;
+    tasks: Array<{ taskType: string }>;
+  }) {
+    const existingTaskTypes = new Set(plan.tasks.map((task) => task.taskType));
+    const missingTaskTypes = DEFAULT_CAMPAIGN_TASK_TYPES.filter(
+      (taskType) => !existingTaskTypes.has(taskType),
+    );
+
+    if (missingTaskTypes.length === 0) return;
+
+    await this.prisma.taskPlan.createMany({
+      data: missingTaskTypes.map((taskType) => ({
+        overallPlanId: plan.id,
+        taskType,
+        assignedToId: plan.createdById,
+        startDate: null,
+        endDate: null,
+        status: TaskStatus.PENDING,
+      })) as any,
+    });
   }
 
   async create(payload: {
@@ -72,10 +107,25 @@ export class OverallPlanService {
           startDate: start,
           endDate: end,
           status: PlanStatus.DRAFT,
+          tasks: {
+            create: DEFAULT_CAMPAIGN_TASK_TYPES.map((taskType) => ({
+              taskType,
+              assignedToId: createdById,
+              startDate: null,
+              endDate: null,
+              status: TaskStatus.PENDING,
+            })) as any,
+          },
         },
         include: {
           createdBy: { select: { id: true, displayName: true } },
           request: { select: { id: true, position: true, status: true, createdById: true } },
+          tasks: {
+            include: {
+              assignedTo: { select: { id: true, displayName: true, email: true, role: true } },
+            },
+            orderBy: { startDate: 'asc' },
+          },
         },
       }),
       this.prisma.recruitmentRequest.update({
@@ -131,7 +181,9 @@ export class OverallPlanService {
           createdBy: { select: { id: true, displayName: true } },
           approvedBy: { select: { id: true, displayName: true } },
           tasks: {
-            include: { assignedTo: { select: { id: true, displayName: true, email: true, role: true } } },
+            include: {
+              assignedTo: { select: { id: true, displayName: true, email: true, role: true } },
+            },
             orderBy: { startDate: 'asc' },
           },
         },
@@ -332,6 +384,9 @@ export class OverallPlanService {
     if (startDate !== undefined || endDate !== undefined) {
       const start = startDate ? new Date(startDate) : plan.startDate;
       const end = endDate ? new Date(endDate) : plan.endDate;
+      if (!start || !end) {
+        this.rpc(HttpStatus.BAD_REQUEST, 'startDate and endDate are required');
+      }
       if (isNaN(start.getTime()) || isNaN(end.getTime())) {
         this.rpc(HttpStatus.BAD_REQUEST, 'startDate and endDate must be valid dates');
       }
@@ -349,7 +404,9 @@ export class OverallPlanService {
         createdBy: { select: { id: true, displayName: true } },
         approvedBy: { select: { id: true, displayName: true } },
         tasks: {
-          include: { assignedTo: { select: { id: true, displayName: true, email: true, role: true } } },
+          include: {
+            assignedTo: { select: { id: true, displayName: true, email: true, role: true } },
+          },
           orderBy: { startDate: 'asc' },
         },
       },
@@ -378,7 +435,9 @@ export class OverallPlanService {
         approvedBy: { select: { id: true, displayName: true } },
         request: { select: { id: true, position: true, status: true } },
         tasks: {
-          include: { assignedTo: { select: { id: true, displayName: true, email: true, role: true } } },
+          include: {
+            assignedTo: { select: { id: true, displayName: true, email: true, role: true } },
+          },
           orderBy: { startDate: 'asc' },
         },
       },
@@ -388,13 +447,34 @@ export class OverallPlanService {
   }
 
   async getByRequest(payload: { hiringRequestId: string; userId?: string; role?: string }) {
-    const plan = await this.prisma.overallPlan.findUnique({
+    let plan = await this.prisma.overallPlan.findUnique({
       where: { requestId: payload.hiringRequestId },
       include: {
         createdBy: { select: { id: true, displayName: true } },
         approvedBy: { select: { id: true, displayName: true } },
         tasks: {
-          include: { assignedTo: { select: { id: true, displayName: true, email: true, role: true } } },
+          include: {
+            assignedTo: { select: { id: true, displayName: true, email: true, role: true } },
+          },
+          orderBy: { startDate: 'asc' },
+        },
+      },
+    });
+    if (!plan)
+      this.rpc(
+        HttpStatus.NOT_FOUND,
+        `No OverallPlan found for RecruitmentRequest ${payload.hiringRequestId}`,
+      );
+    await this.ensureDefaultCampaignTasks(plan);
+    plan = await this.prisma.overallPlan.findUnique({
+      where: { requestId: payload.hiringRequestId },
+      include: {
+        createdBy: { select: { id: true, displayName: true } },
+        approvedBy: { select: { id: true, displayName: true } },
+        tasks: {
+          include: {
+            assignedTo: { select: { id: true, displayName: true, email: true, role: true } },
+          },
           orderBy: { startDate: 'asc' },
         },
       },
@@ -421,7 +501,9 @@ export class OverallPlanService {
         request: { select: { id: true, position: true } },
         tasks: {
           include: {
-            assignedTo: { select: { id: true, displayName: true, email: true, role: true, isActive: true } },
+            assignedTo: {
+              select: { id: true, displayName: true, email: true, role: true, isActive: true },
+            },
           },
           orderBy: { startDate: 'asc' },
         },
@@ -434,12 +516,16 @@ export class OverallPlanService {
     }
 
     const invalidTask = plan.tasks.find(
-      (task) => task.assignedTo.role !== 'HR_RECRUITER' || !task.assignedTo.isActive,
+      (task) =>
+        task.assignedTo.role !== 'HR_RECRUITER' ||
+        !task.assignedTo.isActive ||
+        !task.startDate ||
+        !task.endDate,
     );
     if (invalidTask) {
       this.rpc(
         HttpStatus.BAD_REQUEST,
-        'Every task must be assigned to an active HR recruiter before starting the campaign',
+        'Every task must be assigned to an active HR recruiter with start date and deadline before starting the campaign',
       );
     }
 
@@ -461,7 +547,7 @@ export class OverallPlanService {
     ]);
 
     for (const task of plan.tasks) {
-      const dueDate = task.endDate.toLocaleDateString('en-US', { dateStyle: 'long' });
+      const dueDate = task.endDate!.toLocaleDateString('en-US', { dateStyle: 'long' });
       this.notificationClient
         .send('notification.send_email', {
           userId: task.assignedTo.id,

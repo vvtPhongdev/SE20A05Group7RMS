@@ -86,12 +86,7 @@ export const HRInlineAlert = ({
   children: React.ReactNode;
   tone?: HRStatusTone;
 }) => (
-  <div
-    className={cn(
-      'rounded-lg border px-4 py-3 text-sm font-semibold',
-      toneClasses[tone],
-    )}
-  >
+  <div className={cn('rounded-lg border px-4 py-3 text-sm font-semibold', toneClasses[tone])}>
     {children}
   </div>
 );
@@ -154,10 +149,10 @@ export const HRSelectControl = ({
   value: string;
   className?: string;
 }) => (
-  <label className={cn('flex flex-col gap-1.5', className)}>
+  <label className={cn('flex min-w-0 flex-col gap-1.5', className)}>
     <span className="text-xs font-semibold text-on-surface-variant">{label}</span>
     <select
-      className="h-10 rounded-lg border border-border-warm bg-clean-surface px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+      className="h-10 w-full min-w-0 truncate rounded-lg border border-border-warm bg-clean-surface px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
       onChange={(event) => onChange(event.target.value)}
       value={value}
     >

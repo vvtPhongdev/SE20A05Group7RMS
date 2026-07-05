@@ -27,6 +27,7 @@ import { HRDashBoard } from './features/hr/pages/HRDashBoard';
 import { HRRequestQueue } from './features/hr/pages/HRRequestQueue';
 import { HRCampaigns } from './features/hr/pages/HRCampaigns';
 import { HRCampaignDetail } from './features/hr/pages/HRCampaignDetail';
+import { HRJobPostingWorkspace } from './features/hr/pages/HRJobPostingWorkspace';
 import { TaskPlanner } from './features/hr/pages/HRTaskPlanner';
 import { HRTalentPool } from './features/hr/pages/HRTalentPool';
 import { CandidateSearch } from './features/hr/pages/CandidateSearch';
@@ -288,6 +289,16 @@ export function App() {
               <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
                 <Layout>
                   <HRCampaignDetail />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/hr/job-postings/:requestId"
+            element={
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
+                <Layout>
+                  <HRJobPostingWorkspace />
                 </Layout>
               </ProtectedRoute>
             }

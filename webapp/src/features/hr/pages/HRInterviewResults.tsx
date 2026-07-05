@@ -20,6 +20,7 @@ type CompletedInterview = {
   department: string;
   time: string;
   status: RecordingStatus;
+  location: string;
 };
 
 type PanelFeedback = {
@@ -47,11 +48,20 @@ interface InterviewDetailsResponse {
   canSubmitMyFeedback?: boolean;
   finalRecommendation: string;
   summaryNotes: string;
+  location: string;
 }
 
 type MyFeedbackResponse = {
   success: boolean;
   feedback: PanelFeedback;
+};
+
+type OfflineEvidence = {
+  location: string;
+  report: string;
+  photoName?: string;
+  photoDataUrl?: string;
+  recordedAt: string;
 };
 
 const RECOMMENDATION_OPTIONS_VALUES: Recommendation[] = [
@@ -66,6 +76,35 @@ const hrInterviewResultsApi = {
   myFeedback: (id: string) => `/hr/interview-results/${id}/my-feedback`,
   finalRecommendation: (id: string) => `/hr/interview-results/${id}/final-recommendation`,
 };
+
+const OFFLINE_EVIDENCE_START = '[OFFLINE_INTERVIEW_EVIDENCE]';
+const OFFLINE_EVIDENCE_END = '[/OFFLINE_INTERVIEW_EVIDENCE]';
+const MAX_EVIDENCE_IMAGE_BYTES = 2 * 1024 * 1024;
+
+const isOnlineInterviewLocation = (value: string) =>
+  /^https?:\/\//i.test(value.trim()) || /meet\.google\.com|zoom|teams\.microsoft/i.test(value);
+
+const parseOfflineEvidence = (value: string) => {
+  const pattern = new RegExp(
+    `${OFFLINE_EVIDENCE_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s\\S]*?)${OFFLINE_EVIDENCE_END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
+  );
+  const match = value.match(pattern);
+  if (!match) return { cleanSummary: value, evidence: null as OfflineEvidence | null };
+
+  try {
+    return {
+      cleanSummary: value.replace(pattern, '').trim(),
+      evidence: JSON.parse(match[1].trim()) as OfflineEvidence,
+    };
+  } catch {
+    return { cleanSummary: value.replace(pattern, '').trim(), evidence: null };
+  }
+};
+
+const composeOfflineEvidence = (summary: string, evidence: OfflineEvidence) =>
+  [summary.trim(), `${OFFLINE_EVIDENCE_START}${JSON.stringify(evidence)}${OFFLINE_EVIDENCE_END}`]
+    .filter(Boolean)
+    .join('\n\n');
 
 const iconPaths: Record<string, React.ReactNode> = {
   groups: (
@@ -154,7 +193,9 @@ const getInitials = (name: string) =>
     .slice(0, 3)
     .toUpperCase() || 'U';
 
-const emptyOwnFeedback = (user: { id: string; displayName: string; role: UserRole } | null): PanelFeedback => ({
+const emptyOwnFeedback = (
+  user: { id: string; displayName: string; role: UserRole } | null,
+): PanelFeedback => ({
   id: user?.id ?? 'me',
   member: user?.displayName ?? 'Me',
   role: user?.role ?? UserRole.HR_LEADER,
@@ -175,16 +216,20 @@ export const HRInterviewResults: React.FC = () => {
   const [recommendation, setRecommendation] = useState<Recommendation>('Hold for Further');
   const [feedback, setFeedback] = useState<PanelFeedback[]>([]);
   const [summaryNotes, setSummaryNotes] = useState('');
+  const [offlineEvidenceReport, setOfflineEvidenceReport] = useState('');
+  const [offlineEvidencePhotoName, setOfflineEvidencePhotoName] = useState('');
+  const [offlineEvidencePhotoDataUrl, setOfflineEvidencePhotoDataUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState('');
   const [submitError, setSubmitError] = useState('');
+  const [canSubmitMyFeedback, setCanSubmitMyFeedback] = useState(false);
 
-  const canEditOwnFeedback = user?.role === UserRole.HR_LEADER;
-  const canSubmitDecision =
-    user?.role === UserRole.HR_LEADER || user?.role === UserRole.HR_RECRUITER;
+  const canEditOwnFeedback = canSubmitMyFeedback;
+  const canSubmitDecision = user?.role === UserRole.HR_LEADER;
+  const canSubmitCurrentResult = canEditOwnFeedback || canSubmitDecision;
 
   useEffect(() => {
     const loadCompleted = async () => {
@@ -219,7 +264,12 @@ export const HRInterviewResults: React.FC = () => {
           token,
         );
         const nextFeedback = [...details.feedbacks];
-        if (canEditOwnFeedback && user && !nextFeedback.some((item) => item.id === user.id)) {
+        setCanSubmitMyFeedback(Boolean(details.canSubmitMyFeedback));
+        if (
+          details.canSubmitMyFeedback &&
+          user &&
+          !nextFeedback.some((item) => item.id === user.id)
+        ) {
           nextFeedback.push(details.myFeedback || emptyOwnFeedback(user));
         }
         setFeedback(nextFeedback);
@@ -228,16 +278,24 @@ export const HRInterviewResults: React.FC = () => {
             ? (details.finalRecommendation as Recommendation)
             : 'Hold for Further',
         );
-        setSummaryNotes(details.summaryNotes ?? '');
+        const parsedSummary = parseOfflineEvidence(details.summaryNotes ?? '');
+        setSummaryNotes(parsedSummary.cleanSummary);
+        setOfflineEvidenceReport(parsedSummary.evidence?.report ?? '');
+        setOfflineEvidencePhotoName(parsedSummary.evidence?.photoName ?? '');
+        setOfflineEvidencePhotoDataUrl(parsedSummary.evidence?.photoDataUrl ?? '');
       } catch {
         setFeedback([]);
+        setCanSubmitMyFeedback(false);
         setSummaryNotes('');
+        setOfflineEvidenceReport('');
+        setOfflineEvidencePhotoName('');
+        setOfflineEvidencePhotoDataUrl('');
       } finally {
         setDetailsLoading(false);
       }
     };
     void loadDetails();
-  }, [canEditOwnFeedback, selectedId, token, user]);
+  }, [selectedId, token, user]);
 
   const selectedInterview = useMemo(
     () =>
@@ -265,6 +323,41 @@ export const HRInterviewResults: React.FC = () => {
       participants,
     };
   }, [feedback]);
+
+  const isOfflineInterview = Boolean(
+    selectedInterview?.location && !isOnlineInterviewLocation(selectedInterview.location),
+  );
+
+  const handleEvidencePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    setSubmitError('');
+
+    if (!file) {
+      setOfflineEvidencePhotoName('');
+      setOfflineEvidencePhotoDataUrl('');
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setSubmitError('Offline evidence must be an image file.');
+      event.target.value = '';
+      return;
+    }
+
+    if (file.size > MAX_EVIDENCE_IMAGE_BYTES) {
+      setSubmitError('Offline evidence image must be 2MB or smaller.');
+      event.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setOfflineEvidencePhotoName(file.name);
+      setOfflineEvidencePhotoDataUrl(typeof reader.result === 'string' ? reader.result : '');
+    };
+    reader.onerror = () => setSubmitError('Unable to read the selected evidence image.');
+    reader.readAsDataURL(file);
+  };
 
   const updateScore = (
     id: string,
@@ -325,11 +418,27 @@ export const HRInterviewResults: React.FC = () => {
         return;
       }
 
+      if (isOfflineInterview && !offlineEvidenceReport.trim() && !offlineEvidencePhotoDataUrl) {
+        throw new Error(
+          'Offline interviews require a meeting photo or a written interview report.',
+        );
+      }
+
+      const submittedSummaryNotes = isOfflineInterview
+        ? composeOfflineEvidence(summaryNotes, {
+            location: selectedInterview.location,
+            report: offlineEvidenceReport.trim(),
+            photoName: offlineEvidencePhotoName || undefined,
+            photoDataUrl: offlineEvidencePhotoDataUrl || undefined,
+            recordedAt: new Date().toISOString(),
+          })
+        : summaryNotes;
+
       await apiRequest(hrInterviewResultsApi.finalRecommendation(selectedInterview.id), token, {
         method: 'POST',
         body: JSON.stringify({
           finalRecommendation: recommendation,
-          summaryNotes,
+          summaryNotes: submittedSummaryNotes,
         }),
       });
       setCompletedInterviews((items) =>
@@ -350,7 +459,7 @@ export const HRInterviewResults: React.FC = () => {
       <HRPageHeader
         eyebrow="HR Manager Portal"
         title="Interview Results"
-        description="Review panel feedback after completed interviews. HR sends the final recommendation to Admin, then Admin makes the Hire or Not Hire decision."
+        description="Invited HR interviewers record their own candidate evaluation. HR Leader reviews panel feedback and sends the final recommendation to Admin."
         actions={
           <HRSearchInput
             className="w-full max-w-md"
@@ -363,12 +472,16 @@ export const HRInterviewResults: React.FC = () => {
       />
 
       {apiError && <HRInlineAlert>{apiError}</HRInlineAlert>}
+      {!canSubmitDecision && selectedInterview ? (
+        <HRInlineAlert tone="teal">
+          You can save your own interview evaluation. Final Recommendation is reserved for HR
+          Leader.
+        </HRInlineAlert>
+      ) : null}
 
       {loading && <HRLoadingState label="Loading completed interviews..." />}
 
-      {!loading && !selectedInterview && (
-        <HREmptyState title="No completed interviews found." />
-      )}
+      {!loading && !selectedInterview && <HREmptyState title="No completed interviews found." />}
 
       {selectedInterview && (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
@@ -396,7 +509,9 @@ export const HRInterviewResults: React.FC = () => {
                     type="button"
                   >
                     <div className="mb-1 flex items-start justify-between gap-3">
-                      <h3 className="text-sm font-bold text-deep-charcoal">{interview.candidate}</h3>
+                      <h3 className="text-sm font-bold text-deep-charcoal">
+                        {interview.candidate}
+                      </h3>
                       <span
                         className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-semibold ${statusClass[interview.status]}`}
                       >
@@ -440,7 +555,9 @@ export const HRInterviewResults: React.FC = () => {
             </div>
 
             {detailsLoading && (
-              <div className="px-6 pt-6 text-sm text-on-surface-variant">Loading panel feedback...</div>
+              <div className="px-6 pt-6 text-sm text-on-surface-variant">
+                Loading panel feedback...
+              </div>
             )}
 
             <div className="space-y-8 p-6">
@@ -470,95 +587,97 @@ export const HRInterviewResults: React.FC = () => {
                         className="rounded-lg border border-border-warm bg-workflow-ivory/20 p-4"
                         key={item.id}
                       >
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-container font-mono text-xs font-bold text-teal-command">
-                          {item.initials}
-                        </div>
-                        <div className="min-w-0 flex-1 space-y-4">
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <p className="text-sm font-bold text-deep-charcoal">
-                              {item.member} ({item.role})
-                            </p>
-                            <div className="flex flex-wrap items-center gap-2">
-                              {editable && (
-                                <span className="rounded-full border border-teal-command/20 bg-teal-command/10 px-2.5 py-1 text-[11px] font-bold text-teal-command">
-                                  Your feedback
-                                </span>
-                              )}
-                              <span
-                                className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
-                                  item.isRecorded
-                                    ? 'border-approved/30 bg-approved/10 text-approved'
-                                    : 'border-revision/30 bg-revision/10 text-revision'
-                                }`}
-                              >
-                                {item.isRecorded ? 'Evaluated' : 'Not Evaluated'}
-                              </span>
-                            </div>
-                            <div className="flex w-fit rounded-lg bg-surface-container-high p-1">
-                              {(['PASS', 'FAIL'] as const).map((decision) => (
-                                <button
-                                  className={`rounded-md border px-3 py-1 text-[11px] font-bold transition active:scale-[0.98] ${
-                                    item.decision === decision
-                                      ? decision === 'PASS'
-                                        ? 'border-approved/30 bg-approved/10 text-approved shadow-sm'
-                                        : 'border-rejected/30 bg-rejected/10 text-rejected shadow-sm'
-                                      : decision === 'PASS'
-                                        ? 'border-transparent text-approved hover:bg-approved/10'
-                                        : 'border-transparent text-rejected hover:bg-rejected/10'
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-container font-mono text-xs font-bold text-teal-command">
+                            {item.initials}
+                          </div>
+                          <div className="min-w-0 flex-1 space-y-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                              <p className="text-sm font-bold text-deep-charcoal">
+                                {item.member} ({item.role})
+                              </p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                {editable && (
+                                  <span className="rounded-full border border-teal-command/20 bg-teal-command/10 px-2.5 py-1 text-[11px] font-bold text-teal-command">
+                                    Your feedback
+                                  </span>
+                                )}
+                                <span
+                                  className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
+                                    item.isRecorded
+                                      ? 'border-approved/30 bg-approved/10 text-approved'
+                                      : 'border-revision/30 bg-revision/10 text-revision'
                                   }`}
-                                  disabled={!editable || submitting}
-                                  key={decision}
-                                  onClick={() => updateDecision(item.id, decision)}
-                                  type="button"
                                 >
-                                  {decision === 'PASS' ? 'Pass' : 'Fail'}
-                                </button>
+                                  {item.isRecorded ? 'Evaluated' : 'Not Evaluated'}
+                                </span>
+                              </div>
+                              <div className="flex w-fit rounded-lg bg-surface-container-high p-1">
+                                {(['PASS', 'FAIL'] as const).map((decision) => (
+                                  <button
+                                    className={`rounded-md border px-3 py-1 text-[11px] font-bold transition active:scale-[0.98] ${
+                                      item.decision === decision
+                                        ? decision === 'PASS'
+                                          ? 'border-approved/30 bg-approved/10 text-approved shadow-sm'
+                                          : 'border-rejected/30 bg-rejected/10 text-rejected shadow-sm'
+                                        : decision === 'PASS'
+                                          ? 'border-transparent text-approved hover:bg-approved/10'
+                                          : 'border-transparent text-rejected hover:bg-rejected/10'
+                                    }`}
+                                    disabled={!editable || submitting}
+                                    key={decision}
+                                    onClick={() => updateDecision(item.id, decision)}
+                                    type="button"
+                                  >
+                                    {decision === 'PASS' ? 'Pass' : 'Fail'}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                              {(
+                                [
+                                  ['technical', 'Technical'],
+                                  ['communication', 'Communication'],
+                                  ['culture', 'Culture Fit'],
+                                ] as const
+                              ).map(([key, label]) => (
+                                <label className="space-y-2" key={key}>
+                                  <span className="block text-[11px] font-bold uppercase tracking-[0.08em] text-slate-ink">
+                                    {label} ({item[key]}/10)
+                                  </span>
+                                  <input
+                                    className="h-1 w-full cursor-pointer accent-teal-command disabled:cursor-not-allowed disabled:opacity-60"
+                                    disabled={!editable || submitting}
+                                    max="10"
+                                    min="0"
+                                    onChange={(event) =>
+                                      updateScore(item.id, key, Number(event.target.value))
+                                    }
+                                    type="range"
+                                    value={item[key]}
+                                  />
+                                </label>
                               ))}
                             </div>
-                          </div>
 
-                          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                            {(
-                              [
-                                ['technical', 'Technical'],
-                                ['communication', 'Communication'],
-                                ['culture', 'Culture Fit'],
-                              ] as const
-                            ).map(([key, label]) => (
-                              <label className="space-y-2" key={key}>
-                                <span className="block text-[11px] font-bold uppercase tracking-[0.08em] text-slate-ink">
-                                  {label} ({item[key]}/10)
-                                </span>
-                                <input
-                                  className="h-1 w-full cursor-pointer accent-teal-command disabled:cursor-not-allowed disabled:opacity-60"
-                                  disabled={!editable || submitting}
-                                  max="10"
-                                  min="0"
-                                  onChange={(event) =>
-                                    updateScore(item.id, key, Number(event.target.value))
-                                  }
-                                  type="range"
-                                  value={item[key]}
-                                />
-                              </label>
-                            ))}
+                            <textarea
+                              className="min-h-[88px] w-full rounded-lg border border-border-warm bg-clean-surface p-3 text-sm leading-6 outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-70"
+                              disabled={!editable || submitting}
+                              onChange={(event) => updateNotes(item.id, event.target.value)}
+                              placeholder="Panel member observations..."
+                              value={item.notes}
+                            />
                           </div>
-
-                          <textarea
-                            className="min-h-[88px] w-full rounded-lg border border-border-warm bg-clean-surface p-3 text-sm leading-6 outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-70"
-                            disabled={!editable || submitting}
-                            onChange={(event) => updateNotes(item.id, event.target.value)}
-                            placeholder="Panel member observations..."
-                            value={item.notes}
-                          />
                         </div>
-                      </div>
-                    </article>
+                      </article>
                     );
                   })}
                   {feedback.length === 0 && !detailsLoading && (
-                    <p className="text-sm text-on-surface-variant">No panel feedback recorded yet.</p>
+                    <p className="text-sm text-on-surface-variant">
+                      No panel feedback recorded yet.
+                    </p>
                   )}
                 </div>
               </section>
@@ -568,71 +687,129 @@ export const HRInterviewResults: React.FC = () => {
                   <Icon className="h-4 w-4" name="verified" />
                   Final Recommendation
                 </h3>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  {recommendationOptions.map((option) => {
-                    const selected = recommendation === option.label;
-                    return (
-                      <button
-                        aria-pressed={selected}
-                        className="w-full rounded-lg border-2 p-4 text-center shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
-                        disabled={!canSubmitDecision || submitting}
-                        key={option.label}
-                        onClick={() => setRecommendation(option.label)}
-                        style={{
-                          backgroundColor: selected
-                            ? option.color.background
-                            : option.color.inactiveBackground,
-                          borderColor: selected ? option.color.border : option.color.inactiveBorder,
-                          boxShadow: selected
-                            ? `0 0 0 3px ${option.color.border}33`
-                            : '0 1px 2px rgba(15, 23, 42, 0.08)',
-                          color: option.color.text,
-                        }}
-                        type="button"
-                      >
-                        <Icon className="mx-auto mb-2 h-6 w-6 text-current" name={option.icon} />
-                        <p className="text-sm font-bold text-current">{option.label}</p>
-                      </button>
-                    );
-                  })}
-                </div>
+                {canSubmitDecision ? (
+                  <>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                      {recommendationOptions.map((option) => {
+                        const selected = recommendation === option.label;
+                        return (
+                          <button
+                            aria-pressed={selected}
+                            className="w-full rounded-lg border-2 p-4 text-center shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
+                            disabled={submitting}
+                            key={option.label}
+                            onClick={() => setRecommendation(option.label)}
+                            style={{
+                              backgroundColor: selected
+                                ? option.color.background
+                                : option.color.inactiveBackground,
+                              borderColor: selected
+                                ? option.color.border
+                                : option.color.inactiveBorder,
+                              boxShadow: selected
+                                ? `0 0 0 3px ${option.color.border}33`
+                                : '0 1px 2px rgba(15, 23, 42, 0.08)',
+                              color: option.color.text,
+                            }}
+                            type="button"
+                          >
+                            <Icon
+                              className="mx-auto mb-2 h-6 w-6 text-current"
+                              name={option.icon}
+                            />
+                            <p className="text-sm font-bold text-current">{option.label}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                <label className="block space-y-2">
-                  <span className="text-sm font-bold text-slate-ink">Executive Summary Notes</span>
-                  <textarea
-                    className="min-h-[120px] w-full rounded-lg border border-border-warm bg-clean-surface p-4 text-sm leading-6 outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-70"
-                    disabled={!canSubmitDecision || submitting}
-                    onChange={(event) => setSummaryNotes(event.target.value)}
-                    placeholder="Provide a high-level justification for the recommendation..."
-                    value={summaryNotes}
-                  />
-                </label>
+                    <label className="block space-y-2">
+                      <span className="text-sm font-bold text-slate-ink">
+                        Executive Summary Notes
+                      </span>
+                      <textarea
+                        className="min-h-[120px] w-full rounded-lg border border-border-warm bg-clean-surface p-4 text-sm leading-6 outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-70"
+                        disabled={submitting}
+                        onChange={(event) => setSummaryNotes(event.target.value)}
+                        placeholder="Provide a high-level justification for the recommendation..."
+                        value={summaryNotes}
+                      />
+                    </label>
 
-                <section className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-border-warm bg-workflow-ivory/40 p-8 text-center">
-                  <Icon className="mb-2 h-8 w-8 text-outline" name="upload" />
-                  <p className="mb-1 text-sm font-bold text-deep-charcoal">
-                    Attach supporting documents
-                  </p>
-                  <p className="text-sm text-slate-ink">PDF, DOCX up to 10MB each</p>
-                  <button
-                    className="mt-4 rounded-lg border border-border-warm bg-white px-4 py-2 text-sm font-semibold shadow-sm transition hover:bg-surface active:scale-[0.98]"
-                    type="button"
-                  >
-                    Browse Files
-                  </button>
-                </section>
+                    {isOfflineInterview && (
+                      <section className="space-y-4 rounded-lg border-2 border-dashed border-revision/40 bg-revision/5 p-5">
+                        <div className="flex items-start gap-3">
+                          <Icon className="mt-0.5 h-5 w-5 shrink-0 text-revision" name="upload" />
+                          <div>
+                            <p className="text-sm font-bold text-deep-charcoal">
+                              Offline interview evidence required
+                            </p>
+                            <p className="mt-1 text-sm leading-6 text-slate-ink">
+                              Location: {selectedInterview.location}. Attach a meeting photo or
+                              write a short report so Admin can review the interview process.
+                            </p>
+                          </div>
+                        </div>
+                        <label className="block space-y-2">
+                          <span className="text-sm font-bold text-slate-ink">Interview Report</span>
+                          <textarea
+                            className="min-h-[96px] w-full rounded-lg border border-border-warm bg-clean-surface p-3 text-sm leading-6 outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-70"
+                            disabled={submitting}
+                            onChange={(event) => setOfflineEvidenceReport(event.target.value)}
+                            placeholder="Summarize attendance, room, interview flow, and any notable observations..."
+                            value={offlineEvidenceReport}
+                          />
+                        </label>
+                        <label className="block space-y-2">
+                          <span className="text-sm font-bold text-slate-ink">Meeting Photo</span>
+                          <input
+                            accept="image/*"
+                            className="block w-full rounded-lg border border-border-warm bg-clean-surface p-2 text-sm file:mr-4 file:rounded-md file:border-0 file:bg-teal-command file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white disabled:cursor-not-allowed disabled:opacity-70"
+                            disabled={submitting}
+                            onChange={handleEvidencePhotoChange}
+                            type="file"
+                          />
+                          <span className="text-xs text-slate-ink">
+                            JPG or PNG up to 2MB. A written report can be used when no photo is
+                            available.
+                          </span>
+                        </label>
+                        {offlineEvidencePhotoDataUrl && (
+                          <div className="rounded-lg border border-border-warm bg-clean-surface p-3">
+                            <p className="mb-2 text-xs font-bold uppercase tracking-[0.1em] text-slate-ink">
+                              {offlineEvidencePhotoName}
+                            </p>
+                            <img
+                              alt="Offline interview evidence"
+                              className="max-h-56 w-full rounded-md object-contain"
+                              src={offlineEvidencePhotoDataUrl}
+                            />
+                          </div>
+                        )}
+                      </section>
+                    )}
+                  </>
+                ) : (
+                  <div className="rounded-lg border border-border-warm bg-workflow-ivory p-4 text-sm leading-6 text-slate-ink">
+                    Final Recommendation and Admin submission are only available to HR Leader. Your
+                    role can save personal candidate evaluation when you are invited to this
+                    interview.
+                  </div>
+                )}
               </section>
             </div>
 
             <footer className="flex flex-col gap-3 border-t border-border-warm bg-clean-surface p-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm">
-                {submitMessage && <span className="font-semibold text-approved">{submitMessage}</span>}
+                {submitMessage && (
+                  <span className="font-semibold text-approved">{submitMessage}</span>
+                )}
                 {submitError && <span className="font-semibold text-rejected">{submitError}</span>}
               </div>
               <div className="flex flex-col gap-3 sm:flex-row">
                 <button
                   className="rounded-lg bg-teal-command px-8 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary active:scale-[0.98] disabled:opacity-70"
-                  disabled={submitting}
+                  disabled={submitting || !canSubmitCurrentResult}
                   onClick={submitResults}
                   type="button"
                 >

@@ -15,7 +15,7 @@ export class TalentSearchController {
   search(
     @Payload()
     payload: {
-      query: string;
+      query?: string;
       filters?: Record<string, unknown>;
       pagination?: { page: number; pageSize: number };
       actorUserId?: string;

@@ -14,8 +14,90 @@ import {
 export class JobPostingsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private async assertCanManagePostingForTask(posting: { requestId: string }, payload: {
+    actorUserId?: string;
+    actorRole?: string;
+  }) {
+    if (payload.actorRole !== UserRole.HR_RECRUITER) return;
+
+    if (!payload.actorUserId) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'HR recruiter identity is required for assigned task checks',
+      });
+    }
+
+    const overallPlan = await this.prisma.overallPlan.findUnique({
+      where: { requestId: posting.requestId },
+      select: {
+        id: true,
+        tasks: {
+          where: {
+            taskType: 'JOB_POSTING',
+            assignedToId: payload.actorUserId,
+          },
+          select: { id: true },
+          take: 1,
+        },
+      },
+    });
+
+    if (!overallPlan?.tasks.length) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'Only the HR recruiter assigned to JOB_POSTING can manage this job posting',
+      });
+    }
+  }
+
+  private getActivePostingWindowWhere(now = new Date()) {
+    return [
+      { OR: [{ startDate: null }, { startDate: { lte: now } }] },
+      { OR: [{ expireDate: null }, { expireDate: { gt: now } }] },
+    ];
+  }
+
+  private async closeExpiredPublishedPostings(now = new Date()) {
+    await this.prisma.jobPosting.updateMany({
+      where: {
+        status: JobPostingStatus.PUBLISHED,
+        expireDate: { lte: now },
+      },
+      data: { status: JobPostingStatus.CLOSED },
+    });
+  }
+
+  private parseSchedule(startDate?: string | null, expireDate?: string | null) {
+    const start = startDate ? new Date(startDate) : null;
+    const end = expireDate ? new Date(expireDate) : null;
+
+    if (start && isNaN(start.getTime())) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'startDate must be a valid date',
+      });
+    }
+
+    if (end && isNaN(end.getTime())) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'expireDate must be a valid date',
+      });
+    }
+
+    if (start && end && end <= start) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'expireDate must be after startDate',
+      });
+    }
+
+    return { start, end };
+  }
+
   async create(payload: CreateJobPostingInput) {
-    const { requestId, title, description, requirements, visibility, expireDate } = payload;
+    const { requestId, title, description, requirements, visibility, startDate, expireDate } =
+      payload;
 
     if (!requestId) {
       throw new RpcException({
@@ -69,6 +151,15 @@ export class JobPostingsService {
     const mappedDescription = description || request.jobDescription;
     const mappedRequirements = (requirements || request.skillRequirements || {}) as any;
 
+    if (!startDate || !expireDate) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'startDate and expireDate are required',
+      });
+    }
+
+    const { start, end } = this.parseSchedule(startDate, expireDate);
+
     return this.prisma.jobPosting.create({
       data: {
         requestId,
@@ -77,8 +168,9 @@ export class JobPostingsService {
         requirements: mappedRequirements,
         visibility: visibility || JobVisibility.PRIVATE,
         status: JobPostingStatus.DRAFT,
-        expireDate: expireDate ? new Date(expireDate) : null,
-      },
+        startDate: start,
+        expireDate: end,
+      } as any,
       include: {
         request: true,
       },
@@ -92,8 +184,11 @@ export class JobPostingsService {
     userRole?: string;
     userDeptId?: string;
   }) {
+    await this.closeExpiredPublishedPostings();
+
     const { status, visibility, search, userRole, userDeptId } = query;
     const where: any = {};
+    const activeWindowWhere = this.getActivePostingWindowWhere();
 
     // Apply status and visibility filters if specified
     if (status) {
@@ -116,19 +211,25 @@ export class JobPostingsService {
       // Candidates can only see PUBLISHED and PUBLIC job postings
       where.status = JobPostingStatus.PUBLISHED;
       where.visibility = JobVisibility.PUBLIC;
+      where.AND = [...(where.AND ?? []), ...activeWindowWhere];
     } else if (userRole === UserRole.DEPARTMENT_HEAD) {
       // Department Heads can see their department's postings OR any PUBLIC + PUBLISHED postings
       if (userDeptId) {
         where.OR = [
           { request: { departmentId: userDeptId } },
           {
-            AND: [{ status: JobPostingStatus.PUBLISHED }, { visibility: JobVisibility.PUBLIC }],
+            AND: [
+              { status: JobPostingStatus.PUBLISHED },
+              { visibility: JobVisibility.PUBLIC },
+              ...activeWindowWhere,
+            ],
           },
         ];
       } else {
         // Fallback if departmentId is not set
         where.status = JobPostingStatus.PUBLISHED;
         where.visibility = JobVisibility.PUBLIC;
+        where.AND = [...(where.AND ?? []), ...activeWindowWhere];
       }
     }
     // Admin and HR Manager see everything without restrictions (except custom filters)
@@ -149,7 +250,10 @@ export class JobPostingsService {
   }
 
   async get(payload: { id: string; userRole?: string; userDeptId?: string }) {
+    await this.closeExpiredPublishedPostings();
+
     const { id, userRole, userDeptId } = payload;
+    const now = new Date();
 
     const jobPosting = await this.prisma.jobPosting.findUnique({
       where: { id },
@@ -171,9 +275,13 @@ export class JobPostingsService {
 
     // Authorize based on roles & visibility
     if (userRole === UserRole.CANDIDATE) {
+      const startDate = (jobPosting as any).startDate as Date | null | undefined;
+      const expireDate = jobPosting.expireDate;
       if (
         jobPosting.status !== JobPostingStatus.PUBLISHED ||
-        jobPosting.visibility !== JobVisibility.PUBLIC
+        jobPosting.visibility !== JobVisibility.PUBLIC ||
+        (startDate && startDate > now) ||
+        (expireDate && expireDate <= now)
       ) {
         throw new RpcException({
           status: HttpStatus.FORBIDDEN,
@@ -184,7 +292,9 @@ export class JobPostingsService {
       const isOwnDept = jobPosting.request.departmentId === userDeptId;
       const isPublicPublished =
         jobPosting.status === JobPostingStatus.PUBLISHED &&
-        jobPosting.visibility === JobVisibility.PUBLIC;
+        jobPosting.visibility === JobVisibility.PUBLIC &&
+        !((jobPosting as any).startDate && (jobPosting as any).startDate > now) &&
+        !(jobPosting.expireDate && jobPosting.expireDate <= now);
 
       if (!isOwnDept && !isPublicPublished) {
         throw new RpcException({
@@ -197,7 +307,10 @@ export class JobPostingsService {
     return jobPosting;
   }
 
-  async update(id: string, data: UpdateJobPostingInput) {
+  async update(
+    id: string,
+    data: UpdateJobPostingInput & { actorUserId?: string; actorRole?: string },
+  ) {
     const existing = await this.prisma.jobPosting.findUnique({
       where: { id },
     });
@@ -208,40 +321,69 @@ export class JobPostingsService {
         message: `Job posting with ID ${id} not found`,
       });
     }
+
+    await this.assertCanManagePostingForTask(existing, data);
 
     const updateData: any = {};
     if (data.title !== undefined) updateData.title = data.title;
     if (data.description !== undefined) updateData.description = data.description;
     if (data.requirements !== undefined) updateData.requirements = data.requirements as any;
     if (data.visibility !== undefined) updateData.visibility = data.visibility;
+    if (data.startDate !== undefined) {
+      updateData.startDate = data.startDate ? new Date(data.startDate) : null;
+    }
     if (data.expireDate !== undefined) {
       updateData.expireDate = data.expireDate ? new Date(data.expireDate) : null;
     }
     if (data.status !== undefined) updateData.status = data.status;
 
+    if (data.startDate !== undefined || data.expireDate !== undefined) {
+      const nextStart = data.startDate ?? ((existing as any).startDate?.toISOString() || null);
+      const nextEnd = data.expireDate ?? (existing.expireDate?.toISOString() || null);
+      this.parseSchedule(nextStart, nextEnd);
+    }
+
     return this.prisma.jobPosting.update({
       where: { id },
-      data: updateData,
+      data: updateData as any,
       include: {
         request: true,
       },
     });
   }
 
-  async publish(id: string) {
+  async publish(payload: string | { id: string; actorUserId?: string; actorRole?: string }) {
+    const normalized = typeof payload === 'string' ? { id: payload } : payload;
     const existing = await this.prisma.jobPosting.findUnique({
-      where: { id },
+      where: { id: normalized.id },
     });
 
     if (!existing) {
       throw new RpcException({
         status: HttpStatus.NOT_FOUND,
-        message: `Job posting with ID ${id} not found`,
+        message: `Job posting with ID ${normalized.id} not found`,
+      });
+    }
+
+    await this.assertCanManagePostingForTask(existing, normalized);
+
+    const now = new Date();
+    const startDate = (existing as any).startDate as Date | null | undefined;
+    if (!startDate || !existing.expireDate) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'Job posting startDate and expireDate are required before publishing',
+      });
+    }
+    if (existing.expireDate <= now) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'Cannot publish an expired job posting',
       });
     }
 
     return this.prisma.jobPosting.update({
-      where: { id },
+      where: { id: normalized.id },
       data: {
         status: JobPostingStatus.PUBLISHED,
       },
@@ -251,20 +393,23 @@ export class JobPostingsService {
     });
   }
 
-  async close(id: string) {
+  async close(payload: string | { id: string; actorUserId?: string; actorRole?: string }) {
+    const normalized = typeof payload === 'string' ? { id: payload } : payload;
     const existing = await this.prisma.jobPosting.findUnique({
-      where: { id },
+      where: { id: normalized.id },
     });
 
     if (!existing) {
       throw new RpcException({
         status: HttpStatus.NOT_FOUND,
-        message: `Job posting with ID ${id} not found`,
+        message: `Job posting with ID ${normalized.id} not found`,
       });
     }
 
+    await this.assertCanManagePostingForTask(existing, normalized);
+
     return this.prisma.jobPosting.update({
-      where: { id },
+      where: { id: normalized.id },
       data: {
         status: JobPostingStatus.CLOSED,
       },

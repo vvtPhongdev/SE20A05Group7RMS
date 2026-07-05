@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { JobDetailsModal } from '../components/JobDetailsModal';
 import { apiRequest } from '../lib/api';
 
 type PublicJobPosting = {
@@ -7,11 +8,26 @@ type PublicJobPosting = {
   requestId: string;
   title: string;
   description: string;
+  requirements?: Record<string, unknown> | null;
+  startDate?: string | null;
   expireDate?: string | null;
   request?: {
     department?: { name: string } | null;
     urgency?: string;
   } | null;
+};
+
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+
+const getJobBannerUrl = (job: PublicJobPosting) => {
+  const media = asRecord(job.requirements).recruitmentMedia;
+  if (!Array.isArray(media)) return '';
+  const banner = media.find((item) => {
+    const record = asRecord(item);
+    return record.kind === 'BANNER' && typeof record.url === 'string';
+  });
+  return typeof asRecord(banner).url === 'string' ? (asRecord(banner).url as string) : '';
 };
 
 const approvalRows = [
@@ -96,6 +112,7 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
 
 export const LandingPage: React.FC = () => {
   const [jobs, setJobs] = useState<PublicJobPosting[]>([]);
+  const [selectedJob, setSelectedJob] = useState<PublicJobPosting | null>(null);
 
   useEffect(() => {
     const loadJobs = async () => {
@@ -339,18 +356,22 @@ export const LandingPage: React.FC = () => {
               </div>
             ) : (
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {jobs.map((job) => (
+                {jobs.map((job) => {
+                  const bannerUrl = getJobBannerUrl(job);
+                  return (
                   <article
-                    className="flex min-h-56 flex-col rounded-xl border border-border-warm bg-clean-surface p-5 shadow-sm"
+                    className="flex min-h-56 flex-col overflow-hidden rounded-xl border border-border-warm bg-clean-surface shadow-sm"
                     key={job.id}
                   >
+                    {bannerUrl ? (
+                      <img alt={`${job.title} banner`} className="h-36 w-full object-cover" src={bannerUrl} />
+                    ) : null}
+                    <div className="flex flex-1 flex-col p-5">
                     <div className="mb-4">
                       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-teal-command">
                         {job.request?.department?.name ?? 'Hiring team'}
                       </p>
-                      <h3 className="mt-2 text-xl font-semibold text-deep-charcoal">
-                        {job.title}
-                      </h3>
+                      <h3 className="mt-2 text-xl font-semibold text-deep-charcoal">{job.title}</h3>
                     </div>
                     <p className="line-clamp-4 flex-1 text-sm leading-6 text-slate-ink">
                       {job.description}
@@ -361,15 +382,18 @@ export const LandingPage: React.FC = () => {
                           ? `Closes ${new Date(job.expireDate).toLocaleDateString()}`
                           : 'Open until filled'}
                       </span>
-                      <Link
+                      <button
                         className="inline-flex h-9 items-center rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-[#0f766e] active:scale-[0.98]"
-                        to="/login"
+                        onClick={() => setSelectedJob(job)}
+                        type="button"
                       >
-                        Apply
-                      </Link>
+                        View details
+                      </button>
+                    </div>
                     </div>
                   </article>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -442,6 +466,18 @@ export const LandingPage: React.FC = () => {
           </div>
         </div>
       </footer>
+      <JobDetailsModal
+        action={
+          <Link
+            className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-teal-command px-5 text-sm font-semibold text-white transition hover:bg-[#0f766e]"
+            to="/login"
+          >
+            Sign in to apply
+          </Link>
+        }
+        job={selectedJob}
+        onClose={() => setSelectedJob(null)}
+      />
     </div>
   );
 };

@@ -652,6 +652,7 @@ async function main() {
       requirements: requestApproved.skillRequirements as object,
       visibility: 'PUBLIC',
       status: 'PUBLISHED',
+      startDate: new Date(),
       expireDate: daysFromNow(45),
     },
     create: {
@@ -662,6 +663,7 @@ async function main() {
       requirements: requestApproved.skillRequirements as object,
       visibility: 'PUBLIC',
       status: 'PUBLISHED',
+      startDate: new Date(),
       expireDate: daysFromNow(45),
     },
   });

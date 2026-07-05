@@ -16,6 +16,8 @@ export type UploadedStorageObject = StorageObjectLocation & {
 export const storageBuckets = {
   cvs: process.env.SUPABASE_CV_BUCKET || 'cvs',
   avatars: process.env.SUPABASE_AVATAR_BUCKET || 'avatars',
+  banners: process.env.SUPABASE_BANNER_BUCKET || 'Banner',
+  jobPostings: process.env.SUPABASE_JOB_POSTING_BUCKET || 'job-postings',
 };
 
 export const supportedCvExtensions = ['.pdf', '.docx', '.doc'] as const;
