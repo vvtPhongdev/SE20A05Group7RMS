@@ -42,6 +42,14 @@ const roles: Array<RoleKey | 'All'> = [
 ];
 const statuses: Array<UserStatus | 'All'> = ['All', 'Active', 'Inactive'];
 
+const roleBadgeClasses: Record<RoleKey, string> = {
+  Admin: 'bg-deep-charcoal text-white',
+  'Department Head': 'border border-revision/30 bg-revision/15 text-revision',
+  'HR Leader': 'bg-teal-command text-white',
+  'HR Recruiter': 'bg-teal-command text-white',
+  Candidate: 'border border-draft/30 bg-draft/15 text-draft',
+};
+
 export const AdminUsers: React.FC = () => {
   const { token } = useAuth();
   const [users, setUsers] = useState<ManagedUser[]>([]);
@@ -603,15 +611,7 @@ export const AdminUsers: React.FC = () => {
                   </td>
                   <td className="px-margin-md py-4">
                     <span
-                      className={`inline-flex items-center px-3 py-1 rounded-full text-[12px] font-semibold text-white ${
-                        user.role === 'Admin'
-                          ? 'bg-deep-charcoal'
-                          : user.role === 'HR Leader' || user.role === 'HR Recruiter'
-                            ? 'bg-teal-command'
-                            : user.role === 'Department Head'
-                              ? 'bg-revision'
-                              : 'bg-draft'
-                      }`}
+                      className={`inline-flex items-center rounded-full px-3 py-1 text-[12px] font-semibold ${roleBadgeClasses[user.role]}`}
                     >
                       {user.role === 'Department Head' ? 'Dept Head' : user.role}
                     </span>
