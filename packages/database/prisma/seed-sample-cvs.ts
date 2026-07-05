@@ -13,7 +13,8 @@ const sampleEmbedding = (seed: number) =>
     Number((Math.sin((seed + 1) * (index + 1)) * 0.05).toFixed(6)),
   );
 
-const pdfEscape = (text: string) => text.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+const pdfEscape = (text: string) =>
+  text.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
 
 function buildPdf(lines: string[]) {
   const content = [
@@ -227,7 +228,7 @@ async function main() {
 
   await prisma.jobPosting.upsert({
     where: { requestId: request.id },
-    update: { status: 'PUBLISHED', visibility: 'PUBLIC' },
+    update: { status: 'PUBLISHED', visibility: 'PUBLIC', startDate: new Date() },
     create: {
       requestId: request.id,
       title: request.position,
@@ -235,6 +236,7 @@ async function main() {
       requirements: request.skillRequirements as any,
       visibility: 'PUBLIC',
       status: 'PUBLISHED',
+      startDate: new Date(),
       expireDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000),
     },
   });
@@ -341,7 +343,9 @@ async function main() {
     );
   }
 
-  console.log('Seeded 5 candidate accounts, 5 PDF CVs, parsed profiles, applications, and embeddings.');
+  console.log(
+    'Seeded 5 candidate accounts, 5 PDF CVs, parsed profiles, applications, and embeddings.',
+  );
 }
 
 main()

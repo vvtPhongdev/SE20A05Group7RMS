@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest } from '../../../lib/api';
 import { HRCard, HRInlineAlert, HRPageHeader } from '../components';
@@ -15,9 +15,18 @@ type SearchResult = {
     vectorScore: number;
     graphScore: number;
     coverageScore: number;
+    feedbackScore?: number;
   };
   parsed: string;
   evidence: React.ReactNode;
+  matchExplanation?: {
+    assessment: string;
+    scoreBand: string;
+    scoreDrivers: string[];
+    matchedSkills: Array<{ skill: string; confidence: number; source: string; distance?: number }>;
+    gaps: Array<{ skill: string; gapType: string; severity: string }>;
+    note: string;
+  };
   skills: string[];
   hasInterviewInvite: boolean;
 };
@@ -54,6 +63,8 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
 
 export const CandidateSearch: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedCampaignId = searchParams.get('requestId') ?? '';
   const { token } = useAuth();
   const [campaign, setCampaign] = useState('');
   const [query, setQuery] = useState('');
@@ -87,17 +98,22 @@ export const CandidateSearch: React.FC = () => {
           label: `${posting.title || posting.request?.position || 'Recruitment campaign'} (${posting.status})`,
         }));
         setCampaigns(mapped);
-        setCampaign(mapped[0]?.requestId ?? '');
+        setCampaign(
+          requestedCampaignId &&
+            mapped.some((campaign) => campaign.requestId === requestedCampaignId)
+            ? requestedCampaignId
+            : mapped[0]?.requestId ?? '',
+        );
         setLocked(mapped.length === 0);
       } catch (loadError) {
         setApiError(loadError instanceof Error ? loadError.message : 'Unable to load campaigns');
       }
     };
     void loadCampaigns();
-  }, [token]);
+  }, [requestedCampaignId, token]);
 
   const handleSearch = async () => {
-    if (!campaign || !query.trim()) return;
+    if (!campaign) return;
     setLoading(true);
     setApiError('');
     try {
@@ -108,15 +124,22 @@ export const CandidateSearch: React.FC = () => {
           vectorScore: number;
           graphScore: number;
           coverageScore: number;
+          feedbackScore?: number;
+          baseOverallScore?: number;
           displayName: string;
           headline?: string | null;
           readinessLabel: string;
+          matchExplanation?: SearchResult['matchExplanation'];
           skills: string[];
           latestCv?: { parsedAt?: string | null } | null;
           hasInterviewInvite?: boolean;
           latestInterview?: { status?: string | null; scheduledAt?: string | null } | null;
         }>;
-        meta: { searchRunId: string; expandedQuery: { expandedSkills: string[] } };
+        meta: {
+          searchRunId: string | null;
+          expandedQuery: { expandedSkills: string[] };
+          query?: { source?: string };
+        };
       }>('/talent/search', token, {
         method: 'POST',
         body: JSON.stringify({
@@ -137,16 +160,19 @@ export const CandidateSearch: React.FC = () => {
             vectorScore: result.vectorScore,
             graphScore: result.graphScore,
             coverageScore: result.coverageScore,
+            feedbackScore: result.feedbackScore,
           },
           parsed: result.latestCv?.parsedAt
             ? `Parsed ${new Date(result.latestCv.parsedAt).toLocaleString()}`
             : 'CV parsing date unavailable',
-          evidence: result.readinessLabel.replaceAll('_', ' '),
+          evidence:
+            result.matchExplanation?.assessment ?? result.readinessLabel.replaceAll('_', ' '),
+          matchExplanation: result.matchExplanation,
           skills: result.skills,
           hasInterviewInvite: Boolean(result.hasInterviewInvite || result.latestInterview),
         })),
       );
-      setSearchRunId(response.meta.searchRunId);
+      setSearchRunId(response.meta.searchRunId ?? '');
       setExpandedTerms(response.meta.expandedQuery.expandedSkills);
     } catch (searchError) {
       setApiError(searchError instanceof Error ? searchError.message : 'Candidate search failed');
@@ -507,9 +533,15 @@ export const CandidateSearch: React.FC = () => {
               <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-3">
                 <div className="space-y-2 md:col-span-2">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
-                    Extracted Evidence
+                    AI Assessment
                   </p>
                   <p className="text-sm leading-6 text-on-surface-variant">{result.evidence}</p>
+                  {result.matchExplanation ? (
+                    <p className="text-xs leading-5 text-on-surface-variant">
+                      Comparable score band: {result.matchExplanation.scoreBand}.{' '}
+                      {result.matchExplanation.note}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="space-y-2">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
@@ -527,6 +559,65 @@ export const CandidateSearch: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {result.matchExplanation ? (
+                <div className="mb-6 grid gap-4 rounded-lg border border-border-warm bg-workflow-ivory p-4 lg:grid-cols-3">
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
+                      Score Drivers
+                    </p>
+                    <ul className="space-y-1 text-xs leading-5 text-on-surface-variant">
+                      {result.matchExplanation.scoreDrivers.map((driver) => (
+                        <li key={driver}>{driver}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
+                      Matched Requirements
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {result.matchExplanation.matchedSkills.length ? (
+                        result.matchExplanation.matchedSkills.slice(0, 6).map((match) => (
+                          <span
+                            className="rounded bg-teal-command/10 px-2 py-1 text-xs font-semibold text-teal-command"
+                            key={`${match.skill}-${match.source}`}
+                          >
+                            {match.skill} {Math.round(match.confidence * 100)}%
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-on-surface-variant">No strong skill evidence.</span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
+                      Remaining Gaps
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {result.matchExplanation.gaps.length ? (
+                        result.matchExplanation.gaps.slice(0, 6).map((gap) => (
+                          <span
+                            className={`rounded px-2 py-1 text-xs font-semibold ${
+                              gap.severity === 'CRITICAL'
+                                ? 'bg-rejected/10 text-rejected'
+                                : gap.severity === 'MODERATE'
+                                  ? 'bg-revision/10 text-revision'
+                                  : 'bg-surface-container-high text-slate-ink'
+                            }`}
+                            key={`${gap.skill}-${gap.severity}`}
+                          >
+                            {gap.skill} / {gap.severity.toLowerCase()}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-on-surface-variant">No required-skill gaps detected.</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
 
               <div className="flex flex-col gap-4 border-t border-border-warm pt-4 lg:flex-row lg:items-center lg:justify-between">
                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-ink">
