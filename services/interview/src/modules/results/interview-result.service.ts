@@ -39,6 +39,9 @@ export class InterviewResultService {
         },
       ];
     }
+    if (payload.role === UserRole.HR_RECRUITER && payload.userId) {
+      where.AND = [{ interviewers: { has: payload.userId } }];
+    }
 
     const schedules = await this.prisma.interviewSchedule.findMany({
       where,
@@ -149,6 +152,7 @@ export class InterviewResultService {
         department: s.request.department.name,
         time: formattedTime,
         status,
+        location: s.location,
         candidateId: s.candidateId,
         requestId: s.requestId,
         interviewDate: s.scheduledAt,
@@ -206,11 +210,23 @@ export class InterviewResultService {
         message: 'You do not have access to this interview result',
       });
     }
+    if (
+      actor.role === UserRole.HR_RECRUITER &&
+      actor.userId &&
+      !schedule.interviewers.includes(actor.userId)
+    ) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'Only HR recruiters invited to this interview can view its result',
+      });
+    }
 
     const evaluatorIds = [
       ...new Set([
         ...schedule.interviewers,
-        ...schedule.results.map((result) => result.evaluatorId).filter((userId): userId is string => !!userId),
+        ...schedule.results
+          .map((result) => result.evaluatorId)
+          .filter((userId): userId is string => !!userId),
       ]),
     ];
 
@@ -279,6 +295,7 @@ export class InterviewResultService {
         schedule.finalRecommendation || schedule.status === InterviewStatus.COMPLETED
           ? 'Recorded'
           : 'Pending Recording',
+      location: schedule.location,
       interviewers: interviewers.map((u) => ({
         id: u.id,
         name: u.displayName,
@@ -293,7 +310,8 @@ export class InterviewResultService {
       myFeedback,
       canSubmitMyFeedback:
         !!actor.userId &&
-        (actor.role === UserRole.HR_LEADER ||
+        (((actor.role === UserRole.HR_LEADER || actor.role === UserRole.HR_RECRUITER) &&
+          schedule.interviewers.includes(actor.userId)) ||
           (actor.role === UserRole.DEPARTMENT_HEAD &&
             this.canDepartmentHeadAccessSchedule(schedule, actor.userId))),
       finalRecommendation: schedule.finalRecommendation || '',
@@ -311,8 +329,16 @@ export class InterviewResultService {
     culture: number;
     notes?: string;
   }) {
-    const { interviewId, evaluatorId, actorRole, decision, technical, communication, culture, notes } =
-      payload;
+    const {
+      interviewId,
+      evaluatorId,
+      actorRole,
+      decision,
+      technical,
+      communication,
+      culture,
+      notes,
+    } = payload;
 
     const schedule = await this.prisma.interviewSchedule.findUnique({
       where: { id: interviewId },
@@ -349,7 +375,8 @@ export class InterviewResultService {
     }
 
     const canRecord =
-      actorRole === UserRole.HR_LEADER ||
+      ((actorRole === UserRole.HR_LEADER || actorRole === UserRole.HR_RECRUITER) &&
+        schedule.interviewers.includes(evaluatorId)) ||
       (actorRole === UserRole.DEPARTMENT_HEAD &&
         this.canDepartmentHeadAccessSchedule(schedule, evaluatorId));
 
@@ -432,7 +459,9 @@ export class InterviewResultService {
           source: 'personal-feedback',
         },
       })
-      .catch((err) => console.error('Failed to write audit log for personal interview feedback:', err));
+      .catch((err) =>
+        console.error('Failed to write audit log for personal interview feedback:', err),
+      );
 
     return {
       success: true,
@@ -497,8 +526,10 @@ export class InterviewResultService {
     finalRecommendation: string;
     summaryNotes?: string;
     evaluatorId?: string;
+    actorRole?: string;
   }) {
-    const { interviewId, feedbacks, finalRecommendation, summaryNotes, evaluatorId } = payload;
+    const { interviewId, feedbacks, finalRecommendation, summaryNotes, evaluatorId, actorRole } =
+      payload;
 
     const schedule = await this.prisma.interviewSchedule.findUnique({
       where: { id: interviewId },
@@ -519,6 +550,13 @@ export class InterviewResultService {
       throw new RpcException({
         status: HttpStatus.CONFLICT,
         message: 'Cannot record a result for a cancelled interview',
+      });
+    }
+
+    if (actorRole && actorRole !== UserRole.HR_LEADER) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'Only HR Leader can submit the final recommendation to Admin',
       });
     }
 

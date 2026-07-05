@@ -1,5 +1,20 @@
-import { Controller, Get, Post, Patch, Body, Param, Query, Inject, Res } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Inject,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Res,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
 import { SERVICE_TOKENS } from '../constants';
 import { firstValueFrom } from 'rxjs';
@@ -26,6 +41,7 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
+import { buildStoragePath, storageBuckets, uploadFile } from '@wr/storage';
 
 export class CreateJobPostingDto {
   @ApiProperty({ example: 'uuid-of-recruitment-request', description: 'Recruitment Request ID' })
@@ -67,10 +83,13 @@ export class CreateJobPostingDto {
   @IsString()
   visibility?: any;
 
-  @ApiProperty({ example: '2026-07-01T00:00:00.000Z', required: false, description: 'Expire Date' })
-  @IsOptional()
+  @ApiProperty({ example: '2026-07-01T00:00:00.000Z', description: 'Start Date' })
   @IsDateString()
-  expireDate?: string;
+  startDate!: string;
+
+  @ApiProperty({ example: '2026-07-31T23:59:59.000Z', description: 'Expire Date' })
+  @IsDateString()
+  expireDate!: string;
 }
 
 export class UpdateJobPostingDto {
@@ -102,6 +121,11 @@ export class UpdateJobPostingDto {
   @IsOptional()
   @IsString()
   visibility?: any;
+
+  @ApiProperty({ example: '2026-07-01T00:00:00.000Z', required: false, description: 'Start Date' })
+  @IsOptional()
+  @IsDateString()
+  startDate?: string;
 
   @ApiProperty({ example: '2026-07-01T00:00:00.000Z', required: false, description: 'Expire Date' })
   @IsOptional()
@@ -971,7 +995,7 @@ export class RecruitingController {
   // ─── Job Postings ────────────────────────────────────────────────
 
   @Post('job-postings')
-  @Roles(UserRole.HR_LEADER, UserRole.ADMIN)
+  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Create job posting from approved recruitment request' })
   createJobPosting(@Body() body: CreateJobPostingDto, @CurrentUser() user?: any) {
     return firstValueFrom(
@@ -981,6 +1005,77 @@ export class RecruitingController {
         actorRole: user?.role,
       }),
     );
+  }
+
+  @Post('job-postings/media')
+  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
+  @ApiOperation({ summary: 'Upload banner or recruitment notice media for a job posting' })
+  async uploadJobPostingMedia(
+    @UploadedFile() file: any,
+    @Body() body: { requestId?: string; kind?: string },
+    @CurrentUser() user?: any,
+  ) {
+    if (!file) {
+      throw new BadRequestException('Media file is required');
+    }
+    if (!body.requestId) {
+      throw new BadRequestException('requestId is required');
+    }
+
+    const plan = await firstValueFrom(
+      this.recruitingClient.send('overall-plan.getByRequest', {
+        hiringRequestId: body.requestId,
+        userId: user?.sub,
+        role: user?.role,
+      }),
+    );
+    const canUpload =
+      user?.role === UserRole.HR_LEADER ||
+      user?.role === UserRole.ADMIN ||
+      (user?.role === UserRole.HR_RECRUITER &&
+        plan?.tasks?.some(
+          (task: any) => task.taskType === TaskType.JOB_POSTING && task.assignedTo?.id === user.sub,
+        ));
+    if (!canUpload) {
+      throw new ForbiddenException('Only the HR recruiter assigned to JOB_POSTING can upload media');
+    }
+
+    const allowedTypes: Record<string, string> = {
+      'image/jpeg': '.jpg',
+      'image/png': '.png',
+      'image/webp': '.webp',
+      'image/gif': '.gif',
+    };
+    const extension = allowedTypes[file.mimetype];
+    if (!extension) {
+      throw new BadRequestException('Only JPG, PNG, WEBP, or GIF images are supported');
+    }
+
+    const mediaKind = body.kind === 'NOTICE' ? 'NOTICE' : 'BANNER';
+    const ownerId = body.requestId;
+    const bucket = mediaKind === 'BANNER' ? storageBuckets.banners : storageBuckets.jobPostings;
+    const path = buildStoragePath(ownerId, file.originalname || `media${extension}`);
+
+    try {
+      const uploaded = await uploadFile(bucket, path, file.buffer, {
+        contentType: file.mimetype,
+      });
+      return {
+        kind: mediaKind,
+        url: uploaded.publicUrl,
+        bucket: uploaded.bucket,
+        path: uploaded.path,
+        fileName: file.originalname,
+        mimeType: file.mimetype,
+        size: file.size,
+        uploadedAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      throw new BadRequestException(
+        error instanceof Error ? error.message : 'Failed to upload job posting media',
+      );
+    }
   }
 
   @Get('job-postings')
@@ -1022,26 +1117,43 @@ export class RecruitingController {
   }
 
   @Patch('job-postings/:id')
-  @Roles(UserRole.HR_LEADER, UserRole.ADMIN)
+  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Update job posting details' })
-  updateJobPosting(@Param('id') id: string, @Body() body: UpdateJobPostingDto) {
+  updateJobPosting(@Param('id') id: string, @Body() body: UpdateJobPostingDto, @CurrentUser() user?: any) {
     return firstValueFrom(
-      this.recruitingClient.send('recruiting.job_posting.update', { id, ...body }),
+      this.recruitingClient.send('recruiting.job_posting.update', {
+        id,
+        ...body,
+        actorUserId: user?.sub,
+        actorRole: user?.role,
+      }),
     );
   }
 
   @Post('job-postings/:id/publish')
-  @Roles(UserRole.HR_LEADER, UserRole.ADMIN)
+  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Publish job posting' })
-  publishJobPosting(@Param('id') id: string) {
-    return firstValueFrom(this.recruitingClient.send('recruiting.job_posting.publish', { id }));
+  publishJobPosting(@Param('id') id: string, @CurrentUser() user?: any) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruiting.job_posting.publish', {
+        id,
+        actorUserId: user?.sub,
+        actorRole: user?.role,
+      }),
+    );
   }
 
   @Post('job-postings/:id/close')
-  @Roles(UserRole.HR_LEADER, UserRole.ADMIN)
+  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Close job posting' })
-  closeJobPosting(@Param('id') id: string) {
-    return firstValueFrom(this.recruitingClient.send('recruiting.job_posting.close', { id }));
+  closeJobPosting(@Param('id') id: string, @CurrentUser() user?: any) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruiting.job_posting.close', {
+        id,
+        actorUserId: user?.sub,
+        actorRole: user?.role,
+      }),
+    );
   }
 
   // ─── Reports ─────────────────────────────────────────────────────

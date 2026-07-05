@@ -62,6 +62,7 @@ export class HrInterviewResultsController {
   }
 
   @Post(':id/final-recommendation')
+  @Roles(UserRole.HR_LEADER)
   @ApiOperation({ summary: 'Submit HR final recommendation for Admin final decision' })
   submitFinalRecommendation(
     @Param('id') interviewId: string,
@@ -79,6 +80,7 @@ export class HrInterviewResultsController {
         finalRecommendation: body.finalRecommendation,
         summaryNotes: body.summaryNotes,
         evaluatorId: user.sub,
+        actorRole: user.role,
       }),
     );
   }

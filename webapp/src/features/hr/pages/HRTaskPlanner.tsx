@@ -269,10 +269,38 @@ export const TaskPlanner: React.FC = () => {
         current.map((task) => (task.id === taskId ? { ...task, ...updated } : task)),
       );
       setSelectedTask((current) => (current?.id === taskId ? { ...current, ...updated } : current));
+      return true;
     } catch (updateError) {
       setApiError(updateError instanceof ApiError ? updateError.message : 'Unable to update task');
+      return false;
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const getTaskWorkUrl = (task: TaskPlanApiItem) => {
+    const requestId = encodeURIComponent(task.overallPlan.requestId);
+    switch (task.taskType) {
+      case 'JOB_POSTING':
+        return `/hr/job-postings/${requestId}`;
+      case 'CV_COLLECTION':
+        return `/hr/candidates?requestId=${requestId}&task=CV_COLLECTION`;
+      case 'CV_SCREENING':
+        return `/hr/search?requestId=${requestId}&task=CV_SCREENING`;
+      case 'INTERVIEW_COORDINATION':
+        return `/hr/interviews?requestId=${requestId}&task=INTERVIEW_COORDINATION`;
+      default:
+        return `/hr/campaigns/${requestId}`;
+    }
+  };
+
+  const startTask = async (task: TaskPlanApiItem) => {
+    const canNavigate =
+      task.status === 'PENDING'
+        ? await updateTaskStatus(task.id, 'IN_PROGRESS')
+        : task.status === 'IN_PROGRESS';
+    if (canNavigate) {
+      navigate(getTaskWorkUrl(task));
     }
   };
 
@@ -476,10 +504,20 @@ export const TaskPlanner: React.FC = () => {
                           <button
                             className="text-xs font-semibold text-teal-command transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                             disabled={updatingId === task.id}
-                            onClick={() => void updateTaskStatus(task.id, 'IN_PROGRESS')}
+                            onClick={() => void startTask(task)}
                             type="button"
                           >
-                            Start
+                            Start Plan
+                          </button>
+                        ) : null}
+                        {task.status === 'IN_PROGRESS' ? (
+                          <button
+                            className="text-xs font-semibold text-teal-command transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={updatingId === task.id}
+                            onClick={() => void startTask(task)}
+                            type="button"
+                          >
+                            Open Work
                           </button>
                         ) : null}
                         {task.status !== 'COMPLETED' ? (
@@ -631,10 +669,10 @@ export const TaskPlanner: React.FC = () => {
                 <button
                   className="h-10 rounded-lg border border-teal-command bg-clean-surface text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={selectedTask.status !== 'PENDING' || updatingId === selectedTask.id}
-                  onClick={() => void updateTaskStatus(selectedTask.id, 'IN_PROGRESS')}
+                  onClick={() => void startTask(selectedTask)}
                   type="button"
                 >
-                  Start
+                  Start Plan
                 </button>
                 <button
                   className="h-10 rounded-lg bg-teal-command text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"

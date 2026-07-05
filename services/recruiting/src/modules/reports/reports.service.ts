@@ -547,6 +547,9 @@ export class ReportsService {
     };
 
     const now = Date.now();
+    const isTaskOverdue = (task: { status: string; endDate: Date | null }) =>
+      task.status !== 'COMPLETED' && !!task.endDate && task.endDate.getTime() < now;
+
     return requests.map((request) => {
       const tasks = request.overallPlan?.tasks ?? [];
       const latestLog = request.logs[0];
@@ -556,6 +559,7 @@ export class ReportsService {
       const item = {
         requestId: request.id,
         position: request.position,
+        departmentId: request.department.id,
         departmentName: request.department.name,
         status: request.status,
         currentOwner: ownerFor(request.status),
@@ -565,17 +569,15 @@ export class ReportsService {
         taskProgress: {
           total: tasks.length,
           completed: tasks.filter((task) => task.status === 'COMPLETED').length,
-          overdue: tasks.filter(
-            (task) => task.status !== 'COMPLETED' && task.endDate.getTime() < now,
-          ).length,
+          overdue: tasks.filter(isTaskOverdue).length,
         },
         taskBreakdown: tasks.map((task) => ({
           id: task.id,
           taskType: task.taskType,
           status: task.status,
-          startDate: task.startDate.toISOString(),
-          endDate: task.endDate.toISOString(),
-          isOverdue: task.status !== 'COMPLETED' && task.endDate.getTime() < now,
+          startDate: task.startDate?.toISOString() ?? null,
+          endDate: task.endDate?.toISOString() ?? null,
+          isOverdue: isTaskOverdue(task),
           assignedTo: task.assignedTo
             ? {
                 id: task.assignedTo.id,

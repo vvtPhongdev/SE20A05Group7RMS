@@ -98,6 +98,15 @@ export async function processTaskReminderJob(payload: unknown, emailQueue: Queue
     return;
   }
 
+  const deadlineDate = reminder.taskPlan.endDate;
+  if (!deadlineDate) {
+    await prisma.taskReminder.update({
+      where: { id: reminder.id },
+      data: { status: 'SKIPPED', errorMessage: 'Task has no deadline' },
+    });
+    return;
+  }
+
   const claimed = await prisma.taskReminder.updateMany({
     where: { id: reminder.id, status: 'PENDING' },
     data: { status: 'PROCESSING' },
@@ -106,7 +115,7 @@ export async function processTaskReminderJob(payload: unknown, emailQueue: Queue
 
   const assignee = reminder.taskPlan.assignedTo;
   const request = reminder.taskPlan.overallPlan.request;
-  const deadline = reminder.taskPlan.endDate.toLocaleString('en-GB', {
+  const deadline = deadlineDate.toLocaleString('en-GB', {
     timeZone: 'Asia/Ho_Chi_Minh',
     dateStyle: 'full',
     timeStyle: 'short',

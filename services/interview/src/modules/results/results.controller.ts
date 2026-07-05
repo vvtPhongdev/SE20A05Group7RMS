@@ -53,6 +53,7 @@ export class ResultsController {
       finalRecommendation: string;
       summaryNotes?: string;
       evaluatorId?: string;
+      actorRole?: string;
     },
   ) {
     return this.resultsService.recordResult(payload);
