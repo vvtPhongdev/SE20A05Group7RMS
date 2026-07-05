@@ -1005,8 +1005,23 @@ export const DeptHeadCreateRequest: React.FC = () => {
                       }`}
                       key={priority}
                       onClick={() => update('priority', priority)}
+                      style={{
+                        backgroundColor: checked ? tone.activeBg : tone.idleBg,
+                        borderColor: tone.border,
+                        boxShadow: checked ? `0 0 0 3px ${tone.ring}` : 'none',
+                        color: checked ? '#ffffff' : tone.idleText,
+                      }}
                       type="button"
                     >
+                      <span
+                        className="flex h-4 w-4 items-center justify-center rounded-full border"
+                        style={{
+                          backgroundColor: checked ? 'rgba(255, 255, 255, 0.22)' : '#ffffff',
+                          borderColor: checked ? 'rgba(255, 255, 255, 0.75)' : tone.border,
+                        }}
+                      >
+                        {checked && <Icon className="h-3 w-3" name="check" />}
+                      </span>
                       {priority}
                     </button>
                   );
