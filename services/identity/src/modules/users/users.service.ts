@@ -128,10 +128,11 @@ export class UsersService {
   async create(dto: CreateUserInput & { password?: string }) {
     // 1. Zod runtime validation for the core user payload
     const parsed = CreateUserSchema.parse(dto);
+    const email = parsed.email.trim().toLowerCase();
 
     // 2. Check email uniqueness
     const existing = await this.prisma.user.findUnique({
-      where: { email: parsed.email },
+      where: { email },
     });
     if (existing) {
       throw new RpcException({
@@ -173,7 +174,7 @@ export class UsersService {
     // 6. DB creation
     const user = await this.prisma.user.create({
       data: {
-        email: parsed.email,
+        email,
         displayName: parsed.displayName,
         role: parsed.role,
         organizationId: parsed.organizationId,
@@ -186,6 +187,31 @@ export class UsersService {
     });
 
     return user;
+  }
+
+  async checkEmail(payload: { email?: string }) {
+    const email = payload.email?.trim().toLowerCase() ?? '';
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'Use a valid email address.',
+      });
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        isActive: true,
+      },
+    });
+
+    return {
+      email,
+      exists: Boolean(user),
+      isActive: user?.isActive ?? false,
+    };
   }
 
   async update(payload: { id: string } & UpdateUserInput) {

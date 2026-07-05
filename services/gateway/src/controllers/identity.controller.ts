@@ -35,6 +35,9 @@ import {
   Max,
   IsBoolean,
   IsObject,
+  IsISO8601,
+  IsArray,
+  ArrayMaxSize,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -47,6 +50,28 @@ export class LoginDto {
   @IsString()
   @IsNotEmpty()
   password!: string;
+}
+
+export class SupabaseLoginDto {
+  @ApiProperty({ description: 'Supabase access token from the authenticated browser session' })
+  @IsString()
+  @IsNotEmpty()
+  accessToken!: string;
+}
+
+export class SupabaseRegisterDto extends SupabaseLoginDto {
+  @ApiProperty({ example: 'John Doe', description: 'Display name' })
+  @IsString()
+  @IsNotEmpty()
+  displayName!: string;
+
+  @ApiProperty({
+    example: 'CANDIDATE',
+    enum: UserRole,
+    description: 'RMS role to request for this account',
+  })
+  @IsEnum(UserRole)
+  role!: UserRole;
 }
 
 export class RegisterDto {
@@ -366,6 +391,55 @@ export class ListUsersQueryDto {
   departmentId?: string;
 }
 
+export class CheckUserEmailQueryDto {
+  @ApiProperty({ example: 'new.member@acme.com', description: 'Email to check in RMS users' })
+  @IsEmail()
+  email!: string;
+}
+
+export class CreateGoogleMeetDto {
+  @ApiProperty({ example: 'Technical Interview - Backend Engineer' })
+  @IsString()
+  @IsNotEmpty()
+  title!: string;
+
+  @ApiProperty({ required: false, example: 'Round 1 interview with HR and technical panel' })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiProperty({ example: '2026-07-10T03:00:00.000Z' })
+  @IsISO8601()
+  startIso!: string;
+
+  @ApiProperty({ example: '2026-07-10T04:00:00.000Z' })
+  @IsISO8601()
+  endIso!: string;
+
+  @ApiProperty({
+    required: false,
+    example: ['candidate@example.com', 'interviewer@example.com'],
+    description: 'Calendar attendees who should receive the Google Calendar invitation email',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsEmail({}, { each: true })
+  attendees?: string[];
+
+  @ApiProperty({
+    required: false,
+    example: 30,
+    description: 'Email reminder offset in minutes before the event',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(40320)
+  reminderMinutesBefore?: number;
+}
+
 /**
  * Thin proxy controller for Identity service (auth + users).
  * All business logic lives in services/identity.
@@ -411,6 +485,24 @@ export class IdentityController {
     return firstValueFrom(this.identityClient.send('auth.login', body));
   }
 
+  @Post('auth/supabase-login')
+  @Public()
+  @Throttle({ default: { limit: appConfig.RATE_LIMIT_AUTH_LIMIT, ttl: appConfig.RATE_LIMIT_TTL } })
+  @ApiOperation({ summary: 'Exchange a Supabase session for an RMS token pair' })
+  @HttpCode(HttpStatus.OK)
+  loginWithSupabase(@Body() body: SupabaseLoginDto) {
+    return firstValueFrom(this.identityClient.send('auth.supabase-login', body));
+  }
+
+  @Post('auth/supabase-register')
+  @Public()
+  @Throttle({ default: { limit: appConfig.RATE_LIMIT_AUTH_LIMIT, ttl: appConfig.RATE_LIMIT_TTL } })
+  @ApiOperation({ summary: 'Create RMS account details for a verified Supabase session' })
+  @HttpCode(HttpStatus.CREATED)
+  registerWithSupabase(@Body() body: SupabaseRegisterDto) {
+    return firstValueFrom(this.identityClient.send('auth.supabase-register', body));
+  }
+
   @Post('auth/refresh')
   @Public()
   @Throttle({ default: { limit: appConfig.RATE_LIMIT_AUTH_LIMIT, ttl: appConfig.RATE_LIMIT_TTL } })
@@ -446,6 +538,38 @@ export class IdentityController {
     return firstValueFrom(this.identityClient.send('identity.auth.reset-password', body));
   }
 
+  @Get('google-calendar/auth-url')
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Generate Google OAuth URL for Calendar/Meet access' })
+  createGoogleCalendarAuthUrl(@CurrentUser('sub') userId: string) {
+    return firstValueFrom(this.identityClient.send('google-calendar.auth-url', { userId }));
+  }
+
+  @Get('oauth2callback')
+  @Public()
+  @ApiOperation({ summary: 'Google OAuth callback for Calendar/Meet integration' })
+  handleGoogleOAuthCallback(@Query('code') code?: string, @Query('state') state?: string) {
+    return firstValueFrom(
+      this.identityClient.send('google-calendar.oauth-callback', { code, state }),
+    );
+  }
+
+  @Post('google-calendar/meet')
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Create a Google Calendar event with an auto-generated Google Meet link',
+  })
+  createGoogleMeet(@CurrentUser('sub') userId: string, @Body() body: CreateGoogleMeetDto) {
+    return firstValueFrom(
+      this.identityClient.send('google-calendar.create-meet', {
+        userId,
+        ...body,
+      }),
+    );
+  }
+
   // ─── Users ───────────────────────────────────────────────────────
 
   @Get('users')
@@ -460,9 +584,14 @@ export class IdentityController {
     }
 
     if (user.role === UserRole.DEPARTMENT_HEAD) {
-      const currentUser = await firstValueFrom(this.identityClient.send('users.get', { id: user.sub }));
+      const currentUser = await firstValueFrom(
+        this.identityClient.send('users.get', { id: user.sub }),
+      );
       if (!currentUser.departmentId) {
-        return { data: [], meta: { total: 0, page: scopedQuery.page, limit: scopedQuery.limit, totalPages: 0 } };
+        return {
+          data: [],
+          meta: { total: 0, page: scopedQuery.page, limit: scopedQuery.limit, totalPages: 0 },
+        };
       }
       scopedQuery.departmentId = currentUser.departmentId;
     }
@@ -482,6 +611,14 @@ export class IdentityController {
         roles: [UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD],
       }),
     );
+  }
+
+  @Get('users/email-exists')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Check if a user email already exists' })
+  checkUserEmail(@Query() query: CheckUserEmailQueryDto) {
+    return firstValueFrom(this.identityClient.send('users.check_email', query));
   }
 
   @Get('users/:id')

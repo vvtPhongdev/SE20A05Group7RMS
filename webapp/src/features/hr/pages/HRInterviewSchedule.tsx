@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
-import { apiRequest } from '../../../lib/api';
+import { ApiError, apiRequest } from '../../../lib/api';
 import { HRActionButton, HRCard, HRInlineAlert, HRLoadingState, HRPageHeader } from '../components';
 
 type InterviewStatus = 'Scheduled' | 'Rescheduled' | 'Completed';
+type InterviewMode = 'ONLINE' | 'OFFLINE';
 
 type Interview = {
   id: string;
@@ -56,6 +57,7 @@ interface ApplicationApiItem {
   candidate: {
     id: string;
     fullName: string;
+    email?: string;
     structuredData?: Record<string, unknown> | null;
   };
 }
@@ -64,6 +66,18 @@ interface UserOption {
   id: string;
   displayName: string;
   email?: string;
+}
+
+interface GoogleCalendarAuthUrlResponse {
+  authorizationUrl: string;
+}
+
+interface GoogleMeetResponse {
+  meetLink: string;
+  eventId?: string;
+  htmlLink?: string;
+  attendees?: string[];
+  reminderMinutesBefore?: number;
 }
 
 const STATUS_MAP: Record<string, InterviewStatus> = {
@@ -116,6 +130,9 @@ const iconPaths: Record<string, React.ReactNode> = {
   chevronRight: <path d="m9 18 6-6-6-6" />,
   download: <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16" />,
   info: <path d="M12 16v-4m0-4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
+  video: (
+    <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h7A2.5 2.5 0 0 1 16 7.5v9a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 4 16.5v-9Zm12 3.25 4-2.25v7l-4-2.25" />
+  ),
   warning: (
     <path d="M12 9v4m0 4h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
   ),
@@ -157,6 +174,19 @@ const getInitials = (name: string) =>
     .map((part) => part[0]?.toUpperCase())
     .join('') || 'CV';
 
+const isGoogleMeetUrl = (value: string) => /^https:\/\/meet\.google\.com\/.+/i.test(value.trim());
+
+const normalizeEmailList = (emails: Array<string | undefined>) =>
+  Array.from(
+    new Set(
+      emails
+        .map((email) => email?.trim().toLowerCase())
+        .filter((email): email is string =>
+          Boolean(email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)),
+        ),
+    ),
+  );
+
 const buildInterviewerOptions = (
   users: UserOption[],
   currentUser?: { id?: string; displayName?: string; email?: string } | null,
@@ -189,7 +219,11 @@ export const HRInterviewSchedule: React.FC = () => {
   const [scheduleTime, setScheduleTime] = useState('');
   const [scheduleDuration, setScheduleDuration] = useState('60');
   const [scheduleLocation, setScheduleLocation] = useState('');
+  const [interviewMode, setInterviewMode] = useState<InterviewMode>('ONLINE');
   const [submitting, setSubmitting] = useState(false);
+  const [creatingMeet, setCreatingMeet] = useState(false);
+  const [connectingGoogle, setConnectingGoogle] = useState(false);
+  const [needsGoogleConnection, setNeedsGoogleConnection] = useState(false);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
   const [actionMessage, setActionMessage] = useState('');
@@ -262,6 +296,12 @@ export const HRInterviewSchedule: React.FC = () => {
   const selectedRequest = useMemo(
     () => requests.find((request) => request.id === selectedRequestId) ?? null,
     [requests, selectedRequestId],
+  );
+
+  const selectedApplication = useMemo(
+    () =>
+      applications.find((application) => application.candidateId === selectedCandidateId) ?? null,
+    [applications, selectedCandidateId],
   );
 
   const candidateOptions = useMemo(() => {
@@ -476,6 +516,102 @@ export const HRInterviewSchedule: React.FC = () => {
     }, 800);
   };
 
+  const connectGoogleCalendar = async () => {
+    setConnectingGoogle(true);
+    setApiError('');
+    setActionMessage('');
+    const consentWindow = window.open('', '_blank', 'noopener,noreferrer');
+    try {
+      const response = await apiRequest<GoogleCalendarAuthUrlResponse>(
+        '/google-calendar/auth-url',
+        token,
+      );
+      if (consentWindow) {
+        consentWindow.location.href = response.authorizationUrl;
+      } else {
+        window.location.href = response.authorizationUrl;
+      }
+      setActionMessage('Complete Google consent in the new tab, then return and create the Meet.');
+    } catch (connectError) {
+      consentWindow?.close();
+      setApiError(
+        connectError instanceof Error ? connectError.message : 'Unable to start Google connection',
+      );
+    } finally {
+      setConnectingGoogle(false);
+    }
+  };
+
+  const createGoogleMeet = async () => {
+    if (!selectedRequest || !selectedApplication || !scheduleDate || !scheduleTime) {
+      setApiError('Select campaign, candidate, date, and time before creating Google Meet.');
+      return;
+    }
+
+    const start = new Date(`${scheduleDate}T${scheduleTime}`);
+    const duration = Number(scheduleDuration);
+    const end = new Date(start.getTime() + duration * 60_000);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      setApiError('Date or time is not valid.');
+      return;
+    }
+
+    setCreatingMeet(true);
+    setApiError('');
+    setActionMessage('');
+    setNeedsGoogleConnection(false);
+    try {
+      const selectedInterviewerEmails = selectedInterviewerIds.map(
+        (interviewerId) =>
+          interviewerOptions.find((interviewer) => interviewer.id === interviewerId)?.email,
+      );
+      const attendees = normalizeEmailList([
+        selectedApplication.candidate.email,
+        ...selectedInterviewerEmails,
+      ]);
+
+      const response = await apiRequest<GoogleMeetResponse>('/google-calendar/meet', token, {
+        method: 'POST',
+        body: JSON.stringify({
+          title: `Interview - ${selectedApplication.candidate.fullName} - ${selectedRequest.position}`,
+          description: [
+            `Candidate: ${selectedApplication.candidate.fullName}`,
+            `Position: ${selectedRequest.position}`,
+            `Duration: ${duration} minutes`,
+          ].join('\n'),
+          startIso: start.toISOString(),
+          endIso: end.toISOString(),
+          attendees,
+          reminderMinutesBefore: 30,
+        }),
+      });
+
+      setInterviewMode('ONLINE');
+      setScheduleLocation(response.meetLink);
+      setActionMessage(
+        attendees.length > 0
+          ? 'Google Meet created. Calendar invite emails include the Meet link and a 30-minute reminder.'
+          : 'Google Meet created and added to the interview location.',
+      );
+    } catch (meetError) {
+      if (
+        meetError instanceof ApiError &&
+        meetError.status === 400 &&
+        /Google Calendar is not connected|reconnect Google Calendar|authorization expired|lacks Calendar permission/i.test(
+          meetError.message,
+        )
+      ) {
+        setNeedsGoogleConnection(true);
+        setApiError('Connect or reconnect Google Calendar before creating a Meet automatically.');
+        return;
+      }
+      setApiError(meetError instanceof Error ? meetError.message : 'Unable to create Google Meet');
+    } finally {
+      setCreatingMeet(false);
+    }
+  };
+
   const createSchedule = async () => {
     if (
       !selectedRequestId ||
@@ -486,6 +622,13 @@ export const HRInterviewSchedule: React.FC = () => {
       selectedInterviewerIds.length < 2
     ) {
       setApiError('Please complete campaign, candidate, interviewers, date, time, and location.');
+      return;
+    }
+
+    if (interviewMode === 'ONLINE' && !isGoogleMeetUrl(scheduleLocation)) {
+      setApiError(
+        'Online interviews require a valid Google Meet link, for example https://meet.google.com/abc-defg-hij.',
+      );
       return;
     }
 
@@ -833,18 +976,83 @@ export const HRInterviewSchedule: React.FC = () => {
                 <option value="120">2 Hours</option>
               </select>
             </label>
+            <section className="space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-ink">
+                Interview Format
+              </span>
+              <div className="grid grid-cols-2 gap-2 rounded-lg bg-surface-container-high p-1">
+                {(['ONLINE', 'OFFLINE'] as const).map((mode) => (
+                  <button
+                    aria-pressed={interviewMode === mode}
+                    className={`rounded-md border px-3 py-2 text-xs font-bold transition active:scale-[0.98] ${
+                      interviewMode === mode
+                        ? 'border-teal-command bg-white text-teal-command shadow-sm'
+                        : 'border-transparent text-slate-ink hover:bg-white/60'
+                    }`}
+                    key={mode}
+                    onClick={() => {
+                      setInterviewMode(mode);
+                      setScheduleLocation('');
+                      setApiError('');
+                      setNeedsGoogleConnection(false);
+                    }}
+                    type="button"
+                  >
+                    {mode === 'ONLINE' ? 'Online' : 'Offline'}
+                  </button>
+                ))}
+              </div>
+            </section>
             <label className="block space-y-1.5">
               <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-ink">
-                Meeting URL / Location
+                {interviewMode === 'ONLINE' ? 'Google Meet Link' : 'Room / Address'}
               </span>
               <input
                 className="w-full rounded-lg border border-border-warm bg-workflow-ivory p-2.5 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                placeholder="https://meet.recruitflow.com/..."
+                placeholder={
+                  interviewMode === 'ONLINE'
+                    ? 'https://meet.google.com/abc-defg-hij'
+                    : 'Room 3A, Building B or full interview address'
+                }
                 onChange={(event) => setScheduleLocation(event.target.value)}
                 type="text"
                 value={scheduleLocation}
               />
+              <span className="text-xs text-slate-ink">
+                {interviewMode === 'ONLINE'
+                  ? 'Use the Google Meet URL that candidate and panel members will join.'
+                  : 'Enter the physical room number or address for the offline interview.'}
+              </span>
             </label>
+            {interviewMode === 'ONLINE' ? (
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button
+                  className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-teal-command bg-white px-3 py-2 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
+                  disabled={
+                    creatingMeet ||
+                    !selectedRequest ||
+                    !selectedCandidateId ||
+                    !scheduleDate ||
+                    !scheduleTime
+                  }
+                  onClick={() => void createGoogleMeet()}
+                  type="button"
+                >
+                  <Icon className="h-4 w-4" name="video" />
+                  {creatingMeet ? 'Creating...' : 'Create Google Meet'}
+                </button>
+                {needsGoogleConnection ? (
+                  <button
+                    className="inline-flex min-h-10 flex-1 items-center justify-center rounded-lg bg-teal-command px-3 py-2 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
+                    disabled={connectingGoogle}
+                    onClick={() => void connectGoogleCalendar()}
+                    type="button"
+                  >
+                    {connectingGoogle ? 'Opening...' : 'Connect Google Calendar'}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
 
             <section className="border-t border-border-warm pt-4">
               <div className="mb-2 flex items-center justify-between">

@@ -9,6 +9,16 @@ import * as crypto from 'crypto';
 import * as nodemailer from 'nodemailer';
 import { UserRole } from '@wr/contracts';
 
+const mockSupabaseGetUser = jest.fn();
+
+jest.mock('@supabase/supabase-js', () => ({
+  createClient: jest.fn(() => ({
+    auth: {
+      getUser: mockSupabaseGetUser,
+    },
+  })),
+}));
+
 // Mock bcrypt
 jest.mock('bcryptjs', () => ({
   hash: jest.fn().mockResolvedValue('hashed-password'),
@@ -51,6 +61,9 @@ describe('AuthService', () => {
     organization: {
       findFirst: jest.fn(),
       create: jest.fn(),
+    },
+    department: {
+      findFirst: jest.fn(),
     },
   };
 
@@ -236,6 +249,117 @@ describe('AuthService', () => {
       expect(bcrypt.compare).toHaveBeenCalledWith(dto.password, user.passwordHash);
     });
   });
+
+  describe('loginWithSupabase', () => {
+    it('should exchange a verified Supabase session for RMS tokens when the user exists', async () => {
+      const user = {
+        id: 'uuid-1234',
+        email: 'google@example.com',
+        displayName: 'Google User',
+        role: 'CANDIDATE',
+        passwordHash: null,
+        organizationId: 'org-123',
+        isActive: true,
+      };
+      mockSupabaseGetUser.mockResolvedValueOnce({
+        data: {
+          user: {
+            email: 'Google@Example.com',
+            user_metadata: { full_name: 'Google User' },
+          },
+        },
+        error: null,
+      });
+      mockPrismaService.user.findUnique.mockResolvedValueOnce(user);
+
+      const result = await service.loginWithSupabase({ accessToken: 'supabase-access-token' });
+
+      expect(mockSupabaseGetUser).toHaveBeenCalledWith('supabase-access-token');
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { email: 'google@example.com' },
+      });
+      expect(result.user).toEqual({
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        role: user.role,
+      });
+    });
+
+    it('should return 404 when the verified Google email has no RMS account', async () => {
+      mockSupabaseGetUser.mockResolvedValueOnce({
+        data: {
+          user: {
+            email: 'new@example.com',
+            user_metadata: {},
+          },
+        },
+        error: null,
+      });
+      mockPrismaService.user.findUnique.mockResolvedValueOnce(null);
+
+      await expect(
+        service.loginWithSupabase({ accessToken: 'supabase-access-token' }),
+      ).rejects.toThrow(
+        new RpcException({
+          status: HttpStatus.NOT_FOUND,
+          message: 'No RMS account is registered for this Google account',
+          code: 'RMS_ACCOUNT_NOT_REGISTERED',
+          email: 'new@example.com',
+        }),
+      );
+    });
+  });
+
+  describe('registerWithSupabase', () => {
+    it('should create an active RMS account for a verified Supabase user', async () => {
+      const createdUser = {
+        id: 'uuid-created',
+        email: 'new@example.com',
+        displayName: 'New User',
+        role: UserRole.CANDIDATE,
+        passwordHash: null,
+        organizationId: 'org-123',
+        isActive: true,
+      };
+      mockSupabaseGetUser.mockResolvedValueOnce({
+        data: {
+          user: {
+            email: 'new@example.com',
+            user_metadata: { name: 'New User' },
+          },
+        },
+        error: null,
+      });
+      mockPrismaService.user.findUnique.mockResolvedValueOnce(null);
+      mockPrismaService.organization.findFirst.mockResolvedValueOnce({
+        id: 'org-123',
+        name: 'Acme Corporation',
+        slug: 'acme-corp',
+      });
+      mockPrismaService.user.create.mockResolvedValueOnce(createdUser);
+
+      const result = await service.registerWithSupabase({
+        accessToken: 'supabase-access-token',
+        displayName: 'New User',
+        role: UserRole.CANDIDATE,
+      });
+
+      expect(prisma.user.create).toHaveBeenCalledWith({
+        data: {
+          email: 'new@example.com',
+          displayName: 'New User',
+          role: UserRole.CANDIDATE,
+          passwordHash: null,
+          organizationId: 'org-123',
+          departmentId: undefined,
+          isActive: true,
+        },
+      });
+      expect(result.user.email).toBe('new@example.com');
+    });
+  });
+
   describe('refresh', () => {
     const refreshToken = 'refresh-token-123';
     const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');

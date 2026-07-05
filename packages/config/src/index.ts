@@ -39,6 +39,15 @@ export const IdentityEnvSchema = BaseEnvSchema.extend({
   API_CORS_ORIGIN: z.string().default('http://localhost:3000'),
   JWT_SECRET: z.string().min(10),
   JWT_EXPIRES_IN: z.string().default('7d'),
+  GOOGLE_CLIENT_ID: z.string().default(''),
+  GOOGLE_CLIENT_SECRET: z.string().default(''),
+  GOOGLE_PROJECT_ID: z.string().default(''),
+  GOOGLE_OAUTH_REDIRECT_URI: z
+    .string()
+    .url()
+    .default('http://localhost:3001/api/v1/oauth2callback'),
+  SUPABASE_URL: z.string().url(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   SMTP_HOST: z.string().default('localhost'),
   SMTP_PORT: z.coerce.number().int().default(1025),
   SMTP_USER: z.string().default(''),
@@ -125,4 +134,3 @@ export function loadConfig<T extends z.ZodTypeAny>(
   }
   return result.data;
 }
-
