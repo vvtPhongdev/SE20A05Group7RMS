@@ -436,8 +436,8 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
                         <span
                           className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] ${
                             feedback.decision === 'PASS'
-                              ? 'border-approved/20 bg-approved/10 text-approved'
-                              : 'border-rejected/20 bg-rejected/10 text-rejected'
+                              ? 'border-[#16a34a]/30 bg-[#16a34a]/10 text-[#15803d]'
+                              : 'border-[#dc2626]/30 bg-[#dc2626]/10 text-[#b91c1c]'
                           }`}
                         >
                           {feedback.decision === 'PASS' ? 'Pass' : 'Fail'}
@@ -489,11 +489,11 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
                         className={`rounded-md border px-4 py-1.5 text-xs font-bold transition active:scale-[0.98] ${
                           myFeedback.decision === decision
                             ? decision === 'PASS'
-                              ? 'border-approved/30 bg-approved/10 text-approved shadow-sm'
-                              : 'border-rejected/30 bg-rejected/10 text-rejected shadow-sm'
+                              ? 'border-[#16a34a] bg-[#16a34a] text-white shadow-sm'
+                              : 'border-[#dc2626] bg-[#dc2626] text-white shadow-sm'
                             : decision === 'PASS'
-                              ? 'border-transparent text-approved hover:bg-approved/10'
-                              : 'border-transparent text-rejected hover:bg-rejected/10'
+                              ? 'border-transparent text-[#15803d] hover:bg-[#16a34a]/10'
+                              : 'border-transparent text-[#b91c1c] hover:bg-[#dc2626]/10'
                         }`}
                         disabled={!canSubmitMyFeedback || submitting}
                         key={decision}

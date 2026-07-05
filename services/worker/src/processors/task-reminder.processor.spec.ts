@@ -153,4 +153,35 @@ describe('task reminder processor', () => {
       expect.objectContaining({ data: expect.objectContaining({ status: 'SKIPPED' }) }),
     );
   });
+
+  it('skips reminders when the task has no deadline', async () => {
+    db.taskReminder.findUnique.mockResolvedValue({
+      id: 'reminder-1',
+      status: 'PENDING',
+      taskPlan: {
+        status: 'IN_PROGRESS',
+        endDate: null,
+        overallPlan: {
+          status: 'APPROVED',
+          request: { status: 'ACTIVE' },
+        },
+      },
+    });
+
+    await processTaskReminderJob(
+      {
+        taskPlanId: '9f0d6d75-9c6e-4ad4-a826-8114bc300e47',
+        reminderKey: 'deadline',
+        scheduledFor: '2026-06-21T09:00:00.000Z',
+      },
+      queue as any,
+    );
+
+    expect(queue.add).not.toHaveBeenCalled();
+    expect(db.taskReminder.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'SKIPPED', errorMessage: 'Task has no deadline' }),
+      }),
+    );
+  });
 });
