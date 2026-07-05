@@ -9,6 +9,10 @@ import {
   AuthTokenResponse,
   LoginSchema,
   LoginInput,
+  SupabaseLoginSchema,
+  SupabaseLoginInput,
+  SupabaseRegisterSchema,
+  SupabaseRegisterInput,
   RefreshTokenSchema,
   ForgotPasswordSchema,
   ResetPasswordSchema,
@@ -16,6 +20,7 @@ import {
   VerifyRegisterSchema,
   VerifyRegisterInput,
 } from '@wr/contracts';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import IORedis from 'ioredis';
@@ -91,6 +96,7 @@ function buildAuthHtmlTemplate(title: string, bodyHtml: string, hasLogo: boolean
 @Injectable()
 export class AuthService implements OnModuleDestroy {
   private readonly redis: IORedis;
+  private readonly supabase: SupabaseClient;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -108,10 +114,105 @@ export class AuthService implements OnModuleDestroy {
         maxRetriesPerRequest: null,
       });
     }
+
+    this.supabase = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_ROLE_KEY, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
   }
 
   async onModuleDestroy() {
     await this.redis.quit();
+  }
+
+  private async storeRefreshToken(tokenHash: string, userId: string) {
+    try {
+      await this.redis.set(`refresh:${tokenHash}`, userId, 'EX', 2592000);
+    } catch (error) {
+      if (config.NODE_ENV === 'development') {
+        console.warn(
+          'Redis is unavailable or rate-limited; continuing login without persisting the refresh token.',
+          error instanceof Error ? error.message : error,
+        );
+        return;
+      }
+
+      throw error;
+    }
+  }
+
+  private async issueRmsTokens(user: {
+    id: string;
+    email: string;
+    displayName: string;
+    role: string;
+    organizationId: string | null;
+  }): Promise<AuthTokenResponse> {
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.role,
+      organizationId: user.organizationId,
+    };
+    const accessToken = this.jwtService.sign(payload);
+    const refreshToken = crypto.randomBytes(64).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+
+    await this.storeRefreshToken(tokenHash, user.id);
+
+    return {
+      accessToken,
+      refreshToken,
+      expiresIn: 3600,
+      user: {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        role: user.role,
+      },
+    };
+  }
+
+  private async getVerifiedSupabaseIdentity(accessToken: string) {
+    const { data, error } = await this.supabase.auth.getUser(accessToken);
+    const supabaseUser = data.user;
+
+    if (error || !supabaseUser?.email) {
+      throw new RpcException({
+        status: HttpStatus.UNAUTHORIZED,
+        message: 'Invalid Supabase session',
+      });
+    }
+
+    const metadata = supabaseUser.user_metadata ?? {};
+    const displayName =
+      typeof metadata.full_name === 'string'
+        ? metadata.full_name
+        : typeof metadata.name === 'string'
+          ? metadata.name
+          : supabaseUser.email;
+
+    return {
+      email: supabaseUser.email.toLowerCase(),
+      displayName,
+    };
+  }
+
+  private async getOrCreateDefaultOrganization() {
+    let organization = await this.prisma.organization.findFirst();
+    if (!organization) {
+      organization = await this.prisma.organization.create({
+        data: {
+          name: 'Acme Corporation',
+          slug: 'acme-corp',
+        },
+      });
+    }
+
+    return organization;
   }
 
   /**
@@ -310,7 +411,7 @@ export class AuthService implements OnModuleDestroy {
     const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
 
     // 7. Store Refresh Token in Redis (30 days TTL = 2592000s)
-    await this.redis.set(`refresh:${tokenHash}`, user.id, 'EX', 2592000);
+    await this.storeRefreshToken(tokenHash, user.id);
 
     return {
       accessToken,
@@ -323,6 +424,81 @@ export class AuthService implements OnModuleDestroy {
         role: user.role,
       },
     };
+  }
+
+  async loginWithSupabase(dto: SupabaseLoginInput): Promise<AuthTokenResponse> {
+    const parsed = SupabaseLoginSchema.parse(dto);
+    const identity = await this.getVerifiedSupabaseIdentity(parsed.accessToken);
+
+    const user = await this.prisma.user.findUnique({
+      where: { email: identity.email },
+    });
+
+    if (!user) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: 'No RMS account is registered for this Google account',
+        code: 'RMS_ACCOUNT_NOT_REGISTERED',
+        email: identity.email,
+      });
+    }
+
+    if (!user.isActive) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'This RMS account is not active yet',
+      });
+    }
+
+    return this.issueRmsTokens(user);
+  }
+
+  async registerWithSupabase(dto: SupabaseRegisterInput): Promise<AuthTokenResponse> {
+    const parsed = SupabaseRegisterSchema.parse(dto);
+    const identity = await this.getVerifiedSupabaseIdentity(parsed.accessToken);
+
+    const existing = await this.prisma.user.findUnique({
+      where: { email: identity.email },
+    });
+
+    if (existing?.isActive) {
+      return this.issueRmsTokens(existing);
+    }
+
+    const organization = await this.getOrCreateDefaultOrganization();
+    let departmentId = existing?.departmentId ?? undefined;
+    if (!departmentId && parsed.role === 'DEPARTMENT_HEAD') {
+      const defaultDept = await this.prisma.department.findFirst({
+        where: { organizationId: organization.id },
+      });
+      departmentId = defaultDept?.id;
+    }
+
+    const displayName = parsed.displayName.trim() || identity.displayName;
+    const user = existing
+      ? await this.prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            displayName,
+            role: parsed.role,
+            departmentId,
+            passwordHash: null,
+            isActive: true,
+          },
+        })
+      : await this.prisma.user.create({
+          data: {
+            email: identity.email,
+            displayName,
+            role: parsed.role,
+            passwordHash: null,
+            organizationId: organization.id,
+            departmentId,
+            isActive: true,
+          },
+        });
+
+    return this.issueRmsTokens(user);
   }
   /**
    * Refresh an existing refresh token and rotate to a new pair.
@@ -375,9 +551,8 @@ export class AuthService implements OnModuleDestroy {
     const accessToken = this.jwtService.sign(accessTokenPayload);
     const refreshToken = crypto.randomBytes(64).toString('hex');
     const newTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-    const newRedisKey = `refresh:${newTokenHash}`;
 
-    await this.redis.set(newRedisKey, user.id, 'EX', 2592000);
+    await this.storeRefreshToken(newTokenHash, user.id);
 
     return {
       accessToken,
@@ -626,7 +801,7 @@ export class AuthService implements OnModuleDestroy {
     const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
 
     // 8. Store Refresh Token in Redis (30 days TTL)
-    await this.redis.set(`refresh:${tokenHash}`, user.id, 'EX', 2592000);
+    await this.storeRefreshToken(tokenHash, user.id);
 
     return {
       accessToken,

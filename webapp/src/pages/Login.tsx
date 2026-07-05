@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { UserRole } from '@wr/contracts';
+import { getRoleHomePath } from '../lib/auth';
 
 
 const pipelineStages = [
@@ -54,31 +54,43 @@ const EyeIcon = ({ hidden }: { hidden: boolean }) => (
   </svg>
 );
 
-const getRoleHomePath = (role: UserRole) => {
-  switch (role) {
-    case UserRole.ADMIN:
-      return '/admin';
-    case UserRole.DEPARTMENT_HEAD:
-      return '/dept-head';
-    case UserRole.HR_LEADER:
-    case UserRole.HR_RECRUITER:
-      return '/hr';
-    case UserRole.CANDIDATE:
-      return '/candidate';
-    default:
-      return '/dashboard';
-  }
-};
-
 export const Login: React.FC = () => {
-  const { login } = useAuth();
+  const { login, signInWithGoogle, completeSupabaseLogin } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const authMode = searchParams.get('auth');
+
+  useEffect(() => {
+    if (authMode !== 'google') return;
+
+    const completeGoogleLogin = async () => {
+      setError(null);
+      setGoogleLoading(true);
+
+      try {
+        const loggedUser = await completeSupabaseLogin(rememberMe);
+        navigate(getRoleHomePath(loggedUser.role), { replace: true });
+      } catch (err: any) {
+        if (err.status === 404 || err.code === 'RMS_ACCOUNT_NOT_REGISTERED') {
+          navigate('/signup?auth=google', { replace: true });
+          return;
+        }
+
+        setError(err.message || 'Google sign-in failed. Please try again.');
+      } finally {
+        setGoogleLoading(false);
+      }
+    };
+
+    void completeGoogleLogin();
+  }, [authMode, navigate, rememberMe]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,6 +104,18 @@ export const Login: React.FC = () => {
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError(null);
+    setGoogleLoading(true);
+
+    try {
+      await signInWithGoogle('/login?auth=google');
+    } catch (err: any) {
+      setGoogleLoading(false);
+      setError(err.message || 'Could not start Google sign-in.');
     }
   };
 
@@ -289,6 +313,24 @@ export const Login: React.FC = () => {
                 </div>
               )}
 
+              <button
+                className="mb-5 flex h-12 w-full items-center justify-center gap-3 rounded-[var(--wr-radius-lg)] border border-[var(--wr-border-default)] bg-[#fefdfb] px-4 text-sm font-semibold text-[var(--wr-text-primary)] transition duration-200 ease-out hover:-translate-y-[1px] hover:border-[var(--wr-border-strong)] hover:bg-[var(--wr-bg-elevated)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
+                disabled={loading || googleLoading}
+                type="button"
+                onClick={handleGoogleSignIn}
+              >
+                <span className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--wr-border-subtle)] bg-white font-semibold text-[#4285f4]">
+                  G
+                </span>
+                {googleLoading ? 'Connecting to Google...' : 'Continue with Google'}
+              </button>
+
+              <div className="mb-5 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--wr-text-muted)]">
+                <span className="h-px flex-1 bg-[var(--wr-border-subtle)]" />
+                <span>or</span>
+                <span className="h-px flex-1 bg-[var(--wr-border-subtle)]" />
+              </div>
+
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">
                   <label
@@ -361,7 +403,7 @@ export const Login: React.FC = () => {
                 </div>
 
                 <button
-                  disabled={loading}
+                  disabled={loading || googleLoading}
                   className="flex h-12 w-full items-center justify-center overflow-hidden rounded-[var(--wr-radius-lg)] bg-[var(--wr-accent-primary)] px-4 text-sm font-semibold text-white shadow-[var(--wr-shadow-sm)] transition duration-200 ease-out hover:-translate-y-[1px] hover:bg-[var(--wr-accent-primary-hover)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
                   type="submit"
                 >

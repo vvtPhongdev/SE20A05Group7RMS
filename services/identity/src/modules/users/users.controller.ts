@@ -30,6 +30,11 @@ export class UsersController {
     return this.usersService.create(data);
   }
 
+  @MessagePattern('users.check_email')
+  async checkEmail(@Payload() data: { email?: string }) {
+    return this.usersService.checkEmail(data);
+  }
+
   @MessagePattern('users.update')
   async update(@Payload() data: any) {
     return this.usersService.update(data);

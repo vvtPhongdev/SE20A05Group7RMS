@@ -1,5 +1,12 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { UserRole } from '@wr/contracts';
+import { supabase } from '../lib/supabase';
+
+export interface UserDepartment {
+  id: string;
+  name: string;
+  code?: string | null;
+}
 
 export interface User {
   id: string;
@@ -7,6 +14,15 @@ export interface User {
   displayName: string;
   role: UserRole;
   organizationId?: string;
+  departmentId?: string | null;
+  department?: UserDepartment | null;
+  departmentsHeaded?: UserDepartment[];
+}
+
+interface SupabaseRegisterData {
+  displayName: string;
+  role: UserRole;
+  rememberMe?: boolean;
 }
 
 interface AuthContextType {
@@ -14,6 +30,10 @@ interface AuthContextType {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<User>;
+  signInWithGoogle: (redirectPath?: string) => Promise<void>;
+  completeSupabaseLogin: (rememberMe?: boolean) => Promise<User>;
+  registerWithSupabaseSession: (data: SupabaseRegisterData) => Promise<User>;
+  getSupabaseProfile: () => Promise<{ email: string; displayName: string } | null>;
   loginWithToken: (
     accessToken: string,
     loggedUser: User,
@@ -66,6 +86,36 @@ const getStoredAuth = () => {
 const getStoredRefreshToken = () =>
   sessionStorage.getItem('refreshToken') ?? localStorage.getItem('refreshToken');
 
+const clearSupabaseSession = async () => {
+  await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+};
+
+const mapAuthUser = (data: any): User => ({
+  id: data.user.id,
+  email: data.user.email,
+  displayName: data.user.displayName,
+  role: data.user.role,
+  organizationId: data.user.organizationId,
+  departmentId: data.user.departmentId,
+  department: data.user.department,
+  departmentsHeaded: data.user.departmentsHeaded,
+});
+
+const readAuthError = async (response: Response) => {
+  const errorData = await response.json().catch(() => ({}));
+  const error = new Error(
+    errorData.message || `Authentication failed (${response.status})`,
+  ) as Error & {
+    status?: number;
+    code?: string;
+    email?: string;
+  };
+  error.status = response.status;
+  error.code = errorData.code;
+  error.email = errorData.email;
+  return error;
+};
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -74,7 +124,6 @@ export const useAuth = () => {
   return context;
 };
 
-// Predefined mock users for quick UI evaluation
 const MOCK_USERS: Record<string, User> = {
   'admin@acme.com': {
     id: '11111111-1111-1111-1111-111111111111',
@@ -86,9 +135,26 @@ const MOCK_USERS: Record<string, User> = {
   'depthead@acme.com': {
     id: '22222222-2222-2222-2222-222222222222',
     email: 'depthead@acme.com',
-    displayName: 'Trưởng Phòng ENG',
+    displayName: 'Department Head ENG',
     role: UserRole.DEPARTMENT_HEAD,
     organizationId: 'org-uuid-1234',
+    department: {
+      id: '00000000-0000-4000-8000-000000000201',
+      name: 'Engineering',
+      code: 'ENG',
+    },
+  },
+  'sale.head.test@gmail.com': {
+    id: '00000000-0000-4000-8000-000000000109',
+    email: 'sale.head.test@gmail.com',
+    displayName: 'FONG',
+    role: UserRole.DEPARTMENT_HEAD,
+    organizationId: 'org-uuid-1234',
+    department: {
+      id: '00000000-0000-4000-8000-000000000203',
+      name: 'Sales',
+      code: 'SALES',
+    },
   },
   'hr@acme.com': {
     id: '33333333-3333-3333-3333-333333333333',
@@ -100,7 +166,7 @@ const MOCK_USERS: Record<string, User> = {
   'candidate@acme.com': {
     id: '44444444-4444-4444-4444-444444444444',
     email: 'candidate@acme.com',
-    displayName: 'Nguyễn Văn Ứng Viên',
+    displayName: 'Candidate User',
     role: UserRole.CANDIDATE,
     organizationId: 'org-uuid-1234',
   },
@@ -111,23 +177,71 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const restoreStoredAuth = () => {
+    const savedAuth = getStoredAuth();
+
+    if (!savedAuth) {
+      setToken(null);
+      setUser(null);
+      return;
+    }
+
+    try {
+      setToken(savedAuth.accessToken);
+      setUser(JSON.parse(savedAuth.savedUser) as User);
+    } catch {
+      clearStoredAuth();
+      setToken(null);
+      setUser(null);
+    }
+  };
+
+  const saveAuthResponse = (data: any, rememberMe = false) => {
+    const loggedUser = mapAuthUser(data);
+    storeAuth(data.accessToken, loggedUser, data.refreshToken, rememberMe);
+    setToken(data.accessToken);
+    setUser(loggedUser);
+    return loggedUser;
+  };
+
+  const exchangeSupabaseToken = async (accessToken: string, rememberMe = false) => {
+    const response = await fetch('/api/v1/auth/supabase-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessToken }),
+    });
+
+    if (!response.ok) {
+      throw await readAuthError(response);
+    }
+
+    return saveAuthResponse(await response.json(), rememberMe);
+  };
+
   useEffect(() => {
-    const restoreStoredAuth = () => {
-      const savedAuth = getStoredAuth();
+    let cancelled = false;
 
-      if (!savedAuth) {
-        setToken(null);
-        setUser(null);
-        return;
-      }
-
+    const restoreSupabaseAuth = async () => {
       try {
-        setToken(savedAuth.accessToken);
-        setUser(JSON.parse(savedAuth.savedUser) as User);
+        const { data, error } = await supabase.auth.getSession();
+        if (error || !data.session?.access_token) {
+          if (error) {
+            await clearSupabaseSession();
+          }
+          restoreStoredAuth();
+          return;
+        }
+
+        await exchangeSupabaseToken(data.session.access_token);
       } catch {
-        clearStoredAuth();
-        setToken(null);
-        setUser(null);
+        await clearSupabaseSession();
+        if (!cancelled) {
+          restoreStoredAuth();
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
@@ -145,65 +259,149 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
-    restoreStoredAuth();
-    setLoading(false);
+    void restoreSupabaseAuth();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        clearStoredAuth();
+        setToken(null);
+        setUser(null);
+      }
+    });
 
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   const login = async (email: string, password: string, rememberMe = false) => {
     setLoading(true);
-    let isApiConnected = false;
 
     try {
-      // 1. Try to hit actual login endpoint in the gateway
       const response = await fetch('/api/v1/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
 
-      isApiConnected = true;
-
       if (response.ok) {
-        const data = await response.json();
-        const loggedUser: User = {
-          id: data.user.id,
-          email: data.user.email,
-          displayName: data.user.displayName,
-          role: data.user.role,
-          organizationId: data.user.organizationId,
-        };
-
-        storeAuth(data.accessToken, loggedUser, data.refreshToken, rememberMe);
-        setToken(data.accessToken);
-        setUser(loggedUser);
-        setLoading(false);
-        return loggedUser;
+        return saveAuthResponse(await response.json(), rememberMe);
       }
 
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `Login failed (${response.status})`);
+      const rmsAuthError = await readAuthError(response);
+      const mockUser = MOCK_USERS[email.toLowerCase()];
+      if (mockUser && password === 'Password123!') {
+        const mockToken = `mock-jwt-token-for-${mockUser.role}`;
+        storeAuth(mockToken, mockUser, undefined, rememberMe);
+        setToken(mockToken);
+        setUser(mockUser);
+        return mockUser;
+      }
+
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error || !data.session?.access_token) {
+        throw rmsAuthError;
+      }
+
+      return await exchangeSupabaseToken(data.session.access_token, rememberMe);
     } catch (err) {
-      if (!isApiConnected) {
-        console.warn('API connection failed, falling back to mock authentication:', err);
-
-        // 2. Mock fallback is only available when the API cannot be reached.
-        const mockUser = MOCK_USERS[email.toLowerCase()];
-        if (mockUser && password === 'Password123!') {
-          const mockToken = `mock-jwt-token-for-${mockUser.role}`;
-          storeAuth(mockToken, mockUser, undefined, rememberMe);
-          setToken(mockToken);
-          setUser(mockUser);
-          setLoading(false);
-          return mockUser;
-        }
+      const mockUser = MOCK_USERS[email.toLowerCase()];
+      if (mockUser && password === 'Password123!') {
+        const mockToken = `mock-jwt-token-for-${mockUser.role}`;
+        storeAuth(mockToken, mockUser, undefined, rememberMe);
+        setToken(mockToken);
+        setUser(mockUser);
+        return mockUser;
       }
 
-      setLoading(false);
       throw err instanceof Error ? err : new Error('Invalid email or password');
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const signInWithGoogle = async (redirectPath = '/login?auth=google') => {
+    const redirectTo = `${window.location.origin}${redirectPath}`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo },
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  };
+
+  const completeSupabaseLogin = async (rememberMe = false) => {
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !data.session?.access_token) {
+        throw new Error(error?.message || 'Supabase session was not found.');
+      }
+
+      return await exchangeSupabaseToken(data.session.access_token, rememberMe);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const registerWithSupabaseSession = async ({
+    displayName,
+    role,
+    rememberMe = false,
+  }: SupabaseRegisterData) => {
+    setLoading(true);
+
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !sessionData.session?.access_token) {
+        throw new Error(sessionError?.message || 'Supabase session was not found.');
+      }
+
+      const response = await fetch('/api/v1/auth/supabase-register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accessToken: sessionData.session.access_token,
+          displayName,
+          role,
+        }),
+      });
+
+      if (!response.ok) {
+        throw await readAuthError(response);
+      }
+
+      return saveAuthResponse(await response.json(), rememberMe);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getSupabaseProfile = async () => {
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user?.email) {
+      return null;
+    }
+
+    const metadata = data.user.user_metadata ?? {};
+    const displayName =
+      typeof metadata.full_name === 'string'
+        ? metadata.full_name
+        : typeof metadata.name === 'string'
+          ? metadata.name
+          : data.user.email;
+
+    return {
+      email: data.user.email,
+      displayName,
+    };
   };
 
   const loginWithToken = (
@@ -217,68 +415,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(loggedUser);
   };
 
-const logout = () => {
-  // 1. Lấy token trước khi bộ nhớ bị xóa sạch
-  const refreshToken = getStoredRefreshToken();
+  const logout = () => {
+    const refreshToken = getStoredRefreshToken();
 
-  // 2. Xóa trạng thái local của tab hiện tại NGAY LẬP TỨC để tối ưu giao diện (UX)
-  clearStoredAuth();
-  setToken(null);
-  setUser(null);
+    clearStoredAuth();
+    setToken(null);
+    setUser(null);
+    void supabase.auth.signOut();
 
-  // 3. Phát tín hiệu đăng xuất sang các tab khác
-  localStorage.setItem(AUTH_LOGOUT_EVENT_KEY, Date.now().toString());
-  
-  // 4. Xóa ngay key này để tránh làm rác localStorage về lâu dài
-  localStorage.removeItem(AUTH_LOGOUT_EVENT_KEY);
+    localStorage.setItem(AUTH_LOGOUT_EVENT_KEY, Date.now().toString());
+    localStorage.removeItem(AUTH_LOGOUT_EVENT_KEY);
 
-  // 5. Gọi API ngầm lên Server (giữ nguyên logic cũ của bạn)
-  if (refreshToken) {
-    void fetch('/api/v1/auth/logout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-      keepalive: true,
-    })
-      .then((response) => {
-        if (!response.ok) {
-          console.warn(`Server logout failed with status ${response.status}`);
-        }
-      })
-      .catch((err) => {
+    if (refreshToken) {
+      void fetch('/api/v1/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+        keepalive: true,
+      }).catch((err) => {
         console.warn('Server logout failed after local session was cleared:', err);
       });
-  }
-};
-
-  // const logout = () => {
-  //   const refreshToken = getStoredRefreshToken();
-
-  //   clearStoredAuth();
-  //   localStorage.setItem(AUTH_LOGOUT_EVENT_KEY, Date.now().toString());
-  //   setToken(null);
-  //   setUser(null);
-
-  //   if (refreshToken) {
-  //     void fetch('/api/v1/auth/logout', {
-  //       method: 'POST',
-  //       headers: { 'Content-Type': 'application/json' },
-  //       body: JSON.stringify({ refreshToken }),
-  //       keepalive: true,
-  //     })
-  //       .then((response) => {
-  //         if (!response.ok) {
-  //           console.warn(`Server logout failed with status ${response.status}`);
-  //         }
-  //       })
-  //       .catch((err) => {
-  //         console.warn('Server logout failed after local session was cleared:', err);
-  //       });
-  //   }
-  // };
+    }
+  };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, loginWithToken, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        token,
+        loading,
+        login,
+        signInWithGoogle,
+        completeSupabaseLogin,
+        registerWithSupabaseSession,
+        getSupabaseProfile,
+        loginWithToken,
+        logout,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -15,6 +15,17 @@ export class AuthController {
   async login(@Payload() data: any) {
     return this.service.login(data);
   }
+
+  @MessagePattern('auth.supabase-login')
+  async loginWithSupabase(@Payload() data: any) {
+    return this.service.loginWithSupabase(data);
+  }
+
+  @MessagePattern('auth.supabase-register')
+  async registerWithSupabase(@Payload() data: any) {
+    return this.service.registerWithSupabase(data);
+  }
+
   @MessagePattern('identity.auth.refresh')
   async refresh(@Payload() data: any) {
     return this.service.refresh(data);

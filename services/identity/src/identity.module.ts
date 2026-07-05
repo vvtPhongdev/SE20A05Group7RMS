@@ -5,6 +5,7 @@ import { UsersModule } from './modules/users/users.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { DepartmentsModule } from './modules/departments/departments.module';
 import { HealthModule } from './modules/health/health.module';
+import { GoogleCalendarModule } from './modules/google-calendar/google-calendar.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { HealthModule } from './modules/health/health.module';
     UsersModule,
     OrganizationsModule,
     DepartmentsModule,
+    GoogleCalendarModule,
     HealthModule,
   ],
 })
