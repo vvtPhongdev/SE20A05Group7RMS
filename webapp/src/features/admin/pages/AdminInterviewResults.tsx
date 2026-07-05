@@ -20,6 +20,8 @@ interface PanelistFeedback {
     fit: number;
   };
   comment: string;
+  meetingPhotoName?: string;
+  meetingPhotoDataUrl?: string;
 }
 
 interface CandidateResult {
@@ -100,6 +102,35 @@ const adminInterviewResultsApi = {
   list: '/admin/interview-results',
   decision: (requestId: string) => `/admin/interview-results/${requestId}/decision`,
   requestInfo: (requestId: string) => `/admin/interview-results/${requestId}/request-info`,
+};
+
+const MEETING_PHOTO_START = '[INTERVIEW_MEETING_PHOTO]';
+const MEETING_PHOTO_END = '[/INTERVIEW_MEETING_PHOTO]';
+const meetingPhotoPattern = new RegExp(
+  `${MEETING_PHOTO_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s\\S]*?)${MEETING_PHOTO_END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
+);
+
+const parsePanelistComment = (comment: string) => {
+  const match = comment.match(meetingPhotoPattern);
+  if (!match) return { comment, meetingPhotoName: undefined, meetingPhotoDataUrl: undefined };
+
+  try {
+    const evidence = JSON.parse(match[1].trim()) as {
+      photoName?: string;
+      photoDataUrl?: string;
+    };
+    return {
+      comment: comment.replace(meetingPhotoPattern, '').trim(),
+      meetingPhotoName: evidence.photoName,
+      meetingPhotoDataUrl: evidence.photoDataUrl,
+    };
+  } catch {
+    return {
+      comment: comment.replace(meetingPhotoPattern, '').trim(),
+      meetingPhotoName: undefined,
+      meetingPhotoDataUrl: undefined,
+    };
+  }
 };
 
 const emptyCandidate: CandidateResult = {
@@ -197,7 +228,10 @@ export const AdminInterviewResults: React.FC = () => {
             passCount: result.passCount,
             failCount: result.failCount,
             pendingCount: result.pendingCount,
-            feedbacks: result.feedbacks,
+            feedbacks: result.feedbacks.map((feedback) => ({
+              ...feedback,
+              ...parsePanelistComment(feedback.comment),
+            })),
             scores: result.scores,
             recommendation: result.finalRecommendation.toLowerCase().includes('hire')
               ? ('Hire' as const)
@@ -675,8 +709,21 @@ export const AdminInterviewResults: React.FC = () => {
                         </div>
                       )}
                       <p className="text-body-sm text-slate-ink italic text-sm font-medium leading-relaxed">
-                        "{fb.comment}"
+                        "{fb.comment || 'Feedback has not been recorded.'}"
                       </p>
+                      {fb.meetingPhotoDataUrl && (
+                        <div className="mt-3 rounded-lg border border-border-warm bg-clean-surface p-3">
+                          <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-slate-ink">
+                            Meeting report photo
+                            {fb.meetingPhotoName ? `: ${fb.meetingPhotoName}` : ''}
+                          </p>
+                          <img
+                            alt={`Meeting report from ${fb.name}`}
+                            className="max-h-64 w-full rounded-md object-contain"
+                            src={fb.meetingPhotoDataUrl}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
