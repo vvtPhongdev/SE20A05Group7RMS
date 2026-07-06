@@ -4,10 +4,10 @@ import { AuditLogService } from '@wr/database';
 import {
   AuditAction,
   AuditEntityType,
+  isHrRole,
   PlanStatus,
   TaskStatus,
   TaskType,
-  UserRole,
 } from '@wr/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
 import type { Prisma, TaskPlan } from '@prisma/client';
@@ -158,7 +158,7 @@ export class TaskPlanService {
 
     if (
       !assignee.isActive ||
-      ![UserRole.HR_LEADER, UserRole.HR_RECRUITER].includes(assignee.role as UserRole)
+      !isHrRole(assignee.role)
     ) {
       this.rpc(HttpStatus.BAD_REQUEST, 'Task can only be assigned to an active HR member');
     }
@@ -289,9 +289,9 @@ export class TaskPlanService {
       select: { id: true, role: true, isActive: true },
     });
     if (!assignee)
-      this.rpc(HttpStatus.NOT_FOUND, `Assigned HR recruiter ${payload.assignedToId} not found`);
-    if (!assignee.isActive || assignee.role !== UserRole.HR_RECRUITER) {
-      this.rpc(HttpStatus.BAD_REQUEST, 'Task must be assigned to an active HR recruiter');
+      this.rpc(HttpStatus.NOT_FOUND, `Assigned HR member ${payload.assignedToId} not found`);
+    if (!assignee.isActive || !isHrRole(assignee.role)) {
+      this.rpc(HttpStatus.BAD_REQUEST, 'Task must be assigned to an active HR member');
     }
 
     const updated = await this.prisma.taskPlan.update({
@@ -325,7 +325,7 @@ export class TaskPlanService {
     performedById: string;
     actorRole?: string;
   }) {
-    const { id, status, performedById, actorRole } = payload;
+    const { id, status, performedById } = payload;
 
     if (!Object.values(TaskStatus).includes(status as TaskStatus)) {
       this.rpc(
@@ -336,10 +336,6 @@ export class TaskPlanService {
 
     const task = await this.prisma.taskPlan.findUnique({ where: { id } });
     if (!task) this.rpc(HttpStatus.NOT_FOUND, `TaskPlan ${id} not found`);
-
-    if (actorRole === UserRole.HR_RECRUITER && task.assignedToId !== performedById) {
-      this.rpc(HttpStatus.FORBIDDEN, 'HR recruiters can only update tasks assigned to them');
-    }
 
     const updated = await this.prisma.taskPlan.update({
       where: { id },
@@ -403,10 +399,6 @@ export class TaskPlanService {
     if (payload.overallPlanId) where.overallPlanId = payload.overallPlanId;
     if (payload.status) where.status = payload.status;
     if (payload.taskType) where.taskType = payload.taskType;
-    if (payload.role === UserRole.HR_RECRUITER && payload.userId) {
-      where.assignedToId = payload.userId;
-    }
-
     if (payload.requestId) {
       const matchingPlans = await this.prisma.overallPlan.findMany({
         where: { requestId: payload.requestId },

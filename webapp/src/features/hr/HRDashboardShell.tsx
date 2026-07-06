@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { UserRole } from '@wr/contracts';
+import { isHrRole } from '@wr/contracts';
 import { useAuth } from '../../context/AuthContext';
 import { HRDashBoard } from './pages/HRDashBoard';
 import { HRRequestQueue } from './pages/HRRequestQueue';
@@ -17,7 +17,7 @@ import { HRSystemNotifications } from './pages/HRSystemNotifications';
 export const HRDashboardShell: React.FC = () => {
   const { user } = useAuth();
   const leaderOnly = (element: React.ReactElement) =>
-    user?.role === UserRole.HR_LEADER ? element : <Navigate to="/unauthorized" replace />;
+    isHrRole(user?.role) ? element : <Navigate to="/unauthorized" replace />;
 
   return (
     <Routes>

@@ -1,4 +1,4 @@
-import { InjectQueue } from '@nestjs/bullmq';
+﻿import { InjectQueue } from '@nestjs/bullmq';
 import { HttpStatus, Injectable, Inject } from '@nestjs/common';
 import { RpcException, ClientProxy } from '@nestjs/microservices';
 import {
@@ -11,7 +11,6 @@ import {
 } from '@wr/contracts';
 import { JOB_NAMES, QUEUE_NAMES } from '@wr/queue';
 import { Queue } from 'bullmq';
-import { firstValueFrom } from 'rxjs';
 import { PrismaService } from '../../common/database/prisma.service';
 
 interface OfferDetails {
@@ -163,30 +162,8 @@ export class OfferLetterService {
       });
     }
 
-    let subject = `Offer Letter - ${offer.positionTitle}`;
-    let body = offer.content;
-
-    try {
-      const rendered = await firstValueFrom(
-        this.notificationClient.send('notification.render_template', {
-          templateType: 'OFFER_LETTER',
-          templateData: {
-            candidateName: offer.candidate.fullName,
-            position: offer.positionTitle,
-            offerContent: offer.content,
-            nextSteps:
-              'Please review the offer details and accept or decline the offer on our portal by the response deadline.',
-            responseDeadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString(
-              'en-GB',
-            ),
-          },
-        }),
-      );
-      subject = rendered.subject;
-      body = rendered.body;
-    } catch (err) {
-      console.error('Failed to render offer letter template:', err);
-    }
+    const subject = this.renderSubject(offer.positionTitle);
+    const body = offer.content;
 
     const [emailLog, updatedOffer] = await this.prisma.$transaction([
       this.prisma.emailLog.create({
@@ -453,7 +430,7 @@ export class OfferLetterService {
 
     this.notificationClient
       .send('notification.send_to_role', {
-        role: UserRole.HR_RECRUITER,
+        role: UserRole.HR_LEADER,
         type: NotificationType.REQUEST_UPDATE,
         title: accepted ? 'Campaign Completed' : 'Offer Declined',
         body: accepted
@@ -492,19 +469,39 @@ export class OfferLetterService {
     compensation: string;
     startDate: Date;
   }) {
+    const candidateName = input.candidateName.toUpperCase();
+    const startDate = input.startDate.toISOString().slice(0, 10);
+
     return [
-      `Dear ${input.candidateName},`,
+      `Dear ${candidateName},`,
       '',
-      `We are pleased to offer you the position of ${input.positionTitle}.`,
+      `We are pleased to extend you a formal offer of employment for the position of ${input.positionTitle} at [Company Name]. We were incredibly impressed by your technical expertise and believe you will be a valuable asset to our ${input.departmentName} team.`,
+      '',
+      'Please find the summary of your offer framework below:',
+      '',
+      `Candidate: ${candidateName}`,
+      '',
+      `Position: ${input.positionTitle}`,
       '',
       `Department: ${input.departmentName}`,
+      '',
       `Compensation: ${input.compensation}`,
-      `Start date: ${input.startDate.toISOString().slice(0, 10)}`,
       '',
-      'Please review this offer and submit your acceptance or decline.',
+      `Proposed Start Date: ${startDate}`,
       '',
-      'Sincerely,',
-      'HR Team',
+      'To accept or decline this offer, please review the complete details and respond directly through our candidate portal.',
+      '',
+      'If you have any questions regarding the terms of this offer, please do not hesitate to reach out to us. We look forward to welcoming you to the team!',
+      '',
+      'Warm regards,',
+      '',
+      '[Your Name/Title]',
+      '',
+      '[Company Name]',
     ].join('\n');
+  }
+
+  private renderSubject(positionTitle: string) {
+    return `Job Offer: ${positionTitle} - [Company Name]`;
   }
 }

@@ -6,6 +6,7 @@ import {
   AuditAction,
   AuditEntityType,
   InterviewStatus,
+  isHrRole,
   RecruitmentRequestStatus,
   NotificationType,
   UserRole,
@@ -39,10 +40,6 @@ export class InterviewResultService {
         },
       ];
     }
-    if (payload.role === UserRole.HR_RECRUITER && payload.userId) {
-      where.AND = [{ interviewers: { has: payload.userId } }];
-    }
-
     const schedules = await this.prisma.interviewSchedule.findMany({
       where,
       include: {
@@ -210,17 +207,6 @@ export class InterviewResultService {
         message: 'You do not have access to this interview result',
       });
     }
-    if (
-      actor.role === UserRole.HR_RECRUITER &&
-      actor.userId &&
-      !schedule.interviewers.includes(actor.userId)
-    ) {
-      throw new RpcException({
-        status: HttpStatus.FORBIDDEN,
-        message: 'Only HR recruiters invited to this interview can view its result',
-      });
-    }
-
     const evaluatorIds = [
       ...new Set([
         ...schedule.interviewers,
@@ -310,8 +296,7 @@ export class InterviewResultService {
       myFeedback,
       canSubmitMyFeedback:
         !!actor.userId &&
-        (((actor.role === UserRole.HR_LEADER || actor.role === UserRole.HR_RECRUITER) &&
-          schedule.interviewers.includes(actor.userId)) ||
+        ((isHrRole(actor.role) && schedule.interviewers.includes(actor.userId)) ||
           (actor.role === UserRole.DEPARTMENT_HEAD &&
             this.canDepartmentHeadAccessSchedule(schedule, actor.userId))),
       finalRecommendation: schedule.finalRecommendation || '',
@@ -375,8 +360,7 @@ export class InterviewResultService {
     }
 
     const canRecord =
-      ((actorRole === UserRole.HR_LEADER || actorRole === UserRole.HR_RECRUITER) &&
-        schedule.interviewers.includes(evaluatorId)) ||
+      (isHrRole(actorRole) && schedule.interviewers.includes(evaluatorId)) ||
       (actorRole === UserRole.DEPARTMENT_HEAD &&
         this.canDepartmentHeadAccessSchedule(schedule, evaluatorId));
 
@@ -553,10 +537,10 @@ export class InterviewResultService {
       });
     }
 
-    if (actorRole && actorRole !== UserRole.HR_LEADER) {
+    if (actorRole && !isHrRole(actorRole)) {
       throw new RpcException({
         status: HttpStatus.FORBIDDEN,
-        message: 'Only HR Leader can submit the final recommendation to Admin',
+        message: 'Only HR can submit the final recommendation to Admin',
       });
     }
 

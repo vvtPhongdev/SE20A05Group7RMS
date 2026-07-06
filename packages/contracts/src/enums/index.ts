@@ -1,21 +1,25 @@
-/**
+﻿/**
  * Domain enums for the Recruitment Workflow Management System (RMS).
  *
  * Enum values are uppercase string literals per architecture convention.
  * These enums are the single source of truth shared by API, worker, and frontend.
  */
 
-// ─── User & Organization ───────────────────────────────────────────
+// â”€â”€â”€ User & Organization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export enum UserRole {
   ADMIN = 'ADMIN',
   DEPARTMENT_HEAD = 'DEPARTMENT_HEAD',
   HR_LEADER = 'HR_LEADER',
-  HR_RECRUITER = 'HR_RECRUITER',
   CANDIDATE = 'CANDIDATE',
 }
 
-// ─── Recruitment Request Lifecycle ─────────────────────────────────
+export const HR_ROLES = [UserRole.HR_LEADER] as const;
+
+export const isHrRole = (role: unknown): role is (typeof HR_ROLES)[number] =>
+  role === UserRole.HR_LEADER;
+
+// â”€â”€â”€ Recruitment Request Lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export enum RecruitmentRequestStatus {
   DRAFT = 'DRAFT',
@@ -51,7 +55,7 @@ export enum Urgency {
   CRITICAL = 'CRITICAL',
 }
 
-// ─── Planning ──────────────────────────────────────────────────────
+// â”€â”€â”€ Planning â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export enum PlanStatus {
   DRAFT = 'DRAFT',
@@ -73,7 +77,7 @@ export enum TaskStatus {
   COMPLETED = 'COMPLETED',
 }
 
-// ─── Interview ─────────────────────────────────────────────────────
+// â”€â”€â”€ Interview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export enum InterviewStatus {
   SCHEDULED = 'SCHEDULED',
@@ -103,7 +107,7 @@ export enum OfferResponse {
   ACCEPT = 'ACCEPT',
   DECLINE = 'DECLINE',
 }
-// ─── Job Posting ───────────────────────────────────────────────────
+// â”€â”€â”€ Job Posting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export enum JobVisibility {
   PUBLIC = 'PUBLIC',
@@ -116,7 +120,7 @@ export enum JobPostingStatus {
   CLOSED = 'CLOSED',
 }
 
-// ─── Notifications & Communication ─────────────────────────────────
+// â”€â”€â”€ Notifications & Communication â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export enum NotificationType {
   REQUEST_UPDATE = 'REQUEST_UPDATE',
@@ -135,7 +139,7 @@ export enum EmailTemplateType {
   TASK_DEADLINE_REMINDER = 'TASK_DEADLINE_REMINDER',
 }
 
-// ─── Document Processing (BullMQ) ──────────────────────────────────
+// â”€â”€â”€ Document Processing (BullMQ) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export enum DocumentState {
   PENDING = 'PENDING',
@@ -150,7 +154,7 @@ export enum EmailStatus {
   FAILED = 'FAILED',
 }
 
-// ─── Audit Logging (T-107, NFR-3) ──────────────────────────────────
+// â”€â”€â”€ Audit Logging (T-107, NFR-3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export enum AuditEntityType {
   PLAN = 'PLAN',

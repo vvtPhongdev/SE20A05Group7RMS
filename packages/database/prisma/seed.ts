@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+﻿import { PrismaClient } from '@prisma/client';
 import { existsSync } from 'fs';
 import { resolve } from 'path';
 
@@ -313,7 +313,7 @@ async function main() {
     id: ids.hrRecruiter,
     email: 'hr.recruiter@demo.test',
     displayName: 'Lisa Thompson',
-    role: 'HR_RECRUITER',
+    role: 'HR_LEADER',
     organizationId: org.id,
   });
 
@@ -321,7 +321,7 @@ async function main() {
     id: ids.hrRecruiterTwo,
     email: 'hr.recruiter2@demo.test',
     displayName: 'Nina Patel',
-    role: 'HR_RECRUITER',
+    role: 'HR_LEADER',
     organizationId: org.id,
   });
 
@@ -329,7 +329,7 @@ async function main() {
     id: ids.hrRecruiterThree,
     email: 'hr.recruiter3@demo.test',
     displayName: 'David Kim',
-    role: 'HR_RECRUITER',
+    role: 'HR_LEADER',
     organizationId: org.id,
   });
 
@@ -337,7 +337,7 @@ async function main() {
     id: ids.hrRecruiterFour,
     email: 'hr.recruiter4@demo.test',
     displayName: 'An Tran',
-    role: 'HR_RECRUITER',
+    role: 'HR_LEADER',
     organizationId: org.id,
   });
 

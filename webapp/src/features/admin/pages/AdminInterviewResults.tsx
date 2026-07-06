@@ -20,6 +20,8 @@ interface PanelistFeedback {
     fit: number;
   };
   comment: string;
+  meetingPhotoName?: string;
+  meetingPhotoDataUrl?: string;
 }
 
 interface CandidateResult {
@@ -45,6 +47,7 @@ interface CandidateResult {
   recommendation: 'Hire' | 'Reject' | 'More Info';
   assessmentSummary: string;
   offlineEvidence?: OfflineEvidence | null;
+  salaryDeal?: SalaryDeal | null;
 }
 type FilterType = 'All Pending Decisions' | 'All Decisions' | 'Decision Made';
 
@@ -75,6 +78,13 @@ interface OfflineEvidence {
   recordedAt?: string;
 }
 
+type SalaryDeal = {
+  expectedSalary: string;
+  proposedSalary: string;
+  status: 'NEGOTIATING' | 'AGREED' | 'DECLINED' | 'PENDING';
+  notes: string;
+};
+
 interface CandidateProfileDetail {
   id: string;
   fullName?: string;
@@ -102,6 +112,35 @@ const adminInterviewResultsApi = {
   requestInfo: (requestId: string) => `/admin/interview-results/${requestId}/request-info`,
 };
 
+const MEETING_PHOTO_START = '[INTERVIEW_MEETING_PHOTO]';
+const MEETING_PHOTO_END = '[/INTERVIEW_MEETING_PHOTO]';
+const meetingPhotoPattern = new RegExp(
+  `${MEETING_PHOTO_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s\\S]*?)${MEETING_PHOTO_END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
+);
+
+const parsePanelistComment = (comment: string) => {
+  const match = comment.match(meetingPhotoPattern);
+  if (!match) return { comment, meetingPhotoName: undefined, meetingPhotoDataUrl: undefined };
+
+  try {
+    const evidence = JSON.parse(match[1].trim()) as {
+      photoName?: string;
+      photoDataUrl?: string;
+    };
+    return {
+      comment: comment.replace(meetingPhotoPattern, '').trim(),
+      meetingPhotoName: evidence.photoName,
+      meetingPhotoDataUrl: evidence.photoDataUrl,
+    };
+  } catch {
+    return {
+      comment: comment.replace(meetingPhotoPattern, '').trim(),
+      meetingPhotoName: undefined,
+      meetingPhotoDataUrl: undefined,
+    };
+  }
+};
+
 const emptyCandidate: CandidateResult = {
   id: '',
   candidateId: '',
@@ -121,6 +160,7 @@ const emptyCandidate: CandidateResult = {
   recommendation: 'More Info',
   assessmentSummary: 'No completed interview results are available.',
   offlineEvidence: null,
+  salaryDeal: null,
 };
 
 const defaultOfferStartDate = () =>
@@ -128,6 +168,11 @@ const defaultOfferStartDate = () =>
 
 const OFFLINE_EVIDENCE_START = '[OFFLINE_INTERVIEW_EVIDENCE]';
 const OFFLINE_EVIDENCE_END = '[/OFFLINE_INTERVIEW_EVIDENCE]';
+const SALARY_DEAL_START = '[INTERVIEW_SALARY_DEAL]';
+const SALARY_DEAL_END = '[/INTERVIEW_SALARY_DEAL]';
+const salaryDealPattern = new RegExp(
+  `${SALARY_DEAL_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s\\S]*?)${SALARY_DEAL_END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
+);
 
 const isOnlineInterviewLocation = (value: string) =>
   /^https?:\/\//i.test(value.trim()) || /meet\.google\.com|zoom|teams\.microsoft/i.test(value);
@@ -146,6 +191,26 @@ const parseOfflineEvidence = (value: string) => {
     };
   } catch {
     return { cleanSummary: value.replace(pattern, '').trim(), evidence: null };
+  }
+};
+
+const parseSalaryDeal = (value: string) => {
+  const match = value.match(salaryDealPattern);
+  if (!match) return { cleanSummary: value, deal: null as SalaryDeal | null };
+
+  try {
+    const deal = JSON.parse(match[1].trim()) as Partial<SalaryDeal>;
+    return {
+      cleanSummary: value.replace(salaryDealPattern, '').trim(),
+      deal: {
+        expectedSalary: deal.expectedSalary ?? '',
+        proposedSalary: deal.proposedSalary ?? '',
+        status: deal.status ?? 'NEGOTIATING',
+        notes: deal.notes ?? '',
+      },
+    };
+  } catch {
+    return { cleanSummary: value.replace(salaryDealPattern, '').trim(), deal: null };
   }
 };
 
@@ -182,7 +247,8 @@ export const AdminInterviewResults: React.FC = () => {
         );
         if (cancelled) return;
         const mapped = response.map((result) => {
-          const parsedSummary = parseOfflineEvidence(result.summaryNotes || '');
+          const parsedSalaryDeal = parseSalaryDeal(result.summaryNotes || '');
+          const parsedSummary = parseOfflineEvidence(parsedSalaryDeal.cleanSummary);
           return {
             id: result.id,
             candidateId: result.candidateId,
@@ -197,7 +263,10 @@ export const AdminInterviewResults: React.FC = () => {
             passCount: result.passCount,
             failCount: result.failCount,
             pendingCount: result.pendingCount,
-            feedbacks: result.feedbacks,
+            feedbacks: result.feedbacks.map((feedback) => ({
+              ...feedback,
+              ...parsePanelistComment(feedback.comment),
+            })),
             scores: result.scores,
             recommendation: result.finalRecommendation.toLowerCase().includes('hire')
               ? ('Hire' as const)
@@ -208,6 +277,7 @@ export const AdminInterviewResults: React.FC = () => {
               parsedSummary.cleanSummary ||
               'The interview panel has not provided an overall summary.',
             offlineEvidence: parsedSummary.evidence,
+            salaryDeal: parsedSalaryDeal.deal,
           };
         });
         setCandidates(mapped);
@@ -381,10 +451,13 @@ export const AdminInterviewResults: React.FC = () => {
 
   const openOfferEmailForm = () => {
     if (!activeCandidate.id) return;
+    const salaryDealNote = activeCandidate.salaryDeal?.notes
+      ? `\n\nSalary discussion notes: ${activeCandidate.salaryDeal.notes}`
+      : '';
     setOfferForm({
-      compensation: 'Negotiable',
+      compensation: activeCandidate.salaryDeal?.proposedSalary || 'Negotiable',
       startDate: defaultOfferStartDate(),
-      notes: `We are pleased to offer ${activeCandidate.name} the ${activeCandidate.role} position in ${activeCandidate.department}.`,
+      notes: `We are pleased to offer ${activeCandidate.name} the ${activeCandidate.role} position in ${activeCandidate.department}.${salaryDealNote}`,
     });
     setApiError('');
     setDecisionFormMode('offer');
@@ -675,8 +748,21 @@ export const AdminInterviewResults: React.FC = () => {
                         </div>
                       )}
                       <p className="text-body-sm text-slate-ink italic text-sm font-medium leading-relaxed">
-                        "{fb.comment}"
+                        "{fb.comment || 'Feedback has not been recorded.'}"
                       </p>
+                      {fb.meetingPhotoDataUrl && (
+                        <div className="mt-3 rounded-lg border border-border-warm bg-clean-surface p-3">
+                          <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-slate-ink">
+                            Meeting report photo
+                            {fb.meetingPhotoName ? `: ${fb.meetingPhotoName}` : ''}
+                          </p>
+                          <img
+                            alt={`Meeting report from ${fb.name}`}
+                            className="max-h-64 w-full rounded-md object-contain"
+                            src={fb.meetingPhotoDataUrl}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -740,6 +826,52 @@ export const AdminInterviewResults: React.FC = () => {
                     {activeCandidate.assessmentSummary}
                   </p>
                 </div>
+                {activeCandidate.salaryDeal && (
+                  <div className="rounded-lg border border-border-warm bg-workflow-ivory/70 p-4 shadow-sm">
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-teal-command text-[22px]">
+                        payments
+                      </span>
+                      <span className="text-sm font-bold text-deep-charcoal">Salary Deal</span>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-ink">
+                          Candidate Expected
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-deep-charcoal">
+                          {activeCandidate.salaryDeal.expectedSalary || 'Not provided'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-ink">
+                          HR Proposed
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-deep-charcoal">
+                          {activeCandidate.salaryDeal.proposedSalary || 'Negotiable'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-ink">
+                          Status
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-deep-charcoal">
+                          {activeCandidate.salaryDeal.status}
+                        </p>
+                      </div>
+                    </div>
+                    {activeCandidate.salaryDeal.notes && (
+                      <div className="mt-3">
+                        <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-ink">
+                          Notes
+                        </p>
+                        <p className="mt-1 whitespace-pre-wrap text-sm font-semibold leading-6 text-slate-ink">
+                          {activeCandidate.salaryDeal.notes}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {isOfflineInterview && (
                   <div className="rounded-lg border border-revision/30 bg-revision/5 p-4 shadow-sm">
                     <div className="mb-3 flex items-center gap-2">
@@ -915,23 +1047,34 @@ export const AdminInterviewResults: React.FC = () => {
                   Email Preview
                 </p>
                 <p className="mt-3 text-sm font-bold text-deep-charcoal">
-                  Subject: Offer Letter: {activeCandidate.role}
+                  Subject: Job Offer: {activeCandidate.role} - [Company Name]
                 </p>
                 <pre className="mt-3 whitespace-pre-wrap rounded-lg bg-clean-surface p-4 text-sm leading-6 text-slate-ink">
-                  {`Dear ${activeCandidate.name},
+                  {`Dear ${activeCandidate.name.toUpperCase()},
 
-We are pleased to extend you an offer for the position of ${activeCandidate.role}.
+We are pleased to extend you a formal offer of employment for the position of ${activeCandidate.role} at [Company Name]. We were incredibly impressed by your technical expertise and believe you will be a valuable asset to our ${activeCandidate.department} team.
 
-Offer Framework
+Please find the summary of your offer framework below:
+
 Candidate: ${activeCandidate.name}
+
 Position: ${activeCandidate.role}
+
 Department: ${activeCandidate.department}
+
 Compensation: ${offerForm.compensation || '-'}
-Proposed start date: ${offerForm.startDate || '-'}
 
-${offerForm.notes || '-'}
+Proposed Start Date: ${offerForm.startDate || '-'}
 
-Please review and accept or decline this offer in the candidate portal.`}
+To accept or decline this offer, please review the complete details and respond directly through our candidate portal.
+
+${offerForm.notes || ''}
+
+Warm regards,
+
+[Your Name/Title]
+
+[Company Name]`}
                 </pre>
               </section>
             </div>

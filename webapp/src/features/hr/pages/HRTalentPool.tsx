@@ -80,18 +80,6 @@ type CampaignOption = {
   canCollect: boolean;
 };
 
-type TaskPlanApiItem = {
-  taskType: string;
-  overallPlan: {
-    requestId: string;
-    status: string;
-    request: {
-      position: string;
-      department: { name: string } | null;
-    };
-  };
-};
-
 type JobPostingApiItem = {
   requestId: string;
   title?: string | null;
@@ -252,7 +240,7 @@ const statusClass: Record<ParseStatus, string> = {
 export const HRTalentPool: React.FC = () => {
   const [searchParams] = useSearchParams();
   const requestedCampaignId = searchParams.get('requestId') ?? '';
-  const { token, user } = useAuth();
+  const { token } = useAuth();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [meta, setMeta] = useState({
     total: 0,
@@ -382,30 +370,7 @@ export const HRTalentPool: React.FC = () => {
 
   const loadCampaigns = useCallback(async () => {
     try {
-      const isRecruiter = user?.role === 'HR_RECRUITER';
-      const [postings, assignedTasks] = await Promise.all([
-        apiRequest<JobPostingApiItem[]>('/job-postings', token),
-        isRecruiter ? apiRequest<TaskPlanApiItem[]>('/task-plan', token).catch(() => []) : [],
-      ]);
-      const taskPermissions = new Map<string, Set<string>>();
-      for (const task of assignedTasks) {
-        const requestId = task.overallPlan?.requestId;
-        if (!requestId) continue;
-        const current = taskPermissions.get(requestId) ?? new Set<string>();
-        current.add(task.taskType);
-        taskPermissions.set(requestId, current);
-      }
-      const taskCampaigns = assignedTasks.map((task) => {
-        const requestId = task.overallPlan.requestId;
-        const permissions = taskPermissions.get(requestId) ?? new Set<string>();
-        return {
-          requestId,
-          label: `${task.overallPlan.request.position} (${task.overallPlan.status})`,
-          status: task.overallPlan.status,
-          canSearch: permissions.has('CV_SCREENING'),
-          canCollect: permissions.has('CV_COLLECTION'),
-        };
-      });
+      const postings = await apiRequest<JobPostingApiItem[]>('/job-postings', token);
       const postingCampaigns = postings
         .filter((posting) => Boolean(posting.requestId))
         .map((posting) => ({
@@ -416,7 +381,7 @@ export const HRTalentPool: React.FC = () => {
           canCollect: true,
         }));
       const deduped = new Map<string, CampaignOption>();
-      for (const campaign of isRecruiter ? taskCampaigns : postingCampaigns) {
+      for (const campaign of postingCampaigns) {
         const current = deduped.get(campaign.requestId);
         deduped.set(campaign.requestId, {
           ...campaign,
@@ -424,9 +389,7 @@ export const HRTalentPool: React.FC = () => {
           canCollect: Boolean(current?.canCollect || campaign.canCollect),
         });
       }
-      const mapped = Array.from(deduped.values()).filter(
-        (campaign) => !isRecruiter || campaign.canSearch || campaign.canCollect,
-      );
+      const mapped = Array.from(deduped.values());
       setCampaigns(mapped);
       setSelectedCampaignId((current) =>
         requestedCampaignId &&
@@ -439,7 +402,7 @@ export const HRTalentPool: React.FC = () => {
     } catch (loadError) {
       setApiError(loadError instanceof Error ? loadError.message : 'Unable to load campaigns');
     }
-  }, [requestedCampaignId, token, user?.role]);
+  }, [requestedCampaignId, token]);
 
   useEffect(() => {
     void loadCampaigns();
@@ -476,9 +439,7 @@ export const HRTalentPool: React.FC = () => {
       return;
     }
     if (!selectedCampaign?.canCollect) {
-      setApiError(
-        'HR Leader must assign you CV collection work for this campaign before collecting CVs.',
-      );
+      setApiError('This campaign is not available for CV collection.');
       return;
     }
 
@@ -672,30 +633,17 @@ export const HRTalentPool: React.FC = () => {
                   </button>
                 ))}
               </div>
-              <span
-                className={`rounded-full px-3 py-1 text-xs font-bold ${
-                  selectedCampaign?.canSearch
-                    ? 'bg-approved/10 text-approved'
-                    : 'bg-revision/10 text-revision'
-                }`}
-              >
-                {selectedCampaign?.canSearch ? 'Search allowed' : 'Needs CV_SCREENING task'}
+              <span className="rounded-full bg-approved/10 px-3 py-1 text-xs font-bold text-approved">
+                Search allowed
               </span>
-              <span
-                className={`rounded-full px-3 py-1 text-xs font-bold ${
-                  selectedCampaign?.canCollect
-                    ? 'bg-teal-command/10 text-teal-command'
-                    : 'bg-revision/10 text-revision'
-                }`}
-              >
-                {selectedCampaign?.canCollect ? 'Collect allowed' : 'Needs CV_COLLECTION task'}
+              <span className="rounded-full bg-teal-command/10 px-3 py-1 text-xs font-bold text-teal-command">
+                Collect allowed
               </span>
             </div>
           </div>
           {searchMode === 'AI_VECTOR' && query.trim() && !selectedCampaign?.canSearch ? (
             <p className="mt-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
-              HR Leader must assign CV screening work for this campaign before AI vector search can
-              run.
+              This campaign is not available for AI vector search.
             </p>
           ) : null}
           {aiSearching ? (

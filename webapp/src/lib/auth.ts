@@ -1,4 +1,4 @@
-import { UserRole } from '@wr/contracts';
+﻿import { UserRole } from '@wr/contracts';
 
 export const getRoleHomePath = (role: UserRole) => {
   switch (role) {
@@ -7,7 +7,6 @@ export const getRoleHomePath = (role: UserRole) => {
     case UserRole.DEPARTMENT_HEAD:
       return '/dept-head';
     case UserRole.HR_LEADER:
-    case UserRole.HR_RECRUITER:
       return '/hr';
     case UserRole.CANDIDATE:
       return '/candidate';

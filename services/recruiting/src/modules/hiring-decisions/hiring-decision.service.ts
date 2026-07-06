@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable, Inject } from '@nestjs/common';
+﻿import { HttpStatus, Injectable, Inject } from '@nestjs/common';
 import { RpcException, ClientProxy } from '@nestjs/microservices';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -101,10 +101,13 @@ export class HiringDecisionService {
       });
     }
 
-    const selectedCandidateIds = decision === HiringDecision.HIRE ? [offerDetails!.candidateId] : [];
+    const selectedCandidateIds =
+      decision === HiringDecision.HIRE ? [offerDetails!.candidateId] : [];
     const interviewsForDecision =
       decision === HiringDecision.HIRE
-        ? request.interviews.filter((interview) => interview.candidateId === offerDetails!.candidateId)
+        ? request.interviews.filter(
+            (interview) => interview.candidateId === offerDetails!.candidateId,
+          )
         : request.interviews;
 
     if (interviewsForDecision.length === 0) {
@@ -139,14 +142,19 @@ export class HiringDecisionService {
       candidateResults.set(interview.candidateId, results);
     }
 
-    const selectedResults = offerDetails ? candidateResults.get(offerDetails.candidateId) : undefined;
+    const selectedResults = offerDetails
+      ? candidateResults.get(offerDetails.candidateId)
+      : undefined;
     const selectedApplication = offerDetails
-      ? request.applications.find((application) => application.candidateId === offerDetails.candidateId)
+      ? request.applications.find(
+          (application) => application.candidateId === offerDetails.candidateId,
+        )
       : undefined;
     if (decision === HiringDecision.HIRE && (selectedResults?.length ?? 0) < 2) {
       throw new RpcException({
         status: HttpStatus.PRECONDITION_FAILED,
-        message: 'The selected candidate must have feedback from at least 2 interviewers before hire',
+        message:
+          'The selected candidate must have feedback from at least 2 interviewers before hire',
       });
     }
 
@@ -156,7 +164,8 @@ export class HiringDecisionService {
     ) {
       throw new RpcException({
         status: HttpStatus.PRECONDITION_FAILED,
-        message: 'The selected candidate must belong to the request and have a PASS interview result',
+        message:
+          'The selected candidate must belong to the request and have a PASS interview result',
       });
     }
 

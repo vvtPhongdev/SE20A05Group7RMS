@@ -1,6 +1,6 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
-import { TaskType, UserRole } from '@wr/contracts';
+import { isHrRole, TaskType } from '@wr/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
 
 @Injectable()
@@ -28,7 +28,7 @@ export class ApplicationsService {
     actorUserId?: string;
     actorRole?: string;
   }) {
-    if (payload.actorRole === UserRole.HR_RECRUITER && payload.actorUserId) {
+    if (isHrRole(payload.actorRole) && payload.actorUserId) {
       return payload.actorUserId;
     }
 

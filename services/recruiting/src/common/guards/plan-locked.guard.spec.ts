@@ -1,5 +1,4 @@
-import { HttpStatus } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
+﻿import { Reflector } from '@nestjs/core';
 import { RpcException } from '@nestjs/microservices';
 import { PlanStatus, RecruitmentRequestStatus, TaskType, UserRole } from '@wr/contracts';
 import { PLAN_LOCKED_KEY } from '../decorators/plan-locked.decorator';
@@ -44,7 +43,7 @@ describe('PlanLockedGuard', () => {
     return { guard: new PlanLockedGuard(reflector, prisma as any), prisma };
   };
 
-  it('allows the HR recruiter assigned to the activity task', async () => {
+  it('allows the HR assigned to the activity task', async () => {
     const { guard } = makeGuard();
 
     await expect(
@@ -52,13 +51,13 @@ describe('PlanLockedGuard', () => {
         makeContext({
           requestId: 'request-1',
           actorUserId: 'recruiter-1',
-          actorRole: UserRole.HR_RECRUITER,
+          actorRole: UserRole.HR_LEADER,
         }),
       ),
     ).resolves.toBe(true);
   });
 
-  it('blocks an HR recruiter who is not assigned to the activity task', async () => {
+  it('allows HR to perform the activity even when another HR member owns the task', async () => {
     const { guard } = makeGuard();
 
     await expect(
@@ -66,15 +65,10 @@ describe('PlanLockedGuard', () => {
         makeContext({
           requestId: 'request-1',
           actorUserId: 'recruiter-2',
-          actorRole: UserRole.HR_RECRUITER,
+          actorRole: UserRole.HR_LEADER,
         }),
       ),
-    ).rejects.toMatchObject({
-      error: {
-        status: HttpStatus.FORBIDDEN,
-        message: `Only the HR recruiter assigned to ${TaskType.CV_COLLECTION} can perform this action`,
-      },
-    });
+    ).resolves.toBe(true);
   });
 
   it('allows candidates to apply when the campaign is active and the task exists', async () => {
@@ -106,7 +100,7 @@ describe('PlanLockedGuard', () => {
         makeContext({
           requestId: 'request-1',
           actorUserId: 'recruiter-1',
-          actorRole: UserRole.HR_RECRUITER,
+          actorRole: UserRole.HR_LEADER,
         }),
       ),
     ).rejects.toBeInstanceOf(RpcException);

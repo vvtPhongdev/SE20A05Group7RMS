@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { isHrRole } from '@wr/contracts';
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest } from '../../../lib/api';
 import {
@@ -181,10 +182,12 @@ export const AdminAllRequests: React.FC = () => {
       setApiError('');
       try {
         const managers = await apiRequest<{
-          data: Array<{ id: string; displayName: string }>;
-        }>('/users?role=HR_LEADER&limit=100', token);
+          data: Array<{ id: string; displayName: string; role?: string }>;
+        }>('/users?limit=100', token);
         setHrManagers(
-          managers.data.map((manager) => ({ id: manager.id, name: manager.displayName })),
+          managers.data
+            .filter((manager) => isHrRole(manager.role))
+            .map((manager) => ({ id: manager.id, name: manager.displayName })),
         );
         await loadRequests();
       } catch (loadError) {

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Param, Post } from '@nestjs/common';
+﻿import { Body, Controller, Get, Inject, Param, Post } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { UserRole } from '@wr/contracts';
@@ -9,7 +9,7 @@ import { SERVICE_TOKENS } from '../constants';
 
 @ApiTags('HR Interview Results')
 @ApiBearerAuth()
-@Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER)
+@Roles(UserRole.HR_LEADER)
 @Controller('hr/interview-results')
 export class HrInterviewResultsController {
   constructor(@Inject(SERVICE_TOKENS.INTERVIEW) private readonly interviewClient: ClientProxy) {}

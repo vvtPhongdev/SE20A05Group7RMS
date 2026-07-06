@@ -1,6 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { UserRole } from '@wr/contracts';
+import { isHrRole, UserRole } from '@wr/contracts';
 import { ROLES_KEY } from '../roles.decorator';
 
 @Injectable()
@@ -22,6 +22,10 @@ export class RolesGuard implements CanActivate {
 
     if (!user || !user.role) {
       return false;
+    }
+
+    if (isHrRole(user.role) && requiredRoles.some((role) => isHrRole(role))) {
+      return true;
     }
 
     return requiredRoles.includes(user.role);

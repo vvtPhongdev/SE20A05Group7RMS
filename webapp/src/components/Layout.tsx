@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Bell,
@@ -104,15 +104,16 @@ Object.values(UserRole).forEach((role) => {
   const actual = countLeafItems(sidebarNavigation[role] || []);
 
   if (expected !== actual) {
-    throw new Error(`Sidebar coverage mismatch for ${role}: expected ${expected}, received ${actual}`);
+    throw new Error(
+      `Sidebar coverage mismatch for ${role}: expected ${expected}, received ${actual}`,
+    );
   }
 });
 
 const roleLabels: Record<UserRole, string> = {
   [UserRole.ADMIN]: 'System Admin',
   [UserRole.DEPARTMENT_HEAD]: 'Department Head',
-  [UserRole.HR_LEADER]: 'HR Leader',
-  [UserRole.HR_RECRUITER]: 'HR Recruiter',
+  [UserRole.HR_LEADER]: 'HR',
   [UserRole.CANDIDATE]: 'Candidate',
 };
 
@@ -120,7 +121,6 @@ const roleHomeLabels: Record<UserRole, string> = {
   [UserRole.ADMIN]: 'Admin Dashboard',
   [UserRole.DEPARTMENT_HEAD]: 'Department Dashboard',
   [UserRole.HR_LEADER]: 'HR Dashboard',
-  [UserRole.HR_RECRUITER]: 'HR Dashboard',
   [UserRole.CANDIDATE]: 'Candidate Dashboard',
 };
 
@@ -220,7 +220,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const isActivePath = (path?: string) => {
     if (!path) return false;
-    return location.pathname === path || (path !== '/hr' && location.pathname.startsWith(`${path}/`));
+    return (
+      location.pathname === path || (path !== '/hr' && location.pathname.startsWith(`${path}/`))
+    );
   };
 
   const handleLogout = () => {

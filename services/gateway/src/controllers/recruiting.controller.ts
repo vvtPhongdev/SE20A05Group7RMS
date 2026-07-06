@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   Body,
   Controller,
@@ -22,6 +22,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import {
   HiringDecision,
+  isHrRole,
   OfferResponse,
   TaskStatus,
   TaskType,
@@ -459,7 +460,7 @@ export class RecruitingController {
   constructor(@Inject(SERVICE_TOKENS.RECRUITING) private readonly recruitingClient: ClientProxy) {}
 
   @Get('recruitment-requests')
-  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER)
   @ApiOperation({ summary: 'List recruitment requests for admin/HR oversight' })
   listRecruitmentRequests(@Query() query: any, @CurrentUser() user: any) {
     const payload = { ...query, role: user.role, userId: user.sub };
@@ -482,7 +483,7 @@ export class RecruitingController {
   }
 
   @Get('recruitment-requests/:id')
-  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.DEPARTMENT_HEAD)
   @ApiOperation({ summary: 'Get a recruitment request visible to the current user' })
   getRecruitmentRequest(@Param('id') id: string, @CurrentUser() user: any) {
     return firstValueFrom(
@@ -603,7 +604,7 @@ export class RecruitingController {
     );
   }
 
-  // ─── Overall Plan / Task Plan ──────────────────────────────────────
+  // â”€â”€â”€ Overall Plan / Task Plan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Post('overall-plan')
   @Roles(UserRole.HR_LEADER)
@@ -615,7 +616,7 @@ export class RecruitingController {
   }
 
   @Get('overall-plan/by-request/:requestId')
-  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN)
+  @Roles(UserRole.HR_LEADER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Get the overall plan for a recruitment request' })
   getOverallPlanByRequest(@Param('requestId') requestId: string, @CurrentUser() user: any) {
     return firstValueFrom(
@@ -647,7 +648,7 @@ export class RecruitingController {
 
   @Patch('overall-plan/:id/start-campaign')
   @Roles(UserRole.HR_LEADER)
-  @ApiOperation({ summary: 'Start an approved campaign and notify assigned HR recruiters' })
+  @ApiOperation({ summary: 'Start an approved campaign and notify assigned HR members' })
   startCampaign(@Param('id') id: string, @CurrentUser('sub') userId: string) {
     return firstValueFrom(
       this.recruitingClient.send('overall-plan.start_campaign', { id, performedById: userId }),
@@ -698,7 +699,7 @@ export class RecruitingController {
   }
 
   @Get('task-plan')
-  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN)
+  @Roles(UserRole.HR_LEADER, UserRole.ADMIN)
   @ApiOperation({ summary: 'List campaign task plans' })
   listTaskPlans(@Query() query: any, @CurrentUser() user: any) {
     return firstValueFrom(
@@ -711,7 +712,7 @@ export class RecruitingController {
   }
 
   @Patch('task-plan/:id/status')
-  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER)
+  @Roles(UserRole.HR_LEADER)
   @ApiOperation({ summary: 'Update a task plan status' })
   updateTaskPlanStatus(
     @Param('id') id: string,
@@ -774,7 +775,7 @@ export class RecruitingController {
     return firstValueFrom(this.recruitingClient.send('recruiting.admin_dashboard', {}));
   }
 
-  // ─── Roles ───────────────────────────────────────────────────────
+  // â”€â”€â”€ Roles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Post('roles')
   @ApiOperation({ summary: 'Create a role / JD' })
@@ -794,7 +795,7 @@ export class RecruitingController {
     return firstValueFrom(this.recruitingClient.send('roles.get', { id }));
   }
 
-  // ─── Applications ────────────────────────────────────────────────
+  // â”€â”€â”€ Applications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Post('applications')
   @ApiOperation({ summary: 'Apply to a role' })
@@ -839,7 +840,7 @@ export class RecruitingController {
 
   @Patch('task-plan/:id/assign-recruiter')
   @Roles(UserRole.HR_LEADER)
-  @ApiOperation({ summary: 'Assign an approved campaign task to an HR recruiter' })
+  @ApiOperation({ summary: 'Assign an approved campaign task to an HR member' })
   assignTaskPlanRecruiter(
     @Param('id') id: string,
     @Body() body: AssignTaskPlanRecruiterDto,
@@ -879,7 +880,7 @@ export class RecruitingController {
   }
 
   @Get('offers/:id')
-  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN, UserRole.CANDIDATE)
+  @Roles(UserRole.HR_LEADER, UserRole.ADMIN, UserRole.CANDIDATE)
   @ApiOperation({ summary: 'Review an offer letter' })
   getOffer(@Param('id') id: string, @CurrentUser() user: any) {
     return firstValueFrom(
@@ -920,7 +921,7 @@ export class RecruitingController {
       }),
     );
   }
-  // ─── Invites ─────────────────────────────────────────────────────
+  // â”€â”€â”€ Invites â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Post('invites')
   @ApiOperation({ summary: 'Send invite to candidate' })
@@ -934,7 +935,7 @@ export class RecruitingController {
     return firstValueFrom(this.recruitingClient.send('invites.list', query));
   }
 
-  // ─── Evaluations ─────────────────────────────────────────────────
+  // â”€â”€â”€ Evaluations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Post('evaluations')
   @ApiOperation({ summary: 'Trigger evaluation run' })
@@ -948,7 +949,7 @@ export class RecruitingController {
     return firstValueFrom(this.recruitingClient.send('evaluations.get', { id }));
   }
 
-  // ─── Talent Search ────────────────────────────────────────────────
+  // â”€â”€â”€ Talent Search â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Post('talent/search')
   @ApiOperation({ summary: 'Search candidates by skills / role (knowledge graph + vector)' })
@@ -992,10 +993,10 @@ export class RecruitingController {
     return firstValueFrom(this.recruitingClient.send('talent.expand', { query }));
   }
 
-  // ─── Job Postings ────────────────────────────────────────────────
+  // â”€â”€â”€ Job Postings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Post('job-postings')
-  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN)
+  @Roles(UserRole.HR_LEADER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Create job posting from approved recruitment request' })
   createJobPosting(@Body() body: CreateJobPostingDto, @CurrentUser() user?: any) {
     return firstValueFrom(
@@ -1008,7 +1009,7 @@ export class RecruitingController {
   }
 
   @Post('job-postings/media')
-  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN)
+  @Roles(UserRole.HR_LEADER, UserRole.ADMIN)
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
   @ApiOperation({ summary: 'Upload banner or recruitment notice media for a job posting' })
   async uploadJobPostingMedia(
@@ -1023,22 +1024,9 @@ export class RecruitingController {
       throw new BadRequestException('requestId is required');
     }
 
-    const plan = await firstValueFrom(
-      this.recruitingClient.send('overall-plan.getByRequest', {
-        hiringRequestId: body.requestId,
-        userId: user?.sub,
-        role: user?.role,
-      }),
-    );
-    const canUpload =
-      user?.role === UserRole.HR_LEADER ||
-      user?.role === UserRole.ADMIN ||
-      (user?.role === UserRole.HR_RECRUITER &&
-        plan?.tasks?.some(
-          (task: any) => task.taskType === TaskType.JOB_POSTING && task.assignedTo?.id === user.sub,
-        ));
+    const canUpload = user?.role === UserRole.ADMIN || isHrRole(user?.role);
     if (!canUpload) {
-      throw new ForbiddenException('Only the HR recruiter assigned to JOB_POSTING can upload media');
+      throw new ForbiddenException('Only HR can upload job posting media');
     }
 
     const allowedTypes: Record<string, string> = {
@@ -1117,9 +1105,13 @@ export class RecruitingController {
   }
 
   @Patch('job-postings/:id')
-  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN)
+  @Roles(UserRole.HR_LEADER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Update job posting details' })
-  updateJobPosting(@Param('id') id: string, @Body() body: UpdateJobPostingDto, @CurrentUser() user?: any) {
+  updateJobPosting(
+    @Param('id') id: string,
+    @Body() body: UpdateJobPostingDto,
+    @CurrentUser() user?: any,
+  ) {
     return firstValueFrom(
       this.recruitingClient.send('recruiting.job_posting.update', {
         id,
@@ -1131,7 +1123,7 @@ export class RecruitingController {
   }
 
   @Post('job-postings/:id/publish')
-  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN)
+  @Roles(UserRole.HR_LEADER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Publish job posting' })
   publishJobPosting(@Param('id') id: string, @CurrentUser() user?: any) {
     return firstValueFrom(
@@ -1144,7 +1136,7 @@ export class RecruitingController {
   }
 
   @Post('job-postings/:id/close')
-  @Roles(UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.ADMIN)
+  @Roles(UserRole.HR_LEADER, UserRole.ADMIN)
   @ApiOperation({ summary: 'Close job posting' })
   closeJobPosting(@Param('id') id: string, @CurrentUser() user?: any) {
     return firstValueFrom(
@@ -1156,7 +1148,7 @@ export class RecruitingController {
     );
   }
 
-  // ─── Reports ─────────────────────────────────────────────────────
+  // â”€â”€â”€ Reports â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Get('reports/annual')
   @Roles(UserRole.ADMIN)
@@ -1235,7 +1227,7 @@ export class RecruitingController {
   }
 
   @Get('reports/realtime-tracking')
-  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.DEPARTMENT_HEAD)
   @ApiOperation({ summary: 'FR-20: Real-time recruitment requests status tracking dashboard' })
   getRealtimeTracking(@CurrentUser() user: any) {
     return firstValueFrom(
@@ -1246,7 +1238,7 @@ export class RecruitingController {
     );
   }
 
-  // ─── Audit Logs (T-107, NFR-3) ───────────────────────────────────
+  // â”€â”€â”€ Audit Logs (T-107, NFR-3) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Get('audit-logs')
   @ApiOperation({ summary: 'NFR-3: Query audit trail entries for a given entity' })

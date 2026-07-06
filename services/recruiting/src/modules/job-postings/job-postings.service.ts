@@ -18,36 +18,8 @@ export class JobPostingsService {
     actorUserId?: string;
     actorRole?: string;
   }) {
-    if (payload.actorRole !== UserRole.HR_RECRUITER) return;
-
-    if (!payload.actorUserId) {
-      throw new RpcException({
-        status: HttpStatus.FORBIDDEN,
-        message: 'HR recruiter identity is required for assigned task checks',
-      });
-    }
-
-    const overallPlan = await this.prisma.overallPlan.findUnique({
-      where: { requestId: posting.requestId },
-      select: {
-        id: true,
-        tasks: {
-          where: {
-            taskType: 'JOB_POSTING',
-            assignedToId: payload.actorUserId,
-          },
-          select: { id: true },
-          take: 1,
-        },
-      },
-    });
-
-    if (!overallPlan?.tasks.length) {
-      throw new RpcException({
-        status: HttpStatus.FORBIDDEN,
-        message: 'Only the HR recruiter assigned to JOB_POSTING can manage this job posting',
-      });
-    }
+    void posting;
+    void payload;
   }
 
   private getActivePostingWindowWhere(now = new Date()) {

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { UserRole } from '@wr/contracts';
@@ -16,14 +16,9 @@ const accountTypes = [
     description: 'Request roles and review interview outcomes.',
   },
   {
-    value: 'hr-leader',
-    label: 'HR Leader',
-    description: 'Plan campaigns, delegate tasks, and oversee pipeline.',
-  },
-  {
-    value: 'hr-recruiter',
-    label: 'HR Recruiter',
-    description: 'Work on assigned recruitment tasks and candidates.',
+    value: 'hr',
+    label: 'HR',
+    description: 'Plan campaigns, manage tasks, and oversee the recruitment pipeline.',
   },
 ];
 
@@ -286,10 +281,8 @@ export const SignUp: React.FC = () => {
     switch (frontendRole) {
       case 'department-head':
         return UserRole.DEPARTMENT_HEAD;
-      case 'hr-leader':
+      case 'hr':
         return UserRole.HR_LEADER;
-      case 'hr-recruiter':
-        return UserRole.HR_RECRUITER;
       case 'candidate':
         return UserRole.CANDIDATE;
       default:
@@ -808,8 +801,10 @@ export const SignUp: React.FC = () => {
                           <span className="h-1.5 w-12 rounded-full bg-white/70 animate-pulse [animation-delay:120ms]" />
                           <span className="h-1.5 w-5 rounded-full bg-white/45 animate-pulse [animation-delay:240ms]" />
                         </span>
+                      ) : isGoogleSignup ? (
+                        'Create RMS account'
                       ) : (
-                        isGoogleSignup ? 'Create RMS account' : 'Create account'
+                        'Create account'
                       )}
                     </button>
                   </form>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest } from '../../../lib/api';
 import {
@@ -51,11 +51,7 @@ const approvalTypeFilters: Array<{ key: ApprovalTypeFilter; label: string }> = [
   { key: 'PLAN', label: 'Plan Approval' },
 ];
 const ADMIN_PLAN_STATUSES = new Set(['PENDING_APPROVAL', 'APPROVED', 'REJECTED']);
-const ADMIN_REQUEST_STATUSES = new Set([
-  'PENDING_BOSS_APPROVAL',
-  'APPROVED',
-  'REJECTED',
-]);
+const ADMIN_REQUEST_STATUSES = new Set(['PENDING_BOSS_APPROVAL', 'APPROVED', 'REJECTED']);
 
 interface RecruitmentRequestApi {
   id: string;
@@ -1048,9 +1044,9 @@ export const AdminApprovalQueue: React.FC = () => {
                             {TASK_TYPE_LABELS[task.taskType] ?? task.taskType}
                           </p>
                           <p className="mt-0.5 text-xs text-on-surface-variant">
-                            {task.assignedTo?.role === 'HR_RECRUITER'
+                            {task.assignedTo?.role === 'HR_LEADER'
                               ? task.assignedTo.displayName
-                              : 'Recruiter will be assigned after approval'}
+                              : 'HR member will be assigned after approval'}
                           </p>
                         </div>
                         <div className="mt-3 grid grid-cols-2 gap-3 border-t border-border-warm pt-3">

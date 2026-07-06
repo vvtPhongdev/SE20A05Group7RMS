@@ -1,4 +1,4 @@
-import {
+﻿import {
   Controller,
   Get,
   Post,
@@ -449,7 +449,7 @@ export class CreateGoogleMeetDto {
 export class IdentityController {
   constructor(@Inject(SERVICE_TOKENS.IDENTITY) private readonly identityClient: ClientProxy) {}
 
-  // ─── Auth ────────────────────────────────────────────────────────
+  // â”€â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Post('auth/register')
   @Public()
@@ -539,7 +539,7 @@ export class IdentityController {
   }
 
   @Get('google-calendar/auth-url')
-  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.DEPARTMENT_HEAD)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Generate Google OAuth URL for Calendar/Meet access' })
   createGoogleCalendarAuthUrl(@CurrentUser('sub') userId: string) {
@@ -556,7 +556,7 @@ export class IdentityController {
   }
 
   @Post('google-calendar/meet')
-  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.DEPARTMENT_HEAD)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Create a Google Calendar event with an auto-generated Google Meet link',
@@ -570,7 +570,7 @@ export class IdentityController {
     );
   }
 
-  // ─── Users ───────────────────────────────────────────────────────
+  // â”€â”€â”€ Users â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Get('users')
   @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.DEPARTMENT_HEAD)
@@ -578,10 +578,6 @@ export class IdentityController {
   @ApiOperation({ summary: 'List users with pagination and role filter' })
   async listUsers(@Query() query: ListUsersQueryDto, @CurrentUser() user: JwtPayload) {
     const scopedQuery = { ...query };
-
-    if (user.role === UserRole.HR_LEADER) {
-      scopedQuery.role = UserRole.HR_RECRUITER;
-    }
 
     if (user.role === UserRole.DEPARTMENT_HEAD) {
       const currentUser = await firstValueFrom(
@@ -600,7 +596,7 @@ export class IdentityController {
   }
 
   @Get('users/interviewers')
-  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.DEPARTMENT_HEAD)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List internal users who can join interview panels' })
   listInterviewers() {
@@ -608,7 +604,7 @@ export class IdentityController {
       this.identityClient.send('users.list', {
         page: 1,
         limit: 100,
-        roles: [UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD],
+        roles: [UserRole.HR_LEADER, UserRole.DEPARTMENT_HEAD],
       }),
     );
   }
@@ -662,7 +658,7 @@ export class IdentityController {
         displayName: body.displayName,
         phone: body.phone || null,
         password: body.password,
-        role: UserRole.HR_RECRUITER,
+        role: UserRole.HR_LEADER,
         organizationId: currentUser.organizationId,
         departmentId,
       }),
@@ -701,7 +697,7 @@ export class IdentityController {
     return firstValueFrom(this.identityClient.send('users.update_status', { id, ...body }));
   }
 
-  // ─── Organizations ───────────────────────────────────────────────
+  // â”€â”€â”€ Organizations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Post('organizations')
   @Roles(UserRole.ADMIN)
@@ -767,7 +763,7 @@ export class IdentityController {
     );
   }
 
-  // ─── Departments ─────────────────────────────────────────────────
+  // â”€â”€â”€ Departments â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Post('departments')
   @Roles(UserRole.ADMIN)
@@ -778,7 +774,7 @@ export class IdentityController {
   }
 
   @Get('departments')
-  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.DEPARTMENT_HEAD)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List departments with organization filtering' })
   listDepartments(@Query() query: ListDepartmentsQueryDto) {
@@ -786,7 +782,7 @@ export class IdentityController {
   }
 
   @Get('departments/:id')
-  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.DEPARTMENT_HEAD)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get department by ID' })
   getDepartment(@Param('id') id: string) {

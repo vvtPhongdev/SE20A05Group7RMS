@@ -1,4 +1,4 @@
-import { RpcException } from '@nestjs/microservices';
+﻿import { RpcException } from '@nestjs/microservices';
 import { AuditAction, AuditEntityType, PlanStatus, TaskStatus, TaskType } from '@wr/contracts';
 import { TaskPlanService } from './task-plan.service';
 
@@ -42,7 +42,7 @@ describe('TaskPlanService', () => {
     });
     prisma.user.findUnique.mockResolvedValue({
       id: 'user-1',
-      role: 'HR_RECRUITER',
+      role: 'HR_LEADER',
       isActive: true,
     });
     prisma.$transaction.mockImplementation(async (callback) => callback(prisma));
@@ -264,22 +264,23 @@ describe('TaskPlanService', () => {
       expect(result).toEqual({ id: 'task-1', status: TaskStatus.IN_PROGRESS });
     });
 
-    it('blocks HR recruiters from updating tasks assigned to another HR member', async () => {
+    it('allows HR to update tasks assigned to another HR member', async () => {
       prisma.taskPlan.findUnique.mockResolvedValue({
         id: 'task-1',
         status: TaskStatus.PENDING,
         assignedToId: 'other-recruiter',
       });
+      prisma.taskPlan.update.mockResolvedValue({ id: 'task-1', status: TaskStatus.IN_PROGRESS });
 
       await expect(
         service.updateStatus({
           id: 'task-1',
           status: TaskStatus.IN_PROGRESS,
           performedById: 'user-1',
-          actorRole: 'HR_RECRUITER',
+          actorRole: 'HR_LEADER',
         }),
-      ).rejects.toThrow(RpcException);
-      expect(prisma.taskPlan.update).not.toHaveBeenCalled();
+      ).resolves.toEqual({ id: 'task-1', status: TaskStatus.IN_PROGRESS });
+      expect(prisma.taskPlan.update).toHaveBeenCalled();
     });
   });
 });

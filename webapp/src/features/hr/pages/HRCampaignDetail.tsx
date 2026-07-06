@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { isHrRole } from '@wr/contracts';
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest, ApiError } from '../../../lib/api';
 import { mapPlanStatus, type PlanStatus } from '../../../lib/planStatus';
@@ -298,8 +299,7 @@ export const HRCampaignDetail: React.FC = () => {
   const { token, user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const campaignId = id?.replace(/^#/, '') ?? '';
-  const isHrLeader = user?.role === 'HR_LEADER';
-  const isHrRecruiter = user?.role === 'HR_RECRUITER';
+  const isHr = isHrRole(user?.role);
 
   const [activeTab, setActiveTab] = useState<DetailTab>('kanban');
   const [loading, setLoading] = useState(true);
@@ -352,18 +352,6 @@ export const HRCampaignDetail: React.FC = () => {
         ).catch(() => []),
         apiRequest<JobPostingApiItem[]>('/job-postings', token).catch(() => []),
       ]);
-      if (
-        user?.role === 'HR_RECRUITER' &&
-        !planResponse?.tasks.some((task) => task.assignedTo?.id === user.id)
-      ) {
-        setApiError('You can only view campaigns with tasks assigned to you by an HR Leader.');
-        setRequest(null);
-        setPlan(null);
-        setApplications([]);
-        setSchedules([]);
-        setJobPosting(null);
-        return;
-      }
       setRequest(requestResponse);
       setPlan(planResponse);
       setApplications(applicationsResponse);
@@ -388,24 +376,26 @@ export const HRCampaignDetail: React.FC = () => {
   }, [token, campaignId, user?.id, user?.role]);
 
   useEffect(() => {
-    if (!isHrLeader) return;
+    if (!isHr) return;
 
     const loadHrMembers = async () => {
       setMembersLoading(true);
       try {
         const response = await apiRequest<{
-          data: Array<{ id: string; displayName: string; email?: string }>;
-        }>('/users?role=HR_RECRUITER&limit=100', token);
+          data: Array<{ id: string; displayName: string; email?: string; role?: string }>;
+        }>('/users?limit=100', token);
         setHrMembers(
-          response.data.map((member) => ({
-            id: member.id,
-            name: member.displayName,
-            email: member.email,
-          })),
+          response.data
+            .filter((member) => isHrRole(member.role))
+            .map((member) => ({
+              id: member.id,
+              name: member.displayName,
+              email: member.email,
+            })),
         );
       } catch (memberError) {
         setTaskActionError(
-          memberError instanceof Error ? memberError.message : 'Unable to load HR recruiters',
+          memberError instanceof Error ? memberError.message : 'Unable to load HR members',
         );
       } finally {
         setMembersLoading(false);
@@ -413,7 +403,7 @@ export const HRCampaignDetail: React.FC = () => {
     };
 
     void loadHrMembers();
-  }, [isHrLeader, token]);
+  }, [isHr, token]);
 
   const tasks: TaskItem[] = useMemo(
     () =>
@@ -438,9 +428,10 @@ export const HRCampaignDetail: React.FC = () => {
           startDateInput: hasScheduledDates ? toDateInputValue(task.startDate ?? '') : '',
           dueDate: hasScheduledDates ? formatDate(task.endDate ?? '') : '',
           dueDateInput: hasScheduledDates ? toDateInputValue(task.endDate ?? '') : '',
-          assigneeId: task.assignedTo?.role === 'HR_RECRUITER' ? task.assignedTo.id : undefined,
-          assigneeName:
-            task.assignedTo?.role === 'HR_RECRUITER' ? task.assignedTo.displayName : undefined,
+          assigneeId: isHrRole(task.assignedTo?.role) ? task.assignedTo.id : undefined,
+          assigneeName: isHrRole(task.assignedTo?.role)
+            ? task.assignedTo.displayName
+            : undefined,
           assigneeRole: task.assignedTo?.role,
           reminderStatus: task.reminders?.some((reminder) => reminder.status === 'SENT')
             ? 'Reminder sent'
@@ -454,20 +445,8 @@ export const HRCampaignDetail: React.FC = () => {
 
   const completedTasks = tasks.filter((task) => task.done).length;
   const taskProgress = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
-  const visibleTasks = useMemo(
-    () => (isHrRecruiter ? tasks.filter((task) => task.assigneeId === user?.id) : tasks),
-    [isHrRecruiter, tasks, user?.id],
-  );
-  const visibleCompletedTasks = visibleTasks.filter((task) => task.done).length;
-  const visibleTaskProgress =
-    visibleTasks.length > 0 ? Math.round((visibleCompletedTasks / visibleTasks.length) * 100) : 0;
-  const recruiterAssignedTaskTypes = useMemo(
-    () =>
-      new Set(tasks.filter((task) => task.assigneeId === user?.id).map((task) => task.taskType)),
-    [tasks, user?.id],
-  );
-  const canUseTaskPermission = (taskType: string) =>
-    isHrLeader || (isHrRecruiter && recruiterAssignedTaskTypes.has(taskType));
+  const visibleTasks = tasks;
+  const canUseTaskPermission = (_taskType: string) => isHr;
   const collectionCountsByRecruiter = useMemo(() => {
     const counts = new Map<string, number>();
     for (const application of applications) {
@@ -635,7 +614,7 @@ export const HRCampaignDetail: React.FC = () => {
     });
   }, [schedules, applications, weekDays]);
 
-  const canManagePlan = isHrLeader;
+  const canManagePlan = isHr;
   const canEditDraftTasks =
     canManagePlan &&
     Boolean(plan) &&
@@ -698,7 +677,7 @@ export const HRCampaignDetail: React.FC = () => {
       await loadCampaign();
     } catch (assignErr) {
       setTaskActionError(
-        assignErr instanceof ApiError ? assignErr.message : 'Unable to assign recruiter',
+        assignErr instanceof ApiError ? assignErr.message : 'Unable to assign HR member',
       );
     } finally {
       setTaskBusyId(null);
@@ -929,7 +908,7 @@ export const HRCampaignDetail: React.FC = () => {
                 onClick={() => void startCampaign()}
                 title={
                   !canStartCampaign
-                    ? 'Assign every task to an HR recruiter before starting the campaign.'
+                    ? 'Assign every task to an HR member before starting the campaign.'
                     : undefined
                 }
                 type="button"
@@ -1092,20 +1071,18 @@ export const HRCampaignDetail: React.FC = () => {
               <div>
                 <h2 className="text-lg font-semibold text-deep-charcoal">Campaign Tasks</h2>
                 <p className="mt-1 text-xs text-on-surface-variant">
-                  {isHrRecruiter
-                    ? `${visibleCompletedTasks} of ${visibleTasks.length} assigned tasks completed`
-                    : `${completedTasks} of ${tasks.length} completed`}
+                  {completedTasks} of {tasks.length} completed
                 </p>
               </div>
               <div className="flex items-center gap-3">
                 <div className="h-1.5 w-32 overflow-hidden rounded-full bg-surface-variant">
                   <div
                     className="h-full rounded-full bg-teal-command"
-                    style={{ width: `${isHrRecruiter ? visibleTaskProgress : taskProgress}%` }}
+                    style={{ width: `${taskProgress}%` }}
                   />
                 </div>
                 <span className="font-mono text-xs text-on-surface-variant">
-                  {isHrRecruiter ? visibleTaskProgress : taskProgress}%
+                  {taskProgress}%
                 </span>
               </div>
             </div>
@@ -1118,17 +1095,15 @@ export const HRCampaignDetail: React.FC = () => {
               <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                    {isHrRecruiter ? 'My Assignment' : 'Campaign HR Members'}
+                    Campaign HR Members
                   </p>
                   <p className="mt-1 text-xs text-slate-ink">
-                    {isHrRecruiter
-                      ? 'You can act only on tasks assigned to you by the HR Leader.'
-                      : 'Members are added to this campaign when they are assigned a task.'}
+                    Members are added to this campaign when they are assigned a task.
                   </p>
                 </div>
                 {canAssignRecruiters && request?.status !== 'ACTIVE' ? (
                   <span className="rounded-lg border border-teal-command/20 bg-teal-command/5 px-3 py-2 text-xs font-semibold text-teal-command">
-                    Assign recruiters before starting
+                    Assign HR members before starting
                   </span>
                 ) : null}
               </div>
@@ -1154,7 +1129,7 @@ export const HRCampaignDetail: React.FC = () => {
                 </div>
               ) : (
                 <p className="text-sm text-on-surface-variant">
-                  No HR recruiter has been assigned to this campaign yet.
+                  No HR member has been assigned to this campaign yet.
                 </p>
               )}
             </div>
@@ -1250,7 +1225,7 @@ export const HRCampaignDetail: React.FC = () => {
                       value={task.assigneeId ?? ''}
                     >
                       <option value="">
-                        {membersLoading ? 'Loading recruiters...' : 'Assign HR recruiter'}
+                        {membersLoading ? 'Loading HR members...' : 'Assign HR member'}
                       </option>
                       {hrMembers.map((member) => (
                         <option key={member.id} value={member.id}>
@@ -1302,9 +1277,7 @@ export const HRCampaignDetail: React.FC = () => {
               ))}
               {visibleTasks.length === 0 ? (
                 <li className="px-6 py-8 text-center text-sm text-on-surface-variant">
-                  {isHrRecruiter
-                    ? 'No tasks have been assigned to you for this campaign.'
-                    : 'No tasks have been added to this plan yet.'}
+                  No tasks have been added to this plan yet.
                 </li>
               ) : null}
             </ul>
@@ -1461,7 +1434,7 @@ export const HRCampaignDetail: React.FC = () => {
                 }}
                 title={
                   !canFindCandidates
-                    ? 'HR Leader must assign you CV collection or CV screening work for this campaign.'
+                    ? 'Campaign needs a CV collection or CV screening task before candidate search.'
                     : undefined
                 }
                 type="button"

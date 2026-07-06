@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   Controller,
   Delete,
@@ -65,14 +65,14 @@ export class CvController {
   }
 
   @Get('candidate/:candidateId/latest')
-  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.DEPARTMENT_HEAD)
   @ApiOperation({ summary: 'Get the latest CV for a candidate profile' })
   getLatestForCandidate(@Param('candidateId') candidateId: string) {
     return firstValueFrom(this.cvClient.send('cv.get_by_candidate', { candidateId }));
   }
 
   @Get('candidate/:candidateId/latest/file')
-  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.DEPARTMENT_HEAD)
   @ApiOperation({ summary: 'Open or download the latest CV for a candidate profile' })
   async getLatestFileForCandidate(@Param('candidateId') candidateId: string, @Res() res: Response) {
     const cv = await firstValueFrom(this.cvClient.send('cv.get_by_candidate', { candidateId }));
