@@ -1,4 +1,4 @@
-import { Injectable, HttpStatus, Inject } from '@nestjs/common';
+﻿import { Injectable, HttpStatus, Inject } from '@nestjs/common';
 import { RpcException, ClientProxy } from '@nestjs/microservices';
 import { AuditLogService } from '@wr/database';
 import { PrismaService } from '../../common/database/prisma.service';
@@ -102,7 +102,7 @@ export class SchedulesService {
     return schedule;
   }
 
-  // ─── Plan-lock guard (FR-07) ─────────────────────────────────────────
+  // â”€â”€â”€ Plan-lock guard (FR-07) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   /**
    * Enforces FR-07 preconditions before any interview activity:
@@ -146,7 +146,7 @@ export class SchedulesService {
     if (plan.status !== PlanStatus.APPROVED) {
       throw new RpcException({
         status: HttpStatus.FORBIDDEN,
-        message: `Plan-lock violated: OverallPlan status is "${plan.status}" — must be APPROVED.`,
+        message: `Plan-lock violated: OverallPlan status is "${plan.status}" â€” must be APPROVED.`,
       });
     }
 
@@ -181,12 +181,7 @@ export class SchedulesService {
       });
     }
 
-    const allowedRoles: UserRole[] = [
-      UserRole.HR_LEADER,
-      UserRole.HR_RECRUITER,
-      UserRole.DEPARTMENT_HEAD,
-      UserRole.ADMIN,
-    ];
+    const allowedRoles: UserRole[] = [UserRole.HR_LEADER, UserRole.DEPARTMENT_HEAD, UserRole.ADMIN];
     if (users.some((user) => !user.isActive || !allowedRoles.includes(user.role as UserRole))) {
       throw new RpcException({
         status: HttpStatus.BAD_REQUEST,
@@ -197,7 +192,7 @@ export class SchedulesService {
     return { uniqueIds, users };
   }
 
-  // ─── Conflict detection ──────────────────────────────────────────────
+  // â”€â”€â”€ Conflict detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   /**
    * Detects overlapping SCHEDULED/RESCHEDULED interviews for the candidate
@@ -259,7 +254,7 @@ export class SchedulesService {
     return conflicts;
   }
 
-  // ─── Public API ──────────────────────────────────────────────────────
+  // â”€â”€â”€ Public API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   /**
    * FR-12 + FR-07: Create a new interview schedule.
@@ -575,7 +570,7 @@ export class SchedulesService {
    * T-052: Cancel an interview with a mandatory reason.
    * - Guards: not already CANCELLED or COMPLETED.
    * - Single $transaction:
-   *     1. Sets schedule status → CANCELLED.
+   *     1. Sets schedule status â†’ CANCELLED.
    *     2. Creates PENDING EmailLog for candidate + every interviewer.
    *     3. Creates in-app Notification for candidate + every interviewer.
    *     4. Appends a RequestLog entry on the parent RecruitmentRequest so its
@@ -632,7 +627,7 @@ export class SchedulesService {
       timeStyle: 'short',
     });
 
-    const emailSubject = `Interview Cancelled — ${scheduledDateStr} (ICT)`;
+    const emailSubject = `Interview Cancelled â€” ${scheduledDateStr} (ICT)`;
 
     const buildEmailBody = (name: string, role: string) =>
       [
@@ -648,7 +643,7 @@ export class SchedulesService {
         'We apologise for any inconvenience caused.',
         '',
         'Best regards,',
-        'HR Team — Recruitment Management System',
+        'HR Team â€” Recruitment Management System',
       ].join('\n');
 
     const notificationTitle = 'Interview Cancelled';
@@ -663,7 +658,7 @@ export class SchedulesService {
         data: { status: InterviewStatus.CANCELLED },
       }),
 
-      // 2. RequestLog — update parent request timeline
+      // 2. RequestLog â€” update parent request timeline
       this.prisma.requestLog.create({
         data: {
           requestId: schedule.requestId,
@@ -754,7 +749,7 @@ export class SchedulesService {
     };
   }
 
-  // ─── Reschedule ─────────────────────────────────────────────────────
+  // â”€â”€â”€ Reschedule â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   /**
    * T-051: Reschedule an existing interview.
@@ -828,7 +823,7 @@ export class SchedulesService {
 
     const { uniqueIds: interviewerIds } = await this.assertValidInterviewers(payload.interviewers);
 
-    // Conflict check — exclude the schedule being rescheduled so it does not
+    // Conflict check â€” exclude the schedule being rescheduled so it does not
     // conflict against its own old slot.
     const conflicts = await this.detectConflicts(
       existing.candidateId,
@@ -870,7 +865,7 @@ export class SchedulesService {
       timeStyle: 'short',
     });
 
-    const emailSubject = `Interview Rescheduled — New time: ${newDateStr} (ICT)`;
+    const emailSubject = `Interview Rescheduled â€” New time: ${newDateStr} (ICT)`;
 
     const buildEmailBody = (name: string, role: string) =>
       [
@@ -888,7 +883,7 @@ export class SchedulesService {
         'Please update your calendar accordingly.',
         '',
         'Best regards,',
-        'HR Team — Recruitment Management System',
+        'HR Team â€” Recruitment Management System',
       ].join('\n');
 
     const notificationTitle = 'Interview Rescheduled';

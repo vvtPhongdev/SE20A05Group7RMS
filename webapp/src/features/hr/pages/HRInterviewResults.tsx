@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { isHrRole, UserRole } from '@wr/contracts';
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest } from '../../../lib/api';
@@ -387,7 +387,9 @@ export const HRInterviewResults: React.FC = () => {
           !nextFeedback.some((item) => item.id === user.id)
         ) {
           nextFeedback.push(
-            details.myFeedback ? applyMeetingPhotoToFeedback(details.myFeedback) : emptyOwnFeedback(user),
+            details.myFeedback
+              ? applyMeetingPhotoToFeedback(details.myFeedback)
+              : emptyOwnFeedback(user),
           );
         }
         setFeedback(nextFeedback);
@@ -566,7 +568,10 @@ export const HRInterviewResults: React.FC = () => {
           },
         );
 
-        const savedFeedback = applyMeetingPhotoToFeedback({ ...response.feedback, isRecorded: true });
+        const savedFeedback = applyMeetingPhotoToFeedback({
+          ...response.feedback,
+          isRecorded: true,
+        });
 
         setFeedback((items) =>
           items.some((item) => item.id === response.feedback.id)
@@ -829,55 +834,55 @@ export const HRInterviewResults: React.FC = () => {
                               className="min-h-[88px] w-full rounded-lg border border-border-warm bg-clean-surface p-3 text-sm leading-6 outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-70"
                               disabled={!editable || submitting}
                               onChange={(event) => updateNotes(item.id, event.target.value)}
-                            placeholder="Panel member observations..."
-                            value={item.notes}
-                          />
-                          <div className="rounded-lg border border-border-warm bg-clean-surface p-3">
-                            <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                              <div>
-                                <p className="text-xs font-bold uppercase tracking-[0.08em] text-slate-ink">
-                                  Meeting report photo
-                                </p>
-                                <p className="mt-1 text-xs text-slate-ink">
-                                  Upload an interview meeting image for Admin review.
-                                </p>
+                              placeholder="Panel member observations..."
+                              value={item.notes}
+                            />
+                            <div className="rounded-lg border border-border-warm bg-clean-surface p-3">
+                              <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                  <p className="text-xs font-bold uppercase tracking-[0.08em] text-slate-ink">
+                                    Meeting report photo
+                                  </p>
+                                  <p className="mt-1 text-xs text-slate-ink">
+                                    Upload an interview meeting image for Admin review.
+                                  </p>
+                                </div>
+                                {editable && item.meetingPhotoDataUrl && (
+                                  <button
+                                    className="w-fit rounded-md border border-border-warm px-3 py-1.5 text-xs font-semibold text-rejected transition hover:bg-rejected/10"
+                                    disabled={submitting}
+                                    onClick={() => updateMeetingPhoto(item.id)}
+                                    type="button"
+                                  >
+                                    Remove photo
+                                  </button>
+                                )}
                               </div>
-                              {editable && item.meetingPhotoDataUrl && (
-                                <button
-                                  className="w-fit rounded-md border border-border-warm px-3 py-1.5 text-xs font-semibold text-rejected transition hover:bg-rejected/10"
+                              {editable && (
+                                <input
+                                  accept="image/*"
+                                  className="block w-full rounded-lg border border-border-warm bg-workflow-ivory/40 p-2 text-sm file:mr-4 file:rounded-md file:border-0 file:bg-teal-command file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white disabled:cursor-not-allowed disabled:opacity-70"
                                   disabled={submitting}
-                                  onClick={() => updateMeetingPhoto(item.id)}
-                                  type="button"
-                                >
-                                  Remove photo
-                                </button>
+                                  onChange={(event) => {
+                                    updateMeetingPhoto(item.id, event.target.files?.[0]);
+                                    event.target.value = '';
+                                  }}
+                                  type="file"
+                                />
+                              )}
+                              {item.meetingPhotoDataUrl && (
+                                <div className="mt-3 rounded-lg border border-border-warm bg-workflow-ivory/30 p-3">
+                                  <p className="mb-2 text-xs font-semibold text-slate-ink">
+                                    {item.meetingPhotoName || 'Meeting report photo'}
+                                  </p>
+                                  <img
+                                    alt="Interview meeting report"
+                                    className="max-h-56 w-full rounded-md object-contain"
+                                    src={item.meetingPhotoDataUrl}
+                                  />
+                                </div>
                               )}
                             </div>
-                            {editable && (
-                              <input
-                                accept="image/*"
-                                className="block w-full rounded-lg border border-border-warm bg-workflow-ivory/40 p-2 text-sm file:mr-4 file:rounded-md file:border-0 file:bg-teal-command file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white disabled:cursor-not-allowed disabled:opacity-70"
-                                disabled={submitting}
-                                onChange={(event) => {
-                                  updateMeetingPhoto(item.id, event.target.files?.[0]);
-                                  event.target.value = '';
-                                }}
-                                type="file"
-                              />
-                            )}
-                            {item.meetingPhotoDataUrl && (
-                              <div className="mt-3 rounded-lg border border-border-warm bg-workflow-ivory/30 p-3">
-                                <p className="mb-2 text-xs font-semibold text-slate-ink">
-                                  {item.meetingPhotoName || 'Meeting report photo'}
-                                </p>
-                                <img
-                                  alt="Interview meeting report"
-                                  className="max-h-56 w-full rounded-md object-contain"
-                                  src={item.meetingPhotoDataUrl}
-                                />
-                              </div>
-                            )}
-                          </div>
                           </div>
                         </div>
                       </article>
@@ -1084,9 +1089,8 @@ export const HRInterviewResults: React.FC = () => {
                   </>
                 ) : (
                   <div className="rounded-lg border border-border-warm bg-workflow-ivory p-4 text-sm leading-6 text-slate-ink">
-                    Final Recommendation and Admin submission are available to HR. Your
-                    role can save personal candidate evaluation when you are invited to this
-                    interview.
+                    Final Recommendation and Admin submission are available to HR. Your role can
+                    save personal candidate evaluation when you are invited to this interview.
                   </div>
                 )}
               </section>

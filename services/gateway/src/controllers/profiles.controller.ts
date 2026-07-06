@@ -1,4 +1,4 @@
-import {
+﻿import {
   BadRequestException,
   Controller,
   Delete,
@@ -317,17 +317,17 @@ export class ProfilesController {
     };
   }
 
-  // ─── Candidate Profiles ──────────────────────────────────────────
+  // â”€â”€â”€ Candidate Profiles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Get('candidate-profiles')
-  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER)
   @ApiOperation({ summary: 'List candidate profiles (talent pool)' })
   listCandidates(@Query() query: { q?: string; page?: string; pageSize?: string }) {
     return firstValueFrom(this.profilesClient.send('profiles.list', query));
   }
 
   @Get('candidate-profiles/:id')
-  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.DEPARTMENT_HEAD)
   @ApiOperation({ summary: 'Get candidate profile' })
   getProfile(@Param('id') id: string) {
     return firstValueFrom(this.profilesClient.send('profiles.get', { id }));
@@ -335,7 +335,7 @@ export class ProfilesController {
 
   @Get('candidate-profiles/:id/avatar')
   @Public()
-  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER, UserRole.DEPARTMENT_HEAD)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.DEPARTMENT_HEAD)
   @ApiOperation({ summary: 'Get candidate profile photo by candidate ID' })
   async getCandidateAvatar(@Param('id') id: string, @Res() res: Response) {
     const avatar = await firstValueFrom(
@@ -346,7 +346,7 @@ export class ProfilesController {
   }
 
   @Patch('candidate-profiles/:id')
-  @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.HR_RECRUITER)
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER)
   @ApiOperation({ summary: 'Update candidate profile' })
   updateProfile(@Param('id') id: string, @Body() body: UpdateCandidateProfileDto) {
     return firstValueFrom(this.profilesClient.send('profiles.update', { id, ...body }));
@@ -366,7 +366,7 @@ export class ProfilesController {
     );
   }
 
-  // ─── Documents ───────────────────────────────────────────────────
+  // â”€â”€â”€ Documents â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Post('documents')
   @ApiOperation({ summary: 'Upload a document (CV/JD)' })
@@ -433,7 +433,7 @@ export class ProfilesController {
     return firstValueFrom(this.profilesClient.send('documents.get', { id }));
   }
 
-  // ─── Evidence ────────────────────────────────────────────────────
+  // â”€â”€â”€ Evidence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Get('evidence')
   @ApiOperation({ summary: 'List evidence records' })

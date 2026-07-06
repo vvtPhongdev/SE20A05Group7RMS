@@ -1,4 +1,4 @@
-import { Test, TestingModule } from '@nestjs/testing';
+﻿import { Test, TestingModule } from '@nestjs/testing';
 import { RpcException } from '@nestjs/microservices';
 import { HttpStatus } from '@nestjs/common';
 import { UsersService } from './users.service';
@@ -364,7 +364,7 @@ describe('UsersService', () => {
         new RpcException({
           status: HttpStatus.BAD_REQUEST,
           message:
-            'Invalid role: INVALID_ROLE. Must be one of ADMIN, DEPARTMENT_HEAD, HR_LEADER, HR_RECRUITER, CANDIDATE',
+            'Invalid role: INVALID_ROLE. Must be one of ADMIN, DEPARTMENT_HEAD, HR_LEADER, CANDIDATE',
         }),
       );
     });

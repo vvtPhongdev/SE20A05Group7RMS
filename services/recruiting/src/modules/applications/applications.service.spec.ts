@@ -1,4 +1,4 @@
-import { TaskType, UserRole } from '@wr/contracts';
+﻿import { TaskType, UserRole } from '@wr/contracts';
 import { ApplicationsService } from './applications.service';
 
 describe('ApplicationsService', () => {
@@ -43,7 +43,11 @@ describe('ApplicationsService', () => {
       id: 'application-1',
       ...args.data,
       collectedBy: args.data.collectedById
-        ? { id: args.data.collectedById, displayName: 'Recruiter One', email: 'recruiter@example.com' }
+        ? {
+            id: args.data.collectedById,
+            displayName: 'Recruiter One',
+            email: 'recruiter@example.com',
+          }
         : null,
     }));
   });
@@ -75,12 +79,12 @@ describe('ApplicationsService', () => {
     );
   });
 
-  it('tracks the acting HR recruiter when they shortlist a candidate', async () => {
+  it('tracks the acting HR when they shortlist a candidate', async () => {
     await service.create({
       requestId: 'request-1',
       candidateId: 'candidate-1',
       actorUserId: 'recruiter-2',
-      actorRole: UserRole.HR_RECRUITER,
+      actorRole: UserRole.HR_LEADER,
     });
 
     expect(prisma.taskPlan.findFirst).not.toHaveBeenCalled();

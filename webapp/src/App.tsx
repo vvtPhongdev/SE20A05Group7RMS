@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Layout } from './components/Layout';
@@ -54,7 +54,6 @@ function HomeRedirect() {
     case UserRole.DEPARTMENT_HEAD:
       return <Navigate to="/dept-head" replace />;
     case UserRole.HR_LEADER:
-    case UserRole.HR_RECRUITER:
       return <Navigate to="/hr" replace />;
     case UserRole.CANDIDATE:
       return <Navigate to="/candidate" replace />;
@@ -171,10 +170,7 @@ export function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/admin/reports/annual"
-            element={<Navigate to="/admin/reports" replace />}
-          />
+          <Route path="/admin/reports/annual" element={<Navigate to="/admin/reports" replace />} />
           <Route
             path="/admin/reports/dept-stats"
             element={<Navigate to="/admin/dept-stats" replace />}
@@ -256,7 +252,7 @@ export function App() {
           <Route
             path="/hr"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER]}>
                 <Layout>
                   <HRDashBoard />
                 </Layout>
@@ -266,7 +262,7 @@ export function App() {
           <Route
             path="/hr/requests"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER]}>
                 <Layout>
                   <HRRequestQueue />
                 </Layout>
@@ -276,7 +272,7 @@ export function App() {
           <Route
             path="/hr/campaigns"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER]}>
                 <Layout>
                   <HRCampaigns />
                 </Layout>
@@ -286,7 +282,7 @@ export function App() {
           <Route
             path="/hr/campaigns/:id"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER]}>
                 <Layout>
                   <HRCampaignDetail />
                 </Layout>
@@ -296,7 +292,7 @@ export function App() {
           <Route
             path="/hr/job-postings/:requestId"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER]}>
                 <Layout>
                   <HRJobPostingWorkspace />
                 </Layout>
@@ -306,7 +302,7 @@ export function App() {
           <Route
             path="/hr/tasks"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER]}>
                 <Layout>
                   <TaskPlanner />
                 </Layout>
@@ -316,7 +312,7 @@ export function App() {
           <Route
             path="/hr/candidates"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER]}>
                 <Layout>
                   <HRTalentPool />
                 </Layout>
@@ -326,7 +322,7 @@ export function App() {
           <Route
             path="/hr/search"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER]}>
                 <Layout>
                   <CandidateSearch />
                 </Layout>
@@ -336,7 +332,7 @@ export function App() {
           <Route
             path="/hr/interviews"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER]}>
                 <Layout>
                   <HRInterviewSchedule />
                 </Layout>
@@ -346,7 +342,7 @@ export function App() {
           <Route
             path="/hr/results"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER]}>
                 <Layout>
                   <HRInterviewResults />
                 </Layout>
@@ -356,7 +352,7 @@ export function App() {
           <Route
             path="/hr/reports"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER]}>
                 <Layout>
                   <HRPipelineReports />
                 </Layout>
@@ -366,7 +362,7 @@ export function App() {
           <Route
             path="/hr/notifications"
             element={
-              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER, UserRole.HR_RECRUITER]}>
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER]}>
                 <Layout>
                   <HRSystemNotifications />
                 </Layout>

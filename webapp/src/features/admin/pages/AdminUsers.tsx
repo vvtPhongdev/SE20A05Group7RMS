@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest } from '../../../lib/api';
 import {
@@ -38,10 +38,10 @@ const statuses: Array<UserStatus | 'All'> = ['All', 'Active', 'Inactive'];
 
 const roleBadgeClasses: Record<RoleKey, string> = {
   Admin: 'bg-deep-charcoal text-white',
-  // Department Head: Đổi bg sang vàng nhạt (bg-yellow-100), chữ text-revision đậm hơn (font-bold hoặc font-semibold)
+  // Department Head: Äá»•i bg sang vÃ ng nháº¡t (bg-yellow-100), chá»¯ text-revision Ä‘áº­m hÆ¡n (font-bold hoáº·c font-semibold)
   'Department Head': 'bg-yellow-100 font-semibold text-revision',
   HR: 'bg-teal-command text-white',
-  // Candidate: Giữ nền xám/tím nhạt bằng cách dùng border/bg hiện tại (hoặc dùng bg-slate-100), chữ text-draft thay vì chữ trắng
+  // Candidate: Giá»¯ ná»n xÃ¡m/tÃ­m nháº¡t báº±ng cÃ¡ch dÃ¹ng border/bg hiá»‡n táº¡i (hoáº·c dÃ¹ng bg-slate-100), chá»¯ text-draft thay vÃ¬ chá»¯ tráº¯ng
   Candidate: 'border border-draft/30 bg-draft/15 text-draft',
 };
 
@@ -89,7 +89,7 @@ export const AdminUsers: React.FC = () => {
   const mapRole = (role: string): RoleKey => {
     if (role === 'ADMIN') return 'Admin';
     if (role === 'DEPARTMENT_HEAD') return 'Department Head';
-    if (role === 'HR_LEADER' || role === 'HR_RECRUITER') return 'HR';
+    if (role === 'HR_LEADER') return 'HR';
     return 'Candidate';
   };
 
@@ -542,9 +542,7 @@ export const AdminUsers: React.FC = () => {
         }
       />
 
-      {error && !modalOpen ? (
-        <AdminInlineAlert>{error}</AdminInlineAlert>
-      ) : null}
+      {error && !modalOpen ? <AdminInlineAlert>{error}</AdminInlineAlert> : null}
       {loading ? <AdminLoadingState label="Loading users..." /> : null}
 
       {/* Summary Stats Pill Counters */}

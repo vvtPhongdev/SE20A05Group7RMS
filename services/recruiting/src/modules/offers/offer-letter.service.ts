@@ -1,4 +1,4 @@
-import { InjectQueue } from '@nestjs/bullmq';
+﻿import { InjectQueue } from '@nestjs/bullmq';
 import { HttpStatus, Injectable, Inject } from '@nestjs/common';
 import { RpcException, ClientProxy } from '@nestjs/microservices';
 import {
@@ -430,7 +430,7 @@ export class OfferLetterService {
 
     this.notificationClient
       .send('notification.send_to_role', {
-        role: UserRole.HR_RECRUITER,
+        role: UserRole.HR_LEADER,
         type: NotificationType.REQUEST_UPDATE,
         title: accepted ? 'Campaign Completed' : 'Offer Declined',
         body: accepted

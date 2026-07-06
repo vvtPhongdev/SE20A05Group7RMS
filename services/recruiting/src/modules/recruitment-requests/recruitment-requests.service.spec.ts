@@ -1,4 +1,4 @@
-import { RecruitmentRequestStatus, UserRole } from '@wr/contracts';
+﻿import { RecruitmentRequestStatus, UserRole } from '@wr/contracts';
 import { RpcException } from '@nestjs/microservices';
 import { RecruitmentRequestsService } from './recruitment-requests.service';
 
@@ -76,7 +76,7 @@ describe('RecruitmentRequestsService', () => {
     prisma.recruitmentRequest.findMany.mockResolvedValue([]);
 
     await service.listForAdmin({
-      role: UserRole.HR_RECRUITER,
+      role: UserRole.HR_LEADER,
       userId: 'recruiter-1',
     });
 
@@ -97,7 +97,7 @@ describe('RecruitmentRequestsService', () => {
     await expect(
       service.getByIdForActor({
         id: 'request-1',
-        role: UserRole.HR_RECRUITER,
+        role: UserRole.HR_LEADER,
         userId: 'recruiter-1',
       }),
     ).resolves.toEqual(expect.objectContaining({ id: 'request-1' }));

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { UserRole } from '@wr/contracts';
@@ -801,8 +801,10 @@ export const SignUp: React.FC = () => {
                           <span className="h-1.5 w-12 rounded-full bg-white/70 animate-pulse [animation-delay:120ms]" />
                           <span className="h-1.5 w-5 rounded-full bg-white/45 animate-pulse [animation-delay:240ms]" />
                         </span>
+                      ) : isGoogleSignup ? (
+                        'Create RMS account'
                       ) : (
-                        isGoogleSignup ? 'Create RMS account' : 'Create account'
+                        'Create account'
                       )}
                     </button>
                   </form>

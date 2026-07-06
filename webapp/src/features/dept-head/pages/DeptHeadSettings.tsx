@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest } from '../../../lib/api';
 import {
@@ -137,7 +137,7 @@ const roleLabel = (role: string) =>
 
 const memberPermission = (member: ApiUser, currentUserId?: string): Permission => {
   if (member.id === currentUserId || member.role === 'DEPARTMENT_HEAD') return 'Full Admin';
-  if (member.role === 'HR_LEADER' || member.role === 'HR_RECRUITER') return 'Request Reviewer';
+  if (member.role === 'HR_LEADER') return 'Request Reviewer';
   return 'Interviewer';
 };
 
@@ -236,21 +236,23 @@ export const DeptHeadSettings: React.FC = () => {
         const department = primaryDepartment(currentProfile);
         const departmentId = department?.id ?? currentProfile.departmentId ?? null;
 
-        const [usersResponse, requestRows, notifications, organizationResponse] = await Promise.all([
-          apiRequest<UserListResponse>('/users?limit=100', token).catch(() => ({ data: [] })),
-          apiRequest<RealtimeTrackingItem[]>('/reports/realtime-tracking', token).catch(
-            () => [] as RealtimeTrackingItem[],
-          ),
-          apiRequest<NotificationItem[]>('/notifications', token).catch(
-            () => [] as NotificationItem[],
-          ),
-          currentProfile.organizationId
-            ? apiRequest<OrganizationResponse>(
-                `/organizations/${currentProfile.organizationId}`,
-                token,
-              ).catch(() => null)
-            : Promise.resolve(null),
-        ]);
+        const [usersResponse, requestRows, notifications, organizationResponse] = await Promise.all(
+          [
+            apiRequest<UserListResponse>('/users?limit=100', token).catch(() => ({ data: [] })),
+            apiRequest<RealtimeTrackingItem[]>('/reports/realtime-tracking', token).catch(
+              () => [] as RealtimeTrackingItem[],
+            ),
+            apiRequest<NotificationItem[]>('/notifications', token).catch(
+              () => [] as NotificationItem[],
+            ),
+            currentProfile.organizationId
+              ? apiRequest<OrganizationResponse>(
+                  `/organizations/${currentProfile.organizationId}`,
+                  token,
+                ).catch(() => null)
+              : Promise.resolve(null),
+          ],
+        );
 
         const sameDepartmentMembers = usersResponse.data.filter((member) => {
           if (!departmentId) return true;
@@ -356,7 +358,9 @@ export const DeptHeadSettings: React.FC = () => {
       setProfile(updatedProfile);
       setTeamMembers((members) =>
         members.map((member) =>
-          member.id === updatedProfile.id ? toTeamMember(updatedProfile, updatedProfile.id) : member,
+          member.id === updatedProfile.id
+            ? toTeamMember(updatedProfile, updatedProfile.id)
+            : member,
         ),
       );
       setEditProfileOpen(false);
@@ -398,19 +402,15 @@ export const DeptHeadSettings: React.FC = () => {
     setMemberSaving(true);
     setAddMemberError('');
     try {
-      const createdMember = await apiRequest<ApiUser>(
-        '/dept-head/settings/team-members',
-        token,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            displayName,
-            email,
-            phone,
-            password: password || undefined,
-          }),
-        },
-      );
+      const createdMember = await apiRequest<ApiUser>('/dept-head/settings/team-members', token, {
+        method: 'POST',
+        body: JSON.stringify({
+          displayName,
+          email,
+          phone,
+          password: password || undefined,
+        }),
+      });
 
       setTeamMembers((members) => {
         const nextMembers = [
@@ -468,10 +468,7 @@ export const DeptHeadSettings: React.FC = () => {
     } catch (saveError) {
       setApiError(saveError instanceof Error ? saveError.message : 'Unable to save settings');
       setOrganization({ ...organization, settings: previousSettings });
-      const savedSettings = getDepartmentSettings(
-        previousSettings,
-        departmentId,
-      );
+      const savedSettings = getDepartmentSettings(previousSettings, departmentId);
       setPreferences(
         savedSettings.preferences?.length
           ? mergePreferences(savedSettings.preferences)
@@ -959,9 +956,7 @@ export const DeptHeadSettings: React.FC = () => {
         }`}
       >
         <Icon className="h-5 w-5 text-teal-command" name="check" />
-        <p className="text-sm font-semibold">
-          {saving ? 'Saving settings...' : toastMessage}
-        </p>
+        <p className="text-sm font-semibold">{saving ? 'Saving settings...' : toastMessage}</p>
       </div>
     </DeptHeadDashboardPage>
   );

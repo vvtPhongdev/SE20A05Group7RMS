@@ -1,4 +1,4 @@
-import { RpcException } from '@nestjs/microservices';
+﻿import { RpcException } from '@nestjs/microservices';
 import { AuditAction, AuditEntityType, PlanStatus, TaskStatus, TaskType } from '@wr/contracts';
 import { TaskPlanService } from './task-plan.service';
 
@@ -42,7 +42,7 @@ describe('TaskPlanService', () => {
     });
     prisma.user.findUnique.mockResolvedValue({
       id: 'user-1',
-      role: 'HR_RECRUITER',
+      role: 'HR_LEADER',
       isActive: true,
     });
     prisma.$transaction.mockImplementation(async (callback) => callback(prisma));
@@ -277,7 +277,7 @@ describe('TaskPlanService', () => {
           id: 'task-1',
           status: TaskStatus.IN_PROGRESS,
           performedById: 'user-1',
-          actorRole: 'HR_RECRUITER',
+          actorRole: 'HR_LEADER',
         }),
       ).resolves.toEqual({ id: 'task-1', status: TaskStatus.IN_PROGRESS });
       expect(prisma.taskPlan.update).toHaveBeenCalled();
