@@ -313,24 +313,6 @@ export const Login: React.FC = () => {
                 </div>
               )}
 
-              <button
-                className="mb-5 flex h-12 w-full items-center justify-center gap-3 rounded-[var(--wr-radius-lg)] border border-[var(--wr-border-default)] bg-[#fefdfb] px-4 text-sm font-semibold text-[var(--wr-text-primary)] transition duration-200 ease-out hover:-translate-y-[1px] hover:border-[var(--wr-border-strong)] hover:bg-[var(--wr-bg-elevated)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
-                disabled={loading || googleLoading}
-                type="button"
-                onClick={handleGoogleSignIn}
-              >
-                <span className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--wr-border-subtle)] bg-white font-semibold text-[#4285f4]">
-                  G
-                </span>
-                {googleLoading ? 'Connecting to Google...' : 'Continue with Google'}
-              </button>
-
-              <div className="mb-5 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--wr-text-muted)]">
-                <span className="h-px flex-1 bg-[var(--wr-border-subtle)]" />
-                <span>or</span>
-                <span className="h-px flex-1 bg-[var(--wr-border-subtle)]" />
-              </div>
-
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">
                   <label
@@ -422,6 +404,23 @@ export const Login: React.FC = () => {
                 </button>
               </form>
 
+              <div className="my-5 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--wr-text-muted)]">
+                <span className="h-px flex-1 bg-[var(--wr-border-subtle)]" />
+                <span>or</span>
+                <span className="h-px flex-1 bg-[var(--wr-border-subtle)]" />
+              </div>
+
+              <button
+                className="flex h-12 w-full items-center justify-center gap-3 rounded-[var(--wr-radius-lg)] border border-[var(--wr-border-default)] bg-[#fefdfb] px-4 text-sm font-semibold text-[var(--wr-text-primary)] transition duration-200 ease-out hover:-translate-y-[1px] hover:border-[var(--wr-border-strong)] hover:bg-[var(--wr-bg-elevated)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
+                disabled={loading || googleLoading}
+                type="button"
+                onClick={handleGoogleSignIn}
+              >
+                <span className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--wr-border-subtle)] bg-white font-semibold text-[#4285f4]">
+                  G
+                </span>
+                {googleLoading ? 'Connecting to Google...' : 'Continue with Google'}
+              </button>
 
               <div className="mt-8">
                 <Link

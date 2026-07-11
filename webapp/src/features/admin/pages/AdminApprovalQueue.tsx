@@ -827,8 +827,9 @@ export const AdminApprovalQueue: React.FC = () => {
                       </button>
                     ) : (
                       <button
-                        className="px-4 py-1.5 border border-border-warm text-slate-ink rounded-lg font-label-md opacity-50 cursor-not-allowed font-semibold"
-                        disabled
+                        className="px-4 py-1.5 border border-border-warm text-slate-ink rounded-lg font-label-md hover:border-teal-command hover:text-teal-command hover:bg-teal-command/5 transition-all font-semibold"
+                        onClick={() => handleOpenDrawer(request)}
+                        type="button"
                       >
                         Details
                       </button>
@@ -839,7 +840,7 @@ export const AdminApprovalQueue: React.FC = () => {
 
               {filteredRequests.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-on-surface-variant">
+                  <td colSpan={9} className="px-6 py-12 text-center text-on-surface-variant">
                     <span className="material-symbols-outlined text-4xl block mb-2 text-slate-ink">
                       search_off
                     </span>

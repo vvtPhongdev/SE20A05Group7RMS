@@ -3,6 +3,18 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { ApiError, apiRequest } from '../../../lib/api';
 import {
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxValue,
+  useComboboxAnchor,
+} from '@/components/ui/combobox';
+import {
   DeptHeadDashboardPage,
   DeptHeadInlineAlert,
   DeptHeadLoadingState,
@@ -201,6 +213,7 @@ export const DeptHeadCreateRequest: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { token, user } = useAuth();
+  const skillComboboxAnchor = useComboboxAnchor();
   const requestId = searchParams.get('requestId');
   const [form, setForm] = useState<FormState>(initialForm);
   const [skills, setSkills] = useState(defaultTemplate.defaultSkills);
@@ -215,11 +228,29 @@ export const DeptHeadCreateRequest: React.FC = () => {
     useState<RecruitmentRequestApi['hrRevisionSuggestion']>(null);
   const [acceptedHrSuggestion, setAcceptedHrSuggestion] = useState<boolean | null>(null);
   const [revisionResponse, setRevisionResponse] = useState('');
+  const [skillListOpen, setSkillListOpen] = useState(false);
 
   const currentTemplate = useMemo(
     () => getRequestTemplateByKey(form.templateKey),
     [form.templateKey],
   );
+
+  const skillOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return [...currentTemplate.skillOptions, ...currentTemplate.defaultSkills, ...skills].filter(
+      (skill) => {
+        const key = skill.trim().toLowerCase();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      },
+    );
+  }, [currentTemplate.defaultSkills, currentTemplate.skillOptions, skills]);
+
+  const hasMatchingSkillOption = (value: string) => {
+    const query = value.trim().toLowerCase();
+    return Boolean(query) && skillOptions.some((skill) => skill.toLowerCase().includes(query));
+  };
 
   useEffect(() => {
     if (requestId || !token) return;
@@ -417,8 +448,21 @@ export const DeptHeadCreateRequest: React.FC = () => {
     update('skillInput', '');
   };
 
-  const removeSkill = (skill: string) => {
-    setSkills((current) => current.filter((item) => item !== skill));
+  const updateSkills = (nextSkills: string[]) => {
+    setSkills(nextSkills);
+    update('skillInput', '');
+    setErrors((current) => {
+      const next = { ...current };
+      delete next.skills;
+      return next;
+    });
+  };
+
+  const handleSkillAdd = () => {
+    if (form.skillInput.trim() && !hasMatchingSkillOption(form.skillInput)) {
+      addSkill();
+    }
+    setSkillListOpen(true);
   };
 
   const applySuggestedRequest = (suggestion: SuggestedRequest) => {
@@ -798,45 +842,86 @@ export const DeptHeadCreateRequest: React.FC = () => {
           <div className="space-y-6">
             <div>
               <Field label="Required Skills">
-                <div className="flex min-h-[46px] flex-wrap gap-2 rounded-lg border border-border-warm bg-workflow-ivory p-2">
-                  {skills.map((skill) => (
-                    <span
-                      className="inline-flex items-center rounded-full bg-secondary-container px-3 py-1 text-xs font-semibold text-on-secondary-container"
-                      key={skill}
-                    >
-                      {skill}
-                      <button
-                        aria-label={`Remove ${skill}`}
-                        className="ml-2 rounded-full p-0.5 transition hover:text-rejected"
-                        onClick={() => removeSkill(skill)}
-                        type="button"
-                      >
-                        <Icon className="h-3.5 w-3.5" name="x" />
-                      </button>
-                    </span>
-                  ))}
-                  <input
-                    className="min-w-[120px] flex-1 border-none bg-transparent px-2 text-sm outline-none focus:ring-0"
-                    onChange={(event) => update('skillInput', event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.preventDefault();
-                        addSkill();
-                      }
-                    }}
-                    placeholder="Add skills, separated by , or ;"
-                    type="text"
-                    value={form.skillInput}
-                  />
-                  <button
-                    className="inline-flex items-center gap-1 rounded-lg border border-border-warm bg-clean-surface px-2.5 text-xs font-semibold text-teal-command transition hover:border-teal-command"
-                    onClick={addSkill}
-                    type="button"
+                <Combobox
+                  inputValue={form.skillInput}
+                  items={skillOptions}
+                  multiple
+                  open={skillListOpen}
+                  value={skills}
+                  onOpenChange={setSkillListOpen}
+                  onInputValueChange={(value) => update('skillInput', value)}
+                  onValueChange={(value) => updateSkills(value)}
+                >
+                  <div
+                    ref={skillComboboxAnchor}
+                    className="flex min-h-[46px] items-stretch overflow-hidden rounded-lg border border-border-warm bg-workflow-ivory transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
                   >
-                    <Icon className="h-3.5 w-3.5" name="plus" />
-                    Add
-                  </button>
-                </div>
+                    <ComboboxChips className="min-h-[44px] flex-1 rounded-none border-0 bg-transparent px-2 py-2 shadow-none focus-within:ring-0">
+                      <ComboboxValue>
+                        {(selectedSkills: string[]) => (
+                          <>
+                            {selectedSkills.map((skill) => (
+                              <ComboboxChip
+                                aria-label={skill}
+                                className="rounded-full bg-secondary-container px-3 py-1 text-xs font-semibold text-on-secondary-container"
+                                key={skill}
+                              >
+                                {skill}
+                              </ComboboxChip>
+                            ))}
+                            <ComboboxChipsInput
+                              className="min-h-7 min-w-[180px] px-2 text-sm placeholder:text-on-surface-variant"
+                              placeholder={
+                                selectedSkills.length > 0
+                                  ? 'Type or pick another skill'
+                                  : 'Type or pick required skills'
+                              }
+                              onFocus={() => setSkillListOpen(true)}
+                              onKeyDown={(event) => {
+                                if (
+                                  event.key === 'Enter' &&
+                                  form.skillInput.trim() &&
+                                  !hasMatchingSkillOption(form.skillInput)
+                                ) {
+                                  event.preventDefault();
+                                  addSkill();
+                                  setSkillListOpen(true);
+                                }
+                              }}
+                            />
+                          </>
+                        )}
+                      </ComboboxValue>
+                    </ComboboxChips>
+                    <button
+                      className="inline-flex min-w-20 items-center justify-center gap-1 border-l border-border-warm bg-clean-surface px-3 text-sm font-semibold text-teal-command transition hover:bg-teal-command/10 active:scale-[0.98]"
+                      onClick={handleSkillAdd}
+                      type="button"
+                    >
+                      <Icon className="h-4 w-4" name="plus" />
+                      Add
+                    </button>
+                  </div>
+                  <ComboboxContent
+                    anchor={skillComboboxAnchor}
+                    className="max-h-64 rounded-lg border-border-warm bg-clean-surface p-1 shadow-[0_20px_50px_-32px_rgba(28,25,23,0.65)]"
+                  >
+                    <ComboboxEmpty className="rounded-md bg-clean-surface px-3 py-2 text-sm text-on-surface-variant">
+                      No skills found. Type a new skill and click Add.
+                    </ComboboxEmpty>
+                    <ComboboxList className="max-h-56 p-1">
+                      {(skill: string) => (
+                        <ComboboxItem
+                          className="rounded-md px-3 py-2 text-sm font-medium text-on-surface data-highlighted:bg-teal-command/10 data-highlighted:text-deep-charcoal data-[selected]:bg-secondary-container data-[selected]:text-on-secondary-container"
+                          key={skill}
+                          value={skill}
+                        >
+                          {skill}
+                        </ComboboxItem>
+                      )}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
                 {errors.skills && (
                   <p className="mt-2 text-xs font-semibold text-rejected">{errors.skills}</p>
                 )}

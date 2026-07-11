@@ -85,9 +85,11 @@ export const SignUp: React.FC = () => {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [isGoogleSignup, setIsGoogleSignup] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [verifiedRole, setVerifiedRole] = useState<UserRole | null>(null);
 
   // States and refs for registration OTP verification flow
   const {
+    user,
     loginWithToken,
     signInWithGoogle,
     completeSupabaseLogin,
@@ -260,6 +262,7 @@ export const SignUp: React.FC = () => {
 
       if (data.accessToken && data.user) {
         loginWithToken(data.accessToken, data.user, data.refreshToken);
+        setVerifiedRole(data.user.role);
       }
     } catch (err: any) {
       setOtpError(err.message || 'Invalid or expired code. Please try again.');
@@ -468,7 +471,11 @@ export const SignUp: React.FC = () => {
                     </p>
                     <button
                       className="mt-8 flex h-12 w-full items-center justify-center rounded-[var(--wr-radius-lg)] bg-[var(--wr-accent-primary)] px-4 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-[1px] hover:bg-[var(--wr-accent-primary-hover)] active:translate-y-0 active:scale-[0.98]"
-                      onClick={() => navigate('/dashboard')}
+                      onClick={() =>
+                        navigate(
+                          getRoleHomePath(verifiedRole ?? user?.role ?? mapRole(accountType)),
+                        )
+                      }
                       type="button"
                     >
                       Go to Dashboard
@@ -629,30 +636,6 @@ export const SignUp: React.FC = () => {
                     </div>
                   )}
 
-                  <button
-                    className="mb-5 flex h-12 w-full items-center justify-center gap-3 rounded-[var(--wr-radius-lg)] border border-[var(--wr-border-default)] bg-[#fefdfb] px-4 text-sm font-semibold text-[var(--wr-text-primary)] transition duration-200 ease-out hover:-translate-y-[1px] hover:border-[var(--wr-border-strong)] hover:bg-[var(--wr-bg-elevated)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
-                    disabled={loading || googleLoading}
-                    type="button"
-                    onClick={handleGoogleSignUp}
-                  >
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--wr-border-subtle)] bg-white font-semibold text-[#4285f4]">
-                      G
-                    </span>
-                    {googleLoading
-                      ? 'Connecting to Google...'
-                      : isGoogleSignup
-                        ? 'Google account connected'
-                        : 'Continue with Google'}
-                  </button>
-
-                  {!isGoogleSignup && (
-                    <div className="mb-5 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--wr-text-muted)]">
-                      <span className="h-px flex-1 bg-[var(--wr-border-subtle)]" />
-                      <span>or</span>
-                      <span className="h-px flex-1 bg-[var(--wr-border-subtle)]" />
-                    </div>
-                  )}
-
                   <form className="space-y-5" onSubmit={handleSubmit}>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
@@ -808,6 +791,30 @@ export const SignUp: React.FC = () => {
                       )}
                     </button>
                   </form>
+
+                  {!isGoogleSignup && (
+                    <div className="my-5 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--wr-text-muted)]">
+                      <span className="h-px flex-1 bg-[var(--wr-border-subtle)]" />
+                      <span>or</span>
+                      <span className="h-px flex-1 bg-[var(--wr-border-subtle)]" />
+                    </div>
+                  )}
+
+                  <button
+                    className={`${isGoogleSignup ? 'mt-5' : ''} flex h-12 w-full items-center justify-center gap-3 rounded-[var(--wr-radius-lg)] border border-[var(--wr-border-default)] bg-[#fefdfb] px-4 text-sm font-semibold text-[var(--wr-text-primary)] transition duration-200 ease-out hover:-translate-y-[1px] hover:border-[var(--wr-border-strong)] hover:bg-[var(--wr-bg-elevated)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70`}
+                    disabled={loading || googleLoading}
+                    type="button"
+                    onClick={handleGoogleSignUp}
+                  >
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--wr-border-subtle)] bg-white font-semibold text-[#4285f4]">
+                      G
+                    </span>
+                    {googleLoading
+                      ? 'Connecting to Google...'
+                      : isGoogleSignup
+                        ? 'Google account connected'
+                        : 'Continue with Google'}
+                  </button>
                 </>
               )}
             </div>

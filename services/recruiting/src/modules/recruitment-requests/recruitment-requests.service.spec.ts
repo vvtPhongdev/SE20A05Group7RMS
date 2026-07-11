@@ -9,6 +9,7 @@ describe('RecruitmentRequestsService', () => {
       findUnique: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
+      delete: jest.fn(),
     },
     requestLog: {
       create: jest.fn(),
@@ -180,6 +181,43 @@ describe('RecruitmentRequestsService', () => {
       },
     });
     expect(result.status).toBe(RecruitmentRequestStatus.PENDING_HR_REVIEW);
+  });
+
+  it('deletes a pending request owned by the department head', async () => {
+    prisma.recruitmentRequest.findUnique.mockResolvedValue({
+      id: 'request-1',
+      createdById: 'dept-head-1',
+      status: RecruitmentRequestStatus.PENDING_HR_REVIEW,
+    });
+    prisma.recruitmentRequest.delete.mockResolvedValue({ id: 'request-1' });
+
+    await expect(
+      service.deletePending({
+        id: 'request-1',
+        userId: 'dept-head-1',
+      }),
+    ).resolves.toEqual({ success: true, id: 'request-1' });
+
+    expect(prisma.recruitmentRequest.delete).toHaveBeenCalledWith({
+      where: { id: 'request-1' },
+    });
+  });
+
+  it('blocks deleting an approved request', async () => {
+    prisma.recruitmentRequest.findUnique.mockResolvedValue({
+      id: 'request-1',
+      createdById: 'dept-head-1',
+      status: RecruitmentRequestStatus.APPROVED,
+    });
+
+    await expect(
+      service.deletePending({
+        id: 'request-1',
+        userId: 'dept-head-1',
+      }),
+    ).rejects.toBeInstanceOf(RpcException);
+
+    expect(prisma.recruitmentRequest.delete).not.toHaveBeenCalled();
   });
 
   it('records when the assigned HR manager forwards a request to Admin', async () => {

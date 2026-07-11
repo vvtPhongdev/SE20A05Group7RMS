@@ -13,6 +13,28 @@ import { wrapWorkerProcessor } from '@wr/logger';
 import { logger } from './logger';
 import { processTaskReminderJob, scanDueTaskReminders } from './processors/task-reminder.processor';
 
+function redactRedisUrl(redisUrl: string) {
+  try {
+    const url = new URL(redisUrl);
+    if (url.password) {
+      url.password = '***';
+    }
+    return url.toString();
+  } catch {
+    return redisUrl.replace(/\/\/([^:@]+):([^@]+)@/, '//$1:***@');
+  }
+}
+
+function getErrorMessage(err: unknown) {
+  if (err instanceof Error) {
+    return err.message;
+  }
+  if (typeof err === 'string') {
+    return err;
+  }
+  return 'Unknown error';
+}
+
 /**
  * Worker bootstrap — starts BullMQ workers for each queue.
  */
@@ -22,7 +44,11 @@ async function bootstrap() {
     maxRetriesPerRequest: null, // Required by BullMQ for blocking operations
   });
 
-  logger.log(`🔌 Worker connecting to Redis at ${redisUrl}`);
+  client.on('error', (err) => {
+    logger.error(`Redis connection error: ${getErrorMessage(err)}`);
+  });
+
+  logger.log(`🔌 Worker connecting to Redis at ${redactRedisUrl(redisUrl)}`);
 
   // Optimized options for Redis connection to prevent rate limiting (especially on Upstash)
   const workerOptions = {
@@ -135,6 +161,6 @@ async function bootstrap() {
 }
 
 bootstrap().catch((err) => {
-  logger.error('❌ Worker failed to start:', err);
+  logger.error(`❌ Worker failed to start: ${getErrorMessage(err)}`);
   process.exit(1);
 });

@@ -37,6 +37,8 @@ type PanelFeedback = {
   culture: number;
   notes: string;
   isRecorded?: boolean;
+  meetingPhotoName?: string;
+  meetingPhotoDataUrl?: string;
 };
 
 type InterviewDetailsResponse = {
@@ -55,6 +57,17 @@ type MyFeedbackResponse = {
   success: boolean;
   feedback: PanelFeedback;
 };
+
+type MeetingPhotoEvidence = {
+  photoName?: string;
+  photoDataUrl?: string;
+};
+
+const MEETING_PHOTO_START = '[INTERVIEW_MEETING_PHOTO]';
+const MEETING_PHOTO_END = '[/INTERVIEW_MEETING_PHOTO]';
+const meetingPhotoPattern = new RegExp(
+  `${MEETING_PHOTO_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s\\S]*?)${MEETING_PHOTO_END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
+);
 
 const emptyFeedback = (user: { id: string; displayName: string; role: string } | null): PanelFeedback => ({
   id: user?.id ?? 'me',
@@ -111,6 +124,20 @@ const asDecision = (value: unknown): Decision => (value === 'FAIL' ? 'FAIL' : 'P
 const asRecordingStatus = (value: unknown): RecordingStatus =>
   value === 'Recorded' ? 'Recorded' : 'Pending Recording';
 
+const parseMeetingPhotoEvidence = (notes: string) => {
+  const match = notes.match(meetingPhotoPattern);
+  if (!match) return { cleanNotes: notes, evidence: null as MeetingPhotoEvidence | null };
+
+  try {
+    return {
+      cleanNotes: notes.replace(meetingPhotoPattern, '').trim(),
+      evidence: JSON.parse(match[1].trim()) as MeetingPhotoEvidence,
+    };
+  } catch {
+    return { cleanNotes: notes.replace(meetingPhotoPattern, '').trim(), evidence: null };
+  }
+};
+
 const normalizeCompletedInterview = (value: unknown): CompletedInterview => {
   const item = asRecord(value);
   return {
@@ -129,6 +156,7 @@ const normalizePanelFeedback = (
 ): PanelFeedback => {
   const item = asRecord(value);
   const member = asString(item.member, fallbackUser?.displayName ?? 'Panel member');
+  const parsedNotes = parseMeetingPhotoEvidence(asString(item.notes));
   return {
     id: asString(item.id, fallbackUser?.id ?? 'unknown'),
     member,
@@ -138,8 +166,10 @@ const normalizePanelFeedback = (
     technical: asNumber(item.technical),
     communication: asNumber(item.communication),
     culture: asNumber(item.culture),
-    notes: asString(item.notes),
+    notes: parsedNotes.cleanNotes,
     isRecorded: Boolean(item.isRecorded),
+    meetingPhotoName: asString(item.meetingPhotoName, parsedNotes.evidence?.photoName),
+    meetingPhotoDataUrl: asString(item.meetingPhotoDataUrl, parsedNotes.evidence?.photoDataUrl),
   };
 };
 
@@ -463,6 +493,18 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
                       <p className="mt-4 min-h-[48px] text-sm leading-6 text-slate-ink">
                         {feedback.notes || 'No comment recorded.'}
                       </p>
+                      {feedback.meetingPhotoDataUrl && (
+                        <div className="mt-4 rounded-lg border border-border-warm bg-clean-surface p-3">
+                          <p className="mb-2 text-xs font-bold uppercase tracking-[0.1em] text-slate-ink">
+                            {feedback.meetingPhotoName || 'Meeting report photo'}
+                          </p>
+                          <img
+                            alt={`${feedback.member} meeting report`}
+                            className="max-h-56 w-full rounded-md object-contain"
+                            src={feedback.meetingPhotoDataUrl}
+                          />
+                        </div>
+                      )}
                     </article>
                   ))}
                 </div>

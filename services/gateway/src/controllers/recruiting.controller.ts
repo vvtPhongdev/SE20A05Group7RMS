@@ -2,6 +2,7 @@
   BadRequestException,
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Inject,
@@ -519,6 +520,15 @@ export class RecruitingController {
   submitRecruitmentRequest(@Param('id') id: string, @CurrentUser('sub') userId: string) {
     return firstValueFrom(
       this.recruitingClient.send('recruitment-requests.depthead.submit', { id, userId }),
+    );
+  }
+
+  @Delete('recruitment-requests/:id')
+  @Roles(UserRole.DEPARTMENT_HEAD)
+  @ApiOperation({ summary: 'Delete a pending recruitment request owned by the department head' })
+  deleteRecruitmentRequest(@Param('id') id: string, @CurrentUser('sub') userId: string) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruitment-requests.depthead.delete', { id, userId }),
     );
   }
 

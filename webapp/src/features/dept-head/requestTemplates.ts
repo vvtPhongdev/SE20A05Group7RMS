@@ -24,11 +24,14 @@ export interface DepartmentRequestTemplate {
   defaultExperience: string;
   defaultEducation: string;
   defaultSkills: string[];
+  skillOptions: string[];
   jobLevelOptions: string[];
   employmentTypeOptions: EmploymentType[];
   experienceOptions: string[];
   fields: TemplateFieldDefinition[];
 }
+
+const NO_EXPERIENCE_OPTION = 'No experience (Intern)';
 
 const normalize = (value?: string | null) =>
   (value ?? '')
@@ -48,9 +51,25 @@ export const DEPARTMENT_REQUEST_TEMPLATES: DepartmentRequestTemplate[] = [
     defaultExperience: '3-5 years',
     defaultEducation: "Bachelor's in Computer Science or equivalent",
     defaultSkills: ['React', 'TypeScript', 'Node.js'],
+    skillOptions: [
+      'React',
+      'TypeScript',
+      'Node.js',
+      'JavaScript',
+      'Python',
+      'Java',
+      'PostgreSQL',
+      'Docker',
+      'AWS',
+      'REST APIs',
+      'GraphQL',
+      'System Design',
+      'CI/CD',
+      'Git',
+    ],
     jobLevelOptions: ['Junior', 'Mid', 'Senior', 'Lead', 'Principal'],
     employmentTypeOptions: ['Full-time', 'Contract'],
-    experienceOptions: ['1-3 years', '3-5 years', '5+ years', '8+ years'],
+    experienceOptions: [NO_EXPERIENCE_OPTION, '1-3 years', '3-5 years', '5+ years', '8+ years'],
     fields: [
       {
         key: 'techStack',
@@ -86,9 +105,29 @@ export const DEPARTMENT_REQUEST_TEMPLATES: DepartmentRequestTemplate[] = [
     defaultExperience: '1-3 years',
     defaultEducation: "Bachelor's in Marketing, Communications, or related field",
     defaultSkills: ['Campaign Planning', 'Content Strategy', 'Analytics'],
+    skillOptions: [
+      'Campaign Planning',
+      'Content Strategy',
+      'Analytics',
+      'SEO',
+      'Copywriting',
+      'Brand Strategy',
+      'Performance Marketing',
+      'CRM',
+      'Email Marketing',
+      'Social Media',
+      'Google Analytics',
+      'Event Marketing',
+    ],
     jobLevelOptions: ['Junior', 'Mid', 'Senior', 'Lead'],
     employmentTypeOptions: ['Full-time', 'Contract'],
-    experienceOptions: ['Fresh graduate', '1-3 years', '3-5 years', '5+ years'],
+    experienceOptions: [
+      NO_EXPERIENCE_OPTION,
+      'Fresh graduate',
+      '1-3 years',
+      '3-5 years',
+      '5+ years',
+    ],
     fields: [
       {
         key: 'campaignType',
@@ -124,9 +163,23 @@ export const DEPARTMENT_REQUEST_TEMPLATES: DepartmentRequestTemplate[] = [
     defaultExperience: '1-3 years',
     defaultEducation: "Bachelor's in Business or related field",
     defaultSkills: ['Enterprise Sales', 'CRM', 'Negotiation'],
+    skillOptions: [
+      'Enterprise Sales',
+      'CRM',
+      'Negotiation',
+      'Lead Generation',
+      'Pipeline Management',
+      'Account Management',
+      'B2B Sales',
+      'Sales Forecasting',
+      'Customer Discovery',
+      'HubSpot',
+      'Salesforce',
+      'Presentation Skills',
+    ],
     jobLevelOptions: ['Junior', 'Mid', 'Senior', 'Lead'],
     employmentTypeOptions: ['Full-time', 'Contract'],
-    experienceOptions: ['1-3 years', '3-5 years', '5+ years'],
+    experienceOptions: [NO_EXPERIENCE_OPTION, '1-3 years', '3-5 years', '5+ years'],
     fields: [
       {
         key: 'territory',
@@ -167,9 +220,27 @@ export const DEPARTMENT_REQUEST_TEMPLATES: DepartmentRequestTemplate[] = [
     defaultExperience: '1-3 years',
     defaultEducation: '',
     defaultSkills: [],
+    skillOptions: [
+      'Communication',
+      'Project Management',
+      'Stakeholder Management',
+      'Problem Solving',
+      'Data Analysis',
+      'Documentation',
+      'Process Improvement',
+      'Microsoft Office',
+      'Google Workspace',
+      'Reporting',
+    ],
     jobLevelOptions: ['Junior', 'Mid', 'Senior', 'Lead'],
     employmentTypeOptions: ['Full-time', 'Contract'],
-    experienceOptions: ['Fresh graduate', '1-3 years', '3-5 years', '5+ years'],
+    experienceOptions: [
+      NO_EXPERIENCE_OPTION,
+      'Fresh graduate',
+      '1-3 years',
+      '3-5 years',
+      '5+ years',
+    ],
     fields: [
       {
         key: 'businessContext',

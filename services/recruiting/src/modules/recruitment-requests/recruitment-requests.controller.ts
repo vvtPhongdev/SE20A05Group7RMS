@@ -65,6 +65,11 @@ export class RecruitmentRequestsController {
     return this.service.submitDraft(payload);
   }
 
+  @MessagePattern('recruitment-requests.depthead.delete')
+  deletePending(@Payload() payload: { id: string; userId: string }) {
+    return this.service.deletePending(payload);
+  }
+
   @MessagePattern('recruitment-requests.admin.assign')
   assignToHr(
     @Payload()

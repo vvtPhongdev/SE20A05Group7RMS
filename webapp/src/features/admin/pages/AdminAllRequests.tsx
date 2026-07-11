@@ -76,7 +76,7 @@ export const AdminAllRequests: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Sorting state
-  const [sortField, setSortField] = useState<SortField>('id');
+  const [sortField, setSortField] = useState<SortField>('submittedDate');
   const [sortDir, setSortDir] = useState<SortDirection>('desc');
   const [detailRequest, setDetailRequest] = useState<any | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -250,6 +250,11 @@ export const AdminAllRequests: React.FC = () => {
     return [...result].sort((a, b) => {
       let aVal = a[sortField];
       let bVal = b[sortField];
+
+      if (sortField === 'submittedDate') {
+        aVal = new Date(a.submittedDate).getTime();
+        bVal = new Date(b.submittedDate).getTime();
+      }
 
       if (typeof aVal === 'string') {
         aVal = (aVal as string).toLowerCase();

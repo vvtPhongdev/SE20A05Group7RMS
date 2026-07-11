@@ -38,6 +38,12 @@ const BOSS_APPROVAL_STATUSES = [
   RecruitmentRequestStatus.PENDING_REVIEW,
 ];
 
+const DELETABLE_PENDING_STATUSES = [
+  RecruitmentRequestStatus.PENDING_HR_REVIEW,
+  RecruitmentRequestStatus.PENDING_BOSS_APPROVAL,
+  RecruitmentRequestStatus.PENDING_REVIEW,
+];
+
 type EditableRequestSnapshot = {
   positionTitle: string;
   headcount: number;
@@ -557,6 +563,37 @@ export class RecruitmentRequestsService {
     ]);
 
     return updated;
+  }
+
+  async deletePending(payload: { id: string; userId: string }) {
+    const request = await this.prisma.recruitmentRequest.findUnique({
+      where: { id: payload.id },
+    });
+
+    if (!request) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Recruitment request with ID ${payload.id} not found`,
+      });
+    }
+    if (request.createdById !== payload.userId) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'You can only delete your own recruitment requests',
+      });
+    }
+    if (!DELETABLE_PENDING_STATUSES.includes(request.status as RecruitmentRequestStatus)) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: 'Only pending recruitment requests can be deleted',
+      });
+    }
+
+    await this.prisma.recruitmentRequest.delete({
+      where: { id: payload.id },
+    });
+
+    return { success: true, id: payload.id };
   }
 
   async assignToHr(payload: { id: string; hrManagerId: string; assignedById: string }) {

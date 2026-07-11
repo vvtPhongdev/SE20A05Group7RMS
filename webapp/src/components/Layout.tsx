@@ -130,6 +130,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const [avatar, setAvatar] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const navItems = user ? sidebarNavigation[user.role] || [] : [];
 
@@ -225,8 +226,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     );
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    if (loggingOut) return;
+
+    setLoggingOut(true);
+    await logout();
     window.location.replace('/login');
   };
 
@@ -361,11 +365,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             <SidebarMenuItem>
               <SidebarMenuButton
                 className="text-[var(--wr-error)] hover:bg-[var(--wr-error-bg)]"
+                disabled={loggingOut}
                 onClick={handleLogout}
                 tooltip="Sign Out"
               >
                 <LogOut />
-                <span>Sign Out</span>
+                <span>{loggingOut ? 'Signing Out...' : 'Sign Out'}</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
