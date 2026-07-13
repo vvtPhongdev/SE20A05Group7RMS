@@ -86,6 +86,11 @@ export const SignUp: React.FC = () => {
   const [isGoogleSignup, setIsGoogleSignup] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [verifiedRole, setVerifiedRole] = useState<UserRole | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{
+    fullName?: string;
+    email?: string;
+    password?: string;
+  }>({});
 
   // States and refs for registration OTP verification flow
   const {
@@ -309,13 +314,32 @@ export const SignUp: React.FC = () => {
     event.preventDefault();
     setError(null);
 
-    if (!fullName.trim() || !email.trim() || !organization.trim()) {
-      setError('Complete your name, work email, and organization to continue.');
-      return;
+    const nextFieldErrors: { fullName?: string; email?: string; password?: string } = {};
+    const normalizedFullName = fullName.trim();
+    const normalizedEmail = email.trim();
+
+    if (!normalizedFullName) {
+      nextFieldErrors.fullName = 'Full name is required.';
+    } else if (normalizedFullName.length < 2) {
+      nextFieldErrors.fullName = 'Full name must contain at least 2 characters.';
+    }
+    if (!normalizedEmail) {
+      nextFieldErrors.email = 'Email is required.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      nextFieldErrors.email = 'Enter a valid email address.';
+    }
+    if (!isGoogleSignup && !password) {
+      nextFieldErrors.password = 'Password is required.';
+    } else if (!isGoogleSignup && passwordScore < 3) {
+      nextFieldErrors.password =
+        'Use 8+ characters and include at least two of: uppercase, number, or symbol.';
     }
 
-    if (!isGoogleSignup && passwordScore < 3) {
-      setError('Use at least 8 characters with an uppercase letter, number, or symbol.');
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length > 0) return;
+
+    if (!organization.trim()) {
+      setError('Enter your organization to continue.');
       return;
     }
 
@@ -329,7 +353,7 @@ export const SignUp: React.FC = () => {
     try {
       if (isGoogleSignup) {
         const loggedUser = await registerWithSupabaseSession({
-          displayName: fullName,
+          displayName: normalizedFullName,
           role: mapRole(accountType),
         });
         navigate(getRoleHomePath(loggedUser.role), { replace: true });
@@ -340,8 +364,8 @@ export const SignUp: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email,
-          displayName: fullName,
+          email: normalizedEmail,
+          displayName: normalizedFullName,
           password,
           role: mapRole(accountType),
         }),
@@ -643,15 +667,22 @@ export const SignUp: React.FC = () => {
                           Full name
                         </label>
                         <input
-                          className="h-12 w-full rounded-[var(--wr-radius-lg)] border border-[var(--wr-border-default)] bg-[#fefdfb] px-4 text-sm outline-none transition focus:border-[var(--wr-focus-ring)] focus:bg-white focus:ring-2 focus:ring-[var(--wr-focus-ring)]/20"
+                          aria-describedby={fieldErrors.fullName ? 'signup-full-name-error' : undefined}
+                          aria-invalid={!!fieldErrors.fullName}
+                          className={`h-12 w-full rounded-[var(--wr-radius-lg)] border bg-[#fefdfb] px-4 text-sm outline-none transition focus:bg-white focus:ring-2 ${fieldErrors.fullName ? 'border-[var(--wr-error-border)] focus:border-[var(--wr-error-border)] focus:ring-[var(--wr-error-border)]/20' : 'border-[var(--wr-border-default)] focus:border-[var(--wr-focus-ring)] focus:ring-[var(--wr-focus-ring)]/20'}`}
                           id="fullName"
                           placeholder="Mina Truong"
                           value={fullName}
-                          onChange={(event) => setFullName(event.target.value)}
+                          onChange={(event) => {
+                            setFullName(event.target.value);
+                            setFieldErrors((current) => ({ ...current, fullName: undefined }));
+                          }}
                         />
-                        <p className="text-xs text-[var(--wr-text-muted)]">
-                          Use your legal or workplace display name.
-                        </p>
+                        {fieldErrors.fullName ? (
+                          <p id="signup-full-name-error" role="alert" className="text-xs font-medium text-[var(--wr-error-text)]">{fieldErrors.fullName}</p>
+                        ) : (
+                          <p className="text-xs text-[var(--wr-text-muted)]">Use your legal or workplace display name.</p>
+                        )}
                       </div>
 
                       <div className="space-y-2">
@@ -676,17 +707,24 @@ export const SignUp: React.FC = () => {
                         Work email
                       </label>
                       <input
-                        className="h-12 w-full rounded-[var(--wr-radius-lg)] border border-[var(--wr-border-default)] bg-[#fefdfb] px-4 text-sm outline-none transition focus:border-[var(--wr-focus-ring)] focus:bg-white focus:ring-2 focus:ring-[var(--wr-focus-ring)]/20"
+                        aria-describedby={fieldErrors.email ? 'signup-email-error' : undefined}
+                        aria-invalid={!!fieldErrors.email}
+                        className={`h-12 w-full rounded-[var(--wr-radius-lg)] border bg-[#fefdfb] px-4 text-sm outline-none transition focus:bg-white focus:ring-2 ${fieldErrors.email ? 'border-[var(--wr-error-border)] focus:border-[var(--wr-error-border)] focus:ring-[var(--wr-error-border)]/20' : 'border-[var(--wr-border-default)] focus:border-[var(--wr-focus-ring)] focus:ring-[var(--wr-focus-ring)]/20'}`}
                         id="email"
                         placeholder="your.name@company.com"
                         type="email"
                         value={email}
                         readOnly={isGoogleSignup}
-                        onChange={(event) => setEmail(event.target.value)}
+                        onChange={(event) => {
+                          setEmail(event.target.value);
+                          setFieldErrors((current) => ({ ...current, email: undefined }));
+                        }}
                       />
-                      <p className="text-xs text-[var(--wr-text-muted)]">
-                        Invitations and review updates are sent here.
-                      </p>
+                      {fieldErrors.email ? (
+                        <p id="signup-email-error" role="alert" className="text-xs font-medium text-[var(--wr-error-text)]">{fieldErrors.email}</p>
+                      ) : (
+                        <p className="text-xs text-[var(--wr-text-muted)]">Invitations and review updates are sent here.</p>
+                      )}
                     </div>
 
                     <fieldset className="space-y-3">
@@ -727,12 +765,17 @@ export const SignUp: React.FC = () => {
                         </label>
                         <div className="relative">
                           <input
-                            className="h-12 w-full rounded-[var(--wr-radius-lg)] border border-[var(--wr-border-default)] bg-[#fefdfb] px-4 pr-12 text-sm outline-none transition focus:border-[var(--wr-focus-ring)] focus:bg-white focus:ring-2 focus:ring-[var(--wr-focus-ring)]/20"
+                            aria-describedby={fieldErrors.password ? 'signup-password-error' : undefined}
+                            aria-invalid={!!fieldErrors.password}
+                            className={`h-12 w-full rounded-[var(--wr-radius-lg)] border bg-[#fefdfb] px-4 pr-12 text-sm outline-none transition focus:bg-white focus:ring-2 ${fieldErrors.password ? 'border-[var(--wr-error-border)] focus:border-[var(--wr-error-border)] focus:ring-[var(--wr-error-border)]/20' : 'border-[var(--wr-border-default)] focus:border-[var(--wr-focus-ring)] focus:ring-[var(--wr-focus-ring)]/20'}`}
                             id="password"
                             placeholder="Create a password"
                             type={showPassword ? 'text' : 'password'}
                             value={password}
-                            onChange={(event) => setPassword(event.target.value)}
+                            onChange={(event) => {
+                              setPassword(event.target.value);
+                              setFieldErrors((current) => ({ ...current, password: undefined }));
+                            }}
                           />
                           <button
                             aria-label={showPassword ? 'Hide password' : 'Show password'}
@@ -751,9 +794,11 @@ export const SignUp: React.FC = () => {
                             />
                           ))}
                         </div>
-                        <p className="text-xs text-[var(--wr-text-muted)]">
-                          Use 8+ characters with mixed character types.
-                        </p>
+                        {fieldErrors.password ? (
+                          <p id="signup-password-error" role="alert" className="text-xs font-medium text-[var(--wr-error-text)]">{fieldErrors.password}</p>
+                        ) : (
+                          <p className="text-xs text-[var(--wr-text-muted)]">Use 8+ characters with mixed character types.</p>
+                        )}
                       </div>
                     )}
 

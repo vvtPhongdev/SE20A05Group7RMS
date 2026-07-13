@@ -4,8 +4,15 @@ import { RecruitmentRequestsService } from './recruitment-requests.service';
 
 describe('RecruitmentRequestsService', () => {
   const prisma = {
+    user: {
+      findUnique: jest.fn(),
+    },
+    department: {
+      findFirst: jest.fn(),
+    },
     recruitmentRequest: {
       count: jest.fn(),
+      create: jest.fn(),
       findUnique: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
@@ -23,6 +30,64 @@ describe('RecruitmentRequestsService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.$transaction.mockImplementation(async (operations) => Promise.all(operations));
+  });
+
+  it('creates a request for a department managed by the active department head', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      organizationId: 'org-1',
+      role: UserRole.DEPARTMENT_HEAD,
+      isActive: true,
+    });
+    prisma.department.findFirst.mockResolvedValue({ id: 'dept-marketing' });
+    prisma.recruitmentRequest.create.mockResolvedValue({ id: 'request-1' });
+    prisma.requestLog.create.mockResolvedValue({ id: 'log-1' });
+
+    await service.createForDepartmentHead({
+      departmentId: 'dept-marketing',
+      positionTitle: 'Growth Marketing Specialist',
+      headcount: 1,
+      jobDescription: 'Run growth campaigns',
+      justification: 'Marketing expansion',
+      urgency: 'MEDIUM',
+      createdById: 'dept-head-1',
+    });
+
+    expect(prisma.department.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'dept-marketing',
+        organizationId: 'org-1',
+        headUserId: 'dept-head-1',
+      },
+      select: { id: true },
+    });
+    expect(prisma.recruitmentRequest.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ departmentId: 'dept-marketing' }),
+      }),
+    );
+  });
+
+  it('rejects a department that is not managed by the department head', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      organizationId: 'org-1',
+      role: UserRole.DEPARTMENT_HEAD,
+      isActive: true,
+    });
+    prisma.department.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.createForDepartmentHead({
+        departmentId: 'foreign-dept',
+        positionTitle: 'Sales Executive',
+        headcount: 1,
+        jobDescription: 'Grow sales',
+        justification: 'Sales expansion',
+        urgency: 'HIGH',
+        createdById: 'dept-head-1',
+      }),
+    ).rejects.toBeInstanceOf(RpcException);
+
+    expect(prisma.recruitmentRequest.create).not.toHaveBeenCalled();
   });
 
   it('marks requests as forwarded only when HR forwarded after the latest submission', async () => {

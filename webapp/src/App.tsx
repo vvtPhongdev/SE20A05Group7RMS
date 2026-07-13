@@ -32,6 +32,7 @@ import { TaskPlanner } from './features/hr/pages/HRTaskPlanner';
 import { HRTalentPool } from './features/hr/pages/HRTalentPool';
 import { CandidateSearch } from './features/hr/pages/CandidateSearch';
 import { HRInterviewSchedule } from './features/hr/pages/HRInterviewSchedule';
+import { HRInterviewDetail } from './features/hr/pages/HRInterviewDetail';
 import { HRInterviewResults } from './features/hr/pages/HRInterviewResults';
 import { HRPipelineReports } from './features/hr/pages/HRPipelineReports';
 import { HRSystemNotifications } from './features/hr/pages/HRSystemNotifications';
@@ -40,6 +41,8 @@ import { CandidateProfile } from './features/candidate/pages/CandidateProfile';
 import { CandidateUploadCv } from './features/candidate/pages/CandidateUploadCv';
 import { CandidateNotifications } from './features/candidate/pages/CandidateNotifications';
 import { CandidateInterviewDetails } from './features/candidate/pages/CandidateInterviewDetails';
+import { CandidateOffers } from './features/candidate/pages/CandidateOffers';
+import { CandidateOfferDetails } from './features/candidate/pages/CandidateOfferDetails';
 import { UserRole } from '@wr/contracts';
 
 // Redirects user to their role-specific landing dashboard
@@ -340,6 +343,16 @@ export function App() {
             }
           />
           <Route
+            path="/hr/interview-detail"
+            element={
+              <ProtectedRoute allowedRoles={[UserRole.HR_LEADER]}>
+                <Layout>
+                  <HRInterviewDetail />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/hr/results"
             element={
               <ProtectedRoute allowedRoles={[UserRole.HR_LEADER]}>
@@ -418,6 +431,24 @@ export function App() {
                 <Layout>
                   <CandidateInterviewDetails />
                 </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/candidate/offers"
+            element={
+              <ProtectedRoute allowedRoles={[UserRole.CANDIDATE]}>
+                <Layout>
+                  <CandidateOffers />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/candidate/offer/:offerId"
+            element={
+              <ProtectedRoute allowedRoles={[UserRole.CANDIDATE]}>
+                <CandidateOfferDetails />
               </ProtectedRoute>
             }
           />

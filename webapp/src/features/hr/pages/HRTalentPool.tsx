@@ -9,8 +9,21 @@ import {
   HRLoadingState,
   HRPageHeader,
   HRSearchInput,
-  HRSelectControl,
 } from '../components';
+import {
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxTrigger,
+  ComboboxValue,
+  useComboboxAnchor,
+} from '@/components/ui/combobox';
 
 type ParseStatus = 'Parsed' | 'Pending';
 type CandidateStage = 'Talent Pool' | 'Screening' | 'Interview' | 'Offer';
@@ -46,6 +59,12 @@ type Candidate = {
   readinessLabel?: string;
 };
 
+type ManualSkillMatch = {
+  matchedSkills: string[];
+  missingSkills: string[];
+  score: number;
+};
+
 interface CandidateApiItem {
   id: string;
   fullName: string;
@@ -75,16 +94,22 @@ interface CandidateListResponse {
 type CampaignOption = {
   requestId: string;
   label: string;
+  department: string | null;
   status: string;
   canSearch: boolean;
   canCollect: boolean;
+  requiredSkills: string[];
 };
 
 type JobPostingApiItem = {
   requestId: string;
   title?: string | null;
   status: string;
-  request?: { position?: string | null } | null;
+  request?: {
+    position?: string | null;
+    department?: { name: string } | null;
+    skillRequirements?: Record<string, unknown> | null;
+  } | null;
 };
 
 type ApplicationResponse = {
@@ -127,6 +152,38 @@ const initialsFromName = (name: string) =>
     .map((part) => part[0]?.toUpperCase() ?? '')
     .join('');
 
+const extractRequiredSkills = (requirements?: Record<string, unknown> | null) => {
+  const rawSkills = requirements?.skills ?? requirements?.required;
+  if (!Array.isArray(rawSkills)) return [];
+
+  return Array.from(
+    new Set(
+      rawSkills
+        .map((value) => String(value).trim())
+        .filter(Boolean),
+    ),
+  );
+};
+
+const compareRequiredSkills = (
+  candidateSkills: string[],
+  requiredSkills: string[],
+): ManualSkillMatch => {
+  const normalizedCandidateSkills = new Set(
+    candidateSkills.map((candidateSkill) => candidateSkill.trim().toLocaleLowerCase()),
+  );
+  const matchedSkills = requiredSkills.filter((requiredSkill) =>
+    normalizedCandidateSkills.has(requiredSkill.trim().toLocaleLowerCase()),
+  );
+  const matchedSet = new Set(matchedSkills);
+
+  return {
+    matchedSkills,
+    missingSkills: requiredSkills.filter((requiredSkill) => !matchedSet.has(requiredSkill)),
+    score: requiredSkills.length ? matchedSkills.length / requiredSkills.length : 0,
+  };
+};
+
 // Highest-priority application status determines the talent pool stage.
 // REJECTED applications are ignored when computing the candidate's stage.
 const STAGE_RANK: Record<string, number> = {
@@ -152,13 +209,59 @@ const APPLICATION_STATUS_LABEL: Record<string, string> = {
   REJECTED: 'Rejected',
 };
 
+const DEPARTMENT_ROLE_OPTIONS: Record<string, string[]> = {
+  Engineering: [
+    'Software Engineer',
+    'Backend Developer',
+    'Frontend Developer',
+    'Full Stack Developer',
+    'DevOps Engineer',
+    'QA Engineer',
+  ],
+  Marketing: [
+    'Marketing Executive',
+    'Content Marketing Specialist',
+    'SEO Specialist',
+    'Social Media Specialist',
+    'Performance Marketing Specialist',
+  ],
+  Sales: [
+    'Sales Executive',
+    'Business Development Executive',
+    'Account Executive',
+    'Sales Manager',
+  ],
+};
+
+const normalizeRole = (value: string) => value.replace(/[^a-z0-9]/gi, '').toLowerCase();
+
+const ROLE_QUALIFICATIONS: Record<string, string[]> = {
+  fullstackdeveloper: ['backenddeveloper', 'frontenddeveloper'],
+};
+
+const roleQualifiesFor = (candidateRole: string, requestedRole: string) => {
+  const candidate = normalizeRole(candidateRole);
+  const requested = normalizeRole(requestedRole);
+  return candidate === requested || ROLE_QUALIFICATIONS[candidate]?.includes(requested) === true;
+};
+
 const mapCandidate = (item: CandidateApiItem): Candidate => {
   const structuredData = item.structuredData ?? {};
   const skills = Array.isArray(structuredData.skills) ? (structuredData.skills as string[]) : [];
-  // Best-effort: no normalized "title"/"role" fields on CandidateProfile, fall back to
-  // parsed CV structured data.
-  const title = (structuredData.title as string) || (structuredData.role as string) || '—';
-  const role = (structuredData.role as string) || (structuredData.title as string) || '—';
+  const resume =
+    structuredData.resume && typeof structuredData.resume === 'object'
+      ? (structuredData.resume as Record<string, unknown>)
+      : {};
+  // The CV extractor stores the candidate headline as currentRole. Older imported profiles
+  // may instead use title, role, or resume.currentRole.
+  const currentRole =
+    (structuredData.currentRole as string) ||
+    (structuredData.title as string) ||
+    (structuredData.role as string) ||
+    (resume.currentRole as string) ||
+    '—';
+  const title = currentRole;
+  const role = currentRole;
   const location = (structuredData.location as string) || '—';
 
   const stageRank = item.applications.reduce((highest, application) => {
@@ -237,6 +340,180 @@ const statusClass: Record<ParseStatus, string> = {
   Pending: 'bg-surface-container text-on-surface-variant',
 };
 
+const defaultOptionLabel = (option: string) => option;
+
+const TalentPoolCombobox = ({
+  className = '',
+  label,
+  onChange,
+  optionLabel = defaultOptionLabel,
+  options,
+  placeholder = `Select ${label.toLowerCase()}`,
+  value,
+}: {
+  className?: string;
+  label: string;
+  onChange: (value: string) => void;
+  optionLabel?: (option: string) => string;
+  options: string[];
+  placeholder?: string;
+  value: string;
+}) => {
+  const [inputValue, setInputValue] = useState('');
+  const [open, setOpen] = useState(false);
+
+  return (
+    <label className={`flex min-w-0 flex-col gap-1.5 ${className}`}>
+      <span className="text-xs font-semibold text-on-surface-variant">{label}</span>
+      <Combobox
+        inputValue={inputValue}
+        items={options}
+        onInputValueChange={setInputValue}
+        onOpenChange={(nextOpen) => {
+          setOpen(nextOpen);
+          if (nextOpen) setInputValue('');
+        }}
+        onValueChange={(nextValue) => {
+          const next = String(nextValue ?? '');
+          onChange(next);
+          setOpen(false);
+        }}
+        open={open}
+        value={value}
+      >
+        <ComboboxTrigger className="flex min-h-10 w-full min-w-0 items-center justify-between rounded-lg border border-border-warm bg-clean-surface px-3 py-2 text-left text-sm text-deep-charcoal outline-none transition hover:bg-surface-container-low focus:border-teal-command focus:ring-2 focus:ring-teal-command/20">
+          <ComboboxValue>
+            {(selectedValue: string | null) => (
+              <span className="min-w-0 text-left whitespace-normal break-words">
+                {selectedValue ? optionLabel(selectedValue) : placeholder}
+              </span>
+            )}
+          </ComboboxValue>
+        </ComboboxTrigger>
+        <ComboboxContent className="max-h-64 min-w-0">
+          <ComboboxInput
+            className="w-full"
+            placeholder={`Search ${label.toLowerCase()}...`}
+            showClear
+            showTrigger={false}
+          />
+          <ComboboxEmpty>No matching options.</ComboboxEmpty>
+          <ComboboxList>
+            {(option: string) => (
+              <ComboboxItem key={option} value={option}>
+                {optionLabel(option)}
+              </ComboboxItem>
+            )}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
+    </label>
+  );
+};
+
+const TalentPoolSkillCombobox = ({
+  onChange,
+  options,
+  values,
+}: {
+  onChange: (values: string[]) => void;
+  options: string[];
+  values: string[];
+}) => {
+  const [inputValue, setInputValue] = useState('');
+  const [open, setOpen] = useState(false);
+  const [showAllSelectedSkills, setShowAllSelectedSkills] = useState(false);
+  const anchor = useComboboxAnchor();
+
+  return (
+    <label className="order-4 flex min-w-0 flex-col gap-1.5">
+      <span className="text-xs font-semibold text-on-surface-variant">Skills</span>
+      <Combobox
+        inputValue={inputValue}
+        items={options}
+        multiple
+        onInputValueChange={setInputValue}
+        onOpenChange={setOpen}
+        onValueChange={(nextValues) => {
+          onChange(nextValues as string[]);
+          setShowAllSelectedSkills(false);
+        }}
+        open={open}
+        value={values}
+      >
+        <div
+          className="min-h-10 rounded-lg border border-border-warm bg-clean-surface px-2 transition focus-within:border-teal-command focus-within:ring-2 focus-within:ring-teal-command/20"
+          ref={anchor}
+        >
+          <ComboboxChips
+            className={`min-h-9 border-0 bg-transparent px-0 py-1 shadow-none focus-within:ring-0 ${
+              showAllSelectedSkills ? 'max-h-28 overflow-y-auto pr-1' : ''
+            }`}
+          >
+            <ComboboxValue>
+              {(selectedSkills: string[]) => {
+                const visibleSkills = showAllSelectedSkills
+                  ? selectedSkills
+                  : selectedSkills.slice(0, 2);
+                const hiddenSkillsCount = selectedSkills.length - visibleSkills.length;
+
+                return (
+                  <>
+                    {visibleSkills.map((selectedSkill) => (
+                    <ComboboxChip
+                      className="rounded-full bg-teal-command/10 px-2 text-xs font-semibold text-teal-command"
+                      key={selectedSkill}
+                    >
+                      {selectedSkill}
+                    </ComboboxChip>
+                  ))}
+                  {hiddenSkillsCount > 0 ? (
+                    <button
+                      aria-expanded={showAllSelectedSkills}
+                      className="h-7 rounded-full bg-surface-container px-2 text-xs font-semibold text-teal-command transition hover:bg-teal-command/10"
+                      onClick={() => setShowAllSelectedSkills(true)}
+                      onMouseDown={(event) => event.preventDefault()}
+                      type="button"
+                    >
+                      View +{hiddenSkillsCount}
+                    </button>
+                  ) : null}
+                  {showAllSelectedSkills && selectedSkills.length > 2 ? (
+                    <button
+                      className="h-7 rounded-full bg-surface-container px-2 text-xs font-semibold text-on-surface-variant transition hover:bg-surface-container-high"
+                      onClick={() => setShowAllSelectedSkills(false)}
+                      onMouseDown={(event) => event.preventDefault()}
+                      type="button"
+                    >
+                      Collapse
+                    </button>
+                  ) : null}
+                  <ComboboxChipsInput
+                    className="min-h-7 min-w-28 px-1 text-sm text-deep-charcoal placeholder:text-on-surface-variant"
+                    onFocus={() => setOpen(true)}
+                    placeholder={selectedSkills.length ? 'Add skill...' : 'Select skills...'}
+                  />
+                </>
+                );
+              }}
+            </ComboboxValue>
+          </ComboboxChips>
+        </div>
+        <ComboboxContent anchor={anchor}>
+          <ComboboxEmpty>No matching skills.</ComboboxEmpty>
+          <ComboboxList>
+            {(option: string) => (
+              <ComboboxItem key={option} value={option}>
+                {option}
+              </ComboboxItem>
+            )}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
+    </label>
+  );
+};
+
 export const HRTalentPool: React.FC = () => {
   const [searchParams] = useSearchParams();
   const requestedCampaignId = searchParams.get('requestId') ?? '';
@@ -255,13 +532,18 @@ export const HRTalentPool: React.FC = () => {
 
   const [query, setQuery] = useState('');
   const [searchMode, setSearchMode] = useState<'PROFILE' | 'AI_VECTOR'>('AI_VECTOR');
+  const [appliedSearchMode, setAppliedSearchMode] = useState<'PROFILE' | 'AI_VECTOR' | null>(
+    null,
+  );
+  const [appliedQuery, setAppliedQuery] = useState('');
   const [role, setRole] = useState('All Roles');
   const [department, setDepartment] = useState('All Departments');
   const [selectedCampaignId, setSelectedCampaignId] = useState('');
   const [parseStatus, setParseStatus] = useState('All Status');
-  const [skill, setSkill] = useState('All Skills');
+  const [skill, setSkill] = useState<string[]>([]);
   const [eligibleOnly, setEligibleOnly] = useState(true);
   const [selectedId, setSelectedId] = useState('');
+  const [isProfileSummaryOpen, setIsProfileSummaryOpen] = useState(false);
   const [assigningId, setAssigningId] = useState('');
   const [aiSearching, setAiSearching] = useState(false);
   const [aiSummary, setAiSummary] = useState('');
@@ -376,9 +658,11 @@ export const HRTalentPool: React.FC = () => {
         .map((posting) => ({
           requestId: posting.requestId,
           label: `${posting.title || posting.request?.position || 'Recruitment campaign'} (${posting.status})`,
+          department: posting.request?.department?.name ?? null,
           status: posting.status,
           canSearch: true,
           canCollect: true,
+          requiredSkills: extractRequiredSkills(posting.request?.skillRequirements),
         }));
       const deduped = new Map<string, CampaignOption>();
       for (const campaign of postingCampaigns) {
@@ -387,6 +671,9 @@ export const HRTalentPool: React.FC = () => {
           ...campaign,
           canSearch: Boolean(current?.canSearch || campaign.canSearch),
           canCollect: Boolean(current?.canCollect || campaign.canCollect),
+          department: current?.department ?? campaign.department,
+          requiredSkills:
+            current?.requiredSkills.length ? current.requiredSkills : campaign.requiredSkills,
         });
       }
       const mapped = Array.from(deduped.values());
@@ -408,29 +695,67 @@ export const HRTalentPool: React.FC = () => {
     void loadCampaigns();
   }, [loadCampaigns]);
 
+  useEffect(() => {
+    void loadCandidates();
+  }, [loadCandidates]);
+
   const selectedCampaign = useMemo(
     () => campaigns.find((campaign) => campaign.requestId === selectedCampaignId) ?? null,
     [campaigns, selectedCampaignId],
   );
 
-  useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      if (searchMode === 'AI_VECTOR') {
-        if (selectedCampaign?.canSearch) {
-          setLoading(true);
-          void applyAiSearch(query, selectedCampaign.requestId);
-        } else {
-          setAiSummary('');
-          void loadCandidates(true, '');
-        }
-        return;
+  const availableCampaigns = useMemo(
+    () =>
+      department === 'All Departments'
+        ? campaigns
+        : campaigns.filter((campaign) =>
+            department === 'No Department'
+              ? !campaign.department
+              : campaign.department === department,
+          ),
+    [campaigns, department],
+  );
+
+  const departmentRoleOptions = useMemo(() => {
+    if (department === 'All Departments') {
+      return Array.from(new Set(Object.values(DEPARTMENT_ROLE_OPTIONS).flat())).sort();
+    }
+    return DEPARTMENT_ROLE_OPTIONS[department] ?? [];
+  }, [department]);
+
+  const handleDepartmentChange = (nextDepartment: string) => {
+    setDepartment(nextDepartment);
+    if (role !== 'All Roles' && !DEPARTMENT_ROLE_OPTIONS[nextDepartment]?.includes(role)) {
+      setRole('All Roles');
+    }
+    setSelectedCampaignId((current) => {
+      const currentCampaign = campaigns.find((campaign) => campaign.requestId === current);
+      if (!currentCampaign || nextDepartment === 'All Departments') return current;
+      const matchesDepartment =
+        nextDepartment === 'No Department'
+          ? !currentCampaign.department
+          : currentCampaign.department === nextDepartment;
+      return matchesDepartment ? current : '';
+    });
+  };
+
+  const runSearch = useCallback(() => {
+    setAppliedSearchMode(searchMode);
+    setAppliedQuery(query);
+
+    if (searchMode === 'AI_VECTOR') {
+      if (selectedCampaign?.canSearch) {
+        setLoading(true);
+        void applyAiSearch(query, selectedCampaign.requestId);
+      } else {
+        setAiSummary('');
+        void loadCandidates(true, '');
       }
+      return;
+    }
 
-      setAiSummary('');
-      void loadCandidates(true, query);
-    }, 400);
-
-    return () => clearTimeout(delayDebounceFn);
+    setAiSummary('');
+    void loadCandidates(true, query);
   }, [applyAiSearch, loadCandidates, query, searchMode, selectedCampaign]);
 
   const assignCandidate = async (candidateId: string) => {
@@ -499,16 +824,6 @@ export const HRTalentPool: React.FC = () => {
     [meta],
   );
 
-  const uniqueRoles = useMemo(() => {
-    const roles = new Set<string>();
-    candidates.forEach((c) => {
-      if (c.role && c.role !== '—') {
-        roles.add(c.role);
-      }
-    });
-    return Array.from(roles).sort();
-  }, [candidates]);
-
   const uniqueSkills = useMemo(() => {
     const skills = new Set<string>();
     candidates.forEach((candidate) => {
@@ -527,15 +842,19 @@ export const HRTalentPool: React.FC = () => {
       }
       candidate.departments.forEach((candidateDepartment) => departments.add(candidateDepartment));
     });
+    campaigns.forEach((campaign) => {
+      if (campaign.department) departments.add(campaign.department);
+      else hasUnassigned = true;
+    });
     return [...Array.from(departments).sort(), ...(hasUnassigned ? ['No Department'] : [])];
-  }, [candidates]);
+  }, [campaigns, candidates]);
 
   const visibleCandidates = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
+    const normalizedQuery = appliedQuery.trim().toLowerCase();
 
-    return candidates.filter((candidate) => {
+    const filtered = candidates.filter((candidate) => {
       const matchesQuery =
-        searchMode === 'AI_VECTOR' ||
+        appliedSearchMode !== 'PROFILE' ||
         !normalizedQuery ||
         [
           candidate.name,
@@ -546,13 +865,14 @@ export const HRTalentPool: React.FC = () => {
           candidate.email,
           ...candidate.skills,
         ].some((value) => value.toLowerCase().includes(normalizedQuery));
-      const matchesRole = role === 'All Roles' || candidate.role === role;
+      const matchesRole = role === 'All Roles' || roleQualifiesFor(candidate.role, role);
       const matchesDepartment =
         department === 'All Departments' ||
         (department === 'No Department'
           ? candidate.departments.length === 0
           : candidate.departments.includes(department));
-      const matchesSkill = skill === 'All Skills' || candidate.skills.includes(skill);
+      const matchesSkill =
+        skill.length === 0 || skill.every((selectedSkill) => candidate.skills.includes(selectedSkill));
       const matchesParse = parseStatus === 'All Status' || candidate.parseStatus === parseStatus;
       const matchesEligibility = !eligibleOnly || candidate.parseStatus === 'Parsed';
       return (
@@ -564,20 +884,42 @@ export const HRTalentPool: React.FC = () => {
         matchesEligibility
       );
     });
-  }, [candidates, department, eligibleOnly, parseStatus, query, role, searchMode, skill]);
 
-  const selected =
-    candidates.find((candidate) => candidate.id === selectedId) ??
-    visibleCandidates[0] ??
-    candidates[0];
+    if (appliedSearchMode !== 'PROFILE' || !selectedCampaign?.requiredSkills.length) {
+      return filtered;
+    }
+
+    return filtered.sort(
+      (left, right) =>
+        compareRequiredSkills(right.skills, selectedCampaign.requiredSkills).score -
+        compareRequiredSkills(left.skills, selectedCampaign.requiredSkills).score,
+    );
+  }, [
+    candidates,
+    appliedQuery,
+    appliedSearchMode,
+    department,
+    eligibleOnly,
+    parseStatus,
+    role,
+    selectedCampaign,
+    skill,
+  ]);
+
+  const selected = isProfileSummaryOpen
+    ? candidates.find((candidate) => candidate.id === selectedId)
+    : undefined;
 
   const resetFilters = () => {
     setQuery('');
+    setAppliedQuery('');
+    setAppliedSearchMode(null);
     setRole('All Roles');
     setDepartment('All Departments');
-    setSkill('All Skills');
+    setSkill([]);
     setParseStatus('All Status');
     setEligibleOnly(true);
+    void loadCandidates();
   };
 
   return (
@@ -633,6 +975,15 @@ export const HRTalentPool: React.FC = () => {
                   </button>
                 ))}
               </div>
+              <button
+                className="inline-flex h-10 items-center gap-2 rounded-lg bg-teal-command px-3 text-xs font-bold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={loading || aiSearching || (searchMode === 'AI_VECTOR' && !selectedCampaign)}
+                onClick={runSearch}
+                type="button"
+              >
+                <Icon className="h-4 w-4" name="search" />
+                Search
+              </button>
               <span className="rounded-full bg-approved/10 px-3 py-1 text-xs font-bold text-approved">
                 Search allowed
               </span>
@@ -652,6 +1003,19 @@ export const HRTalentPool: React.FC = () => {
             </p>
           ) : aiSummary ? (
             <p className="mt-3 text-xs text-slate-ink">{aiSummary}</p>
+          ) : null}
+          {searchMode === 'PROFILE' ? (
+            <div className="mt-3 rounded border border-border-warm bg-clean-surface px-3 py-2 text-xs text-slate-ink">
+              {selectedCampaign?.requiredSkills.length ? (
+                <>
+                  <span className="font-semibold text-deep-charcoal">Required skills: </span>
+                  {selectedCampaign.requiredSkills.join(', ')}. Candidates are ranked by exact
+                  skill matches from the Dept Head request.
+                </>
+              ) : (
+                'The selected Dept Head request does not contain required skills for comparison.'
+              )}
+            </div>
           ) : null}
         </section>
 
@@ -676,57 +1040,42 @@ export const HRTalentPool: React.FC = () => {
 
         <section className="overflow-hidden rounded-lg border border-border-warm bg-clean-surface p-4 shadow-sm">
           <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3 xl:items-end">
-            <HRSelectControl
-              className="min-w-0"
+            <TalentPoolCombobox
+              className="order-3 min-w-0"
               label="Role"
               onChange={setRole}
-              options={['All Roles', ...uniqueRoles]}
+              options={['All Roles', ...departmentRoleOptions]}
               value={role}
             />
-            <HRSelectControl
-              className="min-w-0"
+            <TalentPoolCombobox
+              className="order-1 min-w-0"
               label="Department"
-              onChange={setDepartment}
+              onChange={handleDepartmentChange}
               options={['All Departments', ...uniqueDepartments]}
               value={department}
             />
-            <HRSelectControl
-              className="min-w-0"
-              label="Skills"
-              onChange={setSkill}
-              options={['All Skills', ...uniqueSkills]}
-              value={skill}
+            <TalentPoolSkillCombobox onChange={setSkill} options={uniqueSkills} values={skill} />
+            <TalentPoolCombobox
+              className="order-2 min-w-0 xl:col-span-2"
+              label="Campaign"
+              onChange={setSelectedCampaignId}
+              optionLabel={(requestId) => {
+                const campaign = availableCampaigns.find((item) => item.requestId === requestId);
+                return campaign
+                  ? `${campaign.label}${campaign.canSearch ? ' / AI' : ''}${campaign.canCollect ? ' / Collect' : ''}`
+                  : 'Select campaign';
+              }}
+              options={['', ...availableCampaigns.map((campaign) => campaign.requestId)]}
+              value={selectedCampaignId}
             />
-            <label className="flex min-w-0 flex-col gap-1">
-              <span className="text-xs font-semibold text-on-surface-variant">Campaign</span>
-              <select
-                className="h-10 w-full min-w-0 truncate rounded-lg border border-border-warm bg-clean-surface px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                onChange={(event) => setSelectedCampaignId(event.target.value)}
-                value={selectedCampaignId}
-              >
-                <option value="">Select campaign</option>
-                {campaigns.map((campaign) => (
-                  <option key={campaign.requestId} value={campaign.requestId}>
-                    {campaign.label}
-                    {campaign.canSearch ? ' / AI' : ''}
-                    {campaign.canCollect ? ' / Collect' : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex min-w-0 flex-col gap-1">
-              <span className="text-xs font-semibold text-on-surface-variant">Parsing Status</span>
-              <select
-                className="h-10 w-full min-w-0 rounded-lg border border-border-warm bg-clean-surface px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                onChange={(event) => setParseStatus(event.target.value)}
-                value={parseStatus}
-              >
-                <option>All Status</option>
-                <option>Parsed</option>
-                <option>Pending</option>
-              </select>
-            </label>
-            <div className="flex min-w-0 items-center justify-start gap-3">
+            <TalentPoolCombobox
+              className="order-5 min-w-0"
+              label="Parsing Status"
+              onChange={setParseStatus}
+              options={['All Status', 'Parsed', 'Pending']}
+              value={parseStatus}
+            />
+            <div className="order-6 flex min-w-0 items-center justify-start gap-3">
               <button
                 aria-pressed={eligibleOnly}
                 className={`relative h-6 w-11 rounded-full transition ${eligibleOnly ? 'bg-teal-command' : 'bg-surface-container'}`}
@@ -752,20 +1101,23 @@ export const HRTalentPool: React.FC = () => {
 
         <section className="grid grid-cols-1 gap-6 md:grid-cols-2 2xl:grid-cols-3">
           {visibleCandidates.map((candidate) => {
-            const active = selected?.id === candidate.id;
+            const active = isProfileSummaryOpen && selected?.id === candidate.id;
             const alreadyAdded = candidate.recentApplications.some(
               (application) => application.requestId === selectedCampaignId,
             );
             const canCollectSelected = Boolean(selectedCampaign?.canCollect);
+            const manualSkillMatch = compareRequiredSkills(
+              candidate.skills,
+              selectedCampaign?.requiredSkills ?? [],
+            );
             return (
               <article
-                className={`flex cursor-pointer flex-col rounded-lg bg-clean-surface p-5 transition hover:-translate-y-[2px] hover:shadow-md ${
+                className={`flex flex-col rounded-lg bg-clean-surface p-5 transition hover:-translate-y-[2px] hover:shadow-md ${
                   active
                     ? 'border-2 border-teal-command/30 ring-2 ring-teal-command/5'
                     : 'border border-border-warm'
                 }`}
                 key={candidate.id}
-                onClick={() => setSelectedId(candidate.id)}
               >
                 <div className="mb-4 flex items-start justify-between gap-3">
                   <div className="flex min-w-0 gap-3">
@@ -794,7 +1146,7 @@ export const HRTalentPool: React.FC = () => {
                   </span>
                 </div>
 
-                {searchMode === 'AI_VECTOR' && candidate.aiScore !== undefined ? (
+                {appliedSearchMode === 'AI_VECTOR' && candidate.aiScore !== undefined ? (
                   <div className="mb-4 grid grid-cols-4 gap-2 rounded-lg border border-border-warm bg-workflow-ivory p-2 text-center">
                     <div>
                       <p className="text-[10px] font-bold uppercase text-on-surface-variant">AI</p>
@@ -828,6 +1180,26 @@ export const HRTalentPool: React.FC = () => {
                           : '0%'}
                       </p>
                     </div>
+                  </div>
+                ) : null}
+
+                {appliedSearchMode === 'PROFILE' && selectedCampaign?.requiredSkills.length ? (
+                  <div className="mb-4 rounded-lg border border-border-warm bg-workflow-ivory p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-on-surface-variant">
+                        Required skill match
+                      </p>
+                      <p className="font-mono text-sm font-bold text-teal-command">
+                        {Math.round(manualSkillMatch.score * 100)}%
+                      </p>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-ink">
+                      {manualSkillMatch.matchedSkills.length}/{selectedCampaign.requiredSkills.length}{' '}
+                      skills matched
+                      {manualSkillMatch.missingSkills.length
+                        ? ` · Missing: ${manualSkillMatch.missingSkills.join(', ')}`
+                        : ' · All required skills matched'}
+                    </p>
                   </div>
                 ) : null}
 
@@ -872,6 +1244,7 @@ export const HRTalentPool: React.FC = () => {
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedId(candidate.id);
+                      setIsProfileSummaryOpen(true);
                     }}
                     type="button"
                   >
@@ -923,7 +1296,7 @@ export const HRTalentPool: React.FC = () => {
           <h2 className="text-xl font-bold text-deep-charcoal">Profile Summary</h2>
           <button
             className="rounded-full p-1.5 text-on-surface-variant transition hover:bg-surface-container hover:text-deep-charcoal"
-            onClick={() => setSelectedId('')}
+            onClick={() => setIsProfileSummaryOpen(false)}
             type="button"
           >
             <span className="sr-only">Close profile summary</span>
@@ -1067,25 +1440,20 @@ export const HRTalentPool: React.FC = () => {
                   </div>
 
                   <footer className="space-y-4 border-t border-border-warm bg-workflow-ivory p-6">
-                    <label className="flex flex-col gap-1">
-                      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
-                        Select Campaign
-                      </span>
-                      <select
-                        className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                        onChange={(event) => setSelectedCampaignId(event.target.value)}
-                        value={selectedCampaignId}
-                      >
-                        <option value="">-- Choose Campaign --</option>
-                        {campaigns.map((item) => (
-                          <option key={item.requestId} value={item.requestId}>
-                            {item.label}
-                            {item.canSearch ? ' / AI' : ''}
-                            {item.canCollect ? ' / Collect' : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    <TalentPoolCombobox
+                      label="Select Campaign"
+                      onChange={setSelectedCampaignId}
+                      optionLabel={(requestId) => {
+                        const campaign = availableCampaigns.find(
+                          (item) => item.requestId === requestId,
+                        );
+                        return campaign
+                          ? `${campaign.label}${campaign.canSearch ? ' / AI' : ''}${campaign.canCollect ? ' / Collect' : ''}`
+                          : '-- Choose Campaign --';
+                      }}
+                      options={['', ...availableCampaigns.map((campaign) => campaign.requestId)]}
+                      value={selectedCampaignId}
+                    />
                     <div className="flex items-start gap-2">
                       <Icon className="mt-0.5 h-4 w-4 text-on-surface-variant" name="shield" />
                       <p className="text-[11px] leading-5 text-on-surface-variant">

@@ -8,6 +8,7 @@ export class SkillGraph {
   private nodes: Map<string, SkillNodeDef> = new Map();
   private aliasMap: Map<string, string> = new Map(); // lowercase alias → canonical name
   private adjacency: Map<string, Set<string>> = new Map();
+  private qualificationAdjacency: Map<string, Set<string>> = new Map();
   private edgeWeights: Map<string, number> = new Map();
 
   constructor(nodes: SkillNodeDef[], edges: SkillEdgeDef[]) {
@@ -20,6 +21,7 @@ export class SkillGraph {
         this.aliasMap.set(alias.toLowerCase(), node.name);
       }
       this.adjacency.set(key, new Set());
+      this.qualificationAdjacency.set(key, new Set());
     }
 
     // Index edges (bidirectional)
@@ -27,12 +29,43 @@ export class SkillGraph {
       const srcKey = edge.source.toLowerCase();
       const tgtKey = edge.target.toLowerCase();
       if (this.adjacency.has(srcKey) && this.adjacency.has(tgtKey)) {
+        if (edge.relationship === 'QUALIFIES_FOR') {
+          this.qualificationAdjacency.get(srcKey)!.add(tgtKey);
+          continue;
+        }
         this.adjacency.get(srcKey)!.add(tgtKey);
         this.adjacency.get(tgtKey)!.add(srcKey);
         const edgeKey = [srcKey, tgtKey].sort().join('::');
         this.edgeWeights.set(edgeKey, edge.weight ?? 1.0);
       }
     }
+  }
+
+  /**
+   * Returns the directed qualification distance for role matching. A role only
+   * qualifies for itself or for roles explicitly reachable from it.
+   */
+  getRoleQualificationDistance(candidateRole: string, requiredRole: string): number {
+    const candidateKey = (this.resolve(candidateRole) ?? candidateRole).toLowerCase();
+    const requiredKey = (this.resolve(requiredRole) ?? requiredRole).toLowerCase();
+    if (candidateKey === requiredKey) return 0;
+    if (!this.qualificationAdjacency.has(candidateKey) || !this.qualificationAdjacency.has(requiredKey)) {
+      return Infinity;
+    }
+
+    const visited = new Set<string>([candidateKey]);
+    const queue: [string, number][] = [[candidateKey, 0]];
+    while (queue.length > 0) {
+      const [current, depth] = queue.shift()!;
+      for (const next of this.qualificationAdjacency.get(current) ?? []) {
+        if (next === requiredKey) return depth + 1;
+        if (!visited.has(next)) {
+          visited.add(next);
+          queue.push([next, depth + 1]);
+        }
+      }
+    }
+    return Infinity;
   }
 
   /** Resolve a query string to a canonical skill name */
@@ -175,8 +208,14 @@ export class SkillGraph {
           break;
         }
 
-        // Graph distance
-        const dist = this.getDistance(candidate, required);
+        const candidateNode = resolvedCandidate ? this.findNode(resolvedCandidate) : null;
+        const requiredNode = resolvedRequired ? this.findNode(resolvedRequired) : null;
+        // Role equivalency is directional. Do not infer that a specialist is a
+        // full-stack engineer just because both roles share Web Developer.
+        const dist =
+          candidateNode?.category === 'ROLE' && requiredNode?.category === 'ROLE'
+            ? this.getRoleQualificationDistance(candidate, required)
+            : this.getDistance(candidate, required);
         if (dist < bestDistance) {
           bestDistance = dist;
           matchSource = 'graph_expansion';

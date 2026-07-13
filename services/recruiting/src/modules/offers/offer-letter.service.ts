@@ -7,6 +7,9 @@ import {
   OfferStatus,
   RecruitmentRequestStatus,
   NotificationType,
+  PlanStatus,
+  TaskStatus,
+  TaskType,
   UserRole,
 } from '@wr/contracts';
 import { JOB_NAMES, QUEUE_NAMES } from '@wr/queue';
@@ -140,6 +143,16 @@ export class OfferLetterService {
       });
     }
     return offer;
+  }
+
+  async listForCandidate(candidateUserId: string) {
+    return this.prisma.offerLetter.findMany({
+      where: {
+        candidate: { userId: candidateUserId },
+        status: { not: OfferStatus.DRAFT },
+      },
+      orderBy: [{ sentAt: 'desc' }, { createdAt: 'desc' }],
+    });
   }
 
   async send(id: string, sentById: string) {
@@ -393,6 +406,21 @@ export class OfferLetterService {
         where: { id: offer.requestId },
         data: { status: requestStatus },
       }),
+      ...(accepted
+        ? [
+            this.prisma.taskPlan.updateMany({
+              where: {
+                taskType: TaskType.HIRING,
+                overallPlan: { requestId: offer.requestId },
+              },
+              data: { status: TaskStatus.COMPLETED },
+            }),
+            this.prisma.overallPlan.updateMany({
+              where: { requestId: offer.requestId },
+              data: { status: PlanStatus.COMPLETED },
+            }),
+          ]
+        : []),
       ...transitionLogs,
     ]);
 

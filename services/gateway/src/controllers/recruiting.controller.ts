@@ -43,7 +43,7 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
-import { buildStoragePath, storageBuckets, uploadFile } from '@wr/storage';
+import { buildStoragePath, createSignedDownloadUrl, storageBuckets, uploadFile } from '@wr/storage';
 
 export class CreateJobPostingDto {
   @ApiProperty({ example: 'uuid-of-recruitment-request', description: 'Recruitment Request ID' })
@@ -171,6 +171,10 @@ export class OfferResponseDto {
 }
 
 export class CreateRecruitmentRequestDto {
+  @ApiProperty({ example: 'uuid-of-department' })
+  @IsUUID()
+  departmentId!: string;
+
   @ApiProperty({ example: 'Senior Frontend Engineer' })
   @IsString()
   @IsNotEmpty()
@@ -206,6 +210,7 @@ export class CreateRecruitmentRequestDto {
   @IsOptional()
   @IsBoolean()
   submit?: boolean;
+
 }
 
 export class UpdateRecruitmentRequestDto {
@@ -459,6 +464,39 @@ export class RequestHiringInfoDto {
 @Controller()
 export class RecruitingController {
   constructor(@Inject(SERVICE_TOKENS.RECRUITING) private readonly recruitingClient: ClientProxy) {}
+
+  private async withSignedRecruitmentMedia<T extends { requirements?: unknown }>(posting: T): Promise<T> {
+    const requirements = posting.requirements;
+    if (!requirements || typeof requirements !== 'object' || Array.isArray(requirements)) return posting;
+
+    const recruitmentMedia = (requirements as Record<string, unknown>).recruitmentMedia;
+    if (!Array.isArray(recruitmentMedia)) return posting;
+
+    const media = await Promise.all(
+      recruitmentMedia.map(async (item) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return item;
+        const asset = item as Record<string, unknown>;
+        if (typeof asset.bucket !== 'string' || typeof asset.path !== 'string') return asset;
+
+        try {
+          return {
+            ...asset,
+            url: await createSignedDownloadUrl(asset.bucket, asset.path),
+          };
+        } catch {
+          return asset;
+        }
+      }),
+    );
+
+    return {
+      ...posting,
+      requirements: {
+        ...(requirements as Record<string, unknown>),
+        recruitmentMedia: media,
+      },
+    };
+  }
 
   @Get('recruitment-requests')
   @Roles(UserRole.ADMIN, UserRole.HR_LEADER)
@@ -889,6 +927,17 @@ export class RecruitingController {
     );
   }
 
+  @Get('offers/me')
+  @Roles(UserRole.CANDIDATE)
+  @ApiOperation({ summary: 'List offer letters sent to the current candidate' })
+  listMyOffers(@CurrentUser() user: any) {
+    return firstValueFrom(
+      this.recruitingClient.send('recruiting.offers.listForCandidate', {
+        candidateUserId: user.sub,
+      }),
+    );
+  }
+
   @Get('offers/:id')
   @Roles(UserRole.HR_LEADER, UserRole.ADMIN, UserRole.CANDIDATE)
   @ApiOperation({ summary: 'Review an offer letter' })
@@ -1020,7 +1069,7 @@ export class RecruitingController {
 
   @Post('job-postings/media')
   @Roles(UserRole.HR_LEADER, UserRole.ADMIN)
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 20 * 1024 * 1024 } }))
   @ApiOperation({ summary: 'Upload banner or recruitment notice media for a job posting' })
   async uploadJobPostingMedia(
     @UploadedFile() file: any,
@@ -1052,7 +1101,7 @@ export class RecruitingController {
 
     const mediaKind = body.kind === 'NOTICE' ? 'NOTICE' : 'BANNER';
     const ownerId = body.requestId;
-    const bucket = mediaKind === 'BANNER' ? storageBuckets.banners : storageBuckets.jobPostings;
+    const bucket = mediaKind === 'BANNER' ? storageBuckets.banners : storageBuckets.noticeImages;
     const path = buildStoragePath(ownerId, file.originalname || `media${extension}`);
 
     try {
@@ -1061,7 +1110,7 @@ export class RecruitingController {
       });
       return {
         kind: mediaKind,
-        url: uploaded.publicUrl,
+        url: await createSignedDownloadUrl(uploaded.bucket, uploaded.path),
         bucket: uploaded.bucket,
         path: uploaded.path,
         fileName: file.originalname,
@@ -1078,21 +1127,22 @@ export class RecruitingController {
 
   @Get('job-postings')
   @ApiOperation({ summary: 'List all job postings' })
-  listJobPostings(@Query() query: any, @CurrentUser() user?: any) {
-    return firstValueFrom(
+  async listJobPostings(@Query() query: any, @CurrentUser() user?: any) {
+    const postings = await firstValueFrom(
       this.recruitingClient.send('recruiting.job_posting.list', {
         ...query,
         userRole: user?.role,
         userDeptId: user?.departmentId,
       }),
     );
+    return Promise.all(postings.map((posting: { requirements?: unknown }) => this.withSignedRecruitmentMedia(posting)));
   }
 
   @Get('public/job-postings')
   @Public()
   @ApiOperation({ summary: 'List public published job postings' })
-  listPublicJobPostings(@Query() query: any) {
-    return firstValueFrom(
+  async listPublicJobPostings(@Query() query: any) {
+    const postings = await firstValueFrom(
       this.recruitingClient.send('recruiting.job_posting.list', {
         ...query,
         status: 'PUBLISHED',
@@ -1100,18 +1150,20 @@ export class RecruitingController {
         userRole: UserRole.CANDIDATE,
       }),
     );
+    return Promise.all(postings.map((posting: { requirements?: unknown }) => this.withSignedRecruitmentMedia(posting)));
   }
 
   @Get('job-postings/:id')
   @ApiOperation({ summary: 'Get job posting by ID' })
-  getJobPosting(@Param('id') id: string, @CurrentUser() user?: any) {
-    return firstValueFrom(
+  async getJobPosting(@Param('id') id: string, @CurrentUser() user?: any) {
+    const posting = await firstValueFrom(
       this.recruitingClient.send('recruiting.job_posting.get', {
         id,
         userRole: user?.role,
         userDeptId: user?.departmentId,
       }),
     );
+    return this.withSignedRecruitmentMedia(posting);
   }
 
   @Patch('job-postings/:id')

@@ -24,6 +24,27 @@ interface PipelineStage {
   color: string;
 }
 
+const bachelorOptions = [
+  "Bachelor's in Computer Science",
+  "Bachelor's in Information Technology",
+  "Bachelor's in Business Administration",
+  "Bachelor's in Marketing",
+  "Bachelor's in Finance / Accounting",
+  "Bachelor's in Human Resources",
+  "Bachelor's in Engineering",
+  "Bachelor's degree in a related field",
+];
+
+const createDepartmentCode = (name: string) => {
+  const normalized = name
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+  return (normalized || 'DEPT').slice(0, 20);
+};
+
 
 
 export const AdminSettings: React.FC = () => {
@@ -40,6 +61,14 @@ export const AdminSettings: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [apiError, setApiError] = useState('');
+  const [bachelorDepartmentId, setBachelorDepartmentId] = useState('');
+  const [departmentBachelorRequirements, setDepartmentBachelorRequirements] = useState<
+    Record<string, string[]>
+  >({});
+  const [savingBachelorRequirements, setSavingBachelorRequirements] = useState(false);
+  const [bachelorModalOpen, setBachelorModalOpen] = useState(false);
+  const [newBachelor, setNewBachelor] = useState('');
+  const [customBachelorOptions, setCustomBachelorOptions] = useState<string[]>([]);
 
   // Department Management
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -82,6 +111,8 @@ export const AdminSettings: React.FC = () => {
         enableMultiLevel?: boolean;
       };
       pipelineStages?: PipelineStage[];
+      departmentBachelorRequirements?: Record<string, string[]>;
+      customBachelorOptions?: string[];
     };
   };
 
@@ -132,6 +163,11 @@ export const AdminSettings: React.FC = () => {
       const workflow = organization.settings?.approvalWorkflow ?? {};
       setOrganizationId(organization.id);
       setStoredSettings(organization.settings ?? {});
+      const savedBachelorRequirements = organization.settings?.departmentBachelorRequirements;
+      if (savedBachelorRequirements && typeof savedBachelorRequirements === 'object') {
+        setDepartmentBachelorRequirements(savedBachelorRequirements as Record<string, string[]>);
+      }
+      setCustomBachelorOptions(organization.settings?.customBachelorOptions ?? []);
       setOrgName(organization.name);
       setOrgCode(organization.slug);
       setIndustry(organization.settings?.industry ?? '');
@@ -241,7 +277,9 @@ export const AdminSettings: React.FC = () => {
 
   const handleSaveDept = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!deptForm.name.trim() || !deptForm.code.trim() || !organizationId) return;
+    if (!deptForm.name.trim() || !organizationId) return;
+
+    const departmentCode = editingDeptIdx !== null ? deptForm.code : createDepartmentCode(deptForm.name);
 
     setApiError('');
     try {
@@ -250,7 +288,7 @@ export const AdminSettings: React.FC = () => {
           method: 'PATCH',
           body: JSON.stringify({
             name: deptForm.name,
-            code: deptForm.code.toUpperCase(),
+            code: departmentCode,
             headUserId: deptForm.headUserId ?? null,
           }),
         });
@@ -261,7 +299,7 @@ export const AdminSettings: React.FC = () => {
           body: JSON.stringify({
             organizationId,
             name: deptForm.name,
-            code: deptForm.code.toUpperCase(),
+            code: departmentCode,
             headUserId: deptForm.headUserId,
           }),
         });
@@ -287,6 +325,61 @@ export const AdminSettings: React.FC = () => {
       setApiError(
         deleteError instanceof Error ? deleteError.message : 'Unable to delete department',
       );
+    }
+  };
+
+  const toggleBachelorRequirement = (degree: string) => {
+    if (!bachelorDepartmentId) return;
+    setDepartmentBachelorRequirements((current) => {
+      const selected = current[bachelorDepartmentId] ?? [];
+      const nextSelected = selected.includes(degree)
+        ? selected.filter((item) => item !== degree)
+        : [...selected, degree];
+      return { ...current, [bachelorDepartmentId]: nextSelected };
+    });
+  };
+
+  const allBachelorOptions = [...new Set([...bachelorOptions, ...customBachelorOptions])];
+
+  const openBachelorModal = (departmentId: string) => {
+    setBachelorDepartmentId(departmentId);
+    setNewBachelor('');
+    setBachelorModalOpen(true);
+  };
+
+  const addBachelorOption = () => {
+    const degree = newBachelor.trim();
+    if (!degree) return;
+    if (!allBachelorOptions.some((item) => item.toLowerCase() === degree.toLowerCase())) {
+      setCustomBachelorOptions((current) => [...current, degree]);
+    }
+    setDepartmentBachelorRequirements((current) => ({
+      ...current,
+      [bachelorDepartmentId]: [...new Set([...(current[bachelorDepartmentId] ?? []), degree])],
+    }));
+    setNewBachelor('');
+  };
+
+  const saveBachelorRequirements = async () => {
+    if (!organizationId || !bachelorDepartmentId) return;
+    setSavingBachelorRequirements(true);
+    setApiError('');
+    try {
+      const nextSettings = {
+        ...storedSettings,
+        departmentBachelorRequirements,
+        customBachelorOptions,
+      };
+      await apiRequest(`/organizations/${organizationId}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ settings: nextSettings }),
+      });
+      setStoredSettings(nextSettings);
+      triggerToast('Bachelor requirements saved for this department.');
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Unable to save bachelor requirements');
+    } finally {
+      setSavingBachelorRequirements(false);
     }
   };
 
@@ -478,6 +571,7 @@ export const AdminSettings: React.FC = () => {
                     Department Name
                   </th>
                   <th className="px-4 py-3 font-label-md text-label-md text-secondary">Head</th>
+                  <th className="px-4 py-3 font-label-md text-label-md text-secondary">Bachelor</th>
                   <th className="px-4 py-3 font-label-md text-label-md text-secondary text-center">
                     Headcount
                   </th>
@@ -501,6 +595,17 @@ export const AdminSettings: React.FC = () => {
                       {dept.name}
                     </td>
                     <td className="px-4 py-3.5 font-body-md text-body-md">{dept.head}</td>
+                    <td className="px-4 py-3.5">
+                      <div className="min-w-[70px]">
+                        <button
+                          className="rounded-md border border-teal-command/30 px-2 py-1 text-[11px] font-semibold text-teal-command hover:bg-teal-command/10"
+                          type="button"
+                          onClick={() => dept.id && openBachelorModal(dept.id)}
+                        >
+                          View
+                        </button>
+                      </div>
+                    </td>
                     <td className="px-4 py-3.5 font-data-mono text-data-mono text-center">
                       {dept.headcount}
                     </td>
@@ -698,7 +803,12 @@ export const AdminSettings: React.FC = () => {
 
       {/* Department Add/Edit Modal */}
       {deptModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(28,25,23,0.42)] px-4 py-6 text-on-surface">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(28,25,23,0.42)] px-4 py-6 text-on-surface"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setDeptModalOpen(false);
+          }}
+        >
           <div className="w-full max-w-[480px] rounded-xl border border-border-warm bg-clean-surface shadow-xl overflow-hidden">
             <div className="flex items-start justify-between gap-4 border-b border-border-warm p-6">
               <h2 className="text-lg font-bold text-deep-charcoal">
@@ -719,15 +829,6 @@ export const AdminSettings: React.FC = () => {
                   className="w-full px-3 py-2 bg-workflow-ivory border border-border-warm rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-command/20"
                   value={deptForm.name}
                   onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })}
-                />
-              </label>
-              <label className="block space-y-1.5">
-                <span className="text-sm font-semibold text-deep-charcoal">Department Code</span>
-                <input
-                  required
-                  className="w-full px-3 py-2 bg-workflow-ivory border border-border-warm rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-command/20"
-                  value={deptForm.code}
-                  onChange={(e) => setDeptForm({ ...deptForm, code: e.target.value.toUpperCase() })}
                 />
               </label>
               <label className="block space-y-1.5">
@@ -790,9 +891,81 @@ export const AdminSettings: React.FC = () => {
         </div>
       )}
 
+      {bachelorModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(28,25,23,0.42)] px-4 py-6 text-on-surface"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setBachelorModalOpen(false);
+          }}
+        >
+          <div className="w-full max-w-[620px] rounded-xl border border-border-warm bg-clean-surface shadow-xl">
+            <div className="flex items-start justify-between gap-4 border-b border-border-warm p-6">
+              <div>
+                <h2 className="text-lg font-bold text-deep-charcoal">Bachelor Requirements</h2>
+                <p className="mt-1 text-sm text-secondary">
+                  {departments.find((department) => department.id === bachelorDepartmentId)?.name ?? 'Department'}
+                </p>
+              </div>
+              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-warm bg-white text-slate-ink hover:text-rejected" type="button" onClick={() => setBachelorModalOpen(false)}>
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+            <div className="space-y-5 p-6">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+                <input
+                  className="rounded-lg border border-border-warm bg-workflow-ivory px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-teal-command/20"
+                  placeholder="Add another Bachelor / Degree"
+                  value={newBachelor}
+                  onChange={(event) => setNewBachelor(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      addBachelorOption();
+                    }
+                  }}
+                />
+                <button className="rounded-lg border border-teal-command px-4 py-2 text-sm font-semibold text-teal-command hover:bg-teal-command/10" type="button" onClick={addBachelorOption}>
+                  Add Bachelor
+                </button>
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {allBachelorOptions.map((degree) => {
+                  const selected = (departmentBachelorRequirements[bachelorDepartmentId] ?? []).includes(degree);
+                  return (
+                    <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${selected ? 'border-teal-command bg-teal-command/10 text-deep-charcoal' : 'border-border-warm bg-workflow-ivory hover:bg-teal-command/5'}`} key={degree}>
+                      <input checked={selected} className="h-4 w-4 rounded border-border-warm text-teal-command focus:ring-teal-command" type="checkbox" onChange={() => toggleBachelorRequirement(degree)} />
+                      {degree}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 border-t border-border-warm p-5">
+              <button className="rounded-lg px-4 py-2 text-sm font-semibold text-secondary hover:bg-workflow-ivory" type="button" onClick={() => setBachelorModalOpen(false)}>Cancel</button>
+              <button
+                className="rounded-lg bg-teal-command px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+                disabled={savingBachelorRequirements}
+                type="button"
+                onClick={async () => {
+                  await saveBachelorRequirements();
+                  setBachelorModalOpen(false);
+                }}
+              >
+                {savingBachelorRequirements ? 'Saving...' : 'Save Bachelor Requirements'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Pipeline Stage Add Modal */}
       {stageModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(28,25,23,0.42)] px-4 py-6 text-on-surface">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(28,25,23,0.42)] px-4 py-6 text-on-surface"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setStageModalOpen(false);
+          }}
+        >
           <div className="w-full max-w-[400px] rounded-xl border border-border-warm bg-clean-surface shadow-xl overflow-hidden">
             <div className="flex items-start justify-between gap-4 border-b border-border-warm p-6">
               <h2 className="text-lg font-bold text-deep-charcoal">Add Recruitment Stage</h2>

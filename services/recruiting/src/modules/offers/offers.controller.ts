@@ -27,6 +27,11 @@ export class OffersController {
     return this.service.get(payload.id, payload.actorUserId, payload.actorRole);
   }
 
+  @MessagePattern('recruiting.offers.listForCandidate')
+  listForCandidate(@Payload() payload: { candidateUserId: string }) {
+    return this.service.listForCandidate(payload.candidateUserId);
+  }
+
   @MessagePattern('recruiting.offers.send')
   send(@Payload() payload: { id: string; sentById: string }) {
     return this.service.send(payload.id, payload.sentById);

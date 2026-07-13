@@ -32,7 +32,13 @@ export type SkillCategoryType =
   | 'TOOL'
   | 'PLATFORM';
 
-export type SkillRelType = 'IS_A' | 'PART_OF' | 'RELATED_TO' | 'VARIANT_OF' | 'REQUIRES';
+export type SkillRelType =
+  | 'IS_A'
+  | 'PART_OF'
+  | 'RELATED_TO'
+  | 'VARIANT_OF'
+  | 'REQUIRES'
+  | 'QUALIFIES_FOR';
 
 export interface GraphQueryResult {
   /** Matched skill nodes */

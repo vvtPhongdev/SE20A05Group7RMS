@@ -13,7 +13,15 @@ export class DepartmentsController {
   }
 
   @MessagePattern('identity.list_departments')
-  async list(@Payload() data?: { organizationId?: string }) {
+  async list(
+    @Payload()
+    data?: {
+      organizationId?: string;
+      actorId?: string;
+      actorRole?: string;
+      actorOrganizationId?: string;
+    },
+  ) {
     return this.departmentsService.list(data);
   }
 

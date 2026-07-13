@@ -5,7 +5,12 @@ import { apiRequest, ApiError } from '../../../lib/api';
 import { HRActionButton, HRCard, HRInlineAlert, HRLoadingState, HRPageHeader } from '../components';
 
 type TaskStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
-type TaskType = 'JOB_POSTING' | 'CV_COLLECTION' | 'CV_SCREENING' | 'INTERVIEW_COORDINATION';
+type TaskType =
+  | 'JOB_POSTING'
+  | 'CV_COLLECTION'
+  | 'CV_SCREENING'
+  | 'INTERVIEW_COORDINATION'
+  | 'HIRING';
 
 type TaskPlanApiItem = {
   id: string;
@@ -53,6 +58,7 @@ const TASK_TYPE_LABELS: Record<TaskType, string> = {
   CV_COLLECTION: 'Sourcing',
   CV_SCREENING: 'CV Screening',
   INTERVIEW_COORDINATION: 'Interview Coordination',
+  HIRING: 'Hiring',
 };
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
@@ -289,6 +295,8 @@ export const TaskPlanner: React.FC = () => {
         return `/hr/search?requestId=${requestId}&task=CV_SCREENING`;
       case 'INTERVIEW_COORDINATION':
         return `/hr/interviews?requestId=${requestId}&task=INTERVIEW_COORDINATION`;
+      case 'HIRING':
+        return `/hr/campaigns/${requestId}`;
       default:
         return `/hr/campaigns/${requestId}`;
     }

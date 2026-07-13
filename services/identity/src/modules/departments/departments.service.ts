@@ -95,9 +95,17 @@ export class DepartmentsService {
     });
   }
 
-  async list(query?: { organizationId?: string }) {
+  async list(query?: {
+    organizationId?: string;
+    actorId?: string;
+    actorRole?: string;
+    actorOrganizationId?: string;
+  }) {
     const where: any = {};
-    if (query?.organizationId) {
+    if (query?.actorRole === UserRole.DEPARTMENT_HEAD) {
+      where.organizationId = query.actorOrganizationId;
+      where.headUserId = query.actorId;
+    } else if (query?.organizationId) {
       where.organizationId = query.organizationId;
     }
 

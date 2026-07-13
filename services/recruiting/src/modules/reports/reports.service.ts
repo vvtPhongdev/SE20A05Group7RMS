@@ -554,9 +554,12 @@ export class ReportsService {
       const item = {
         requestId: request.id,
         position: request.position,
-        departmentId: request.department.id,
-        departmentName: request.department.name,
+        // Legacy/imported requests can exist without a department relation. Keep the
+        // tracking feed available for all other requests instead of failing the whole page.
+        departmentId: request.department?.id ?? null,
+        departmentName: request.department?.name ?? 'Unassigned',
         status: request.status,
+        urgency: request.urgency,
         currentOwner: ownerFor(request.status),
         pendingAction: pendingActions[request.status] ?? 'NONE',
         headcount: request.headcount,
@@ -613,7 +616,7 @@ export class ReportsService {
         department: item.departmentName,
         targetHeadcount: item.headcount,
         filledHeadcount: item.hiredCount,
-        createdBy: request.createdBy.displayName,
+        createdBy: request.createdBy?.displayName ?? 'Unknown',
         handler: request.reviewedBy?.displayName ?? 'Not Assigned',
         rejectionReason: request.rejectionReason,
         createdAt: request.createdAt,
@@ -769,9 +772,21 @@ export class ReportsService {
                 status: true,
               },
             },
+            interviews: {
+              select: {
+                candidateId: true,
+              },
+            },
             overallPlan: {
               select: {
                 status: true,
+                createdAt: true,
+                tasks: {
+                  select: {
+                    taskType: true,
+                    status: true,
+                  },
+                },
               },
             },
           },
@@ -806,12 +821,17 @@ export class ReportsService {
           ).length,
         0,
       );
-      const pendingRequests = department.requests.filter(
-        (request) => request.status === 'PENDING_REVIEW',
+      const pendingHrRequests = department.requests.filter((request) =>
+        ['PENDING_HR_REVIEW', 'PENDING_REVIEW'].includes(request.status),
+      );
+      const pendingAdminRequests = department.requests.filter(
+        (request) => request.status === 'PENDING_BOSS_APPROVAL',
       );
       const pendingPlans = department.requests.filter(
         (request) => request.overallPlan?.status === 'PENDING_APPROVAL',
-      ).length;
+      );
+      const pendingRequestCount = pendingHrRequests.length + pendingAdminRequests.length;
+      const pendingPlanCount = pendingPlans.length;
       const completed = department.requests.filter((request) =>
         ['CLOSED', 'OFFER_ACCEPTED'].includes(request.status),
       );
@@ -830,17 +850,21 @@ export class ReportsService {
             )
           : 0;
       const fillRate = requested > 0 ? Math.round((filled / requested) * 100) : 0;
-      const oldestPendingDays =
-        pendingRequests.length > 0
-          ? Math.max(
-              ...pendingRequests.map((request) =>
-                Math.max(
-                  0,
-                  Math.floor((now.getTime() - request.createdAt.getTime()) / (1000 * 60 * 60 * 24)),
-                ),
+      const pendingCreatedAt = [
+        ...pendingHrRequests.map((request) => request.createdAt),
+        ...pendingAdminRequests.map((request) => request.createdAt),
+        ...pendingPlans.map((request) => request.overallPlan?.createdAt).filter(Boolean),
+      ] as Date[];
+      const oldestPendingDays = pendingCreatedAt.length
+        ? Math.max(
+            ...pendingCreatedAt.map((createdAt) =>
+              Math.max(
+                0,
+                Math.floor((now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24)),
               ),
-            )
-          : 0;
+            ),
+          )
+        : 0;
       const headName = department.headUser?.displayName || 'Not assigned';
       const initials =
         headName === 'Not assigned'
@@ -861,8 +885,8 @@ export class ReportsService {
           activeRequests: department.requests.filter(
             (request) => !inactiveStatuses.includes(request.status),
           ).length,
-          pendingApprovalsText: `${pendingRequests.length} Pending Approval${pendingRequests.length === 1 ? '' : 's'}`,
-          pendingApproved: pendingRequests.length === 0,
+          pendingApprovalsText: `${pendingRequestCount + pendingPlanCount} Pending Approval${pendingRequestCount + pendingPlanCount === 1 ? '' : 's'}`,
+          pendingApproved: pendingRequestCount + pendingPlanCount === 0,
         },
         chart: {
           label: department.code || department.name,
@@ -872,8 +896,10 @@ export class ReportsService {
         },
         pending: {
           department: department.name,
-          requests: pendingRequests.length,
-          plans: pendingPlans,
+          hrReview: pendingHrRequests.length,
+          adminReview: pendingAdminRequests.length,
+          plans: pendingPlanCount,
+          total: pendingRequestCount + pendingPlanCount,
           oldest: `${oldestPendingDays} day${oldestPendingDays === 1 ? '' : 's'}`,
           badge: oldestPendingDays >= 5,
         },
@@ -896,7 +922,52 @@ export class ReportsService {
       generatedAt: now,
       cards: rows.map((row) => row.card),
       chart: rows.map((row) => row.chart),
-      pending: rows.map((row) => row.pending).filter((row) => row.requests > 0 || row.plans > 0),
+      campaigns: departments.flatMap((department) =>
+        department.requests
+          .filter((request) => request.overallPlan)
+          .map((request) => {
+            const tasks = request.overallPlan?.tasks ?? [];
+            const completedTasks = tasks.filter((task) => task.status === 'COMPLETED').length;
+            const inProgressTasks = tasks.filter((task) => task.status === 'IN_PROGRESS').length;
+            const collectedCVs = request.applications.length;
+            // Every application collected into this campaign (including from Talent Pool)
+            // enters CV screening. Keep it counted after it progresses to interview or an
+            // offer so the stage reports how many collected CVs were evaluated, not only
+            // the small subset whose current status is literally SCREENING.
+            const screeningCVs = collectedCVs;
+            const hiredCount = request.applications.filter((application) =>
+              ['OFFER_ACCEPTED', 'HIRED'].includes(application.status),
+            ).length;
+            const notHiredCount = request.applications.filter(
+              (application) => application.status === 'NOT_HIRED',
+            ).length;
+            const interviewedCount = new Set(
+              request.interviews.map((interview) => interview.candidateId),
+            ).size;
+
+            return {
+              id: request.id,
+              position: request.position,
+              department: department.name,
+              departmentCode: department.code || department.name,
+              status: request.status,
+              progress: tasks.length ? Math.round((completedTasks / tasks.length) * 100) : 0,
+              completedTasks,
+              inProgressTasks,
+              totalTasks: tasks.length,
+              collectedCVs,
+              screeningCVs,
+              hiredCount,
+              notHiredCount,
+              interviewedCount,
+              stages: tasks.map((task) => ({
+                type: task.taskType,
+                status: task.status,
+              })),
+            };
+          }),
+      ),
+      pending: rows.map((row) => row.pending).filter((row) => row.total > 0),
       activity: rows.map((row) => row.activity).filter((row) => row.name !== 'Not assigned'),
     };
   }

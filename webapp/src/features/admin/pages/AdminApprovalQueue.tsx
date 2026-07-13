@@ -89,6 +89,21 @@ const TASK_TYPE_LABELS: Record<string, string> = {
   CV_COLLECTION: 'Collect candidate CVs',
   CV_SCREENING: 'Screen incoming CVs',
   INTERVIEW_COORDINATION: 'Coordinate interviews',
+  HIRING: 'Complete hiring',
+};
+
+const formatSalary = (value: unknown) => {
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount > 0 ? `${amount.toLocaleString('vi-VN')} VND` : null;
+};
+
+const salaryRangeFromRequirements = (requirements?: Record<string, unknown> | null) => {
+  const minimum = formatSalary(requirements?.salaryMin);
+  const maximum = formatSalary(requirements?.salaryMax);
+  if (minimum && maximum) return `${minimum} - ${maximum}`;
+  if (minimum) return `From ${minimum}`;
+  if (maximum) return `Up to ${maximum}`;
+  return 'Not provided';
 };
 
 export const AdminApprovalQueue: React.FC = () => {
@@ -174,7 +189,7 @@ export const AdminApprovalQueue: React.FC = () => {
                           ? 'Rejected'
                           : 'Draft',
                 submitted: new Date(request.createdAt).toLocaleDateString(),
-                salaryRange: 'Not provided',
+                salaryRange: salaryRangeFromRequirements(request.skillRequirements),
                 description: request.jobDescription || request.justification,
                 documents: [],
                 approvalType: isPlanApproval ? 'PLAN' : 'REQUEST',

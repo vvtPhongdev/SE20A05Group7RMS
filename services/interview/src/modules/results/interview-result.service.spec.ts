@@ -210,7 +210,7 @@ describe('InterviewResultService', () => {
     );
   });
 
-  it('records personal feedback for a department head after interview time', async () => {
+  it('records only the technical score for a department head after interview time', async () => {
     const past = new Date(Date.now() - 60 * 60 * 1000);
     prisma.interviewSchedule.findUnique.mockResolvedValue({
       id: 'interview-1',
@@ -252,8 +252,8 @@ describe('InterviewResultService', () => {
           evaluatorId: 'dept-head-1',
           result: 'PASS',
           technical: 8,
-          communication: 9,
-          culture: 8,
+          communication: 0,
+          culture: 0,
         }),
       }),
     );
@@ -289,5 +289,41 @@ describe('InterviewResultService', () => {
         notes: 'Too early',
       }),
     ).rejects.toThrow(RpcException);
+  });
+
+  it('rejects department-head feedback after the department head marked absent', async () => {
+    const past = new Date(Date.now() - 60 * 60 * 1000);
+    prisma.interviewSchedule.findUnique.mockResolvedValue({
+      id: 'interview-1',
+      candidateId: 'candidate-1',
+      requestId: 'request-1',
+      scheduledAt: past,
+      status: InterviewStatus.SCHEDULED,
+      interviewers: ['dept-head-1'],
+      interviewerAttendance: {
+        'dept-head-1': { response: 'ABSENT' },
+      },
+      candidate: { fullName: 'John Doe' },
+      request: {
+        id: 'request-1',
+        createdById: 'dept-head-1',
+        department: { headUserId: 'dept-head-1' },
+      },
+      results: [],
+    });
+
+    await expect(
+      service.recordMyFeedback({
+        interviewId: 'interview-1',
+        evaluatorId: 'dept-head-1',
+        actorRole: UserRole.DEPARTMENT_HEAD,
+        decision: 'PASS',
+        technical: 8,
+        communication: 8,
+        culture: 8,
+      }),
+    ).rejects.toThrow(RpcException);
+
+    expect(prisma.interviewResult.create).not.toHaveBeenCalled();
   });
 });

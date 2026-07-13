@@ -339,6 +339,7 @@ export class RecruitmentRequestsService {
   }
 
   async createForDepartmentHead(payload: {
+    departmentId: string;
     positionTitle: string;
     headcount: number;
     jobDescription: string;
@@ -350,13 +351,29 @@ export class RecruitmentRequestsService {
   }) {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.createdById },
-      select: { departmentId: true },
+      select: { organizationId: true, role: true, isActive: true },
     });
 
-    if (!user?.departmentId) {
+    if (!user?.isActive || user.role !== UserRole.DEPARTMENT_HEAD) {
       throw new RpcException({
-        status: HttpStatus.BAD_REQUEST,
-        message: 'Your account is not assigned to a department',
+        status: HttpStatus.FORBIDDEN,
+        message: 'Only an active department head can create recruitment requests',
+      });
+    }
+
+    const department = await this.prisma.department.findFirst({
+      where: {
+        id: payload.departmentId,
+        organizationId: user.organizationId,
+        headUserId: payload.createdById,
+      },
+      select: { id: true },
+    });
+
+    if (!department) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'You can only create requests for departments you manage',
       });
     }
 
@@ -366,7 +383,7 @@ export class RecruitmentRequestsService {
 
     const created = await this.prisma.recruitmentRequest.create({
       data: {
-        departmentId: user.departmentId,
+        departmentId: department.id,
         createdById: payload.createdById,
         position: payload.positionTitle,
         headcount: payload.headcount,

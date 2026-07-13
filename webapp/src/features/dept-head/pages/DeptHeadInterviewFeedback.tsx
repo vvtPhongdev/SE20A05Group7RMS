@@ -16,6 +16,7 @@ import {
 
 type RecordingStatus = 'Pending Recording' | 'Recorded';
 type Decision = 'PASS' | 'FAIL';
+type AttendanceStatus = 'PENDING' | 'ACCEPTED' | 'ABSENT';
 
 type CompletedInterview = {
   id: string;
@@ -24,6 +25,7 @@ type CompletedInterview = {
   department: string;
   time: string;
   status: RecordingStatus;
+  attendanceStatus: AttendanceStatus;
 };
 
 type PanelFeedback = {
@@ -37,8 +39,7 @@ type PanelFeedback = {
   culture: number;
   notes: string;
   isRecorded?: boolean;
-  meetingPhotoName?: string;
-  meetingPhotoDataUrl?: string;
+  attendanceStatus?: AttendanceStatus;
 };
 
 type InterviewDetailsResponse = {
@@ -51,16 +52,12 @@ type InterviewDetailsResponse = {
   feedbacks: PanelFeedback[];
   myFeedback?: PanelFeedback | null;
   canSubmitMyFeedback?: boolean;
+  isDepartmentHeadAbsent?: boolean;
 };
 
 type MyFeedbackResponse = {
   success: boolean;
   feedback: PanelFeedback;
-};
-
-type MeetingPhotoEvidence = {
-  photoName?: string;
-  photoDataUrl?: string;
 };
 
 const MEETING_PHOTO_START = '[INTERVIEW_MEETING_PHOTO]';
@@ -101,8 +98,6 @@ const statusTone: Record<RecordingStatus, 'approved' | 'revision'> = {
 
 const scoreFields = [
   ['technical', 'Technical'],
-  ['communication', 'Communication'],
-  ['culture', 'Culture Fit'],
 ] as const;
 
 const deptHeadFeedbackApi = {
@@ -124,18 +119,14 @@ const asDecision = (value: unknown): Decision => (value === 'FAIL' ? 'FAIL' : 'P
 const asRecordingStatus = (value: unknown): RecordingStatus =>
   value === 'Recorded' ? 'Recorded' : 'Pending Recording';
 
+const asAttendanceStatus = (value: unknown): AttendanceStatus =>
+  value === 'ABSENT' || value === 'ACCEPTED' ? value : 'PENDING';
+
 const parseMeetingPhotoEvidence = (notes: string) => {
   const match = notes.match(meetingPhotoPattern);
-  if (!match) return { cleanNotes: notes, evidence: null as MeetingPhotoEvidence | null };
+  if (!match) return { cleanNotes: notes };
 
-  try {
-    return {
-      cleanNotes: notes.replace(meetingPhotoPattern, '').trim(),
-      evidence: JSON.parse(match[1].trim()) as MeetingPhotoEvidence,
-    };
-  } catch {
-    return { cleanNotes: notes.replace(meetingPhotoPattern, '').trim(), evidence: null };
-  }
+  return { cleanNotes: notes.replace(meetingPhotoPattern, '').trim() };
 };
 
 const normalizeCompletedInterview = (value: unknown): CompletedInterview => {
@@ -147,6 +138,7 @@ const normalizeCompletedInterview = (value: unknown): CompletedInterview => {
     department: asString(item.department, 'Unknown department'),
     time: asString(item.time, 'Not scheduled'),
     status: asRecordingStatus(item.status),
+    attendanceStatus: asAttendanceStatus(item.attendanceStatus),
   };
 };
 
@@ -168,8 +160,7 @@ const normalizePanelFeedback = (
     culture: asNumber(item.culture),
     notes: parsedNotes.cleanNotes,
     isRecorded: Boolean(item.isRecorded),
-    meetingPhotoName: asString(item.meetingPhotoName, parsedNotes.evidence?.photoName),
-    meetingPhotoDataUrl: asString(item.meetingPhotoDataUrl, parsedNotes.evidence?.photoDataUrl),
+    attendanceStatus: asAttendanceStatus(item.attendanceStatus),
   };
 };
 
@@ -195,6 +186,7 @@ const normalizeInterviewDetails = (
     feedbacks,
     myFeedback,
     canSubmitMyFeedback: item.canSubmitMyFeedback !== false,
+    isDepartmentHeadAbsent: item.isDepartmentHeadAbsent === true,
   };
 };
 
@@ -206,6 +198,7 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
   const [panelFeedback, setPanelFeedback] = useState<PanelFeedback[]>([]);
   const [myFeedback, setMyFeedback] = useState<PanelFeedback>(() => emptyFeedback(user));
   const [canSubmitMyFeedback, setCanSubmitMyFeedback] = useState(true);
+  const [isDepartmentHeadAbsent, setIsDepartmentHeadAbsent] = useState(false);
   const [loading, setLoading] = useState(true);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [apiError, setApiError] = useState('');
@@ -260,9 +253,11 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
         setPanelFeedback(details.feedbacks);
         setMyFeedback(ownFeedback);
         setCanSubmitMyFeedback(details.canSubmitMyFeedback ?? true);
+        setIsDepartmentHeadAbsent(details.isDepartmentHeadAbsent === true);
       } catch (error) {
         setPanelFeedback([]);
         setMyFeedback(emptyFeedback(user));
+        setIsDepartmentHeadAbsent(false);
         setSubmitError(error instanceof Error ? error.message : 'Unable to load interview details');
       } finally {
         setDetailsLoading(false);
@@ -276,6 +271,7 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
     () => interviews.find((interview) => interview.id === selectedId) ?? interviews[0],
     [interviews, selectedId],
   );
+  const evaluationLocked = !canSubmitMyFeedback || isDepartmentHeadAbsent;
 
   const filteredInterviews = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -288,14 +284,14 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
   }, [interviews, query]);
 
   const updateMyScore = (
-    key: 'technical' | 'communication' | 'culture',
+    key: 'technical',
     value: number,
   ) => {
     setMyFeedback((current) => ({ ...current, [key]: value }));
   };
 
   const submitMyFeedback = async () => {
-    if (!selectedInterview) return;
+    if (!selectedInterview || evaluationLocked) return;
 
     setSubmitting(true);
     setSubmitMessage('');
@@ -309,8 +305,8 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
           body: JSON.stringify({
             decision: myFeedback.decision,
             technical: myFeedback.technical,
-            communication: myFeedback.communication,
-            culture: myFeedback.culture,
+            communication: 0,
+            culture: 0,
             notes: myFeedback.notes,
           }),
         },
@@ -388,9 +384,15 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
                       <h3 className="text-sm font-bold text-deep-charcoal">
                         {interview.candidate}
                       </h3>
-                      <DeptHeadStatusBadge tone={statusTone[interview.status]}>
-                        {interview.status}
-                      </DeptHeadStatusBadge>
+                      {interview.attendanceStatus === 'ABSENT' ? (
+                        <span className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-rose-700">
+                          Vắng mặt
+                        </span>
+                      ) : (
+                        <DeptHeadStatusBadge tone={statusTone[interview.status]}>
+                          {interview.status}
+                        </DeptHeadStatusBadge>
+                      )}
                     </div>
                     <p className="text-sm text-slate-ink">{interview.role}</p>
                     <div className="mt-3 flex items-center justify-between gap-3">
@@ -465,45 +467,47 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
                         </div>
                         <span
                           className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.08em] ${
-                            feedback.decision === 'PASS'
-                              ? 'border-[#16a34a]/30 bg-[#16a34a]/10 text-[#15803d]'
-                              : 'border-[#dc2626]/30 bg-[#dc2626]/10 text-[#b91c1c]'
+                            feedback.attendanceStatus === 'ABSENT'
+                              ? 'border-rose-200 bg-rose-50 text-rose-700'
+                              : feedback.decision === 'PASS'
+                                ? 'border-[#16a34a]/30 bg-[#16a34a]/10 text-[#15803d]'
+                                : 'border-[#dc2626]/30 bg-[#dc2626]/10 text-[#b91c1c]'
                           }`}
                         >
-                          {feedback.decision === 'PASS' ? 'Pass' : 'Fail'}
+                          {feedback.attendanceStatus === 'ABSENT'
+                            ? 'Vắng mặt'
+                            : feedback.decision === 'PASS'
+                              ? 'Pass'
+                              : 'Fail'}
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2">
-                        {scoreFields.map(([key, label]) => (
-                          <div
-                            className="rounded-lg border border-border-warm bg-clean-surface p-3 text-center"
-                            key={key}
-                          >
-                            <p className="text-lg font-semibold text-deep-charcoal">
-                              {feedback[key]}/10
-                            </p>
-                            <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-ink">
-                              {label}
-                            </p>
+                      {feedback.attendanceStatus === 'ABSENT' ? (
+                        <p className="mt-4 min-h-[48px] text-sm leading-6 text-rose-700">
+                          This panel member marked themselves absent and did not evaluate the candidate.
+                        </p>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-3 gap-2">
+                            {scoreFields.map(([key, label]) => (
+                              <div
+                                className="rounded-lg border border-border-warm bg-clean-surface p-3 text-center"
+                                key={key}
+                              >
+                                <p className="text-lg font-semibold text-deep-charcoal">
+                                  {feedback[key]}/10
+                                </p>
+                                <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-ink">
+                                  {label}
+                                </p>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
 
-                      <p className="mt-4 min-h-[48px] text-sm leading-6 text-slate-ink">
-                        {feedback.notes || 'No comment recorded.'}
-                      </p>
-                      {feedback.meetingPhotoDataUrl && (
-                        <div className="mt-4 rounded-lg border border-border-warm bg-clean-surface p-3">
-                          <p className="mb-2 text-xs font-bold uppercase tracking-[0.1em] text-slate-ink">
-                            {feedback.meetingPhotoName || 'Meeting report photo'}
+                          <p className="mt-4 min-h-[48px] text-sm leading-6 text-slate-ink">
+                            {feedback.notes || 'No comment recorded.'}
                           </p>
-                          <img
-                            alt={`${feedback.member} meeting report`}
-                            className="max-h-56 w-full rounded-md object-contain"
-                            src={feedback.meetingPhotoDataUrl}
-                          />
-                        </div>
+                        </>
                       )}
                     </article>
                   ))}
@@ -537,7 +541,7 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
                               ? 'border-transparent text-[#15803d] hover:bg-[#16a34a]/10'
                               : 'border-transparent text-[#b91c1c] hover:bg-[#dc2626]/10'
                         }`}
-                        disabled={!canSubmitMyFeedback || submitting}
+                        disabled={evaluationLocked || submitting}
                         key={decision}
                         onClick={() => setMyFeedback((current) => ({ ...current, decision }))}
                         type="button"
@@ -561,7 +565,7 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
                     </span>
                     <input
                       className="h-1 w-full cursor-pointer accent-teal-command disabled:cursor-not-allowed disabled:opacity-60"
-                      disabled={!canSubmitMyFeedback || submitting}
+                      disabled={evaluationLocked || submitting}
                       max="10"
                       min="0"
                       onChange={(event) => updateMyScore(key, Number(event.target.value))}
@@ -576,7 +580,7 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
                 <span className="text-sm font-bold text-slate-ink">Comments</span>
                 <textarea
                   className="min-h-[120px] w-full rounded-lg border border-border-warm bg-clean-surface p-4 text-sm leading-6 outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={!canSubmitMyFeedback || submitting}
+                  disabled={evaluationLocked || submitting}
                   onChange={(event) =>
                     setMyFeedback((current) => ({ ...current, notes: event.target.value }))
                   }
@@ -585,11 +589,15 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
                 />
               </label>
 
-              {!canSubmitMyFeedback && (
+              {isDepartmentHeadAbsent ? (
+                <DeptHeadInlineAlert tone="rejected">
+                  You marked yourself absent for this interview, so you cannot evaluate the candidate.
+                </DeptHeadInlineAlert>
+              ) : !canSubmitMyFeedback ? (
                 <DeptHeadInlineAlert tone="revision">
                   You do not have permission to submit feedback for this interview.
                 </DeptHeadInlineAlert>
-              )}
+              ) : null}
 
               <div className="mt-5 flex flex-col gap-3 border-t border-border-warm pt-5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="text-sm">
@@ -602,7 +610,7 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
                   {submitError && <span className="font-semibold text-rejected">{submitError}</span>}
                 </div>
                 <DeptHeadActionButton
-                  disabled={!canSubmitMyFeedback || submitting}
+                  disabled={evaluationLocked || submitting}
                   onClick={submitMyFeedback}
                 >
                   {submitting ? 'Saving...' : 'Save Evaluation'}

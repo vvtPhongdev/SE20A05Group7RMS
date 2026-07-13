@@ -62,6 +62,7 @@ export enum PlanStatus {
   PENDING_APPROVAL = 'PENDING_APPROVAL',
   APPROVED = 'APPROVED',
   REJECTED = 'REJECTED',
+  COMPLETED = 'COMPLETED',
 }
 
 export enum TaskType {
@@ -69,6 +70,7 @@ export enum TaskType {
   CV_COLLECTION = 'CV_COLLECTION',
   CV_SCREENING = 'CV_SCREENING',
   INTERVIEW_COORDINATION = 'INTERVIEW_COORDINATION',
+  HIRING = 'HIRING',
 }
 
 export enum TaskStatus {

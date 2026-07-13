@@ -18,6 +18,7 @@ const DEFAULT_CAMPAIGN_TASK_TYPES = [
   TaskType.CV_COLLECTION,
   TaskType.CV_SCREENING,
   TaskType.INTERVIEW_COORDINATION,
+  TaskType.HIRING,
 ];
 
 @Injectable()

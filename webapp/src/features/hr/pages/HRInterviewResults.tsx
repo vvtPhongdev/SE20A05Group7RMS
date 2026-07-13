@@ -34,8 +34,7 @@ type PanelFeedback = {
   culture: number;
   notes: string;
   isRecorded?: boolean;
-  meetingPhotoName?: string;
-  meetingPhotoDataUrl?: string;
+  attendanceStatus?: 'ACCEPTED' | 'ABSENT' | 'PENDING';
 };
 
 interface InterviewDetailsResponse {
@@ -48,6 +47,10 @@ interface InterviewDetailsResponse {
   feedbacks: PanelFeedback[];
   myFeedback?: PanelFeedback | null;
   canSubmitMyFeedback?: boolean;
+  canSubmitFinalRecommendation?: boolean;
+  hasBeenSentToAdmin?: boolean;
+  adminDecision?: 'HIRED' | 'NOT_HIRED' | null;
+  salaryRange?: SalaryRange;
   finalRecommendation: string;
   summaryNotes: string;
   location: string;
@@ -66,17 +69,16 @@ type OfflineEvidence = {
   recordedAt: string;
 };
 
-type MeetingPhotoEvidence = {
-  photoName?: string;
-  photoDataUrl?: string;
-  recordedAt?: string;
-};
-
 type SalaryDeal = {
   expectedSalary: string;
   proposedSalary: string;
   status: 'NEGOTIATING' | 'AGREED' | 'DECLINED' | 'PENDING';
   notes: string;
+};
+
+type SalaryRange = {
+  min: string;
+  max: string;
 };
 
 const RECOMMENDATION_OPTIONS_VALUES: Recommendation[] = [
@@ -91,6 +93,15 @@ const emptySalaryDeal = (): SalaryDeal => ({
   status: 'NEGOTIATING',
   notes: '',
 });
+
+const formatSalaryRange = (range: SalaryRange) => {
+  const minimum = range.min.trim();
+  const maximum = range.max.trim();
+  if (minimum && maximum) return `${minimum} – ${maximum}`;
+  if (minimum) return `From ${minimum}`;
+  if (maximum) return `Up to ${maximum}`;
+  return 'Not specified in the recruitment request';
+};
 
 const SALARY_DEAL_START = '[INTERVIEW_SALARY_DEAL]';
 const SALARY_DEAL_END = '[/INTERVIEW_SALARY_DEAL]';
@@ -140,7 +151,6 @@ const composeSalaryDeal = (summary: string, deal: SalaryDeal) => {
 
 const MEETING_PHOTO_START = '[INTERVIEW_MEETING_PHOTO]';
 const MEETING_PHOTO_END = '[/INTERVIEW_MEETING_PHOTO]';
-const MAX_MEETING_PHOTO_BYTES = 2 * 1024 * 1024;
 
 const meetingPhotoPattern = new RegExp(
   `${MEETING_PHOTO_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s\\S]*?)${MEETING_PHOTO_END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
@@ -148,41 +158,16 @@ const meetingPhotoPattern = new RegExp(
 
 const parseMeetingPhotoEvidence = (notes: string) => {
   const match = notes.match(meetingPhotoPattern);
-  if (!match) return { cleanNotes: notes, evidence: null as MeetingPhotoEvidence | null };
-
-  try {
-    return {
-      cleanNotes: notes.replace(meetingPhotoPattern, '').trim(),
-      evidence: JSON.parse(match[1].trim()) as MeetingPhotoEvidence,
-    };
-  } catch {
-    return { cleanNotes: notes.replace(meetingPhotoPattern, '').trim(), evidence: null };
-  }
+  return { cleanNotes: match ? notes.replace(meetingPhotoPattern, '').trim() : notes };
 };
 
-const applyMeetingPhotoToFeedback = (feedback: PanelFeedback): PanelFeedback => {
+// Keep legacy photo metadata out of the written assessment. New evaluations contain text only.
+const stripMeetingPhotoFromFeedback = (feedback: PanelFeedback): PanelFeedback => {
   const parsed = parseMeetingPhotoEvidence(feedback.notes);
   return {
     ...feedback,
     notes: parsed.cleanNotes,
-    meetingPhotoName: parsed.evidence?.photoName,
-    meetingPhotoDataUrl: parsed.evidence?.photoDataUrl,
   };
-};
-
-const composeMeetingPhotoNotes = (feedback: PanelFeedback) => {
-  const notes = feedback.notes.trim();
-  if (!feedback.meetingPhotoDataUrl) return notes;
-
-  const evidence: MeetingPhotoEvidence = {
-    photoName: feedback.meetingPhotoName,
-    photoDataUrl: feedback.meetingPhotoDataUrl,
-    recordedAt: new Date().toISOString(),
-  };
-
-  return [notes, `${MEETING_PHOTO_START}${JSON.stringify(evidence)}${MEETING_PHOTO_END}`]
-    .filter(Boolean)
-    .join('\n\n');
 };
 
 const hrInterviewResultsApi = {
@@ -335,6 +320,7 @@ export const HRInterviewResults: React.FC = () => {
   const [offlineEvidencePhotoName, setOfflineEvidencePhotoName] = useState('');
   const [offlineEvidencePhotoDataUrl, setOfflineEvidencePhotoDataUrl] = useState('');
   const [salaryDeal, setSalaryDeal] = useState<SalaryDeal>(() => emptySalaryDeal());
+  const [salaryRange, setSalaryRange] = useState<SalaryRange>({ min: '', max: '' });
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
   const [detailsLoading, setDetailsLoading] = useState(false);
@@ -342,10 +328,12 @@ export const HRInterviewResults: React.FC = () => {
   const [submitMessage, setSubmitMessage] = useState('');
   const [submitError, setSubmitError] = useState('');
   const [canSubmitMyFeedback, setCanSubmitMyFeedback] = useState(false);
+  const [canSubmitFinalRecommendation, setCanSubmitFinalRecommendation] = useState(false);
+  const [hasBeenSentToAdmin, setHasBeenSentToAdmin] = useState(false);
+  const [adminDecision, setAdminDecision] = useState<'HIRED' | 'NOT_HIRED' | null>(null);
 
   const canEditOwnFeedback = canSubmitMyFeedback;
-  const canSubmitDecision = isHrRole(user?.role);
-  const canSubmitCurrentResult = canEditOwnFeedback || canSubmitDecision;
+  const canSubmitDecision = isHrRole(user?.role) && canSubmitFinalRecommendation;
 
   useEffect(() => {
     const loadCompleted = async () => {
@@ -379,8 +367,11 @@ export const HRInterviewResults: React.FC = () => {
           hrInterviewResultsApi.details(selectedId),
           token,
         );
-        const nextFeedback = details.feedbacks.map(applyMeetingPhotoToFeedback);
+        const nextFeedback = details.feedbacks.map(stripMeetingPhotoFromFeedback);
         setCanSubmitMyFeedback(Boolean(details.canSubmitMyFeedback));
+        setCanSubmitFinalRecommendation(Boolean(details.canSubmitFinalRecommendation));
+        setHasBeenSentToAdmin(Boolean(details.hasBeenSentToAdmin));
+        setAdminDecision(details.adminDecision ?? null);
         if (
           details.canSubmitMyFeedback &&
           user &&
@@ -388,7 +379,7 @@ export const HRInterviewResults: React.FC = () => {
         ) {
           nextFeedback.push(
             details.myFeedback
-              ? applyMeetingPhotoToFeedback(details.myFeedback)
+              ? stripMeetingPhotoFromFeedback(details.myFeedback)
               : emptyOwnFeedback(user),
           );
         }
@@ -402,14 +393,19 @@ export const HRInterviewResults: React.FC = () => {
         const parsedSummary = parseOfflineEvidence(parsedDeal.cleanSummary);
         setSummaryNotes(parsedSummary.cleanSummary);
         setSalaryDeal(parsedDeal.deal ?? emptySalaryDeal());
+        setSalaryRange(details.salaryRange ?? { min: '', max: '' });
         setOfflineEvidenceReport(parsedSummary.evidence?.report ?? '');
         setOfflineEvidencePhotoName(parsedSummary.evidence?.photoName ?? '');
         setOfflineEvidencePhotoDataUrl(parsedSummary.evidence?.photoDataUrl ?? '');
       } catch {
         setFeedback([]);
         setCanSubmitMyFeedback(false);
+        setCanSubmitFinalRecommendation(false);
+        setHasBeenSentToAdmin(false);
+        setAdminDecision(null);
         setSummaryNotes('');
         setSalaryDeal(emptySalaryDeal());
+        setSalaryRange({ min: '', max: '' });
         setOfflineEvidenceReport('');
         setOfflineEvidencePhotoName('');
         setOfflineEvidencePhotoDataUrl('');
@@ -500,48 +496,7 @@ export const HRInterviewResults: React.FC = () => {
     setFeedback((items) => items.map((item) => (item.id === id ? { ...item, notes } : item)));
   };
 
-  const updateMeetingPhoto = (id: string, file?: File) => {
-    setSubmitError('');
-    if (!file) {
-      setFeedback((items) =>
-        items.map((item) =>
-          item.id === id
-            ? { ...item, meetingPhotoName: undefined, meetingPhotoDataUrl: undefined }
-            : item,
-        ),
-      );
-      return;
-    }
-
-    if (!file.type.startsWith('image/')) {
-      setSubmitError('Meeting report evidence must be an image file.');
-      return;
-    }
-
-    if (file.size > MAX_MEETING_PHOTO_BYTES) {
-      setSubmitError('Meeting report image must be 2MB or smaller.');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setFeedback((items) =>
-        items.map((item) =>
-          item.id === id
-            ? {
-                ...item,
-                meetingPhotoName: file.name,
-                meetingPhotoDataUrl: typeof reader.result === 'string' ? reader.result : '',
-              }
-            : item,
-        ),
-      );
-    };
-    reader.onerror = () => setSubmitError('Unable to read the selected meeting report image.');
-    reader.readAsDataURL(file);
-  };
-
-  const submitResults = async () => {
+  const submitResults = async (submitFinalRecommendation = true) => {
     if (!selectedInterview) return;
     setSubmitting(true);
     setSubmitMessage('');
@@ -563,12 +518,12 @@ export const HRInterviewResults: React.FC = () => {
               technical: ownFeedback.technical,
               communication: ownFeedback.communication,
               culture: ownFeedback.culture,
-              notes: composeMeetingPhotoNotes(ownFeedback),
+              notes: ownFeedback.notes.trim(),
             }),
           },
         );
 
-        const savedFeedback = applyMeetingPhotoToFeedback({
+        const savedFeedback = stripMeetingPhotoFromFeedback({
           ...response.feedback,
           isRecorded: true,
         });
@@ -580,7 +535,7 @@ export const HRInterviewResults: React.FC = () => {
         );
       }
 
-      if (!canSubmitDecision) {
+      if (!submitFinalRecommendation || !canSubmitDecision) {
         setSubmitMessage('Your evaluation was saved successfully.');
         return;
       }
@@ -614,6 +569,7 @@ export const HRInterviewResults: React.FC = () => {
           item.id === selectedInterview.id ? { ...item, status: 'Recorded' } : item,
         ),
       );
+      setHasBeenSentToAdmin(true);
       setSubmitMessage('Final recommendation sent to Admin for Hire/Not Hire decision.');
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Unable to submit results');
@@ -644,6 +600,11 @@ export const HRInterviewResults: React.FC = () => {
         <HRInlineAlert tone="teal">
           You can save your own interview evaluation. Final Recommendation is reserved for HR
           Leader.
+        </HRInlineAlert>
+      ) : null}
+      {adminDecision && selectedInterview ? (
+        <HRInlineAlert tone={adminDecision === 'HIRED' ? 'teal' : undefined}>
+          Admin has finalized this candidate as {adminDecision === 'HIRED' ? 'Hire' : 'Not Hire'}. No further recommendation can be sent.
         </HRInlineAlert>
       ) : null}
 
@@ -772,12 +733,18 @@ export const HRInterviewResults: React.FC = () => {
                                 )}
                                 <span
                                   className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
-                                    item.isRecorded
+                                    item.attendanceStatus === 'ABSENT'
+                                      ? 'border-rejected/30 bg-rejected/10 text-rejected'
+                                      : item.isRecorded
                                       ? 'border-approved/30 bg-approved/10 text-approved'
                                       : 'border-revision/30 bg-revision/10 text-revision'
                                   }`}
                                 >
-                                  {item.isRecorded ? 'Evaluated' : 'Not Evaluated'}
+                                  {item.attendanceStatus === 'ABSENT'
+                                    ? 'Absent'
+                                    : item.isRecorded
+                                      ? 'Evaluated'
+                                      : 'Not Evaluated'}
                                 </span>
                               </div>
                               <div className="flex w-fit rounded-lg bg-surface-container-high p-1">
@@ -786,11 +753,11 @@ export const HRInterviewResults: React.FC = () => {
                                     className={`rounded-md border px-3 py-1 text-[11px] font-bold transition active:scale-[0.98] ${
                                       item.decision === decision
                                         ? decision === 'PASS'
-                                          ? 'border-approved/30 bg-approved/10 text-approved shadow-sm'
-                                          : 'border-rejected/30 bg-rejected/10 text-rejected shadow-sm'
+                                          ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-200'
+                                          : 'border-rose-600 bg-rose-600 text-white shadow-sm ring-2 ring-rose-200'
                                         : decision === 'PASS'
-                                          ? 'border-transparent text-approved hover:bg-approved/10'
-                                          : 'border-transparent text-rejected hover:bg-rejected/10'
+                                          ? 'border border-emerald-600 bg-white text-emerald-700 hover:bg-emerald-50'
+                                          : 'border border-rose-600 bg-white text-rose-700 hover:bg-rose-50'
                                     }`}
                                     disabled={!editable || submitting}
                                     key={decision}
@@ -802,6 +769,12 @@ export const HRInterviewResults: React.FC = () => {
                                 ))}
                               </div>
                             </div>
+
+                            {item.attendanceStatus === 'ABSENT' ? (
+                              <p className="rounded-lg border border-rejected/20 bg-rejected/5 px-3 py-2 text-sm text-rejected">
+                                This panel member marked absent and is not required to evaluate the candidate.
+                              </p>
+                            ) : null}
 
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                               {(
@@ -837,52 +810,6 @@ export const HRInterviewResults: React.FC = () => {
                               placeholder="Panel member observations..."
                               value={item.notes}
                             />
-                            <div className="rounded-lg border border-border-warm bg-clean-surface p-3">
-                              <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                <div>
-                                  <p className="text-xs font-bold uppercase tracking-[0.08em] text-slate-ink">
-                                    Meeting report photo
-                                  </p>
-                                  <p className="mt-1 text-xs text-slate-ink">
-                                    Upload an interview meeting image for Admin review.
-                                  </p>
-                                </div>
-                                {editable && item.meetingPhotoDataUrl && (
-                                  <button
-                                    className="w-fit rounded-md border border-border-warm px-3 py-1.5 text-xs font-semibold text-rejected transition hover:bg-rejected/10"
-                                    disabled={submitting}
-                                    onClick={() => updateMeetingPhoto(item.id)}
-                                    type="button"
-                                  >
-                                    Remove photo
-                                  </button>
-                                )}
-                              </div>
-                              {editable && (
-                                <input
-                                  accept="image/*"
-                                  className="block w-full rounded-lg border border-border-warm bg-workflow-ivory/40 p-2 text-sm file:mr-4 file:rounded-md file:border-0 file:bg-teal-command file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white disabled:cursor-not-allowed disabled:opacity-70"
-                                  disabled={submitting}
-                                  onChange={(event) => {
-                                    updateMeetingPhoto(item.id, event.target.files?.[0]);
-                                    event.target.value = '';
-                                  }}
-                                  type="file"
-                                />
-                              )}
-                              {item.meetingPhotoDataUrl && (
-                                <div className="mt-3 rounded-lg border border-border-warm bg-workflow-ivory/30 p-3">
-                                  <p className="mb-2 text-xs font-semibold text-slate-ink">
-                                    {item.meetingPhotoName || 'Meeting report photo'}
-                                  </p>
-                                  <img
-                                    alt="Interview meeting report"
-                                    className="max-h-56 w-full rounded-md object-contain"
-                                    src={item.meetingPhotoDataUrl}
-                                  />
-                                </div>
-                              )}
-                            </div>
                           </div>
                         </div>
                       </article>
@@ -945,6 +872,17 @@ export const HRInterviewResults: React.FC = () => {
                         <p className="mt-1 text-sm leading-6 text-slate-ink">
                           Record the candidate compensation discussion so Admin can prepare the
                           offer with the right framework.
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-teal-command/20 bg-teal-command/5 p-3">
+                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-teal-command">
+                          Salary Range from Recruitment Request
+                        </p>
+                        <p className="mt-1 text-base font-bold text-deep-charcoal">
+                          {formatSalaryRange(salaryRange)}
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-slate-ink">
+                          Compare this approved range with the candidate expectation and HR proposed salary below.
                         </p>
                       </div>
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -1104,17 +1042,31 @@ export const HRInterviewResults: React.FC = () => {
                 {submitError && <span className="font-semibold text-rejected">{submitError}</span>}
               </div>
               <div className="flex flex-col gap-3 sm:flex-row">
+                {canEditOwnFeedback && (
+                  <button
+                    className="rounded-lg border border-teal-command px-6 py-2.5 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 disabled:opacity-70"
+                    disabled={submitting}
+                    onClick={() => void submitResults(false)}
+                    type="button"
+                  >
+                    {submitting ? 'Saving...' : 'Save My Evaluation'}
+                  </button>
+                )}
                 <button
                   className="rounded-lg bg-teal-command px-8 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary active:scale-[0.98] disabled:opacity-70"
-                  disabled={submitting || !canSubmitCurrentResult}
-                  onClick={submitResults}
+                  disabled={submitting || !canSubmitDecision || Boolean(adminDecision)}
+                  onClick={() => void submitResults(true)}
                   type="button"
                 >
                   {submitting
                     ? 'Submitting...'
-                    : canSubmitDecision
-                      ? 'Send Recommendation to Admin'
-                      : 'Save My Evaluation'}
+                    : adminDecision === 'HIRED'
+                      ? 'Admin chose Hire'
+                      : adminDecision === 'NOT_HIRED'
+                        ? 'Admin chose Not Hire'
+                        : hasBeenSentToAdmin
+                          ? 'Resend for Admin'
+                          : 'Send Recommendation to Admin'}
                 </button>
               </div>
             </footer>

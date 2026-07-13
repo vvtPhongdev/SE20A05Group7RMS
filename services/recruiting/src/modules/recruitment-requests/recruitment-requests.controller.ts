@@ -15,6 +15,7 @@ export class RecruitmentRequestsController {
   createForDepartmentHead(
     @Payload()
     payload: {
+      departmentId: string;
       positionTitle: string;
       headcount: number;
       jobDescription: string;

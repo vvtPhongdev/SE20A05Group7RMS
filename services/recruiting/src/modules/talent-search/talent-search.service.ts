@@ -96,16 +96,10 @@ export class TalentSearchService {
     const expanded = this.expander.expand(effectiveQuery);
     this.logger.debug(`Expanded "${effectiveQuery}" -> ${expanded.expandedSkills.length} skills`);
 
+    // A campaign provides the JD and required-skill context for ranking. It must not
+    // restrict discovery to candidates already added to that campaign, otherwise a
+    // new campaign can never find candidates to add.
     const candidates = await this.prisma.candidateProfile.findMany({
-      where: requestId
-        ? {
-            applications: {
-              some: {
-                requestId,
-              },
-            },
-          }
-        : undefined,
       include: {
         user: { select: { displayName: true } },
         cvDocuments: {
@@ -133,7 +127,7 @@ export class TalentSearchService {
       ...(expanded.resolvedSkill ? [expanded.resolvedSkill] : []),
       ...expanded.expandedSkills,
     ]).slice(0, 30);
-    const vectorScores = await this.getVectorScores(effectiveQuery, requestId);
+    const vectorScores = await this.getVectorScores(effectiveQuery);
     const feedbackScores = await this.getFeedbackScores(
       candidates.map((candidate: any) => candidate.id),
       requestId,
@@ -148,7 +142,10 @@ export class TalentSearchService {
           preferredWorkMode?: string;
           yearsOfExperience?: number;
         } | null;
-        const candidateSkills = capabilities?.skills ?? [];
+        const candidateSkills = [
+          ...(capabilities?.skills ?? []),
+          ...(capabilities?.currentRole ? [capabilities.currentRole] : []),
+        ];
         if (filters?.workMode && capabilities?.preferredWorkMode !== filters.workMode) {
           return null;
         }
@@ -377,23 +374,18 @@ export class TalentSearchService {
     };
   }
 
-  private async getVectorScores(query: string, requestId?: string): Promise<Map<string, number>> {
+  private async getVectorScores(query: string): Promise<Map<string, number>> {
     try {
       const embedding = await getQueryEmbedding(query);
       const vectorStr = embeddingToPgVector(embedding);
-      const applicationJoin = requestId
-        ? 'JOIN applications app ON app."candidate_id" = cv."candidate_id" AND app."request_id" = $2'
-        : '';
       const rows = (await this.prisma.$queryRawUnsafe(
         `SELECT cv."candidate_id" AS "candidateId",
                 MAX(1 - (ce.embedding <=> $1::vector)) AS similarity
          FROM cv_embeddings ce
          JOIN candidate_cvs cv ON cv.id = ce."cv_document_id"
-         ${applicationJoin}
          WHERE ce.embedding IS NOT NULL
          GROUP BY cv."candidate_id"`,
         vectorStr,
-        ...(requestId ? [requestId] : []),
       )) as Array<{ candidateId: string; similarity: number | string | null }>;
 
       return new Map(

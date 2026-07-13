@@ -910,6 +910,41 @@ async function main() {
     },
   });
 
+  // Keep the shared demo database aligned with the single multi-department head model.
+  // The external account is managed outside the seed, so only consolidate when it exists.
+  const consolidatedDepartmentHead = await prisma.user.findUnique({
+    where: { email: 'nlbtboss1@gmail.com' },
+    select: { id: true, organizationId: true },
+  });
+
+  if (consolidatedDepartmentHead) {
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: consolidatedDepartmentHead.id },
+        data: { role: 'DEPARTMENT_HEAD', isActive: true },
+      }),
+      prisma.recruitmentRequest.updateMany({
+        where: {
+          department: { organizationId: consolidatedDepartmentHead.organizationId },
+          createdById: { not: consolidatedDepartmentHead.id },
+        },
+        data: { createdById: consolidatedDepartmentHead.id },
+      }),
+      prisma.department.updateMany({
+        where: { organizationId: consolidatedDepartmentHead.organizationId },
+        data: { headUserId: consolidatedDepartmentHead.id },
+      }),
+      prisma.user.updateMany({
+        where: {
+          organizationId: consolidatedDepartmentHead.organizationId,
+          role: 'DEPARTMENT_HEAD',
+          id: { not: consolidatedDepartmentHead.id },
+        },
+        data: { role: 'CANDIDATE', isActive: false },
+      }),
+    ]);
+  }
+
   console.log('Seed complete: required fixture set is ready.');
   console.log('Login password for all seeded users: Password123!');
 }

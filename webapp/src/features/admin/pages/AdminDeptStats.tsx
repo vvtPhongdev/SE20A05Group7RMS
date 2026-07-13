@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest } from '../../../lib/api';
@@ -20,17 +20,33 @@ interface DepartmentCardData {
   pendingApproved: boolean;
 }
 
-interface PerformanceBar {
-  label: string;
-  requested: number;
-  inProgress: number;
-  filled: number;
+interface CampaignProgress {
+  id: string;
+  position: string;
+  department: string;
+  departmentCode: string;
+  status: string;
+  progress: number;
+  completedTasks: number;
+  inProgressTasks: number;
+  totalTasks: number;
+  collectedCVs: number;
+  screeningCVs: number;
+  hiredCount: number;
+  notHiredCount: number;
+  interviewedCount: number;
+  stages: Array<{
+    type: string;
+    status: string;
+  }>;
 }
 
 interface PendingApproval {
   department: string;
-  requests: number;
+  hrReview: number;
+  adminReview: number;
   plans: number;
+  total: number;
   oldest: string;
   badge: boolean;
 }
@@ -45,20 +61,27 @@ interface HeadActivity {
   avatarBg: string;
 }
 
-
+const PLAN_STAGE_ORDER = [
+  'JOB_POSTING',
+  'CV_COLLECTION',
+  'CV_SCREENING',
+  'INTERVIEW_COORDINATION',
+] as const;
 
 export const AdminDeptStats: React.FC = () => {
   const { token } = useAuth();
   const [range, setRange] = useState<'Last 30 days' | 'Quarter' | 'Year'>('Last 30 days');
   const [data, setData] = useState<{
     cards: DepartmentCardData[];
-    chart: PerformanceBar[];
+    campaigns: CampaignProgress[];
     pending: PendingApproval[];
     activity: HeadActivity[];
-  }>({ cards: [], chart: [], pending: [], activity: [] });
+  }>({ cards: [], campaigns: [], pending: [], activity: [] });
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
-  const { cards, chart, pending, activity } = data;
+  const [selectedDepartment, setSelectedDepartment] = useState('All Departments');
+  const [selectedCampaignId, setSelectedCampaignId] = useState('');
+  const { cards, campaigns, pending, activity } = data;
 
   useEffect(() => {
     let cancelled = false;
@@ -77,7 +100,7 @@ export const AdminDeptStats: React.FC = () => {
           setApiError(
             error instanceof Error ? error.message : 'Unable to load department statistics',
           );
-          setData({ cards: [], chart: [], pending: [], activity: [] });
+          setData({ cards: [], campaigns: [], pending: [], activity: [] });
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -89,8 +112,29 @@ export const AdminDeptStats: React.FC = () => {
     };
   }, [range, token]);
 
-  // We find max value dynamically to compute relative percentage heights for chart bars
-  const maxVal = Math.max(...chart.flatMap((c) => [c.requested, c.inProgress, c.filled]), 20);
+  const maxPendingTotal = Math.max(1, ...pending.map((item) => item.total));
+  const departmentOptions = useMemo(
+    () => [
+      'All Departments',
+      ...Array.from(new Set(campaigns.map((campaign) => campaign.department))),
+    ],
+    [campaigns],
+  );
+  const visibleCampaigns = useMemo(
+    () =>
+      selectedDepartment === 'All Departments'
+        ? campaigns
+        : campaigns.filter((campaign) => campaign.department === selectedDepartment),
+    [campaigns, selectedDepartment],
+  );
+  const selectedCampaign =
+    visibleCampaigns.find((campaign) => campaign.id === selectedCampaignId) ?? visibleCampaigns[0];
+  const stageLabels: Record<string, string> = {
+    JOB_POSTING: 'Job posting',
+    CV_COLLECTION: 'CV collection',
+    CV_SCREENING: 'CV screening',
+    INTERVIEW_COORDINATION: 'Interview',
+  };
 
   return (
     <AdminDashboardPage>
@@ -184,65 +228,161 @@ export const AdminDeptStats: React.FC = () => {
         ))}
       </div>
 
-      {/* Comparison Performance Chart */}
+      {/* Campaign Progress Chart */}
       <AdminCard className="mb-8 text-on-surface">
-        <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
-          <h3 className="font-headline-md text-headline-md text-deep-charcoal font-semibold">
-            Department Performance Comparison
-          </h3>
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-[#99f6e4]"></div>
-              <span className="text-label-sm text-secondary font-medium">Requested</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-[#2dd4bf]"></div>
-              <span className="text-label-sm text-secondary font-medium">In Progress</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-[#0d9488]"></div>
-              <span className="text-label-sm text-secondary font-medium">Filled</span>
-            </div>
+        <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h3 className="font-headline-md text-headline-md text-deep-charcoal font-semibold">
+              Recruitment Plan Stages
+            </h3>
+            <p className="mt-1 text-body-sm text-secondary">
+              Select a department and campaign to review plan stages, collected CVs, and hires.
+            </p>
           </div>
-        </div>
-        <div className="h-80 w-full relative flex items-end justify-around border-l border-b border-border-warm px-8 pb-1">
-          {/* Y Axis Labels */}
-          <div className="absolute left-[-40px] top-0 bottom-0 flex flex-col justify-between text-label-sm text-secondary py-1 select-none">
-            <span>{Math.round(maxVal)}</span>
-            <span>{Math.round(maxVal * 0.75)}</span>
-            <span>{Math.round(maxVal * 0.5)}</span>
-            <span>{Math.round(maxVal * 0.25)}</span>
-            <span>0</span>
-          </div>
-          {/* Chart Bars */}
-          {chart.map((group) => (
-            <div
-              className="flex flex-col items-center group/group w-1/5 max-w-[120px]"
-              key={group.label}
+          <div className="flex flex-wrap gap-3">
+            <select
+              aria-label="Select department"
+              className="rounded-lg border border-border-warm bg-clean-surface px-3 py-2 text-label-sm text-deep-charcoal outline-none focus:border-teal-command"
+              onChange={(event) => {
+                setSelectedDepartment(event.target.value);
+                setSelectedCampaignId('');
+              }}
+              value={selectedDepartment}
             >
-              <div className="flex items-end gap-1.5 h-64 w-full justify-center">
-                <div
-                  className="w-1/3 min-w-[8px] bg-[#99f6e4] rounded-t-sm hover:opacity-80 transition-all duration-300"
-                  style={{ height: `${(group.requested / maxVal) * 100}%` }}
-                  title={`Requested: ${group.requested}`}
-                ></div>
-                <div
-                  className="w-1/3 min-w-[8px] bg-[#2dd4bf] rounded-t-sm hover:opacity-80 transition-all duration-300"
-                  style={{ height: `${(group.inProgress / maxVal) * 100}%` }}
-                  title={`In Progress: ${group.inProgress}`}
-                ></div>
-                <div
-                  className="w-1/3 min-w-[8px] bg-[#0d9488] rounded-t-sm hover:opacity-80 transition-all duration-300"
-                  style={{ height: `${(group.filled / maxVal) * 100}%` }}
-                  title={`Filled: ${group.filled}`}
-                ></div>
-              </div>
-              <span className="mt-4 text-label-sm text-deep-charcoal font-semibold select-none">
-                {group.label}
-              </span>
-            </div>
-          ))}
+              {departmentOptions.map((department) => (
+                <option key={department} value={department}>
+                  {department}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Select campaign"
+              className="max-w-[280px] rounded-lg border border-border-warm bg-clean-surface px-3 py-2 text-label-sm text-deep-charcoal outline-none focus:border-teal-command"
+              disabled={visibleCampaigns.length === 0}
+              onChange={(event) => setSelectedCampaignId(event.target.value)}
+              value={selectedCampaign?.id ?? ''}
+            >
+              {visibleCampaigns.map((campaign) => (
+                <option key={campaign.id} value={campaign.id}>
+                  {campaign.departmentCode} · {campaign.position}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
+        {selectedCampaign ? (
+          <>
+            <div className="mb-7 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="rounded-lg border border-border-warm bg-workflow-ivory/40 p-4">
+                <p className="text-label-sm text-secondary">Plan completion</p>
+                <p className="mt-1 font-data-mono text-2xl font-bold text-teal-command">
+                  {selectedCampaign.progress}%
+                </p>
+              </div>
+              <div className="rounded-lg border border-border-warm bg-workflow-ivory/40 p-4">
+                <p className="text-label-sm text-secondary">CVs collected</p>
+                <p className="mt-1 font-data-mono text-2xl font-bold text-deep-charcoal">
+                  {selectedCampaign.collectedCVs}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border-warm bg-workflow-ivory/40 p-4">
+                <p className="text-label-sm text-secondary">Candidates hired</p>
+                <p className="mt-1 font-data-mono text-2xl font-bold text-approved">
+                  {selectedCampaign.hiredCount}
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {PLAN_STAGE_ORDER.map((stageType) => {
+                const stage = selectedCampaign.stages.find((item) => item.type === stageType) ?? {
+                  type: stageType,
+                  status: 'PENDING',
+                };
+                const isCollection = stage.type === 'CV_COLLECTION';
+                const isScreening = stage.type === 'CV_SCREENING';
+                const isInterview = stage.type === 'INTERVIEW_COORDINATION';
+                const complete = stage.status === 'COMPLETED';
+                return (
+                  <div className="rounded-lg border border-border-warm p-4" key={stage.type}>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-semibold text-deep-charcoal">
+                        {stageLabels[stage.type] ?? stage.type}
+                      </p>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${complete ? 'bg-approved/10 text-approved' : stage.status === 'IN_PROGRESS' ? 'bg-pending/10 text-pending' : 'bg-surface-container text-secondary'}`}
+                      >
+                        {stage.status.replace('_', ' ')}
+                      </span>
+                    </div>
+                    <div className="mt-5 h-2 overflow-hidden rounded-full bg-surface-container">
+                      <div
+                        className={`h-full rounded-full ${complete ? 'bg-approved' : stage.status === 'IN_PROGRESS' ? 'bg-pending' : 'bg-secondary/30'}`}
+                        style={{
+                          width: complete ? '100%' : stage.status === 'IN_PROGRESS' ? '50%' : '0%',
+                        }}
+                      />
+                    </div>
+                    {isInterview ? (
+                      <div className="mt-4">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-secondary">
+                          Interview candidates
+                        </p>
+                        <div className="grid grid-cols-3 gap-2 text-center font-data-mono">
+                          <div className="rounded-md bg-teal-command/10 px-2 py-2">
+                            <p className="text-2xl font-bold text-teal-command">
+                              {selectedCampaign.interviewedCount}
+                            </p>
+                            <p className="mt-1 text-[10px] font-semibold uppercase text-teal-command">
+                              Interviewed
+                            </p>
+                          </div>
+                          <div className="rounded-md bg-approved/10 px-2 py-2">
+                            <p className="text-2xl font-bold text-approved">
+                              {selectedCampaign.hiredCount}
+                            </p>
+                            <p className="mt-1 text-[10px] font-semibold uppercase text-approved">
+                              Hiring
+                            </p>
+                          </div>
+                          <div className="rounded-md bg-rejected/10 px-2 py-2">
+                            <p className="text-2xl font-bold text-rejected">
+                              {selectedCampaign.notHiredCount}
+                            </p>
+                            <p className="mt-1 text-[10px] font-semibold uppercase text-rejected">
+                              Not hiring
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="mt-4 font-data-mono text-lg font-bold text-teal-command">
+                          {isCollection
+                            ? `${selectedCampaign.collectedCVs} CVs collected`
+                            : isScreening
+                              ? `${selectedCampaign.screeningCVs} CVs being screened`
+                              : complete
+                                ? 'Task completed'
+                                : 'No output yet'}
+                        </p>
+                        {isScreening && (
+                          <p className="mt-1 text-xs text-secondary">
+                            Includes all CVs collected from Talent Pool, including candidates who
+                            have progressed to later stages.
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : !loading ? (
+          <p className="py-10 text-center text-body-sm text-secondary">
+            No campaign plans found for the selected department and period.
+          </p>
+        ) : null}
       </AdminCard>
 
       {/* Bottom Layout Tables */}
@@ -251,9 +391,14 @@ export const AdminDeptStats: React.FC = () => {
         <div className="col-span-12 lg:col-span-7 bg-clean-surface rounded-lg border border-border-warm shadow-sm overflow-hidden flex flex-col justify-between">
           <div>
             <div className="px-6 py-4 border-b border-border-warm flex justify-between items-center">
-              <h3 className="font-headline-md text-headline-md text-deep-charcoal font-semibold">
-                Pending Approvals by Department
-              </h3>
+              <div>
+                <h3 className="font-headline-md text-headline-md text-deep-charcoal font-semibold">
+                  Pending Approvals by Department
+                </h3>
+                <p className="mt-1 text-body-sm text-secondary">
+                  Requests waiting for HR, Admin, or plan approval.
+                </p>
+              </div>
               <Link
                 to="/admin/approval-queue"
                 className="text-teal-command text-label-md font-semibold hover:underline transition-all active:scale-[0.98]"
@@ -261,54 +406,135 @@ export const AdminDeptStats: React.FC = () => {
                 View All
               </Link>
             </div>
-            <table className="w-full text-left">
-              <thead className="bg-surface-container-low text-label-sm text-secondary">
-                <tr>
-                  <th className="px-6 py-3 font-semibold uppercase tracking-wider">Department</th>
-                  <th className="px-6 py-3 font-semibold uppercase tracking-wider text-center">
-                    Requests
-                  </th>
-                  <th className="px-6 py-3 font-semibold uppercase tracking-wider text-center">
-                    Plans
-                  </th>
-                  <th className="px-6 py-3 font-semibold uppercase tracking-wider">
-                    Oldest Pending
-                  </th>
-                  <th className="px-6 py-3 font-semibold uppercase tracking-wider">Action</th>
-                </tr>
-              </thead>
-              <tbody className="text-body-sm text-on-surface">
-                {pending.map((p) => (
-                  <tr
-                    className={`border-b border-border-warm transition-colors ${
-                      p.badge ? 'bg-[#fffbeb]' : 'hover:bg-workflow-ivory'
-                    }`}
-                    key={p.department}
+            <div className="border-b border-border-warm bg-workflow-ivory/35 px-6 py-5">
+              <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-label-sm text-secondary">
+                <span className="font-semibold text-deep-charcoal">Pending approval workload</span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm bg-[#2563EB]" /> HR Review
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm bg-[#D97706]" /> Admin Review
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm bg-[#7C3AED]" /> Plan Approval
+                </span>
+              </div>
+              <div className="space-y-3">
+                {pending.map((item) => (
+                  <div
+                    className="grid grid-cols-[minmax(100px,0.7fr)_minmax(180px,2fr)_auto] items-center gap-3"
+                    key={item.department}
                   >
-                    <td className="px-6 py-4 font-semibold text-deep-charcoal">{p.department}</td>
-                    <td className="px-6 py-4 text-center font-data-mono">{p.requests}</td>
-                    <td className="px-6 py-4 text-center font-data-mono">{p.plans}</td>
-                    <td className="px-6 py-4">
-                      {p.badge ? (
-                        <span className="px-2 py-1 rounded bg-error-container text-on-error-container text-[11px] font-bold uppercase select-none">
-                          {p.oldest}
-                        </span>
-                      ) : (
-                        <span className="text-secondary">{p.oldest}</span>
+                    <span
+                      className="truncate text-label-sm font-semibold text-deep-charcoal"
+                      title={item.department}
+                    >
+                      {item.department}
+                    </span>
+                    <div className="flex h-4 overflow-hidden rounded-full bg-surface-container">
+                      {item.hrReview > 0 && (
+                        <span
+                          className="h-full bg-[#2563EB]"
+                          style={{ width: `${(item.hrReview / maxPendingTotal) * 100}%` }}
+                          title={`HR Review: ${item.hrReview}`}
+                        />
                       )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <Link
-                        className="text-teal-command font-semibold hover:underline"
-                        to="/admin/approval-queue"
-                      >
-                        Review
-                      </Link>
-                    </td>
-                  </tr>
+                      {item.adminReview > 0 && (
+                        <span
+                          className="h-full bg-[#D97706]"
+                          style={{ width: `${(item.adminReview / maxPendingTotal) * 100}%` }}
+                          title={`Admin Review: ${item.adminReview}`}
+                        />
+                      )}
+                      {item.plans > 0 && (
+                        <span
+                          className="h-full bg-[#7C3AED]"
+                          style={{ width: `${(item.plans / maxPendingTotal) * 100}%` }}
+                          title={`Plan Approval: ${item.plans}`}
+                        />
+                      )}
+                    </div>
+                    <span className="font-data-mono text-label-sm font-semibold text-slate-ink">
+                      {item.total}
+                    </span>
+                  </div>
                 ))}
-              </tbody>
-            </table>
+                {pending.length === 0 && (
+                  <p className="py-2 text-center text-body-sm text-secondary">
+                    No pending approvals to chart for the selected period.
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left">
+                <thead className="bg-surface-container-low text-label-sm text-secondary">
+                  <tr>
+                    <th className="px-6 py-3 font-semibold uppercase tracking-wider">Department</th>
+                    <th className="px-6 py-3 font-semibold uppercase tracking-wider text-center">
+                      HR Review
+                    </th>
+                    <th className="px-6 py-3 font-semibold uppercase tracking-wider text-center">
+                      Admin Review
+                    </th>
+                    <th className="px-6 py-3 font-semibold uppercase tracking-wider text-center">
+                      Plan Approval
+                    </th>
+                    <th className="px-6 py-3 font-semibold uppercase tracking-wider text-center">
+                      Total
+                    </th>
+                    <th className="px-6 py-3 font-semibold uppercase tracking-wider">
+                      Oldest Pending
+                    </th>
+                    <th className="px-6 py-3 font-semibold uppercase tracking-wider">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="text-body-sm text-on-surface">
+                  {pending.map((p) => (
+                    <tr
+                      className={`border-b border-border-warm transition-colors ${
+                        p.badge ? 'bg-[#fffbeb]' : 'hover:bg-workflow-ivory'
+                      }`}
+                      key={p.department}
+                    >
+                      <td className="px-6 py-4 font-semibold text-deep-charcoal">{p.department}</td>
+                      <td className="px-6 py-4 text-center font-data-mono">{p.hrReview}</td>
+                      <td className="px-6 py-4 text-center font-data-mono">{p.adminReview}</td>
+                      <td className="px-6 py-4 text-center font-data-mono">{p.plans}</td>
+                      <td className="px-6 py-4 text-center">
+                        <span className="inline-flex min-w-7 items-center justify-center rounded-full bg-teal-command/10 px-2 py-1 font-data-mono font-semibold text-teal-command">
+                          {p.total}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {p.badge ? (
+                          <span className="px-2 py-1 rounded bg-error-container text-on-error-container text-[11px] font-bold uppercase select-none">
+                            {p.oldest}
+                          </span>
+                        ) : (
+                          <span className="text-secondary">{p.oldest}</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <Link
+                          className="text-teal-command font-semibold hover:underline"
+                          to="/admin/approval-queue"
+                        >
+                          Review
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                  {pending.length === 0 && (
+                    <tr>
+                      <td className="px-6 py-8 text-center text-secondary" colSpan={7}>
+                        No pending approvals for the selected period.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 

@@ -14,9 +14,8 @@ import {
 interface ManagerPerformance {
   name: string;
   requests: number;
-  avgProcessing: string;
+  avgProcessingDays: number;
   fillRate: number;
-  efficiencyPath: string;
 }
 interface AnnualReport {
   year: number;
@@ -52,10 +51,40 @@ interface AnnualReport {
   timeToHireByStage: Array<{ stage: string; days: number }>;
 }
 
+const departmentPalette = [
+  '#0F766E', // teal
+  '#2563EB', // blue
+  '#D97706', // amber
+  '#7C3AED', // violet
+  '#DC2626', // red
+  '#16A34A', // green
+  '#DB2777', // pink
+  '#4F46E5', // indigo
+];
+
+const getDepartmentColor = (index: number) =>
+  departmentPalette[index] ?? `hsl(${(index * 137.508) % 360} 65% 42%)`;
+
+const stagePalette = ['#2563EB', '#7C3AED', '#D97706', '#DC2626', '#0F766E', '#DB2777'];
+
+const toPiePoint = (angle: number, radius = 50) => {
+  const radians = ((angle - 90) * Math.PI) / 180;
+  return {
+    x: 50 + radius * Math.cos(radians),
+    y: 50 + radius * Math.sin(radians),
+  };
+};
+
+const createPieSlicePath = (startAngle: number, endAngle: number) => {
+  const start = toPiePoint(startAngle);
+  const end = toPiePoint(endAngle);
+  const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+  return `M 50 50 L ${start.x} ${start.y} A 50 50 0 ${largeArc} 1 ${end.x} ${end.y} Z`;
+};
+
 export const AdminAnnualReport: React.FC = () => {
   const { token } = useAuth();
   const [selectedYear, setSelectedYear] = useState<'2026' | '2025' | '2024'>('2026');
-  const [hoveredRow, setHoveredRow] = useState<number | null>(null);
   const [report, setReport] = useState<AnnualReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
@@ -135,10 +164,12 @@ export const AdminAnnualReport: React.FC = () => {
   const managers: ManagerPerformance[] = (report?.managerPerformance || []).map((manager) => ({
     name: manager.name,
     requests: manager.requests,
-    avgProcessing: `${manager.averageProcessingDays}d`,
+    avgProcessingDays: manager.averageProcessingDays,
     fillRate: manager.fillRate,
-    efficiencyPath: `M0 18 L20 ${Math.max(2, 18 - manager.fillRate / 8)} L40 ${Math.max(2, 17 - manager.fillRate / 9)} L60 ${Math.max(2, 15 - manager.fillRate / 10)} L80 ${Math.max(2, 20 - manager.fillRate / 5)}`,
   }));
+  const maxManagerRequests = Math.max(1, ...managers.map((manager) => manager.requests));
+  const maxManagerProcessingDays = Math.max(1, ...managers.map((manager) => manager.avgProcessingDays));
+  const bestManagerFillRate = Math.max(0, ...managers.map((manager) => manager.fillRate));
   const stages = report?.timeToHireByStage || [];
   const stageTotal = stages.reduce((sum, stage) => sum + stage.days, 0);
   const longestStage = stages.reduce<{ stage: string; days: number } | null>(
@@ -159,6 +190,25 @@ export const AdminAnnualReport: React.FC = () => {
         })
         .join(' ');
     return { opened: path(opened), filled: path(filled) };
+  }, [report]);
+
+  const departmentSlices = useMemo(() => {
+    const departments = report?.departmentBreakdown || [];
+    const total = departments.reduce((sum, department) => sum + department.totalRequests, 0);
+    let angle = 0;
+
+    return departments.map((department, index) => {
+      const portion = total > 0 ? department.totalRequests / total : 0;
+      const startAngle = angle;
+      const endAngle = angle + portion * 360;
+      angle = endAngle;
+      return {
+        ...department,
+        color: getDepartmentColor(index),
+        percentage: Math.round(portion * 100),
+        path: createPieSlicePath(startAngle, endAngle),
+      };
+    });
   }, [report]);
 
   const handleExportPDF = async () => {
@@ -315,7 +365,7 @@ export const AdminAnnualReport: React.FC = () => {
           </div>
         </div>
 
-        {/* Hiring by Department Donut Chart */}
+        {/* Hiring by Department Pie Chart */}
         <div className="lg:col-span-4 bg-clean-surface p-6 rounded-lg border border-border-warm shadow-sm flex flex-col justify-between">
           <div>
             <h3 className="font-headline-md text-headline-md text-deep-charcoal font-semibold mb-1">
@@ -324,113 +374,146 @@ export const AdminAnnualReport: React.FC = () => {
             <p className="font-body-sm text-body-sm text-secondary mb-6">
               Distribution of total {report?.summary.totalRequests || 0} requests
             </p>
-            <div className="flex items-center justify-center mb-6 relative h-48">
-              <div className="w-40 h-40 rounded-full border-[12px] border-teal-command/20 flex items-center justify-center relative">
-                <div
-                  className="absolute inset-[-12px] rounded-full border-[12px] border-teal-command"
-                  style={{ clipPath: 'polygon(50% 50%, 50% 0, 100% 0, 100% 35%, 50% 50%)' }}
-                />
-                <div
-                  className="absolute inset-[-12px] rounded-full border-[12px] border-teal-command/70"
-                  style={{ clipPath: 'polygon(50% 50%, 100% 35%, 100% 65%, 50% 50%)' }}
-                />
-                <div
-                  className="absolute inset-[-12px] rounded-full border-[12px] border-teal-command/50"
-                  style={{ clipPath: 'polygon(50% 50%, 100% 65%, 70% 100%, 50% 50%)' }}
-                />
-                <div className="text-center">
-                  <p className="font-headline-lg text-headline-lg text-teal-command font-semibold">
-                    {report?.summary.totalRequests || 0}
-                  </p>
-                  <p className="font-label-sm text-label-sm text-outline uppercase">Total</p>
+            <div className="flex items-center justify-center mb-6 relative h-52">
+              <div className="relative h-44 w-44">
+                <svg
+                  aria-label="Hiring requests distributed by department"
+                  className="h-full w-full drop-shadow-sm"
+                  role="img"
+                  viewBox="0 0 100 100"
+                >
+                  {departmentSlices.length === 1 ? (
+                    <circle cx="50" cy="50" fill={departmentSlices[0].color} r="50" stroke="white" strokeWidth="1" />
+                  ) : (
+                    departmentSlices.map((department) => (
+                      <path
+                        d={department.path}
+                        fill={department.color}
+                        key={department.departmentId}
+                        stroke="white"
+                        strokeWidth="1"
+                      >
+                        <title>{`${department.departmentName}: ${department.totalRequests} requests (${department.percentage}%)`}</title>
+                      </path>
+                    ))
+                  )}
+                  {departmentSlices.length === 0 && <circle cx="50" cy="50" fill="#E7E5E4" r="50" />}
+                </svg>
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="rounded-full bg-clean-surface/90 px-3 py-2 text-center shadow-sm">
+                    <span className="block font-headline-md text-headline-md text-deep-charcoal font-semibold">
+                      {report?.summary.totalRequests || 0}
+                    </span>
+                    <span className="block font-label-sm text-[10px] text-outline uppercase">Total</span>
+                  </span>
                 </div>
               </div>
             </div>
           </div>
           <div className="space-y-2.5">
-            {(report?.departmentBreakdown || []).map((department, index) => {
-              const total = report?.summary.totalRequests || 0;
-              const percentage =
-                total > 0 ? Math.round((department.totalRequests / total) * 100) : 0;
-              return (
+            {departmentSlices.map((department) => (
                 <div className="flex items-center justify-between" key={department.departmentId}>
                   <div className="flex items-center gap-2">
                     <span
-                      className="w-2 h-2 rounded-full bg-teal-command"
-                      style={{ opacity: Math.max(0.25, 1 - index * 0.15) }}
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ backgroundColor: department.color }}
                     ></span>
                     <span className="font-body-sm text-body-sm text-deep-charcoal">
                       {department.departmentName}
                     </span>
                   </div>
                   <span className="font-data-mono text-label-md text-slate-ink">
-                    {department.totalRequests} ({percentage}%)
+                    {department.totalRequests} ({department.percentage}%)
                   </span>
                 </div>
-              );
-            })}
+              ))}
           </div>
         </div>
       </div>
 
       {/* Bottom Section: Performance Table & Stacked Bar */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* HR Manager Performance Table */}
+        {/* HR Manager Performance Comparison */}
         <div className="bg-clean-surface rounded-lg border border-border-warm shadow-sm overflow-hidden flex flex-col justify-between">
           <div>
-            <div className="p-6 border-b border-border-warm">
+            <div className="p-6 border-b border-border-warm flex items-start justify-between gap-4">
+              <div>
               <h3 className="font-headline-md text-headline-md text-deep-charcoal font-semibold">
                 HR Manager Performance
               </h3>
+                <p className="mt-1 font-body-sm text-body-sm text-secondary">
+                  Compare workload, processing speed, and completed hiring rate.
+                </p>
+              </div>
+              <div className="rounded-lg bg-approved/10 px-3 py-2 text-right">
+                <p className="font-data-mono text-lg font-semibold text-approved">{bestManagerFillRate}%</p>
+                <p className="font-label-sm text-[10px] text-outline uppercase">Best fill rate</p>
+              </div>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
+              <table className="w-full min-w-[640px] text-left">
                 <thead>
                   <tr className="bg-workflow-ivory font-label-sm text-label-sm text-secondary uppercase tracking-wider">
                     <th className="px-6 py-4">Manager Name</th>
-                    <th className="px-6 py-4">Requests</th>
-                    <th className="px-6 py-4">Avg Processing</th>
+                    <th className="px-6 py-4">Workload</th>
+                    <th className="px-6 py-4">Avg. Processing</th>
                     <th className="px-6 py-4">Fill Rate</th>
-                    <th className="px-6 py-4">Efficiency</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-warm text-on-surface">
                   {managers.map((m, idx) => (
                     <tr
                       key={m.name}
-                      onMouseEnter={() => setHoveredRow(idx)}
-                      onMouseLeave={() => setHoveredRow(null)}
                       className={`transition-colors hover:bg-teal-command/5 ${
                         idx % 2 === 1 ? 'bg-workflow-ivory/50' : ''
                       }`}
                     >
                       <td className="px-6 py-4 font-body-md text-deep-charcoal">{m.name}</td>
-                      <td className="px-6 py-4 font-data-mono text-slate-ink">{m.requests}</td>
-                      <td className="px-6 py-4 font-data-mono text-slate-ink">{m.avgProcessing}</td>
                       <td className="px-6 py-4">
-                        <div className="w-full bg-surface-container rounded-full h-1.5 overflow-hidden">
+                        <div className="mb-1.5 flex items-center justify-between font-data-mono text-xs text-slate-ink">
+                          <span>{m.requests} requests</span>
+                          <span>{Math.round((m.requests / maxManagerRequests) * 100)}%</span>
+                        </div>
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-surface-container">
                           <div
-                            className={`h-full ${m.fillRate >= 70 ? 'bg-approved' : 'bg-revision'}`}
-                            style={{ width: `${m.fillRate}%` }}
+                            className="h-full rounded-full bg-[#2563EB]"
+                            style={{ width: `${(m.requests / maxManagerRequests) * 100}%` }}
                           ></div>
                         </div>
-                        <span className="text-[11px] font-label-sm text-outline mt-1 block">
-                          {m.fillRate}%
-                        </span>
                       </td>
                       <td className="px-6 py-4">
-                        <svg className="h-6 w-20" viewBox="0 0 80 20">
-                          <path
-                            d={m.efficiencyPath}
-                            fill="none"
-                            stroke={m.fillRate >= 70 ? '#059669' : '#0D9488'}
-                            strokeWidth={hoveredRow === idx ? '3' : '2'}
-                            className="transition-all duration-200"
-                          />
-                        </svg>
+                        <div className="mb-1.5 flex items-center justify-between font-data-mono text-xs text-slate-ink">
+                          <span>{m.avgProcessingDays} days</span>
+                          <span>lower is better</span>
+                        </div>
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-surface-container">
+                          <div
+                            className="h-full rounded-full bg-[#D97706]"
+                            style={{ width: `${(m.avgProcessingDays / maxManagerProcessingDays) * 100}%` }}
+                          ></div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="mb-1.5 flex items-center justify-between font-data-mono text-xs text-slate-ink">
+                          <span>{m.fillRate}% filled</span>
+                          <span>{m.fillRate >= 70 ? 'On track' : 'Needs focus'}</span>
+                        </div>
+                        <div className="h-2 w-full overflow-hidden rounded-full bg-surface-container">
+                          <div
+                            className={`h-full rounded-full ${m.fillRate >= 70 ? 'bg-approved' : 'bg-revision'}`}
+                            style={{ width: `${Math.min(100, m.fillRate)}%` }}
+                          ></div>
+                        </div>
                       </td>
                     </tr>
                   ))}
+                  {managers.length === 0 && (
+                    <tr>
+                      <td className="px-6 py-8 text-center font-body-sm text-outline" colSpan={4}>
+                        No HR manager performance data is available for this period.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -456,39 +539,56 @@ export const AdminAnnualReport: React.FC = () => {
                 <p className="font-label-sm text-label-sm text-outline uppercase">Total Days</p>
               </div>
             </div>
-            <div className="space-y-8 mt-4">
-              <div className="flex w-full h-10 rounded-lg overflow-hidden shadow-sm">
+            <div className="space-y-6 mt-4">
+              <div className="flex w-full h-11 rounded-lg overflow-hidden shadow-sm bg-surface-container">
                 {stages.map((stage, index) => (
                   <div
-                    className="bg-teal-command flex items-center justify-center font-label-sm text-label-sm text-white"
+                    className="flex min-w-0 items-center justify-center border-r border-white/50 font-label-sm text-label-sm text-white last:border-r-0"
                     key={stage.stage}
                     style={{
                       width: `${stageTotal > 0 ? (stage.days / stageTotal) * 100 : 20}%`,
-                      opacity: Math.max(0.25, 1 - index * 0.15),
+                      backgroundColor: stagePalette[index % stagePalette.length],
                     }}
                     title={`${stage.stage}: ${stage.days} days`}
                   >
-                    {Math.round(stage.days)}d
+                    <span className="truncate px-1">{Math.round(stage.days)}d</span>
                   </div>
                 ))}
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-3">
                 {stages.map((stage, index) => (
-                  <div className="flex items-center gap-3" key={stage.stage}>
-                    <span
-                      className="w-3 h-3 bg-teal-command rounded-sm"
-                      style={{ opacity: Math.max(0.25, 1 - index * 0.15) }}
-                    ></span>
-                    <div>
-                      <p className="font-label-md text-label-md text-deep-charcoal">
-                        {stage.stage}
+                  <div className="rounded-lg border border-border-warm bg-workflow-ivory/45 p-3" key={stage.stage}>
+                    <div className="mb-2 flex items-center justify-between gap-4">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span
+                          className="h-3 w-3 shrink-0 rounded-sm"
+                          style={{ backgroundColor: stagePalette[index % stagePalette.length] }}
+                        ></span>
+                        <p className="truncate font-label-md text-label-md text-deep-charcoal">{stage.stage}</p>
+                      </div>
+                      <p className="shrink-0 font-data-mono text-sm font-semibold text-slate-ink">
+                        {stage.days}d{' '}
+                        <span className="text-xs font-normal text-outline">
+                          ({stageTotal > 0 ? Math.round((stage.days / stageTotal) * 100) : 0}%)
+                        </span>
                       </p>
-                      <p className="font-body-sm text-body-sm text-outline">
-                        {stage.days} days average
-                      </p>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-container">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          backgroundColor: stagePalette[index % stagePalette.length],
+                          width: `${stageTotal > 0 ? (stage.days / stageTotal) * 100 : 0}%`,
+                        }}
+                      ></div>
                     </div>
                   </div>
                 ))}
+                {stages.length === 0 && (
+                  <p className="py-8 text-center font-body-sm text-outline">
+                    No completed hiring-stage data is available for this period.
+                  </p>
+                )}
               </div>
             </div>
           </div>

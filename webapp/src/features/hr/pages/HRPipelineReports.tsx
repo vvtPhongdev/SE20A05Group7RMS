@@ -148,6 +148,12 @@ const CAMPAIGN_PIPELINE_STAGES = [
     taskTypes: [],
     activeStatuses: ['OFFER_EXTENDED', 'OFFER_ACCEPTED', 'CLOSED'],
   },
+  {
+    key: 'hiring',
+    label: 'Hiring',
+    taskTypes: ['HIRING'],
+    activeStatuses: ['HIRED', 'COMPLETED'],
+  },
 ] as const;
 
 const formatDate = (value: string) =>
@@ -201,7 +207,7 @@ const stageClass: Record<CampaignStage, string> = {
 
 export const HRPipelineReports: React.FC = () => {
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [department, setDepartment] = useState('All Departments');
   const [campaignFilter, setCampaignFilter] = useState(ALL_CAMPAIGNS);
   const [range, setRange] = useState('Last 30 Days');
@@ -217,9 +223,12 @@ export const HRPipelineReports: React.FC = () => {
       setLoading(true);
       setApiError('');
       try {
+        const assignedRequestQuery = user?.id
+          ? `/recruitment-requests?limit=100&reviewedById=${encodeURIComponent(user.id)}`
+          : '/recruitment-requests?limit=100&reviewedById=__unassigned__';
         const [requestsResponse, pipelineResponse, timeToHireResponse, trackingResponse] =
           await Promise.all([
-          apiRequest<RecruitmentRequestListResponse>('/recruitment-requests?limit=100', token),
+          apiRequest<RecruitmentRequestListResponse>(assignedRequestQuery, token),
           apiRequest<PipelineOverviewResponse>('/reports/pipeline', token),
           apiRequest<TimeToHireReportResponse>('/reports/time-to-hire', token),
           apiRequest<RealtimeTrackingItem[]>('/reports/realtime-tracking', token),
@@ -237,7 +246,7 @@ export const HRPipelineReports: React.FC = () => {
       }
     };
     void load();
-  }, [token]);
+  }, [token, user?.id]);
 
   const departmentOptions = useMemo(() => {
     const names = new Set<string>();

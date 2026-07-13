@@ -87,9 +87,10 @@ export class InterviewResultService {
       const decisionStatus =
         s.request.status === RecruitmentRequestStatus.OFFER_EXTENDED ||
         s.request.status === RecruitmentRequestStatus.OFFER_ACCEPTED
-          ? 'Approved'
-          : s.request.status === RecruitmentRequestStatus.REJECTED
-            ? 'Rejected'
+          ? 'Decision Made'
+          : s.request.status === RecruitmentRequestStatus.REJECTED ||
+              s.request.status === RecruitmentRequestStatus.NOT_HIRED
+            ? 'Decision Made'
             : latestInfoRequest
               ? 'Request Info'
               : 'Awaiting Decision';
@@ -114,6 +115,7 @@ export class InterviewResultService {
               }
             : undefined,
           comment: result?.notes || 'Feedback has not been recorded.',
+          attendanceStatus: this.getInterviewerAttendanceStatus(s, interviewerId),
         };
       });
       const recordedResults = s.results.filter(
@@ -146,9 +148,13 @@ export class InterviewResultService {
         id: s.id,
         candidate: s.candidate.fullName,
         role: s.request.position,
-        department: s.request.department.name,
+        department: s.request.department?.name ?? 'Unassigned department',
         time: formattedTime,
         status,
+        attendanceStatus:
+          payload.role === UserRole.DEPARTMENT_HEAD && payload.userId
+            ? this.getInterviewerAttendanceStatus(s, payload.userId)
+            : undefined,
         location: s.location,
         candidateId: s.candidateId,
         requestId: s.requestId,
@@ -251,6 +257,7 @@ export class InterviewResultService {
         culture: result?.culture !== undefined && result?.culture !== null ? result.culture : 0,
         notes: result?.notes || '',
         isRecorded: !!result,
+        attendanceStatus: this.getInterviewerAttendanceStatus(schedule, interviewerId),
       };
     });
 
@@ -271,11 +278,38 @@ export class InterviewResultService {
         ? feedbacks.find((feedback) => feedback.id === actor.userId)
         : null;
 
+    const attendanceStatus = actor.userId
+      ? this.getInterviewerAttendanceStatus(schedule, actor.userId)
+      : 'PENDING';
+    const isAbsent = attendanceStatus === 'ABSENT';
+    const application = await this.prisma.application.findUnique({
+      where: {
+        requestId_candidateId: {
+          requestId: schedule.requestId,
+          candidateId: schedule.candidateId,
+        },
+      },
+    });
+    const adminDecision =
+      application?.status === RecruitmentRequestStatus.OFFER_EXTENDED ||
+      application?.status === RecruitmentRequestStatus.OFFER_ACCEPTED ||
+      application?.status === RecruitmentRequestStatus.HIRED
+        ? 'HIRED'
+        : application?.status === RecruitmentRequestStatus.NOT_HIRED ||
+            application?.status === RecruitmentRequestStatus.REJECTED ||
+            application?.status === RecruitmentRequestStatus.OFFER_DECLINED
+          ? 'NOT_HIRED'
+          : null;
+    const skillRequirements =
+      schedule.request.skillRequirements && typeof schedule.request.skillRequirements === 'object'
+        ? (schedule.request.skillRequirements as Record<string, unknown>)
+        : {};
+
     return {
       id: schedule.id,
       candidate: schedule.candidate.fullName,
       role: schedule.request.position,
-      department: schedule.request.department.name,
+      department: schedule.request.department?.name ?? 'Unassigned department',
       time: formattedTime,
       status:
         schedule.finalRecommendation || schedule.status === InterviewStatus.COMPLETED
@@ -294,11 +328,22 @@ export class InterviewResultService {
       })),
       feedbacks,
       myFeedback,
+      attendanceStatus,
+      isAbsent,
+      canSubmitFinalRecommendation:
+        isHrRole(actor.role) && !!actor.userId && schedule.request.reviewedById === actor.userId,
       canSubmitMyFeedback:
         !!actor.userId &&
         ((isHrRole(actor.role) && schedule.interviewers.includes(actor.userId)) ||
           (actor.role === UserRole.DEPARTMENT_HEAD &&
-            this.canDepartmentHeadAccessSchedule(schedule, actor.userId))),
+            this.canDepartmentHeadAccessSchedule(schedule, actor.userId))) &&
+        !isAbsent,
+      salaryRange: {
+        min: String(skillRequirements.salaryMin ?? '').trim(),
+        max: String(skillRequirements.salaryMax ?? '').trim(),
+      },
+      hasBeenSentToAdmin: Boolean(schedule.finalRecommendation),
+      adminDecision,
       finalRecommendation: schedule.finalRecommendation || '',
       summaryNotes: schedule.summaryNotes || '',
     };
@@ -371,6 +416,19 @@ export class InterviewResultService {
       });
     }
 
+    // Department Heads provide role-specific technical feedback only.
+    // Communication and culture scores are deliberately not accepted from this role.
+    const isDepartmentHead = actorRole === UserRole.DEPARTMENT_HEAD;
+    const effectiveCommunication = isDepartmentHead ? 0 : communication;
+    const effectiveCulture = isDepartmentHead ? 0 : culture;
+
+    if (this.getInterviewerAttendanceStatus(schedule, evaluatorId) === 'ABSENT') {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'You marked yourself absent and cannot record feedback for this interview',
+      });
+    }
+
     if (!['PASS', 'FAIL'].includes(decision)) {
       throw new RpcException({
         status: HttpStatus.BAD_REQUEST,
@@ -380,8 +438,8 @@ export class InterviewResultService {
 
     for (const [label, value] of [
       ['technical', technical],
-      ['communication', communication],
-      ['culture', culture],
+      ['communication', effectiveCommunication],
+      ['culture', effectiveCulture],
     ] as const) {
       if (!Number.isInteger(value) || value < 0 || value > 10) {
         throw new RpcException({
@@ -412,8 +470,8 @@ export class InterviewResultService {
             result: decision,
             notes: notes?.trim() || null,
             technical,
-            communication,
-            culture,
+            communication: effectiveCommunication,
+            culture: effectiveCulture,
           },
         })
       : await this.prisma.interviewResult.create({
@@ -423,8 +481,8 @@ export class InterviewResultService {
             result: decision,
             notes: notes?.trim() || null,
             technical,
-            communication,
-            culture,
+            communication: effectiveCommunication,
+            culture: effectiveCulture,
           },
         });
 
@@ -462,6 +520,19 @@ export class InterviewResultService {
         isRecorded: true,
       },
     };
+  }
+
+  private getInterviewerAttendanceStatus(
+    schedule: { interviewerAttendance?: unknown },
+    userId: string,
+  ): 'ACCEPTED' | 'ABSENT' | 'PENDING' {
+    const attendance = schedule.interviewerAttendance;
+    if (!attendance || typeof attendance !== 'object' || Array.isArray(attendance)) {
+      return 'PENDING';
+    }
+
+    const response = (attendance as Record<string, { response?: unknown }>)[userId]?.response;
+    return response === 'ACCEPTED' || response === 'ABSENT' ? response : 'PENDING';
   }
 
   private canDepartmentHeadAccessSchedule(
@@ -543,6 +614,12 @@ export class InterviewResultService {
         message: 'Only HR can submit the final recommendation to Admin',
       });
     }
+    if (evaluatorId && schedule.request.reviewedById !== evaluatorId) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'Claim this request before submitting its final recommendation',
+      });
+    }
 
     const validRecommendations = ['Recommend Hire', 'Recommend Reject', 'Hold for Further'];
     if (!validRecommendations.includes(finalRecommendation)) {
@@ -599,6 +676,42 @@ export class InterviewResultService {
     const existingResults = await this.prisma.interviewResult.findMany({
       where: { interviewId },
     });
+
+    const requiredEvaluatorIds = schedule.interviewers.filter(
+      (userId) => this.getInterviewerAttendanceStatus(schedule, userId) !== 'ABSENT',
+    );
+    const missingEvaluations = requiredEvaluatorIds.filter((userId) => {
+      const result = existingResults.find((item) => item.evaluatorId === userId);
+      return (
+        !result ||
+        result.technical === null ||
+        result.communication === null ||
+        result.culture === null
+      );
+    });
+    if (missingEvaluations.length > 0) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message:
+          'All attending panel members must submit an evaluation before the final recommendation',
+      });
+    }
+
+    if (
+      [
+        RecruitmentRequestStatus.OFFER_EXTENDED,
+        RecruitmentRequestStatus.OFFER_ACCEPTED,
+        RecruitmentRequestStatus.HIRED,
+        RecruitmentRequestStatus.NOT_HIRED,
+        RecruitmentRequestStatus.REJECTED,
+        RecruitmentRequestStatus.OFFER_DECLINED,
+      ].includes(application.status as RecruitmentRequestStatus)
+    ) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: 'Admin has already made a final Hire/Not Hire decision for this candidate',
+      });
+    }
 
     const transactions: any[] = [];
 

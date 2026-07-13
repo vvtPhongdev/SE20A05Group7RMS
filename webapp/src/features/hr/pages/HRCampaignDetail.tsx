@@ -138,6 +138,7 @@ const TASK_TYPE_LABELS: Record<string, string> = {
   CV_COLLECTION: 'Collect candidate CVs',
   CV_SCREENING: 'Screen incoming CVs',
   INTERVIEW_COORDINATION: 'Coordinate interviews',
+  HIRING: 'Complete hiring',
 };
 
 const CANDIDATE_COLOR_PALETTE = [

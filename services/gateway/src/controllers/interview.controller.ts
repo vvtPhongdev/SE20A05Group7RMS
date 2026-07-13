@@ -60,6 +60,23 @@ export class InterviewController {
     return firstValueFrom(this.interviewClient.send('interview.list_schedules', { requestId }));
   }
 
+  @Patch('schedules/:id/interviewer-attendance')
+  @Roles(UserRole.DEPARTMENT_HEAD, UserRole.HR_LEADER)
+  @ApiOperation({ summary: 'Panel member accepts or declines participation in an interview' })
+  respondToInterviewerAttendance(
+    @Param('id') id: string,
+    @Body() body: { response: 'ACCEPTED' | 'ABSENT' },
+    @CurrentUser() user: any,
+  ) {
+    return firstValueFrom(
+      this.interviewClient.send('interview.respond_interviewer_attendance', {
+        id,
+        userId: user.sub,
+        response: body.response,
+      }),
+    );
+  }
+
   @Patch('schedules/:id/reschedule')
   @Roles(UserRole.HR_LEADER)
   @ApiOperation({

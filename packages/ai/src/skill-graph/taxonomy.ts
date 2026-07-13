@@ -229,6 +229,10 @@ export const SKILL_EDGES: SkillEdgeDef[] = [
   e('Frontend Developer', 'Web Developer', 'IS_A'),
   e('Backend Developer', 'Web Developer', 'IS_A'),
   e('Fullstack Developer', 'Web Developer', 'IS_A'),
+  // Full-stack capability includes both web specializations. This is deliberately
+  // directional: a backend/frontend specialist is not automatically full-stack.
+  e('Fullstack Developer', 'Backend Developer', 'QUALIFIES_FOR'),
+  e('Fullstack Developer', 'Frontend Developer', 'QUALIFIES_FOR'),
   e('iOS Developer', 'Mobile Developer', 'IS_A'),
   e('Android Developer', 'Mobile Developer', 'IS_A'),
 

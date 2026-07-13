@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest } from '../../../lib/api';
 import {
   CandidateCard,
-  CandidateDashboardPage,
   CandidateInlineAlert,
   CandidateLoadingState,
 } from '../components';
@@ -24,8 +23,8 @@ type Offer = {
 
 export const CandidateOfferDetails: React.FC = () => {
   const { token } = useAuth();
-  const [searchParams] = useSearchParams();
-  const offerId = searchParams.get('id');
+  const { offerId } = useParams<{ offerId: string }>();
+  const navigate = useNavigate();
   const [offer, setOffer] = useState<Offer | null>(null);
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(true);
@@ -48,6 +47,10 @@ export const CandidateOfferDetails: React.FC = () => {
 
   const respond = async (response: 'ACCEPT' | 'DECLINE') => {
     if (!offer) return;
+    if (response === 'DECLINE' && !note.trim()) {
+      setError('Please provide a reason for declining this offer.');
+      return;
+    }
     setSubmitting(true);
     setError('');
     try {
@@ -64,12 +67,22 @@ export const CandidateOfferDetails: React.FC = () => {
   };
 
   return (
-    <CandidateDashboardPage className="mx-auto max-w-4xl space-y-6">
+    <main className="min-h-screen bg-workflow-ivory px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-4xl space-y-6">
       <header>
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-command">
           Candidate offer
         </p>
-        <h1 className="mt-2 text-3xl font-bold text-deep-charcoal">Offer details</h1>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-3xl font-bold text-deep-charcoal">Offer details</h1>
+          <button
+            className="rounded-lg border border-border-warm px-4 py-2 text-sm font-semibold text-slate-ink transition hover:bg-surface-container-low"
+            onClick={() => navigate('/candidate/offers')}
+            type="button"
+          >
+            Back to offers
+          </button>
+        </div>
       </header>
       {loading ? <CandidateLoadingState label="Loading offer..." /> : null}
       {error ? <CandidateInlineAlert>{error}</CandidateInlineAlert> : null}
@@ -102,7 +115,7 @@ export const CandidateOfferDetails: React.FC = () => {
                 className="min-h-24 w-full rounded-lg border border-border-warm p-3 text-sm"
                 maxLength={2000}
                 onChange={(event) => setNote(event.target.value)}
-                placeholder="Optional note to the recruitment team"
+                placeholder="Reason for declining (required only if you decline this offer)"
                 value={note}
               />
               <div className="flex gap-3">
@@ -120,7 +133,7 @@ export const CandidateOfferDetails: React.FC = () => {
                   onClick={() => void respond('DECLINE')}
                   type="button"
                 >
-                  Decline
+                  Decline offer
                 </button>
               </div>
             </div>
@@ -133,6 +146,7 @@ export const CandidateOfferDetails: React.FC = () => {
           )}
         </CandidateCard>
       ) : null}
-    </CandidateDashboardPage>
+      </div>
+    </main>
   );
 };
