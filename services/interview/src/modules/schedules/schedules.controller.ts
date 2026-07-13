@@ -17,6 +17,7 @@ export class SchedulesController {
       duration: number;
       location: string;
       interviewers: string[];
+      scheduledById?: string;
     },
   ) {
     return this.schedulesService.create(payload);
@@ -30,6 +31,13 @@ export class SchedulesController {
   @MessagePattern('interview.list_schedules')
   async listSchedules(@Payload() payload: { requestId: string }) {
     return this.schedulesService.listSchedules(payload.requestId);
+  }
+
+  @MessagePattern('interview.respond_interviewer_attendance')
+  async respondToInterviewerAttendance(
+    @Payload() payload: { id: string; userId: string; response: 'ACCEPTED' | 'ABSENT' },
+  ) {
+    return this.schedulesService.respondToInterviewerAttendance(payload);
   }
 
   /** T-052: Cancel with reason; notifies all parties + logs to request timeline. */

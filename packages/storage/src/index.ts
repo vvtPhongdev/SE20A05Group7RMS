@@ -17,6 +17,7 @@ export const storageBuckets = {
   cvs: process.env.SUPABASE_CV_BUCKET || 'cvs',
   avatars: process.env.SUPABASE_AVATAR_BUCKET || 'avatars',
   banners: process.env.SUPABASE_BANNER_BUCKET || 'Banner',
+  noticeImages: process.env.SUPABASE_NOTICE_IMAGE_BUCKET || 'NoticeImg',
   jobPostings: process.env.SUPABASE_JOB_POSTING_BUCKET || 'job-postings',
 };
 
@@ -161,6 +162,16 @@ export async function downloadFile(bucket: string, path: string) {
   }
 
   return data;
+}
+
+export async function createSignedDownloadUrl(bucket: string, path: string, expiresIn = 60 * 60) {
+  const client = getSupabaseClient();
+  const { data, error } = await client.storage.from(bucket).createSignedUrl(path, expiresIn);
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data.signedUrl;
 }
 
 export function getPublicUrl(bucket: string, path: string) {

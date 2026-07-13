@@ -89,6 +89,21 @@ const TASK_TYPE_LABELS: Record<string, string> = {
   CV_COLLECTION: 'Collect candidate CVs',
   CV_SCREENING: 'Screen incoming CVs',
   INTERVIEW_COORDINATION: 'Coordinate interviews',
+  HIRING: 'Complete hiring',
+};
+
+const formatSalary = (value: unknown) => {
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount > 0 ? `${amount.toLocaleString('vi-VN')} VND` : null;
+};
+
+const salaryRangeFromRequirements = (requirements?: Record<string, unknown> | null) => {
+  const minimum = formatSalary(requirements?.salaryMin);
+  const maximum = formatSalary(requirements?.salaryMax);
+  if (minimum && maximum) return `${minimum} - ${maximum}`;
+  if (minimum) return `From ${minimum}`;
+  if (maximum) return `Up to ${maximum}`;
+  return 'Not provided';
 };
 
 export const AdminApprovalQueue: React.FC = () => {
@@ -174,7 +189,7 @@ export const AdminApprovalQueue: React.FC = () => {
                           ? 'Rejected'
                           : 'Draft',
                 submitted: new Date(request.createdAt).toLocaleDateString(),
-                salaryRange: 'Not provided',
+                salaryRange: salaryRangeFromRequirements(request.skillRequirements),
                 description: request.jobDescription || request.justification,
                 documents: [],
                 approvalType: isPlanApproval ? 'PLAN' : 'REQUEST',
@@ -827,8 +842,9 @@ export const AdminApprovalQueue: React.FC = () => {
                       </button>
                     ) : (
                       <button
-                        className="px-4 py-1.5 border border-border-warm text-slate-ink rounded-lg font-label-md opacity-50 cursor-not-allowed font-semibold"
-                        disabled
+                        className="px-4 py-1.5 border border-border-warm text-slate-ink rounded-lg font-label-md hover:border-teal-command hover:text-teal-command hover:bg-teal-command/5 transition-all font-semibold"
+                        onClick={() => handleOpenDrawer(request)}
+                        type="button"
                       >
                         Details
                       </button>
@@ -839,7 +855,7 @@ export const AdminApprovalQueue: React.FC = () => {
 
               {filteredRequests.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-on-surface-variant">
+                  <td colSpan={9} className="px-6 py-12 text-center text-on-surface-variant">
                     <span className="material-symbols-outlined text-4xl block mb-2 text-slate-ink">
                       search_off
                     </span>

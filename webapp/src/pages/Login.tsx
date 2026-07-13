@@ -65,6 +65,7 @@ export const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const authMode = searchParams.get('auth');
 
   useEffect(() => {
@@ -95,10 +96,25 @@ export const Login: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    const nextFieldErrors: { email?: string; password?: string } = {};
+    const normalizedEmail = email.trim();
+    if (!normalizedEmail) {
+      nextFieldErrors.email = 'Email is required.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      nextFieldErrors.email = 'Enter a valid email address.';
+    }
+    if (!password) {
+      nextFieldErrors.password = 'Password is required.';
+    }
+
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length > 0) return;
+
     setLoading(true);
 
     try {
-      const loggedUser = await login(email, password, rememberMe);
+      const loggedUser = await login(normalizedEmail, password, rememberMe);
       navigate(getRoleHomePath(loggedUser.role), { replace: true });
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials.');
@@ -313,24 +329,6 @@ export const Login: React.FC = () => {
                 </div>
               )}
 
-              <button
-                className="mb-5 flex h-12 w-full items-center justify-center gap-3 rounded-[var(--wr-radius-lg)] border border-[var(--wr-border-default)] bg-[#fefdfb] px-4 text-sm font-semibold text-[var(--wr-text-primary)] transition duration-200 ease-out hover:-translate-y-[1px] hover:border-[var(--wr-border-strong)] hover:bg-[var(--wr-bg-elevated)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
-                disabled={loading || googleLoading}
-                type="button"
-                onClick={handleGoogleSignIn}
-              >
-                <span className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--wr-border-subtle)] bg-white font-semibold text-[#4285f4]">
-                  G
-                </span>
-                {googleLoading ? 'Connecting to Google...' : 'Continue with Google'}
-              </button>
-
-              <div className="mb-5 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--wr-text-muted)]">
-                <span className="h-px flex-1 bg-[var(--wr-border-subtle)]" />
-                <span>or</span>
-                <span className="h-px flex-1 bg-[var(--wr-border-subtle)]" />
-              </div>
-
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">
                   <label
@@ -340,17 +338,25 @@ export const Login: React.FC = () => {
                     Email address
                   </label>
                   <input
-                    className="h-12 w-full rounded-[var(--wr-radius-lg)] border border-[var(--wr-border-default)] bg-[#fefdfb] px-4 text-sm text-[var(--wr-text-primary)] outline-none transition focus:border-[var(--wr-focus-ring)] focus:bg-white focus:ring-2 focus:ring-[var(--wr-focus-ring)]/20"
+                    aria-describedby={fieldErrors.email ? 'login-email-error' : undefined}
+                    aria-invalid={!!fieldErrors.email}
+                    className={`h-12 w-full rounded-[var(--wr-radius-lg)] border bg-[#fefdfb] px-4 text-sm text-[var(--wr-text-primary)] outline-none transition focus:bg-white focus:ring-2 ${fieldErrors.email ? 'border-[var(--wr-error-border)] focus:border-[var(--wr-error-border)] focus:ring-[var(--wr-error-border)]/20' : 'border-[var(--wr-border-default)] focus:border-[var(--wr-focus-ring)] focus:ring-[var(--wr-focus-ring)]/20'}`}
                     id="email"
                     placeholder="your.name@company.com"
-                    required
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setFieldErrors((current) => ({ ...current, email: undefined }));
+                    }}
                   />
-                  <p className="text-xs text-[var(--wr-text-muted)]">
-                    Use the email assigned to your workspace.
-                  </p>
+                  {fieldErrors.email ? (
+                    <p id="login-email-error" role="alert" className="text-xs font-medium text-[var(--wr-error-text)]">
+                      {fieldErrors.email}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-[var(--wr-text-muted)]">Use the email assigned to your workspace.</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -362,13 +368,17 @@ export const Login: React.FC = () => {
                   </label>
                   <div className="relative">
                     <input
-                      className="h-12 w-full rounded-[var(--wr-radius-lg)] border border-[var(--wr-border-default)] bg-[#fefdfb] px-4 pr-12 text-sm text-[var(--wr-text-primary)] outline-none transition focus:border-[var(--wr-focus-ring)] focus:bg-white focus:ring-2 focus:ring-[var(--wr-focus-ring)]/20"
+                      aria-describedby={fieldErrors.password ? 'login-password-error' : undefined}
+                      aria-invalid={!!fieldErrors.password}
+                      className={`h-12 w-full rounded-[var(--wr-radius-lg)] border bg-[#fefdfb] px-4 pr-12 text-sm text-[var(--wr-text-primary)] outline-none transition focus:bg-white focus:ring-2 ${fieldErrors.password ? 'border-[var(--wr-error-border)] focus:border-[var(--wr-error-border)] focus:ring-[var(--wr-error-border)]/20' : 'border-[var(--wr-border-default)] focus:border-[var(--wr-focus-ring)] focus:ring-[var(--wr-focus-ring)]/20'}`}
                       id="password"
                       placeholder="Password"
-                      required
                       type={showPassword ? 'text' : 'password'}
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        setFieldErrors((current) => ({ ...current, password: undefined }));
+                      }}
                     />
                     <button
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
@@ -379,9 +389,13 @@ export const Login: React.FC = () => {
                       <EyeIcon hidden={showPassword} />
                     </button>
                   </div>
-                  <p className="text-xs text-[var(--wr-text-muted)]">
-                    Keep your session private on shared devices.
-                  </p>
+                  {fieldErrors.password ? (
+                    <p id="login-password-error" role="alert" className="text-xs font-medium text-[var(--wr-error-text)]">
+                      {fieldErrors.password}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-[var(--wr-text-muted)]">Keep your session private on shared devices.</p>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between gap-4">
@@ -422,6 +436,23 @@ export const Login: React.FC = () => {
                 </button>
               </form>
 
+              <div className="my-5 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--wr-text-muted)]">
+                <span className="h-px flex-1 bg-[var(--wr-border-subtle)]" />
+                <span>or</span>
+                <span className="h-px flex-1 bg-[var(--wr-border-subtle)]" />
+              </div>
+
+              <button
+                className="flex h-12 w-full items-center justify-center gap-3 rounded-[var(--wr-radius-lg)] border border-[var(--wr-border-default)] bg-[#fefdfb] px-4 text-sm font-semibold text-[var(--wr-text-primary)] transition duration-200 ease-out hover:-translate-y-[1px] hover:border-[var(--wr-border-strong)] hover:bg-[var(--wr-bg-elevated)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
+                disabled={loading || googleLoading}
+                type="button"
+                onClick={handleGoogleSignIn}
+              >
+                <span className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--wr-border-subtle)] bg-white font-semibold text-[#4285f4]">
+                  G
+                </span>
+                {googleLoading ? 'Connecting to Google...' : 'Continue with Google'}
+              </button>
 
               <div className="mt-8">
                 <Link

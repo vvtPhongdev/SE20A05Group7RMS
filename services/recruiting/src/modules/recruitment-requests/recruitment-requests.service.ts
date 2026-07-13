@@ -38,6 +38,12 @@ const BOSS_APPROVAL_STATUSES = [
   RecruitmentRequestStatus.PENDING_REVIEW,
 ];
 
+const DELETABLE_PENDING_STATUSES = [
+  RecruitmentRequestStatus.PENDING_HR_REVIEW,
+  RecruitmentRequestStatus.PENDING_BOSS_APPROVAL,
+  RecruitmentRequestStatus.PENDING_REVIEW,
+];
+
 type EditableRequestSnapshot = {
   positionTitle: string;
   headcount: number;
@@ -333,6 +339,7 @@ export class RecruitmentRequestsService {
   }
 
   async createForDepartmentHead(payload: {
+    departmentId: string;
     positionTitle: string;
     headcount: number;
     jobDescription: string;
@@ -344,13 +351,29 @@ export class RecruitmentRequestsService {
   }) {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.createdById },
-      select: { departmentId: true },
+      select: { organizationId: true, role: true, isActive: true },
     });
 
-    if (!user?.departmentId) {
+    if (!user?.isActive || user.role !== UserRole.DEPARTMENT_HEAD) {
       throw new RpcException({
-        status: HttpStatus.BAD_REQUEST,
-        message: 'Your account is not assigned to a department',
+        status: HttpStatus.FORBIDDEN,
+        message: 'Only an active department head can create recruitment requests',
+      });
+    }
+
+    const department = await this.prisma.department.findFirst({
+      where: {
+        id: payload.departmentId,
+        organizationId: user.organizationId,
+        headUserId: payload.createdById,
+      },
+      select: { id: true },
+    });
+
+    if (!department) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'You can only create requests for departments you manage',
       });
     }
 
@@ -360,7 +383,7 @@ export class RecruitmentRequestsService {
 
     const created = await this.prisma.recruitmentRequest.create({
       data: {
-        departmentId: user.departmentId,
+        departmentId: department.id,
         createdById: payload.createdById,
         position: payload.positionTitle,
         headcount: payload.headcount,
@@ -557,6 +580,37 @@ export class RecruitmentRequestsService {
     ]);
 
     return updated;
+  }
+
+  async deletePending(payload: { id: string; userId: string }) {
+    const request = await this.prisma.recruitmentRequest.findUnique({
+      where: { id: payload.id },
+    });
+
+    if (!request) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Recruitment request with ID ${payload.id} not found`,
+      });
+    }
+    if (request.createdById !== payload.userId) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'You can only delete your own recruitment requests',
+      });
+    }
+    if (!DELETABLE_PENDING_STATUSES.includes(request.status as RecruitmentRequestStatus)) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: 'Only pending recruitment requests can be deleted',
+      });
+    }
+
+    await this.prisma.recruitmentRequest.delete({
+      where: { id: payload.id },
+    });
+
+    return { success: true, id: payload.id };
   }
 
   async assignToHr(payload: { id: string; hrManagerId: string; assignedById: string }) {

@@ -19,6 +19,7 @@ type Notification = {
   type: NotificationType;
   subject: string;
   relatedId: string;
+  relatedType: string | null;
   recipient: string;
   priority: Priority;
   status: DeliveryStatus;
@@ -162,8 +163,9 @@ export const HRSystemNotifications: React.FC = () => {
             id: item.id,
             type,
             subject: item.title,
-            relatedId: item.relatedEntityId ?? '—',
+            relatedId: item.relatedEntityId ?? '',
             recipient: user?.displayName ?? user?.email ?? '—',
+            relatedType: item.relatedEntityType,
             priority: PRIORITY_MAP[type],
             status: item.isRead ? 'Read' : 'Unread',
             created: formatDateTime(item.createdAt),
@@ -222,6 +224,27 @@ export const HRSystemNotifications: React.FC = () => {
 
   const selected =
     notifications.find((item) => item.id === selectedId) ?? notifications[0] ?? null;
+
+  const getRelatedDestination = (notification: Notification) => {
+    if (!notification.relatedId) return null;
+
+    switch (notification.relatedType) {
+      case 'InterviewSchedule':
+        return `/hr/interviews?scheduleId=${encodeURIComponent(notification.relatedId)}`;
+      case 'OfferLetter':
+        return `/hr/results?offerId=${encodeURIComponent(notification.relatedId)}`;
+      case 'TaskPlan':
+        return `/hr/tasks?planId=${encodeURIComponent(notification.relatedId)}`;
+      case 'RecruitmentRequest':
+        return `/hr/campaigns/${notification.relatedId}`;
+      default:
+        return notification.type === 'INTERVIEW'
+          ? '/hr/interviews'
+          : `/hr/campaigns/${notification.relatedId}`;
+    }
+  };
+
+  const relatedDestination = selected ? getRelatedDestination(selected) : null;
 
   const markResolved = async () => {
     if (!selected) return;
@@ -591,12 +614,12 @@ export const HRSystemNotifications: React.FC = () => {
                 >
                   Mark Resolved
                 </button>
-                {selected.relatedId !== '—' ? (
+                {relatedDestination ? (
                   <a
                     className="inline-flex items-center justify-center rounded-lg border border-teal-command py-2.5 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 active:scale-[0.98]"
-                    href={`/hr/campaigns/${selected.relatedId}`}
+                    href={relatedDestination}
                   >
-                    Open Request
+                    Open Related Item
                   </a>
                 ) : (
                   <button
@@ -604,7 +627,7 @@ export const HRSystemNotifications: React.FC = () => {
                     disabled
                     type="button"
                   >
-                    Open Request
+                    Open Related Item
                   </button>
                 )}
               </div>

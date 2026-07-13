@@ -3,6 +3,19 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { ApiError, apiRequest } from '../../../lib/api';
 import {
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxValue,
+  useComboboxAnchor,
+} from '@/components/ui/combobox';
+import {
   DeptHeadDashboardPage,
   DeptHeadInlineAlert,
   DeptHeadLoadingState,
@@ -20,9 +33,10 @@ type Priority = 'Low' | 'Medium' | 'High' | 'Critical';
 
 interface FormState {
   positionTitle: string;
+  departmentId: string;
   department: string;
   jobLevel: string;
-  employmentType: EmploymentType;
+  employmentType: EmploymentType | '';
   headcount: number;
   skillInput: string;
   experience: string;
@@ -42,12 +56,19 @@ interface ApiDepartment {
   id?: string;
   name?: string;
   code?: string | null;
+  organizationId?: string;
 }
 
 interface ApiUserProfile {
   departmentId?: string | null;
   department?: ApiDepartment | null;
   departmentsHeaded?: ApiDepartment[];
+}
+
+interface OrganizationEducationSettings {
+  settings?: {
+    departmentBachelorRequirements?: Record<string, string[]>;
+  };
 }
 
 interface RecruitmentRequestApi {
@@ -83,13 +104,14 @@ const defaultTemplate = getRequestTemplateByKey('general');
 
 const initialForm: FormState = {
   positionTitle: '',
+  departmentId: '',
   department: 'Your Department',
-  jobLevel: defaultTemplate.defaultJobLevel,
-  employmentType: defaultTemplate.defaultEmploymentType,
+  jobLevel: '',
+  employmentType: '',
   headcount: 1,
   skillInput: '',
-  experience: defaultTemplate.defaultExperience,
-  education: defaultTemplate.defaultEducation,
+  experience: '',
+  education: '',
   description: '',
   notes: '',
   salaryMin: '',
@@ -98,7 +120,7 @@ const initialForm: FormState = {
   priority: 'Medium',
   templateKey: defaultTemplate.key,
   templateName: defaultTemplate.name,
-  templateFields: buildTemplateFieldValues(defaultTemplate),
+  templateFields: {},
 };
 
 const Icon = ({ name, className = 'h-5 w-5' }: { name: IconName; className?: string }) => {
@@ -132,8 +154,6 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: IconName; className?: str
 
 const fieldClass =
   'w-full rounded-lg border border-border-warm bg-workflow-ivory px-4 py-2.5 text-sm text-on-surface outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20';
-const readonlyClass =
-  'w-full cursor-not-allowed rounded-lg border border-border-warm bg-surface-container-low px-4 py-2.5 text-sm text-on-surface-variant outline-none';
 const textareaClass =
   'w-full resize-none rounded-lg border border-border-warm bg-workflow-ivory px-4 py-3 text-sm leading-6 text-on-surface outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20';
 
@@ -169,6 +189,53 @@ const parseSkillInput = (value: string) =>
 const primaryDepartment = (profile: ApiUserProfile | null | undefined): ApiDepartment | null =>
   profile?.department ?? profile?.departmentsHeaded?.[0] ?? null;
 
+const buildEmptyTemplateFieldValues = (template: typeof defaultTemplate) =>
+  template.fields.reduce<Record<string, string>>((values, field) => {
+    values[field.key] = '';
+    return values;
+  }, {});
+
+const SingleSelectCombobox = ({
+  items,
+  placeholder,
+  value,
+  onValueChange,
+}: {
+  items: string[];
+  placeholder: string;
+  value: string;
+  onValueChange: (value: string) => void;
+}) => {
+  const anchor = useComboboxAnchor();
+
+  return (
+    <Combobox items={items} value={value} onValueChange={(nextValue) => onValueChange(nextValue ?? '')}>
+      <div ref={anchor}>
+        <ComboboxInput
+          className="h-11 w-full rounded-lg border-border-warm bg-workflow-ivory text-sm text-on-surface shadow-none focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
+          placeholder={placeholder}
+        />
+      </div>
+      <ComboboxContent anchor={anchor} className="max-h-64 rounded-lg border-border-warm bg-clean-surface p-1 shadow-[0_20px_50px_-32px_rgba(28,25,23,0.65)]">
+        <ComboboxEmpty className="rounded-md px-3 py-2 text-sm text-on-surface-variant">
+          No matching options.
+        </ComboboxEmpty>
+        <ComboboxList className="max-h-56 p-1">
+          {(item: string) => (
+            <ComboboxItem
+              className="rounded-md px-3 py-2 text-sm font-medium text-on-surface data-highlighted:bg-teal-command/10 data-highlighted:text-deep-charcoal data-[selected]:bg-secondary-container data-[selected]:text-on-secondary-container"
+              key={item}
+              value={item}
+            >
+              {item}
+            </ComboboxItem>
+          )}
+        </ComboboxList>
+      </ComboboxContent>
+    </Combobox>
+  );
+};
+
 const Field = ({
   label,
   required,
@@ -201,6 +268,7 @@ export const DeptHeadCreateRequest: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { token, user } = useAuth();
+  const skillComboboxAnchor = useComboboxAnchor();
   const requestId = searchParams.get('requestId');
   const [form, setForm] = useState<FormState>(initialForm);
   const [skills, setSkills] = useState(defaultTemplate.defaultSkills);
@@ -215,11 +283,67 @@ export const DeptHeadCreateRequest: React.FC = () => {
     useState<RecruitmentRequestApi['hrRevisionSuggestion']>(null);
   const [acceptedHrSuggestion, setAcceptedHrSuggestion] = useState<boolean | null>(null);
   const [revisionResponse, setRevisionResponse] = useState('');
+  const [skillListOpen, setSkillListOpen] = useState(false);
+  const [departments, setDepartments] = useState<ApiDepartment[]>([]);
+  const [departmentBachelorRequirements, setDepartmentBachelorRequirements] = useState<
+    Record<string, string[]>
+  >({});
 
   const currentTemplate = useMemo(
     () => getRequestTemplateByKey(form.templateKey),
     [form.templateKey],
   );
+
+  const educationOptions = useMemo(
+    () => departmentBachelorRequirements[form.departmentId] ?? [],
+    [departmentBachelorRequirements, form.departmentId],
+  );
+
+  useEffect(() => {
+    const organizationId =
+      departments.find((department) => department.id === form.departmentId)?.organizationId ??
+      departments[0]?.organizationId;
+    if (!token || !organizationId) return;
+    let cancelled = false;
+
+    const loadBachelorRequirements = async () => {
+      try {
+        const organization = await apiRequest<OrganizationEducationSettings>(
+          `/organizations/${organizationId}`,
+          token,
+        );
+        if (!cancelled) {
+          setDepartmentBachelorRequirements(
+            organization.settings?.departmentBachelorRequirements ?? {},
+          );
+        }
+      } catch {
+        if (!cancelled) setDepartmentBachelorRequirements({});
+      }
+    };
+
+    void loadBachelorRequirements();
+    return () => {
+      cancelled = true;
+    };
+  }, [departments, form.departmentId, token]);
+
+  const skillOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return [...currentTemplate.skillOptions, ...currentTemplate.defaultSkills, ...skills].filter(
+      (skill) => {
+        const key = skill.trim().toLowerCase();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      },
+    );
+  }, [currentTemplate.defaultSkills, currentTemplate.skillOptions, skills]);
+
+  const hasMatchingSkillOption = (value: string) => {
+    const query = value.trim().toLowerCase();
+    return Boolean(query) && skillOptions.some((skill) => skill.toLowerCase().includes(query));
+  };
 
   useEffect(() => {
     if (requestId || !token) return;
@@ -229,16 +353,17 @@ export const DeptHeadCreateRequest: React.FC = () => {
       const template = resolveDepartmentRequestTemplate(department?.name, department?.code);
       setForm((current) => ({
         ...current,
+        departmentId: department?.id ?? '',
         department: department?.name ?? current.department,
-        jobLevel: template.defaultJobLevel,
-        employmentType: template.defaultEmploymentType,
-        experience: template.defaultExperience,
-        education: template.defaultEducation,
+        jobLevel: '',
+        employmentType: '',
+        experience: '',
+        education: '',
         templateKey: template.key,
         templateName: template.name,
-        templateFields: buildTemplateFieldValues(template),
+        templateFields: buildEmptyTemplateFieldValues(template),
       }));
-      setSkills(template.defaultSkills);
+      setSkills([]);
     };
 
     const storedDepartment = primaryDepartment(user);
@@ -248,12 +373,21 @@ export const DeptHeadCreateRequest: React.FC = () => {
 
     const loadProfileTemplate = async () => {
       try {
-        const profile = await apiRequest<ApiUserProfile>('/me/profile', token);
+        const [profile, availableDepartments] = await Promise.all([
+          apiRequest<ApiUserProfile>('/me/profile', token),
+          apiRequest<ApiDepartment[]>('/departments', token),
+        ]);
         if (cancelled) return;
 
+        setDepartments(availableDepartments);
+
         const profileDepartment = primaryDepartment(profile);
-        if (profileDepartment) {
-          applyDepartmentTemplate(profileDepartment);
+        const initialDepartment =
+          availableDepartments.find((department) => department.id === profileDepartment?.id) ??
+          availableDepartments[0] ??
+          profileDepartment;
+        if (initialDepartment) {
+          applyDepartmentTemplate(initialDepartment);
         }
       } catch {
         // Keep the general template if profile details are not available in mock/dev mode.
@@ -307,6 +441,7 @@ export const DeptHeadCreateRequest: React.FC = () => {
 
         setForm({
           positionTitle: request.position,
+          departmentId: request.department?.id ?? '',
           department: request.department?.name ?? initialForm.department,
           jobLevel: String(requirements.jobLevel ?? initialForm.jobLevel),
           employmentType,
@@ -417,8 +552,21 @@ export const DeptHeadCreateRequest: React.FC = () => {
     update('skillInput', '');
   };
 
-  const removeSkill = (skill: string) => {
-    setSkills((current) => current.filter((item) => item !== skill));
+  const updateSkills = (nextSkills: string[]) => {
+    setSkills(nextSkills);
+    update('skillInput', '');
+    setErrors((current) => {
+      const next = { ...current };
+      delete next.skills;
+      return next;
+    });
+  };
+
+  const handleSkillAdd = () => {
+    if (form.skillInput.trim() && !hasMatchingSkillOption(form.skillInput)) {
+      addSkill();
+    }
+    setSkillListOpen(true);
   };
 
   const applySuggestedRequest = (suggestion: SuggestedRequest) => {
@@ -468,6 +616,7 @@ export const DeptHeadCreateRequest: React.FC = () => {
 
   const validate = () => {
     const nextErrors: Record<string, string> = {};
+    if (!form.departmentId) nextErrors.departmentId = 'Select a department.';
     if (!form.positionTitle.trim()) nextErrors.positionTitle = 'Position title is required.';
     if (!form.description.trim()) nextErrors.description = 'Job description is required.';
     if (skills.length === 0) nextErrors.skills = 'Add at least one required skill.';
@@ -483,6 +632,7 @@ export const DeptHeadCreateRequest: React.FC = () => {
   };
 
   const buildPayload = (submitForReview?: boolean) => ({
+    departmentId: form.departmentId,
     positionTitle: form.positionTitle,
     headcount: form.headcount,
     jobDescription: form.description,
@@ -746,20 +896,56 @@ export const DeptHeadCreateRequest: React.FC = () => {
               </Field>
             </div>
 
-            <Field label="Department">
-              <input className={readonlyClass} readOnly type="text" value={form.department} />
+            <Field label="Department" required>
+              {requestId ? (
+                <input
+                  className="w-full cursor-not-allowed rounded-lg border border-border-warm bg-surface-container-low px-4 py-2.5 text-sm text-on-surface-variant outline-none"
+                  readOnly
+                  type="text"
+                  value={form.department}
+                />
+              ) : (
+                <SingleSelectCombobox
+                  items={departments.map((department) => department.name ?? '').filter(Boolean)}
+                  placeholder="Select department"
+                  value={form.department}
+                  onValueChange={(departmentName) => {
+                    const department = departments.find((item) => item.name === departmentName);
+                    if (!department) return;
+                    const template = resolveDepartmentRequestTemplate(department.name, department.code);
+                    setForm((current) => ({
+                      ...current,
+                      departmentId: department.id ?? '',
+                      department: department.name ?? 'Selected Department',
+                      jobLevel: '',
+                      employmentType: '',
+                      experience: '',
+                      education: '',
+                      templateKey: template.key,
+                      templateName: template.name,
+                      templateFields: buildEmptyTemplateFieldValues(template),
+                    }));
+                    setSkills([]);
+                    setErrors((current) => {
+                      const next = { ...current };
+                      delete next.departmentId;
+                      return next;
+                    });
+                  }}
+                />
+              )}
+              {errors.departmentId && (
+                <p className="mt-2 text-xs font-semibold text-rejected">{errors.departmentId}</p>
+              )}
             </Field>
 
             <Field label="Job Level">
-              <select
-                className={fieldClass}
-                onChange={(event) => update('jobLevel', event.target.value)}
+              <SingleSelectCombobox
+                items={currentTemplate.jobLevelOptions}
+                placeholder="Select job level"
                 value={form.jobLevel}
-              >
-                {currentTemplate.jobLevelOptions.map((level) => (
-                  <option key={level}>{level}</option>
-                ))}
-              </select>
+                onValueChange={(value) => update('jobLevel', value)}
+              />
             </Field>
 
             <Field label="Employment Type">
@@ -798,45 +984,86 @@ export const DeptHeadCreateRequest: React.FC = () => {
           <div className="space-y-6">
             <div>
               <Field label="Required Skills">
-                <div className="flex min-h-[46px] flex-wrap gap-2 rounded-lg border border-border-warm bg-workflow-ivory p-2">
-                  {skills.map((skill) => (
-                    <span
-                      className="inline-flex items-center rounded-full bg-secondary-container px-3 py-1 text-xs font-semibold text-on-secondary-container"
-                      key={skill}
-                    >
-                      {skill}
-                      <button
-                        aria-label={`Remove ${skill}`}
-                        className="ml-2 rounded-full p-0.5 transition hover:text-rejected"
-                        onClick={() => removeSkill(skill)}
-                        type="button"
-                      >
-                        <Icon className="h-3.5 w-3.5" name="x" />
-                      </button>
-                    </span>
-                  ))}
-                  <input
-                    className="min-w-[120px] flex-1 border-none bg-transparent px-2 text-sm outline-none focus:ring-0"
-                    onChange={(event) => update('skillInput', event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.preventDefault();
-                        addSkill();
-                      }
-                    }}
-                    placeholder="Add skills, separated by , or ;"
-                    type="text"
-                    value={form.skillInput}
-                  />
-                  <button
-                    className="inline-flex items-center gap-1 rounded-lg border border-border-warm bg-clean-surface px-2.5 text-xs font-semibold text-teal-command transition hover:border-teal-command"
-                    onClick={addSkill}
-                    type="button"
+                <Combobox
+                  inputValue={form.skillInput}
+                  items={skillOptions}
+                  multiple
+                  open={skillListOpen}
+                  value={skills}
+                  onOpenChange={setSkillListOpen}
+                  onInputValueChange={(value) => update('skillInput', value)}
+                  onValueChange={(value) => updateSkills(value)}
+                >
+                  <div
+                    ref={skillComboboxAnchor}
+                    className="flex min-h-[46px] items-stretch overflow-hidden rounded-lg border border-border-warm bg-workflow-ivory transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
                   >
-                    <Icon className="h-3.5 w-3.5" name="plus" />
-                    Add
-                  </button>
-                </div>
+                    <ComboboxChips className="min-h-[44px] flex-1 rounded-none border-0 bg-transparent px-2 py-2 shadow-none focus-within:ring-0">
+                      <ComboboxValue>
+                        {(selectedSkills: string[]) => (
+                          <>
+                            {selectedSkills.map((skill) => (
+                              <ComboboxChip
+                                aria-label={skill}
+                                className="rounded-full bg-secondary-container px-3 py-1 text-xs font-semibold text-on-secondary-container"
+                                key={skill}
+                              >
+                                {skill}
+                              </ComboboxChip>
+                            ))}
+                            <ComboboxChipsInput
+                              className="min-h-7 min-w-[180px] px-2 text-sm placeholder:text-on-surface-variant"
+                              placeholder={
+                                selectedSkills.length > 0
+                                  ? 'Type or pick another skill'
+                                  : 'Type or pick required skills'
+                              }
+                              onFocus={() => setSkillListOpen(true)}
+                              onKeyDown={(event) => {
+                                if (
+                                  event.key === 'Enter' &&
+                                  form.skillInput.trim() &&
+                                  !hasMatchingSkillOption(form.skillInput)
+                                ) {
+                                  event.preventDefault();
+                                  addSkill();
+                                  setSkillListOpen(true);
+                                }
+                              }}
+                            />
+                          </>
+                        )}
+                      </ComboboxValue>
+                    </ComboboxChips>
+                    <button
+                      className="inline-flex min-w-20 items-center justify-center gap-1 border-l border-border-warm bg-clean-surface px-3 text-sm font-semibold text-teal-command transition hover:bg-teal-command/10 active:scale-[0.98]"
+                      onClick={handleSkillAdd}
+                      type="button"
+                    >
+                      <Icon className="h-4 w-4" name="plus" />
+                      Add
+                    </button>
+                  </div>
+                  <ComboboxContent
+                    anchor={skillComboboxAnchor}
+                    className="max-h-64 rounded-lg border-border-warm bg-clean-surface p-1 shadow-[0_20px_50px_-32px_rgba(28,25,23,0.65)]"
+                  >
+                    <ComboboxEmpty className="rounded-md bg-clean-surface px-3 py-2 text-sm text-on-surface-variant">
+                      No skills found. Type a new skill and click Add.
+                    </ComboboxEmpty>
+                    <ComboboxList className="max-h-56 p-1">
+                      {(skill: string) => (
+                        <ComboboxItem
+                          className="rounded-md px-3 py-2 text-sm font-medium text-on-surface data-highlighted:bg-teal-command/10 data-highlighted:text-deep-charcoal data-[selected]:bg-secondary-container data-[selected]:text-on-secondary-container"
+                          key={skill}
+                          value={skill}
+                        >
+                          {skill}
+                        </ComboboxItem>
+                      )}
+                    </ComboboxList>
+                  </ComboboxContent>
+                </Combobox>
                 {errors.skills && (
                   <p className="mt-2 text-xs font-semibold text-rejected">{errors.skills}</p>
                 )}
@@ -845,31 +1072,62 @@ export const DeptHeadCreateRequest: React.FC = () => {
 
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <Field label="Experience (Years)">
-                <select
-                  className={fieldClass}
-                  onChange={(event) => update('experience', event.target.value)}
+                <SingleSelectCombobox
+                  items={currentTemplate.experienceOptions}
+                  placeholder="Select experience"
                   value={form.experience}
-                >
-                  {currentTemplate.experienceOptions.map((experience) => (
-                    <option key={experience}>{experience}</option>
-                  ))}
-                </select>
+                  onValueChange={(value) => update('experience', value)}
+                />
               </Field>
 
               <Field label="Education">
-                <input
-                  className={fieldClass}
-                  onChange={(event) => update('education', event.target.value)}
-                  placeholder="e.g. Bachelor's in CS"
-                  type="text"
-                  value={form.education}
-                />
+                {educationOptions.length > 0 ? (
+                  <SingleSelectCombobox
+                    items={educationOptions}
+                    placeholder="Select required qualification"
+                    value={form.education}
+                    onValueChange={(value) => update('education', value)}
+                  />
+                ) : (
+                  <input
+                    className={fieldClass}
+                    onChange={(event) => update('education', event.target.value)}
+                    placeholder="e.g. Bachelor's in CS"
+                    type="text"
+                    value={form.education}
+                  />
+                )}
               </Field>
             </div>
 
             <div className="rounded-lg border border-border-warm bg-workflow-ivory/45 p-4">
-              <div className="mb-4">
-                <p className="text-sm font-semibold text-deep-charcoal">{currentTemplate.name}</p>
+              <div className="mb-4 max-w-md">
+                <Field label="Request Template">
+                  <SingleSelectCombobox
+                    items={['engineering', 'marketing', 'sales', 'general'].map(
+                      (key) => getRequestTemplateByKey(key).name,
+                    )}
+                    placeholder="Select request template"
+                    value={currentTemplate.name}
+                    onValueChange={(templateName) => {
+                      const template = ['engineering', 'marketing', 'sales', 'general']
+                        .map((key) => getRequestTemplateByKey(key))
+                        .find((item) => item.name === templateName);
+                      if (!template) return;
+                      setForm((current) => ({
+                        ...current,
+                        jobLevel: '',
+                        employmentType: '',
+                        experience: '',
+                        education: '',
+                        templateKey: template.key,
+                        templateName: template.name,
+                        templateFields: buildEmptyTemplateFieldValues(template),
+                      }));
+                      setSkills([]);
+                    }}
+                  />
+                </Field>
               </div>
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                 {currentTemplate.fields.map((field) => {

@@ -28,6 +28,7 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
     help: (
       <path d="M9.1 9a3 3 0 1 1 5.8 1c-.7 1.5-2.4 1.7-2.8 3m-.1 4h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
     ),
+    clock: <path d="M12 7v5l3.5 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />,
   };
 
   return (
@@ -139,6 +140,27 @@ export const AdminDashboard: React.FC = () => {
         ? 'bg-rejected/10 text-rejected'
         : 'bg-pending/10 text-pending',
   }));
+
+  const urgentApprovalCount = approvalQueue.filter(
+    (request) =>
+      request.priority.toUpperCase() === 'HIGH' || request.priority.toUpperCase() === 'CRITICAL',
+  ).length;
+  const standardApprovalCount = approvalQueue.length - urgentApprovalCount;
+  const pendingApprovalCount = dashboard?.kpis.pendingApproval ?? 0;
+  const oldestApprovalDate = (dashboard?.approvalQueue ?? []).reduce<string | null>(
+    (oldest, request) =>
+      !oldest || new Date(request.submittedAt).getTime() < new Date(oldest).getTime()
+        ? request.submittedAt
+        : oldest,
+    null,
+  );
+  const oldestApprovalAge = oldestApprovalDate
+    ? Math.max(
+        0,
+        Math.floor((Date.now() - new Date(oldestApprovalDate).getTime()) / (1000 * 60 * 60 * 24)),
+      )
+    : 0;
+  const recentQueueTotal = Math.max(1, approvalQueue.length);
 
   const maxPipeline = Math.max(1, ...(dashboard?.pipeline ?? []).map((item) => item.value));
   const pipelineStages = (dashboard?.pipeline ?? []).map((stage, index) => ({
@@ -309,6 +331,68 @@ export const AdminDashboard: React.FC = () => {
               View All Queue
             </button>
           </div>
+          <div className="mb-5 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border border-revision/20 bg-revision/5 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-on-surface-variant">
+                Awaiting review
+              </p>
+              <p className="mt-1 font-mono text-2xl font-bold text-revision">
+                {pendingApprovalCount}
+              </p>
+              <p className="mt-1 text-xs text-slate-ink">Total requests pending approval</p>
+            </div>
+            <div className="rounded-lg border border-rejected/20 bg-rejected/5 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-on-surface-variant">
+                Urgent in recent queue
+              </p>
+              <p className="mt-1 font-mono text-2xl font-bold text-rejected">
+                {urgentApprovalCount}
+              </p>
+              <p className="mt-1 text-xs text-slate-ink">High or critical priority requests</p>
+            </div>
+            <div className="rounded-lg border border-border-warm bg-workflow-ivory p-3">
+              <div className="flex items-center gap-1.5 text-on-surface-variant">
+                <Icon className="h-3.5 w-3.5" name="clock" />
+                <p className="text-xs font-semibold uppercase tracking-[0.12em]">Oldest waiting</p>
+              </div>
+              <p className="mt-1 font-mono text-2xl font-bold text-on-surface">
+                {oldestApprovalDate ? `${oldestApprovalAge}d` : '—'}
+              </p>
+              <p className="mt-1 text-xs text-slate-ink">
+                {oldestApprovalDate
+                  ? 'Time since the oldest recent submission'
+                  : 'No recent requests'}
+              </p>
+            </div>
+          </div>
+          <div className="mb-5 rounded-lg border border-border-warm bg-workflow-ivory px-3 py-2.5">
+            <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+              <span className="font-semibold text-on-surface">Recent queue priority mix</span>
+              <span className="font-mono text-on-surface-variant">
+                {approvalQueue.length} shown
+              </span>
+            </div>
+            <div className="flex h-2 overflow-hidden rounded-full bg-surface-container">
+              <div
+                className="bg-rejected transition-all"
+                style={{ width: `${(urgentApprovalCount / recentQueueTotal) * 100}%` }}
+              />
+              <div
+                className="bg-pending transition-all"
+                style={{ width: `${(standardApprovalCount / recentQueueTotal) * 100}%` }}
+              />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-ink">
+              <span>
+                <span className="mr-1 inline-block h-2 w-2 rounded-full bg-rejected" />
+                Urgent: {urgentApprovalCount}
+              </span>
+              <span>
+                <span className="mr-1 inline-block h-2 w-2 rounded-full bg-pending" />
+                Standard: {standardApprovalCount}
+              </span>
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[680px] text-left">
               <thead>
@@ -346,6 +430,13 @@ export const AdminDashboard: React.FC = () => {
                     </td>
                   </tr>
                 ))}
+                {approvalQueue.length === 0 ? (
+                  <tr>
+                    <td className="py-10 text-center text-sm text-slate-ink" colSpan={6}>
+                      No recent requests are waiting for approval.
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>

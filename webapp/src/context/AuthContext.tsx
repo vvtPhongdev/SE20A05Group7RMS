@@ -40,7 +40,7 @@ interface AuthContextType {
     refreshToken?: string,
     rememberMe?: boolean,
   ) => void;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -86,8 +86,40 @@ const getStoredAuth = () => {
 const getStoredRefreshToken = () =>
   sessionStorage.getItem('refreshToken') ?? localStorage.getItem('refreshToken');
 
-const clearSupabaseSession = async () => {
-  await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+const clearSupabaseSession = async (scope: 'global' | 'local' | 'others' = 'local') => {
+  await supabase.auth.signOut({ scope }).catch(() => undefined);
+};
+
+const revokeSupabaseSession = async () => {
+  try {
+    const { error } = await supabase.auth.signOut({ scope: 'global' });
+    if (!error) return;
+
+    console.warn('Supabase session revoke failed; clearing local Supabase session instead:', error);
+  } catch (err) {
+    console.warn('Supabase session revoke failed; clearing local Supabase session instead:', err);
+  }
+
+  await clearSupabaseSession('local');
+};
+
+const revokeStoredRefreshToken = async (refreshToken: string | null) => {
+  if (!refreshToken) return;
+
+  try {
+    const response = await fetch('/api/v1/auth/logout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+      keepalive: true,
+    });
+
+    if (!response.ok) {
+      console.warn(`Server logout failed after local session was cleared: ${response.status}`);
+    }
+  } catch (err) {
+    console.warn('Server logout failed after local session was cleared:', err);
+  }
 };
 
 const mapAuthUser = (data: any): User => ({
@@ -328,7 +360,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const redirectTo = `${window.location.origin}${redirectPath}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo },
+      options: {
+        redirectTo,
+        queryParams: { prompt: 'select_account' },
+      },
     });
 
     if (error) {
@@ -415,27 +450,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(loggedUser);
   };
 
-  const logout = () => {
+  const logout = async () => {
     const refreshToken = getStoredRefreshToken();
 
     clearStoredAuth();
     setToken(null);
     setUser(null);
-    void supabase.auth.signOut();
 
     localStorage.setItem(AUTH_LOGOUT_EVENT_KEY, Date.now().toString());
     localStorage.removeItem(AUTH_LOGOUT_EVENT_KEY);
 
-    if (refreshToken) {
-      void fetch('/api/v1/auth/logout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
-        keepalive: true,
-      }).catch((err) => {
-        console.warn('Server logout failed after local session was cleared:', err);
-      });
-    }
+    await Promise.allSettled([
+      revokeStoredRefreshToken(refreshToken),
+      revokeSupabaseSession(),
+    ]);
   };
 
   return (

@@ -191,6 +191,7 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
     history: <path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 7v5l3 2" />,
     hourglass: <path d="M6 3h12M6 21h12M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9" />,
     notification: <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />,
+    trash: <path d="M4 7h16M10 11v6M14 11v6M6 7l1 14h10l1-14M9 7V4h6v3" />,
     close: <path d="M18 6 6 18M6 6l12 12" />,
     search: <path d="M11 19a8 8 0 1 1 5.66-2.34L21 21" />,
     sort: <path d="M8 7h10M8 12h7M8 17h4M4 7h.01M4 12h.01M4 17h.01" />,
@@ -226,6 +227,7 @@ export const DeptHeadRequests: React.FC = () => {
   const [selectedRequestDetails, setSelectedRequestDetails] =
     useState<RecruitmentRequestDetails | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [deletingRequestId, setDeletingRequestId] = useState('');
 
   useEffect(() => {
     const loadRequests = async () => {
@@ -317,6 +319,45 @@ export const DeptHeadRequests: React.FC = () => {
       setApiError(
         submitError instanceof ApiError ? submitError.message : 'Unable to submit request',
       );
+    }
+  };
+
+  const deletePendingRequest = async (request: DeptRequest) => {
+    if (request.status !== 'Pending') {
+      setApiError('Only pending requests can be deleted.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete pending request "${request.position}"? This action cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    setApiError('');
+    setDeletingRequestId(request.id);
+    try {
+      await apiRequest(`/recruitment-requests/${request.id}`, token, { method: 'DELETE' });
+
+      let nextSelectedId = '';
+      setRequests((current) => {
+        const next = current.filter((item) => item.id !== request.id);
+        nextSelectedId = next[0]?.id ?? '';
+        return next;
+      });
+
+      if (selectedRequestId === request.id) {
+        setSelectedRequestId(nextSelectedId);
+        setSelectedRequestDetails(null);
+      }
+      setIsViewModalOpen(false);
+    } catch (deleteError) {
+      setApiError(
+        deleteError instanceof ApiError
+          ? deleteError.message
+          : 'Unable to delete pending request',
+      );
+    } finally {
+      setDeletingRequestId('');
     }
   };
 
@@ -572,6 +613,17 @@ export const DeptHeadRequests: React.FC = () => {
                         >
                           View
                         </button>
+                        {request.status === 'Pending' && (
+                          <button
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 transition hover:underline active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={deletingRequestId === request.id}
+                            onClick={() => void deletePendingRequest(request)}
+                            type="button"
+                          >
+                            <Icon className="h-3.5 w-3.5" name="trash" />
+                            {deletingRequestId === request.id ? 'Deleting...' : 'Delete Request'}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -728,6 +780,19 @@ export const DeptHeadRequests: React.FC = () => {
                       type="button"
                     >
                       Submit Draft
+                    </button>
+                  )}
+                  {selectedRequest.status === 'Pending' && (
+                    <button
+                      className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 text-xs font-semibold text-red-600 transition hover:bg-red-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={deletingRequestId === selectedRequest.id}
+                      onClick={() => void deletePendingRequest(selectedRequest)}
+                      type="button"
+                    >
+                      <Icon className="h-4 w-4" name="trash" />
+                      {deletingRequestId === selectedRequest.id
+                        ? 'Deleting...'
+                        : 'Delete Request'}
                     </button>
                   )}
                   <button
@@ -989,6 +1054,17 @@ export const DeptHeadRequests: React.FC = () => {
                   type="button"
                 >
                   Submit Request
+                </button>
+              )}
+              {selectedRequest.status === 'Pending' && (
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-5 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={deletingRequestId === selectedRequest.id}
+                  onClick={() => void deletePendingRequest(selectedRequest)}
+                  type="button"
+                >
+                  <Icon className="h-4 w-4" name="trash" />
+                  {deletingRequestId === selectedRequest.id ? 'Deleting...' : 'Delete Request'}
                 </button>
               )}
             </div>

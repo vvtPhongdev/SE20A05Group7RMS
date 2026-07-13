@@ -388,7 +388,7 @@ export const CandidateNotifications: React.FC = () => {
       return;
     }
     if (alert.relatedType === 'OfferLetter') {
-      navigate(`/candidate/offers?id=${alert.relatedId}`);
+      navigate(`/candidate/offer/${alert.relatedId}`);
       return;
     }
     navigate(`/candidate/interviews?id=${alert.relatedId}`);

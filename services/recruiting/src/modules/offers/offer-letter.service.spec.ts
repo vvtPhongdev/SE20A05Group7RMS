@@ -1,5 +1,12 @@
 import { of } from 'rxjs';
-import { OfferResponse, OfferStatus, RecruitmentRequestStatus } from '@wr/contracts';
+import {
+  OfferResponse,
+  OfferStatus,
+  PlanStatus,
+  RecruitmentRequestStatus,
+  TaskStatus,
+  TaskType,
+} from '@wr/contracts';
 import { OfferLetterService } from './offer-letter.service';
 
 describe('OfferLetterService', () => {
@@ -14,6 +21,8 @@ describe('OfferLetterService', () => {
       update: jest.fn(),
     },
     application: { update: jest.fn() },
+    taskPlan: { updateMany: jest.fn() },
+    overallPlan: { updateMany: jest.fn() },
     requestLog: { create: jest.fn() },
     emailLog: { create: jest.fn() },
     notification: { create: jest.fn() },
@@ -102,6 +111,8 @@ describe('OfferLetterService', () => {
       .mockResolvedValueOnce({ id: 'offer-1' });
     prisma.recruitmentRequest.update.mockReturnValue({ operation: 'request' });
     prisma.application.update.mockReturnValue({ operation: 'application' });
+    prisma.taskPlan.updateMany.mockReturnValue({ operation: 'hiring-task' });
+    prisma.overallPlan.updateMany.mockReturnValue({ operation: 'plan' });
     prisma.requestLog.create.mockReturnValue({ operation: 'log' });
     prisma.notification.create.mockReturnValue({ operation: 'notification' });
     prisma.$transaction.mockResolvedValue([
@@ -178,6 +189,17 @@ describe('OfferLetterService', () => {
     expect(prisma.recruitmentRequest.update).toHaveBeenCalledWith({
       where: { id: 'request-1' },
       data: { status: RecruitmentRequestStatus.COMPLETED },
+    });
+    expect(prisma.taskPlan.updateMany).toHaveBeenCalledWith({
+      where: {
+        taskType: TaskType.HIRING,
+        overallPlan: { requestId: 'request-1' },
+      },
+      data: { status: TaskStatus.COMPLETED },
+    });
+    expect(prisma.overallPlan.updateMany).toHaveBeenCalledWith({
+      where: { requestId: 'request-1' },
+      data: { status: PlanStatus.COMPLETED },
     });
     expect(prisma.requestLog.create).toHaveBeenCalledWith(
       expect.objectContaining({

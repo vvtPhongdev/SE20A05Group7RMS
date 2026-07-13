@@ -355,6 +355,7 @@ model InterviewSchedule {
   duration            Int // Duration in minutes
   location            String // Interview meeting room or URL
   interviewers        String[] // User IDs (interviewers)
+  interviewerAttendance Json? @map("interviewer_attendance")
   status              String   @default("SCHEDULED") // InterviewStatus enum
   /// Khuyến nghị tuyển dụng cuối cùng từ hội đồng/HR Manager (Recommend Hire, Recommend Reject, Hold for Further)
   finalRecommendation String?  @map("final_recommendation")

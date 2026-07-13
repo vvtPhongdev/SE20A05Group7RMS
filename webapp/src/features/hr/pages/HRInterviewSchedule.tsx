@@ -3,6 +3,20 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../../context/AuthContext';
 import { ApiError, apiRequest } from '../../../lib/api';
 import { HRActionButton, HRCard, HRInlineAlert, HRLoadingState, HRPageHeader } from '../components';
+import {
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxTrigger,
+  ComboboxValue,
+  useComboboxAnchor,
+} from '@/components/ui/combobox';
 
 type InterviewStatus = 'Scheduled' | 'Rescheduled' | 'Completed';
 type InterviewMode = 'ONLINE' | 'OFFLINE';
@@ -67,6 +81,11 @@ interface UserOption {
   displayName: string;
   email?: string;
 }
+
+type SelectOption = {
+  value: string;
+  label: string;
+};
 
 interface GoogleCalendarAuthUrlResponse {
   authorizationUrl: string;
@@ -176,6 +195,17 @@ const getInitials = (name: string) =>
 
 const isGoogleMeetUrl = (value: string) => /^https:\/\/meet\.google\.com\/.+/i.test(value.trim());
 
+const toDateInputValue = (value: string) => {
+  const date = new Date(value);
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 10);
+};
+
+const toTimeInputValue = (value: string) => {
+  const date = new Date(value);
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+};
+
 const normalizeEmailList = (emails: Array<string | undefined>) =>
   Array.from(
     new Set(
@@ -203,6 +233,148 @@ const buildInterviewerOptions = (
   return Array.from(options.values());
 };
 
+const InterviewScheduleCombobox = ({
+  disabled = false,
+  label,
+  onChange,
+  options,
+  placeholder,
+  value,
+}: {
+  disabled?: boolean;
+  label: string;
+  onChange: (value: string) => void;
+  options: SelectOption[];
+  placeholder: string;
+  value: string;
+}) => {
+  const [inputValue, setInputValue] = useState('');
+  const [open, setOpen] = useState(false);
+  const selectedLabel = options.find((option) => option.value === value)?.label ?? placeholder;
+
+  return (
+    <label className="block min-w-0 space-y-1.5">
+      <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-ink">
+        {label}
+      </span>
+      <Combobox
+        disabled={disabled}
+        inputValue={inputValue}
+        items={options}
+        itemToStringLabel={(option) => option.label}
+        itemToStringValue={(option) => option.value}
+        onInputValueChange={setInputValue}
+        onOpenChange={(nextOpen) => {
+          setOpen(nextOpen);
+          if (nextOpen) setInputValue('');
+        }}
+        onValueChange={(nextValue) => {
+          onChange(nextValue?.value ?? '');
+          setOpen(false);
+        }}
+        open={open}
+        value={options.find((option) => option.value === value) ?? null}
+      >
+        <ComboboxTrigger className="flex min-h-10 w-full min-w-0 items-center justify-between rounded-lg border border-border-warm bg-workflow-ivory px-3 py-2 text-left text-sm text-deep-charcoal outline-none transition hover:bg-surface-container-low focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-50">
+          <span className="min-w-0 break-words text-left">{selectedLabel}</span>
+        </ComboboxTrigger>
+        <ComboboxContent className="max-h-64 min-w-0">
+          <ComboboxInput
+            className="w-full"
+            placeholder={`Search ${label.toLowerCase()}...`}
+            showClear
+            showTrigger={false}
+          />
+          <ComboboxEmpty>No matching options.</ComboboxEmpty>
+          <ComboboxList>
+            {(option: SelectOption) => (
+              <ComboboxItem key={option.value} value={option}>
+                {option.label}
+              </ComboboxItem>
+            )}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
+    </label>
+  );
+};
+
+const InterviewScheduleMultiCombobox = ({
+  label,
+  onChange,
+  options,
+  placeholder,
+  values,
+}: {
+  label: string;
+  onChange: (values: string[]) => void;
+  options: SelectOption[];
+  placeholder: string;
+  values: string[];
+}) => {
+  const [inputValue, setInputValue] = useState('');
+  const [open, setOpen] = useState(false);
+  const anchor = useComboboxAnchor();
+  const selectedOptions = options.filter((option) => values.includes(option.value));
+
+  return (
+    <label className="block min-w-0 space-y-1.5">
+      <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-ink">
+        {label}
+      </span>
+      <Combobox
+        inputValue={inputValue}
+        items={options}
+        itemToStringLabel={(option) => option.label}
+        itemToStringValue={(option) => option.value}
+        multiple
+        onInputValueChange={setInputValue}
+        onOpenChange={setOpen}
+        onValueChange={(nextValues) => onChange(nextValues.map((option) => option.value))}
+        open={open}
+        value={selectedOptions}
+      >
+        <div
+          className="min-h-10 rounded-lg border border-border-warm bg-workflow-ivory px-2 transition focus-within:border-teal-command focus-within:ring-2 focus-within:ring-teal-command/20"
+          ref={anchor}
+        >
+          <ComboboxChips className="max-h-28 min-h-9 overflow-y-auto border-0 bg-transparent px-0 py-1 shadow-none focus-within:ring-0">
+            <ComboboxValue>
+              {(selected: SelectOption[]) => (
+                <>
+                  {selected.map((option) => (
+                    <ComboboxChip
+                      className="rounded-full bg-teal-command/10 px-2 text-xs font-semibold text-teal-command"
+                      key={option.value}
+                    >
+                      {option.label}
+                    </ComboboxChip>
+                  ))}
+                  <ComboboxChipsInput
+                    className="min-h-7 min-w-28 px-1 text-sm text-deep-charcoal placeholder:text-on-surface-variant"
+                    onFocus={() => setOpen(true)}
+                    placeholder={selected.length ? 'Add more...' : placeholder}
+                  />
+                </>
+              )}
+            </ComboboxValue>
+          </ComboboxChips>
+        </div>
+        <ComboboxContent anchor={anchor}>
+          <ComboboxEmpty>No matching options.</ComboboxEmpty>
+          <ComboboxList>
+            {(option: SelectOption) => (
+              <ComboboxItem key={option.value} value={option}>
+                {option.label}
+              </ComboboxItem>
+            )}
+          </ComboboxList>
+        </ComboboxContent>
+      </Combobox>
+    </label>
+  );
+};
+
 export const HRInterviewSchedule: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { token, user } = useAuth();
@@ -213,8 +385,10 @@ export const HRInterviewSchedule: React.FC = () => {
   const [applications, setApplications] = useState<ApplicationApiItem[]>([]);
   const [interviewerOptions, setInterviewerOptions] = useState<UserOption[]>([]);
   const [selectedRequestId, setSelectedRequestId] = useState('');
-  const [selectedCandidateId, setSelectedCandidateId] = useState('');
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
   const [selectedInterviewerIds, setSelectedInterviewerIds] = useState<string[]>([]);
+  const [selectedQueueScheduleId, setSelectedQueueScheduleId] = useState('');
+  const [rescheduleReason, setRescheduleReason] = useState('');
   const [scheduleDate, setScheduleDate] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
   const [scheduleDuration, setScheduleDuration] = useState('60');
@@ -298,11 +472,53 @@ export const HRInterviewSchedule: React.FC = () => {
     [requests, selectedRequestId],
   );
 
-  const selectedApplication = useMemo(
+  const selectedApplications = useMemo(
     () =>
-      applications.find((application) => application.candidateId === selectedCandidateId) ?? null,
-    [applications, selectedCandidateId],
+      selectedCandidateIds
+        .map((candidateId) => applications.find((application) => application.candidateId === candidateId))
+        .filter((application): application is ApplicationApiItem => Boolean(application)),
+    [applications, selectedCandidateIds],
   );
+
+  const selectedQueueSchedule = useMemo(
+    () => schedules.find((schedule) => schedule.id === selectedQueueScheduleId) ?? null,
+    [schedules, selectedQueueScheduleId],
+  );
+  // Existing schedules are created/rescheduled only after their invitation has been dispatched.
+  // A selected existing schedule must not create a duplicate invitation.
+  const hasSentInvitation = Boolean(selectedQueueSchedule);
+
+  const selectedQueueApplication = useMemo(
+    () =>
+      selectedQueueSchedule
+        ? applications.find((application) => application.candidateId === selectedQueueSchedule.candidateId) ??
+          null
+        : null,
+    [applications, selectedQueueSchedule],
+  );
+
+  const selectQueueSchedule = (schedule: ScheduleWithPosition) => {
+    setSelectedQueueScheduleId(schedule.id);
+    setSelectedRequestId(schedule.requestId);
+    setSelectedCandidateIds([schedule.candidateId]);
+    setSelectedInterviewerIds(schedule.interviewers);
+    setScheduleDate(toDateInputValue(schedule.scheduledAt));
+    setScheduleTime(toTimeInputValue(schedule.scheduledAt));
+    setScheduleDuration(String(schedule.duration));
+    setScheduleLocation(schedule.location);
+    setInterviewMode(isGoogleMeetUrl(schedule.location) ? 'ONLINE' : 'OFFLINE');
+    setRescheduleReason(
+      schedule.status === 'RESCHEDULED' ? 'Rescheduling requested for this interview.' : '',
+    );
+    setApiError('');
+    setActionMessage('');
+  };
+
+  useEffect(() => {
+    const scheduleId = searchParams.get('scheduleId');
+    const schedule = scheduleId ? schedules.find((item) => item.id === scheduleId) : null;
+    if (schedule && schedule.id !== selectedQueueScheduleId) selectQueueSchedule(schedule);
+  }, [schedules, searchParams, selectedQueueScheduleId]);
 
   const candidateOptions = useMemo(() => {
     const scheduledCandidateIds = new Set(
@@ -310,7 +526,7 @@ export const HRInterviewSchedule: React.FC = () => {
         .filter(
           (schedule) =>
             schedule.requestId === selectedRequestId &&
-            ['SCHEDULED', 'RESCHEDULED', 'COMPLETED'].includes(schedule.status),
+            ['SCHEDULED', 'COMPLETED'].includes(schedule.status),
         )
         .map((schedule) => schedule.candidateId),
     );
@@ -320,15 +536,40 @@ export const HRInterviewSchedule: React.FC = () => {
       .filter((application) => !scheduledCandidateIds.has(application.candidateId));
   }, [applications, schedules, selectedRequestId]);
 
+  const campaignSelectOptions = useMemo(
+    () => requests.map((request) => ({ value: request.id, label: request.position })),
+    [requests],
+  );
+
+  const candidateSelectOptions = useMemo(
+    () =>
+      candidateOptions.map((application) => ({
+        value: application.candidateId,
+        label: `${application.candidate.fullName} (${application.status})`,
+      })),
+    [candidateOptions],
+  );
+
+  const interviewerSelectOptions = useMemo(
+    () =>
+      interviewerOptions.map((interviewer) => ({
+        value: interviewer.id,
+        label: interviewer.email
+          ? `${interviewer.displayName} (${interviewer.email})`
+          : interviewer.displayName,
+      })),
+    [interviewerOptions],
+  );
+
   useEffect(() => {
-    setSelectedCandidateId((current) => {
+    setSelectedCandidateIds((current) => {
       const requestedId = searchParams.get('candidateId');
       if (requestedId && candidateOptions.some((item) => item.candidateId === requestedId)) {
-        return requestedId;
+        return [requestedId];
       }
-      return candidateOptions.some((application) => application.candidateId === current)
-        ? current
-        : candidateOptions[0]?.candidateId || '';
+      const availableCandidateIds = new Set(candidateOptions.map((application) => application.candidateId));
+      const retained = current.filter((candidateId) => availableCandidateIds.has(candidateId));
+      return retained.length ? retained : candidateOptions[0] ? [candidateOptions[0].candidateId] : [];
     });
   }, [candidateOptions, searchParams]);
 
@@ -501,7 +742,7 @@ export const HRInterviewSchedule: React.FC = () => {
         const overlaps = scheduleStart < end && scheduleEnd > start;
         if (!overlaps) return false;
         return (
-          schedule.candidateId === selectedCandidateId ||
+          selectedCandidateIds.includes(schedule.candidateId) ||
           schedule.interviewers.some((id) => selectedInterviewerIds.includes(id))
         );
       });
@@ -543,8 +784,8 @@ export const HRInterviewSchedule: React.FC = () => {
   };
 
   const createGoogleMeet = async () => {
-    if (!selectedRequest || !selectedApplication || !scheduleDate || !scheduleTime) {
-      setApiError('Select campaign, candidate, date, and time before creating Google Meet.');
+    if (!selectedRequest || selectedApplications.length === 0 || !scheduleDate || !scheduleTime) {
+      setApiError('Select campaign, at least one candidate, date, and time before creating Google Meet.');
       return;
     }
 
@@ -567,16 +808,17 @@ export const HRInterviewSchedule: React.FC = () => {
           interviewerOptions.find((interviewer) => interviewer.id === interviewerId)?.email,
       );
       const attendees = normalizeEmailList([
-        selectedApplication.candidate.email,
+        ...selectedApplications.map((application) => application.candidate.email),
         ...selectedInterviewerEmails,
       ]);
+      const candidateNames = selectedApplications.map((application) => application.candidate.fullName);
 
       const response = await apiRequest<GoogleMeetResponse>('/google-calendar/meet', token, {
         method: 'POST',
         body: JSON.stringify({
-          title: `Interview - ${selectedApplication.candidate.fullName} - ${selectedRequest.position}`,
+          title: `Interview - ${selectedRequest.position}`,
           description: [
-            `Candidate: ${selectedApplication.candidate.fullName}`,
+            `Candidate${candidateNames.length > 1 ? 's' : ''}: ${candidateNames.join(', ')}`,
             `Position: ${selectedRequest.position}`,
             `Duration: ${duration} minutes`,
           ].join('\n'),
@@ -613,9 +855,14 @@ export const HRInterviewSchedule: React.FC = () => {
   };
 
   const createSchedule = async () => {
+    if (hasSentInvitation) {
+      setActionMessage('The invitation for this schedule has already been sent.');
+      return;
+    }
+
     if (
       !selectedRequestId ||
-      !selectedCandidateId ||
+      selectedCandidateIds.length === 0 ||
       !scheduleDate ||
       !scheduleTime ||
       !scheduleLocation.trim() ||
@@ -632,26 +879,60 @@ export const HRInterviewSchedule: React.FC = () => {
       return;
     }
 
+    if (selectedQueueSchedule?.status === 'RESCHEDULED' && !rescheduleReason.trim()) {
+      setApiError('Provide a reason before rescheduling this interview.');
+      return;
+    }
+
     setSubmitting(true);
     setApiError('');
     setActionMessage('');
     try {
       const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
-      await apiRequest<InterviewSchedule>('/interviews/schedules', token, {
-        method: 'POST',
-        body: JSON.stringify({
-          requestId: selectedRequestId,
-          candidateId: selectedCandidateId,
-          scheduledAt,
-          duration: Number(scheduleDuration),
-          location: scheduleLocation.trim(),
-          interviewers: selectedInterviewerIds,
-        }),
-      });
-      setActionMessage('Interview invitation sent successfully.');
+      if (selectedQueueSchedule?.status === 'RESCHEDULED') {
+        await apiRequest<InterviewSchedule>(
+          `/interviews/schedules/${selectedQueueSchedule.id}/reschedule`,
+          token,
+          {
+            method: 'PATCH',
+            body: JSON.stringify({
+              scheduledAt,
+              duration: Number(scheduleDuration),
+              location: scheduleLocation.trim(),
+              interviewers: selectedInterviewerIds,
+              reason: rescheduleReason.trim(),
+            }),
+          },
+        );
+      } else {
+        await Promise.all(
+          selectedCandidateIds.map((candidateId) =>
+            apiRequest<InterviewSchedule>('/interviews/schedules', token, {
+              method: 'POST',
+              body: JSON.stringify({
+                requestId: selectedRequestId,
+                candidateId,
+                scheduledAt,
+                duration: Number(scheduleDuration),
+                location: scheduleLocation.trim(),
+                interviewers: selectedInterviewerIds,
+              }),
+            }),
+          ),
+        );
+      }
+      setActionMessage(
+        selectedQueueSchedule?.status === 'RESCHEDULED'
+          ? 'Rescheduled invitation sent successfully.'
+          : selectedCandidateIds.length > 1
+          ? `Interview invitations sent to ${selectedCandidateIds.length} candidates.`
+          : 'Interview invitation sent successfully.',
+      );
       setScheduleDate('');
       setScheduleTime('');
       setScheduleLocation('');
+      setSelectedQueueScheduleId('');
+      setRescheduleReason('');
       await loadScheduleData();
     } catch (createError) {
       setApiError(createError instanceof Error ? createError.message : 'Unable to send invitation');
@@ -799,8 +1080,19 @@ export const HRInterviewSchedule: React.FC = () => {
                 <tbody className="divide-y divide-border-warm/60">
                   {visibleInterviews.map((interview, index) => (
                     <tr
-                      className={`${index % 2 === 1 ? 'bg-workflow-ivory/30' : ''} transition hover:bg-surface-container-low`}
+                      aria-selected={selectedQueueScheduleId === interview.id}
+                      className={`cursor-pointer transition hover:bg-surface-container-low ${
+                        interview.status === 'Rescheduled'
+                          ? 'border-l-4 border-revision bg-revision/10 hover:bg-revision/15'
+                          : index % 2 === 1
+                            ? 'bg-workflow-ivory/30'
+                            : ''
+                      } ${selectedQueueScheduleId === interview.id ? 'bg-teal-command/10' : ''}`}
                       key={interview.id}
+                      onClick={() => {
+                        const schedule = schedules.find((item) => item.id === interview.id);
+                        if (schedule) selectQueueSchedule(schedule);
+                      }}
                     >
                       <td className="p-4">
                         <div className="flex items-center gap-3">
@@ -834,9 +1126,24 @@ export const HRInterviewSchedule: React.FC = () => {
                         </span>
                       </td>
                       <td className="p-4">
-                        <span className="text-sm font-semibold text-on-surface-variant">
-                          {interview.action}
-                        </span>
+                        <button
+                          className={`text-sm font-semibold transition hover:underline ${
+                            interview.status === 'Rescheduled'
+                              ? 'text-revision'
+                              : 'text-teal-command'
+                          }`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            const schedule = schedules.find((item) => item.id === interview.id);
+                            if (schedule) {
+                              selectQueueSchedule(schedule);
+                              scheduleFormRef.current?.scrollIntoView({ behavior: 'smooth' });
+                            }
+                          }}
+                          type="button"
+                        >
+                          {interview.status === 'Rescheduled' ? 'Reschedule now' : 'View schedule'}
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -872,71 +1179,77 @@ export const HRInterviewSchedule: React.FC = () => {
             ref={scheduleFormRef}
             onSubmit={(event) => event.preventDefault()}
           >
-            <label className="block space-y-1.5">
-              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-ink">
-                Candidate
-              </span>
-              <select
-                className="w-full rounded-lg border border-border-warm bg-workflow-ivory p-2.5 text-sm outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                disabled={!selectedRequestId || candidateOptions.length === 0}
-                onChange={(event) => setSelectedCandidateId(event.target.value)}
-                value={selectedCandidateId}
+            {selectedQueueSchedule ? (
+              <section
+                className={`rounded-lg border p-3 ${
+                  selectedQueueSchedule.status === 'RESCHEDULED'
+                    ? 'border-revision/40 bg-revision/10'
+                    : 'border-teal-command/20 bg-teal-command/5'
+                }`}
               >
-                {candidateOptions.length === 0 ? (
-                  <option value="">No unscheduled candidates</option>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">
+                      Selected interview
+                    </p>
+                    <p className="mt-1 text-sm font-bold text-deep-charcoal">
+                      {selectedQueueApplication?.candidate.fullName ??
+                        candidateNameById.get(selectedQueueSchedule.candidateId) ??
+                        'Candidate'}
+                    </p>
+                    <p className="text-xs text-slate-ink">
+                      {selectedQueueApplication?.candidate.email ?? 'Email unavailable'} ·{' '}
+                      {selectedQueueSchedule.position}
+                    </p>
+                  </div>
+                  <span
+                    className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] ${
+                      statusClass[STATUS_MAP[selectedQueueSchedule.status] ?? 'Scheduled']
+                    }`}
+                  >
+                    {STATUS_MAP[selectedQueueSchedule.status] ?? selectedQueueSchedule.status}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs font-semibold text-slate-ink">
+                  Current slot: {new Date(selectedQueueSchedule.scheduledAt).toLocaleString()} ·{' '}
+                  {selectedQueueSchedule.duration} mins
+                </p>
+                {selectedQueueSchedule.status === 'RESCHEDULED' ? (
+                  <p className="mt-2 text-xs font-bold text-revision">
+                    Action required: choose a new slot and resend the invitation.
+                  </p>
                 ) : null}
-                {candidateOptions.map((application) => (
-                  <option key={application.id} value={application.candidateId}>
-                    {application.candidate.fullName} ({application.status})
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block space-y-1.5">
-              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-ink">
-                Campaign
-              </span>
-              <select
-                className="w-full rounded-lg border border-border-warm bg-workflow-ivory p-2.5 text-sm outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                onChange={(event) => {
-                  setSelectedRequestId(event.target.value);
-                  setActionMessage('');
-                }}
-                value={selectedRequestId}
-              >
-                {requests.length === 0 ? <option value="">No campaigns available</option> : null}
-                {requests.map((request) => (
-                  <option key={request.id} value={request.id}>
-                    {request.position}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block space-y-1.5">
-              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-ink">
-                Interviewers
-              </span>
-              <select
-                className="min-h-[100px] w-full rounded-lg border border-border-warm bg-workflow-ivory p-2.5 text-sm outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                multiple
-                onChange={(event) =>
-                  setSelectedInterviewerIds(
-                    Array.from(event.currentTarget.selectedOptions, (option) => option.value),
-                  )
-                }
-                value={selectedInterviewerIds}
-              >
-                {interviewerOptions.map((interviewer) => (
-                  <option key={interviewer.id} value={interviewer.id}>
-                    {interviewer.displayName}
-                    {interviewer.email ? ` (${interviewer.email})` : ''}
-                  </option>
-                ))}
-              </select>
-              <span className="text-xs text-slate-ink">
-                Select at least 2 panel members. Hold Ctrl/Cmd to select multiple members.
-              </span>
-            </label>
+              </section>
+            ) : null}
+            <InterviewScheduleCombobox
+              label="Campaign"
+              onChange={(nextRequestId) => {
+                setSelectedRequestId(nextRequestId);
+                setActionMessage('');
+              }}
+              options={campaignSelectOptions}
+              placeholder={requests.length ? 'Select campaign' : 'No campaigns available'}
+              value={selectedRequestId}
+            />
+            <InterviewScheduleMultiCombobox
+              label="Candidates"
+              onChange={setSelectedCandidateIds}
+              options={candidateSelectOptions}
+              placeholder={
+                selectedRequestId ? 'Select candidates...' : 'Select a campaign first...'
+              }
+              values={selectedCandidateIds}
+            />
+            <InterviewScheduleMultiCombobox
+              label="Interviewers"
+              onChange={setSelectedInterviewerIds}
+              options={interviewerSelectOptions}
+              placeholder="Select panel members..."
+              values={selectedInterviewerIds}
+            />
+            <span className="block -mt-2 text-xs text-slate-ink">
+              Select at least 2 panel members.
+            </span>
             <div className="grid grid-cols-2 gap-3">
               <label className="block space-y-1.5">
                 <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-ink">
@@ -961,21 +1274,18 @@ export const HRInterviewSchedule: React.FC = () => {
                 />
               </label>
             </div>
-            <label className="block space-y-1.5">
-              <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-ink">
-                Duration
-              </span>
-              <select
-                className="w-full rounded-lg border border-border-warm bg-workflow-ivory p-2.5 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                onChange={(event) => setScheduleDuration(event.target.value)}
-                value={scheduleDuration}
-              >
-                <option value="30">30 Minutes</option>
-                <option value="60">60 Minutes</option>
-                <option value="90">90 Minutes</option>
-                <option value="120">2 Hours</option>
-              </select>
-            </label>
+            <InterviewScheduleCombobox
+              label="Duration"
+              onChange={setScheduleDuration}
+              options={[
+                { value: '30', label: '30 Minutes' },
+                { value: '60', label: '60 Minutes' },
+                { value: '90', label: '90 Minutes' },
+                { value: '120', label: '2 Hours' },
+              ]}
+              placeholder="Select duration"
+              value={scheduleDuration}
+            />
             <section className="space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-ink">
                 Interview Format
@@ -1003,6 +1313,18 @@ export const HRInterviewSchedule: React.FC = () => {
                 ))}
               </div>
             </section>
+            {selectedQueueSchedule?.status === 'RESCHEDULED' ? (
+              <label className="block space-y-1.5">
+                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-ink">
+                  Reschedule reason
+                </span>
+                <input
+                  className="w-full rounded-lg border border-revision/40 bg-revision/5 p-2.5 text-sm outline-none focus:border-revision focus:ring-2 focus:ring-revision/20"
+                  onChange={(event) => setRescheduleReason(event.target.value)}
+                  value={rescheduleReason}
+                />
+              </label>
+            ) : null}
             <label className="block space-y-1.5">
               <span className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-ink">
                 {interviewMode === 'ONLINE' ? 'Google Meet Link' : 'Room / Address'}
@@ -1031,7 +1353,7 @@ export const HRInterviewSchedule: React.FC = () => {
                   disabled={
                     creatingMeet ||
                     !selectedRequest ||
-                    !selectedCandidateId ||
+                    selectedCandidateIds.length === 0 ||
                     !scheduleDate ||
                     !scheduleTime
                   }
@@ -1093,16 +1415,25 @@ export const HRInterviewSchedule: React.FC = () => {
                 disabled={
                   submitting ||
                   !selectedRequest ||
-                  !selectedCandidateId ||
+                  selectedCandidateIds.length === 0 ||
                   !scheduleDate ||
                   !scheduleTime ||
                   !scheduleLocation.trim() ||
-                  selectedInterviewerIds.length < 2
+                  selectedInterviewerIds.length < 2 ||
+                  hasSentInvitation ||
+                  (selectedQueueSchedule?.status === 'RESCHEDULED' && !rescheduleReason.trim())
                 }
+                title={hasSentInvitation ? 'Invitation has already been sent for this schedule.' : undefined}
                 onClick={() => void createSchedule()}
                 type="submit"
               >
-                {submitting ? 'Sending...' : 'Send Invitation'}
+                {submitting
+                  ? 'Sending...'
+                  : hasSentInvitation
+                    ? 'Invitation Sent'
+                  : selectedQueueSchedule?.status === 'RESCHEDULED'
+                    ? 'Resend Rescheduled Invitation'
+                    : 'Send Invitation'}
               </button>
             </div>
           </form>

@@ -777,8 +777,15 @@ export class IdentityController {
   @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.DEPARTMENT_HEAD)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List departments with organization filtering' })
-  listDepartments(@Query() query: ListDepartmentsQueryDto) {
-    return firstValueFrom(this.identityClient.send('identity.list_departments', query));
+  listDepartments(@Query() query: ListDepartmentsQueryDto, @CurrentUser() user: any) {
+    return firstValueFrom(
+      this.identityClient.send('identity.list_departments', {
+        ...query,
+        actorId: user.sub,
+        actorRole: user.role,
+        actorOrganizationId: user.organizationId,
+      }),
+    );
   }
 
   @Get('departments/:id')

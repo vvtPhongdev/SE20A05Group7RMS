@@ -1,5 +1,6 @@
 ﻿import { Injectable, HttpStatus, Inject } from '@nestjs/common';
 import { RpcException, ClientProxy } from '@nestjs/microservices';
+import { Prisma } from '@prisma/client';
 import { AuditLogService } from '@wr/database';
 import { PrismaService } from '../../common/database/prisma.service';
 import {
@@ -294,8 +295,11 @@ export class SchedulesService {
 
     // FR-07: all three plan-lock preconditions
     await this.assertPlanLocked(payload.requestId);
+    const requestedPanel = payload.scheduledById
+      ? [...payload.interviewers, payload.scheduledById]
+      : payload.interviewers;
     const { uniqueIds: interviewerIds, users: panel } = await this.assertValidInterviewers(
-      payload.interviewers,
+      requestedPanel,
     );
     const performedById = payload.scheduledById ?? interviewerIds[0]!;
 
@@ -341,6 +345,14 @@ export class SchedulesService {
           duration: payload.duration,
           location: payload.location,
           interviewers: interviewerIds,
+          interviewerAttendance: payload.scheduledById
+            ? {
+                [payload.scheduledById]: {
+                  response: 'ACCEPTED',
+                  respondedAt: new Date().toISOString(),
+                },
+              }
+            : undefined,
           status: InterviewStatus.SCHEDULED,
         },
         include: {
@@ -564,6 +576,56 @@ export class SchedulesService {
         return user ? [user] : [];
       }),
     }));
+  }
+
+  async respondToInterviewerAttendance(payload: {
+    id: string;
+    userId: string;
+    response: 'ACCEPTED' | 'ABSENT';
+  }) {
+    const schedule = await this.prisma.interviewSchedule.findUnique({
+      where: { id: payload.id },
+    });
+
+    if (!schedule) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Interview schedule ${payload.id} not found`,
+      });
+    }
+
+    if (!schedule.interviewers.includes(payload.userId)) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'You are not assigned to this interview panel',
+      });
+    }
+
+    if ([InterviewStatus.CANCELLED, InterviewStatus.COMPLETED].includes(schedule.status as InterviewStatus)) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: 'Attendance cannot be changed for a cancelled or completed interview',
+      });
+    }
+
+    const currentAttendance: Prisma.InputJsonObject =
+      schedule.interviewerAttendance &&
+      typeof schedule.interviewerAttendance === 'object' &&
+      !Array.isArray(schedule.interviewerAttendance)
+        ? (schedule.interviewerAttendance as Prisma.InputJsonObject)
+        : {};
+    const interviewerAttendance: Prisma.InputJsonObject = {
+      ...currentAttendance,
+      [payload.userId]: {
+        response: payload.response,
+        respondedAt: new Date().toISOString(),
+      },
+    };
+
+    return this.prisma.interviewSchedule.update({
+      where: { id: payload.id },
+      data: { interviewerAttendance },
+    });
   }
 
   /**
@@ -865,7 +927,8 @@ export class SchedulesService {
       timeStyle: 'short',
     });
 
-    const emailSubject = `Interview Rescheduled â€” New time: ${newDateStr} (ICT)`;
+    // Keep the subject ASCII-only so it remains readable across email providers and clients.
+    const emailSubject = `Interview Rescheduled - New time: ${newDateStr} (ICT)`;
 
     const buildEmailBody = (name: string, role: string) =>
       [

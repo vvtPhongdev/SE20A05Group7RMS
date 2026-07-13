@@ -5,6 +5,7 @@ import { CandidateProfile } from './CandidateProfile';
 import { CandidateUploadCv } from './CandidateUploadCv';
 import { CandidateNotifications } from './CandidateNotifications';
 import { CandidateInterviewDetails } from './CandidateInterviewDetails';
+import { CandidateOffers } from './CandidateOffers';
 import { CandidateOfferDetails } from './CandidateOfferDetails';
 
 export const CandidateDashboardShell: React.FC = () => {
@@ -15,7 +16,8 @@ export const CandidateDashboardShell: React.FC = () => {
       <Route path="upload-cv" element={<CandidateUploadCv />} />
       <Route path="notifications" element={<CandidateNotifications />} />
       <Route path="interviews" element={<CandidateInterviewDetails />} />
-      <Route path="offers" element={<CandidateOfferDetails />} />
+      <Route path="offers" element={<CandidateOffers />} />
+      <Route path="offer/:offerId" element={<CandidateOfferDetails />} />
       <Route path="*" element={<Navigate to="/candidate" replace />} />
     </Routes>
   );

@@ -12,6 +12,7 @@ describe('ReportsService - T-087 Annual Reports & Tracking', () => {
       findMany: jest.fn(),
     },
     user: { findUnique: jest.fn() },
+    department: { findMany: jest.fn() },
   };
   const service = new ReportsService(prisma as any);
 
@@ -240,6 +241,47 @@ describe('ReportsService - T-087 Annual Reports & Tracking', () => {
             ],
           },
         }),
+      );
+    });
+  });
+
+  describe('getDepartmentStats', () => {
+    it('keeps Talent Pool CVs counted as screened after they progress', async () => {
+      prisma.department.findMany.mockResolvedValue([
+        {
+          id: 'dept-1',
+          name: 'Engineering',
+          code: 'ENG',
+          updatedAt: new Date('2026-07-01T00:00:00.000Z'),
+          headUser: null,
+          requests: [
+            {
+              id: 'request-1',
+              position: 'Backend Developer',
+              headcount: 1,
+              status: 'PLAN_APPROVED',
+              createdAt: new Date('2026-07-01T00:00:00.000Z'),
+              updatedAt: new Date('2026-07-01T00:00:00.000Z'),
+              applications: [
+                { status: 'SUBMITTED' },
+                { status: 'SCREENING' },
+                { status: 'INTERVIEWING' },
+              ],
+              interviews: [],
+              overallPlan: {
+                status: 'APPROVED',
+                createdAt: new Date('2026-07-01T00:00:00.000Z'),
+                tasks: [{ taskType: 'CV_SCREENING', status: 'IN_PROGRESS' }],
+              },
+            },
+          ],
+        },
+      ]);
+
+      const result = await service.getDepartmentStats({ range: '30d' });
+
+      expect(result.campaigns[0]).toEqual(
+        expect.objectContaining({ collectedCVs: 3, screeningCVs: 3 }),
       );
     });
   });

@@ -4,11 +4,19 @@ import { RecruitmentRequestsService } from './recruitment-requests.service';
 
 describe('RecruitmentRequestsService', () => {
   const prisma = {
+    user: {
+      findUnique: jest.fn(),
+    },
+    department: {
+      findFirst: jest.fn(),
+    },
     recruitmentRequest: {
       count: jest.fn(),
+      create: jest.fn(),
       findUnique: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
+      delete: jest.fn(),
     },
     requestLog: {
       create: jest.fn(),
@@ -22,6 +30,64 @@ describe('RecruitmentRequestsService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.$transaction.mockImplementation(async (operations) => Promise.all(operations));
+  });
+
+  it('creates a request for a department managed by the active department head', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      organizationId: 'org-1',
+      role: UserRole.DEPARTMENT_HEAD,
+      isActive: true,
+    });
+    prisma.department.findFirst.mockResolvedValue({ id: 'dept-marketing' });
+    prisma.recruitmentRequest.create.mockResolvedValue({ id: 'request-1' });
+    prisma.requestLog.create.mockResolvedValue({ id: 'log-1' });
+
+    await service.createForDepartmentHead({
+      departmentId: 'dept-marketing',
+      positionTitle: 'Growth Marketing Specialist',
+      headcount: 1,
+      jobDescription: 'Run growth campaigns',
+      justification: 'Marketing expansion',
+      urgency: 'MEDIUM',
+      createdById: 'dept-head-1',
+    });
+
+    expect(prisma.department.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'dept-marketing',
+        organizationId: 'org-1',
+        headUserId: 'dept-head-1',
+      },
+      select: { id: true },
+    });
+    expect(prisma.recruitmentRequest.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ departmentId: 'dept-marketing' }),
+      }),
+    );
+  });
+
+  it('rejects a department that is not managed by the department head', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      organizationId: 'org-1',
+      role: UserRole.DEPARTMENT_HEAD,
+      isActive: true,
+    });
+    prisma.department.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.createForDepartmentHead({
+        departmentId: 'foreign-dept',
+        positionTitle: 'Sales Executive',
+        headcount: 1,
+        jobDescription: 'Grow sales',
+        justification: 'Sales expansion',
+        urgency: 'HIGH',
+        createdById: 'dept-head-1',
+      }),
+    ).rejects.toBeInstanceOf(RpcException);
+
+    expect(prisma.recruitmentRequest.create).not.toHaveBeenCalled();
   });
 
   it('marks requests as forwarded only when HR forwarded after the latest submission', async () => {
@@ -180,6 +246,43 @@ describe('RecruitmentRequestsService', () => {
       },
     });
     expect(result.status).toBe(RecruitmentRequestStatus.PENDING_HR_REVIEW);
+  });
+
+  it('deletes a pending request owned by the department head', async () => {
+    prisma.recruitmentRequest.findUnique.mockResolvedValue({
+      id: 'request-1',
+      createdById: 'dept-head-1',
+      status: RecruitmentRequestStatus.PENDING_HR_REVIEW,
+    });
+    prisma.recruitmentRequest.delete.mockResolvedValue({ id: 'request-1' });
+
+    await expect(
+      service.deletePending({
+        id: 'request-1',
+        userId: 'dept-head-1',
+      }),
+    ).resolves.toEqual({ success: true, id: 'request-1' });
+
+    expect(prisma.recruitmentRequest.delete).toHaveBeenCalledWith({
+      where: { id: 'request-1' },
+    });
+  });
+
+  it('blocks deleting an approved request', async () => {
+    prisma.recruitmentRequest.findUnique.mockResolvedValue({
+      id: 'request-1',
+      createdById: 'dept-head-1',
+      status: RecruitmentRequestStatus.APPROVED,
+    });
+
+    await expect(
+      service.deletePending({
+        id: 'request-1',
+        userId: 'dept-head-1',
+      }),
+    ).rejects.toBeInstanceOf(RpcException);
+
+    expect(prisma.recruitmentRequest.delete).not.toHaveBeenCalled();
   });
 
   it('records when the assigned HR manager forwards a request to Admin', async () => {

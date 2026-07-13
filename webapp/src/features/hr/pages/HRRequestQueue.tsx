@@ -769,7 +769,15 @@ export const HRRequestQueue: React.FC = () => {
       </aside>
 
       {selectedRequest ? (
-        <div className="fixed inset-0 z-50 flex justify-end bg-deep-charcoal/40 backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-50 flex justify-end bg-deep-charcoal/40 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setSelectedRequest(null);
+              setIsEditing(false);
+            }
+          }}
+        >
           <section className="flex h-full w-full max-w-[520px] flex-col bg-clean-surface shadow-2xl">
             <header className="flex items-center justify-between border-b border-border-warm bg-workflow-ivory/60 px-6 py-4">
               <div>
@@ -1088,7 +1096,16 @@ export const HRRequestQueue: React.FC = () => {
       ) : null}
 
       {revisionTarget ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-deep-charcoal/40 p-4 backdrop-blur-sm">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-deep-charcoal/40 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setRevisionTarget(null);
+              setRevisionFeedback('');
+              setRevisionError('');
+            }
+          }}
+        >
           <section className="w-full max-w-[480px] overflow-hidden rounded-xl border border-border-warm bg-clean-surface shadow-2xl">
             <header className="flex items-center justify-between border-b border-border-warm bg-workflow-ivory/60 px-6 py-4">
               <h2 className="font-semibold text-deep-charcoal">Return Requisition for Revision</h2>

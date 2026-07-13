@@ -20,8 +20,6 @@ interface PanelistFeedback {
     fit: number;
   };
   comment: string;
-  meetingPhotoName?: string;
-  meetingPhotoDataUrl?: string;
 }
 
 interface CandidateResult {
@@ -92,9 +90,13 @@ interface CandidateProfileDetail {
   phone?: string;
   summary?: string;
   structuredData?: Record<string, unknown>;
+  cvDocuments?: Array<{
+    fileName?: string;
+    parsedAt?: string | null;
+  }>;
 }
 
-type DecisionFormMode = 'offer' | 'reject' | null;
+type DecisionFormMode = 'offer' | 'reject' | 'request-info' | null;
 
 interface OfferEmailForm {
   compensation: string;
@@ -105,6 +107,18 @@ interface OfferEmailForm {
 interface RejectEmailForm {
   notes: string;
 }
+
+interface RequestInfoForm {
+  topics: string[];
+  notes: string;
+}
+
+const REQUEST_INFO_TOPICS = [
+  'Candidate strengths and weaknesses',
+  'Technical or role-fit evidence',
+  'Salary expectation and HR-candidate negotiation',
+  'Availability, notice period, or start date',
+] as const;
 
 const adminInterviewResultsApi = {
   list: '/admin/interview-results',
@@ -120,25 +134,7 @@ const meetingPhotoPattern = new RegExp(
 
 const parsePanelistComment = (comment: string) => {
   const match = comment.match(meetingPhotoPattern);
-  if (!match) return { comment, meetingPhotoName: undefined, meetingPhotoDataUrl: undefined };
-
-  try {
-    const evidence = JSON.parse(match[1].trim()) as {
-      photoName?: string;
-      photoDataUrl?: string;
-    };
-    return {
-      comment: comment.replace(meetingPhotoPattern, '').trim(),
-      meetingPhotoName: evidence.photoName,
-      meetingPhotoDataUrl: evidence.photoDataUrl,
-    };
-  } catch {
-    return {
-      comment: comment.replace(meetingPhotoPattern, '').trim(),
-      meetingPhotoName: undefined,
-      meetingPhotoDataUrl: undefined,
-    };
-  }
+  return { comment: match ? comment.replace(meetingPhotoPattern, '').trim() : comment };
 };
 
 const emptyCandidate: CandidateResult = {
@@ -233,6 +229,10 @@ export const AdminInterviewResults: React.FC = () => {
     notes: '',
   });
   const [rejectForm, setRejectForm] = useState<RejectEmailForm>({ notes: '' });
+  const [requestInfoForm, setRequestInfoForm] = useState<RequestInfoForm>({
+    topics: [],
+    notes: '',
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -305,26 +305,28 @@ export const AdminInterviewResults: React.FC = () => {
     return candidates.find((c) => c.id === selectedId) || candidates[0] || emptyCandidate;
   }, [candidates, selectedId]);
 
-  // Filter queue items
+  // Keep unfinished reviews at the top of the queue; final decisions follow below them.
   const filteredCandidates = useMemo(() => {
-    return candidates.filter((c) => {
+    const visible = candidates.filter((c) => {
       if (filterType === 'All Pending Decisions') {
-        return c.status === 'Awaiting Decision';
+        return c.status === 'Awaiting Decision' || c.status === 'Request Info';
       }
       if (filterType === 'Decision Made') {
-        return (
-          c.status === 'Decision Made' ||
-          c.status === 'Approved' ||
-          c.status === 'Rejected' ||
-          c.status === 'Request Info'
-        );
+        return c.status === 'Decision Made' || c.status === 'Approved' || c.status === 'Rejected';
       }
-      return true; // 'All Decisions'
+      return true;
+    });
+
+    return visible.sort((left, right) => {
+      const leftFinal = ['Decision Made', 'Approved', 'Rejected'].includes(left.status);
+      const rightFinal = ['Decision Made', 'Approved', 'Rejected'].includes(right.status);
+      return Number(leftFinal) - Number(rightFinal);
     });
   }, [candidates, filterType]);
 
   const pendingCount = useMemo(() => {
-    return candidates.filter((c) => c.status === 'Awaiting Decision').length;
+    return candidates.filter((c) => c.status === 'Awaiting Decision' || c.status === 'Request Info')
+      .length;
   }, [candidates]);
 
   const recordedFeedbackCount = activeCandidate.passCount + activeCandidate.failCount;
@@ -336,19 +338,25 @@ export const AdminInterviewResults: React.FC = () => {
 
   const markDecisionState = (
     candidate: CandidateResult,
-    action: 'Approved' | 'Rejected' | 'Request Info',
+    action: 'Decision Made' | 'Request Info',
   ) => {
-    setCandidates((prev) =>
-      prev.map((item) =>
-        action === 'Request Info'
-          ? item.id === candidate.id
-            ? { ...item, status: 'Request Info' }
-            : item
-          : item.requestId === candidate.requestId
-            ? { ...item, status: action }
-            : item,
-      ),
+    const nextCandidates = candidates.map((item) =>
+      action === 'Request Info'
+        ? item.id === candidate.id
+          ? { ...item, status: 'Request Info' as DecisionStatus }
+          : item
+        : item.requestId === candidate.requestId
+          ? { ...item, status: action as DecisionStatus }
+          : item,
     );
+    setCandidates(nextCandidates);
+    if (action !== 'Request Info') {
+      setSelectedId(
+        nextCandidates.find(
+          (item) => item.status === 'Awaiting Decision' || item.status === 'Request Info',
+        )?.id ?? '',
+      );
+    }
   };
 
   const submitOfferEmail = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -382,7 +390,7 @@ export const AdminInterviewResults: React.FC = () => {
           notes,
         }),
       });
-      markDecisionState(candidate, 'Approved');
+      markDecisionState(candidate, 'Decision Made');
       setDecisionFormMode(null);
       setActionMessage(`Offer email has been queued for ${candidate.name}.`);
     } catch (error) {
@@ -413,7 +421,7 @@ export const AdminInterviewResults: React.FC = () => {
           notes,
         }),
       });
-      markDecisionState(candidate, 'Rejected');
+      markDecisionState(candidate, 'Decision Made');
       setDecisionFormMode(null);
       setActionMessage(`Rejection email has been queued for ${candidate.name}.`);
     } catch (error) {
@@ -423,11 +431,24 @@ export const AdminInterviewResults: React.FC = () => {
     }
   };
 
-  const handleRequestInfo = async (id: string) => {
-    const candidate = candidates.find((item) => item.id === id);
+  const submitRequestInfo = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const candidate = activeCandidate;
     if (!candidate) return;
-    const notes = window.prompt('Describe the additional information required:');
-    if (!notes?.trim()) return;
+    const notes = requestInfoForm.notes.trim();
+    if (requestInfoForm.topics.length === 0 && !notes) {
+      setApiError('Select at least one information topic or describe the required information.');
+      return;
+    }
+
+    const requestNotes = [
+      requestInfoForm.topics.length
+        ? `Requested information:\n- ${requestInfoForm.topics.join('\n- ')}`
+        : '',
+      notes ? `Additional context:\n${notes}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n');
 
     setSubmitting(true);
     setApiError('');
@@ -437,16 +458,24 @@ export const AdminInterviewResults: React.FC = () => {
         method: 'POST',
         body: JSON.stringify({
           candidateId: candidate.candidateId,
-          notes: notes.trim(),
+          notes: requestNotes,
         }),
       });
       markDecisionState(candidate, 'Request Info');
+      setDecisionFormMode(null);
       setActionMessage(`Information request has been saved for ${candidate.name}.`);
     } catch (error) {
       setApiError(error instanceof Error ? error.message : 'Unable to save the hiring decision');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const openRequestInfoForm = () => {
+    if (!activeCandidate.id) return;
+    setRequestInfoForm({ topics: [], notes: '' });
+    setApiError('');
+    setDecisionFormMode('request-info');
   };
 
   const openOfferEmailForm = () => {
@@ -472,6 +501,21 @@ export const AdminInterviewResults: React.FC = () => {
     setDecisionFormMode('reject');
   };
 
+  const isFinalDecision = ['Decision Made', 'Approved', 'Rejected'].includes(
+    activeCandidate.status,
+  );
+  const profileStructuredData = profileDetail?.structuredData ?? {};
+  const profileSkills = Array.isArray(profileStructuredData.skills)
+    ? profileStructuredData.skills.map(String).filter(Boolean)
+    : [];
+  const profileRole = String(
+    profileStructuredData.currentRole ??
+      profileStructuredData.title ??
+      profileStructuredData.role ??
+      activeCandidate.role,
+  );
+  const profileLocation = String(profileStructuredData.location ?? 'Not provided');
+
   const openCandidateProfile = async () => {
     if (!activeCandidate.candidateId) return;
     setProfileLoading(true);
@@ -487,6 +531,35 @@ export const AdminInterviewResults: React.FC = () => {
       setApiError(profileError instanceof Error ? profileError.message : 'Unable to load profile');
     } finally {
       setProfileLoading(false);
+    }
+  };
+
+  const openCandidateCv = async () => {
+    if (!activeCandidate.candidateId) return;
+    const previewWindow = window.open('', '_blank');
+    if (!previewWindow) {
+      setApiError('Please allow pop-ups to view the candidate CV.');
+      return;
+    }
+
+    previewWindow.document.title = `${activeCandidate.name} - CV`;
+    previewWindow.document.body.textContent = 'Loading CV...';
+    try {
+      const response = await fetch(
+        `/api/v1/candidate/cvs/candidate/${activeCandidate.candidateId}/latest/file`,
+        { headers: token ? { Authorization: `Bearer ${token}` } : undefined },
+      );
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.message || 'Candidate CV is not available.');
+      }
+
+      const cvUrl = URL.createObjectURL(await response.blob());
+      previewWindow.location.replace(cvUrl);
+      window.setTimeout(() => URL.revokeObjectURL(cvUrl), 60_000);
+    } catch (error) {
+      previewWindow.close();
+      setApiError(error instanceof Error ? error.message : 'Unable to open candidate CV.');
     }
   };
 
@@ -750,19 +823,6 @@ export const AdminInterviewResults: React.FC = () => {
                       <p className="text-body-sm text-slate-ink italic text-sm font-medium leading-relaxed">
                         "{fb.comment || 'Feedback has not been recorded.'}"
                       </p>
-                      {fb.meetingPhotoDataUrl && (
-                        <div className="mt-3 rounded-lg border border-border-warm bg-clean-surface p-3">
-                          <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-slate-ink">
-                            Meeting report photo
-                            {fb.meetingPhotoName ? `: ${fb.meetingPhotoName}` : ''}
-                          </p>
-                          <img
-                            alt={`Meeting report from ${fb.name}`}
-                            className="max-h-64 w-full rounded-md object-contain"
-                            src={fb.meetingPhotoDataUrl}
-                          />
-                        </div>
-                      )}
                     </div>
                   </div>
                 ))}
@@ -924,7 +984,7 @@ export const AdminInterviewResults: React.FC = () => {
                 <button
                   className="px-6 py-2.5 border border-rejected hover:bg-[#fde8e8] text-rejected rounded-lg font-bold text-sm transition-all"
                   type="button"
-                  disabled={submitting || !activeCandidate.id}
+                  disabled={submitting || !activeCandidate.id || isFinalDecision}
                   onClick={openRejectEmailForm}
                 >
                   Reject
@@ -932,8 +992,8 @@ export const AdminInterviewResults: React.FC = () => {
                 <button
                   className="px-6 py-2.5 border border-teal-command hover:bg-teal-command/5 text-teal-command rounded-lg font-bold text-sm transition-all"
                   type="button"
-                  disabled={submitting || !activeCandidate.id}
-                  onClick={() => void handleRequestInfo(activeCandidate.id)}
+                  disabled={submitting || !activeCandidate.id || isFinalDecision}
+                  onClick={openRequestInfoForm}
                 >
                   Request More Info
                 </button>
@@ -941,7 +1001,7 @@ export const AdminInterviewResults: React.FC = () => {
               <button
                 className="px-8 py-2.5 bg-teal-command hover:bg-[#09776d] text-white rounded-lg font-bold text-sm transition-all shadow-md flex items-center gap-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                 type="button"
-                disabled={submitting || !canApproveHire}
+                disabled={submitting || !canApproveHire || isFinalDecision}
                 onClick={openOfferEmailForm}
                 title={
                   recordedFeedbackCount < 2
@@ -963,6 +1023,95 @@ export const AdminInterviewResults: React.FC = () => {
           </div>
         </section>
       </div>
+
+      {decisionFormMode === 'request-info' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
+          <form
+            className="w-full max-w-2xl rounded-lg border border-border-warm bg-clean-surface shadow-xl"
+            onSubmit={submitRequestInfo}
+          >
+            <div className="border-b border-border-warm px-6 py-4">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-teal-command">
+                Request More Information
+              </p>
+              <h2 className="mt-1 text-lg font-semibold text-deep-charcoal">
+                Information needed for {activeCandidate.name}
+              </h2>
+              <p className="mt-1 text-sm text-slate-ink">
+                This request is saved for HR follow-up before the final hiring decision.
+              </p>
+            </div>
+
+            <div className="space-y-5 p-6">
+              <fieldset>
+                <legend className="text-sm font-bold text-slate-ink">
+                  Request information about
+                </legend>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {REQUEST_INFO_TOPICS.map((topic) => {
+                    const checked = requestInfoForm.topics.includes(topic);
+                    return (
+                      <label
+                        className="flex cursor-pointer items-start gap-2 rounded-lg border border-border-warm bg-workflow-ivory/50 p-3 text-sm text-deep-charcoal transition hover:border-teal-command/50"
+                        key={topic}
+                      >
+                        <input
+                          checked={checked}
+                          className="mt-0.5 h-4 w-4 accent-teal-command"
+                          disabled={submitting}
+                          onChange={() =>
+                            setRequestInfoForm((current) => ({
+                              ...current,
+                              topics: checked
+                                ? current.topics.filter((item) => item !== topic)
+                                : [...current.topics, topic],
+                            }))
+                          }
+                          type="checkbox"
+                        />
+                        <span>{topic}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+
+              <label className="block space-y-2">
+                <span className="text-sm font-bold text-slate-ink">
+                  Specific questions or context
+                </span>
+                <textarea
+                  className="min-h-[150px] w-full rounded-lg border border-border-warm bg-workflow-ivory p-3 text-sm leading-6 outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                  disabled={submitting}
+                  onChange={(event) =>
+                    setRequestInfoForm((current) => ({ ...current, notes: event.target.value }))
+                  }
+                  placeholder="Example: Please provide the panel's evidence for the candidate's strongest and weakest skills, and clarify the latest salary proposal discussed with the candidate."
+                  value={requestInfoForm.notes}
+                />
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-border-warm px-6 py-4">
+              <button
+                className="h-10 rounded-lg border border-border-warm px-4 text-sm font-semibold text-slate-ink transition hover:bg-workflow-ivory"
+                disabled={submitting}
+                onClick={() => setDecisionFormMode(null)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="h-10 rounded-lg bg-teal-command px-5 text-sm font-semibold text-white transition hover:bg-primary disabled:opacity-70"
+                disabled={submitting}
+                type="submit"
+              >
+                {submitting ? 'Saving...' : 'Send Information Request'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {decisionFormMode === 'offer' && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
@@ -1199,10 +1348,10 @@ We wish you the best of luck in your job search and future professional endeavor
 
       {(profileDetail || profileLoading) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
-          <section className="w-full max-w-2xl rounded-lg border border-border-warm bg-clean-surface shadow-xl">
+          <section className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-border-warm bg-clean-surface shadow-xl">
             <div className="flex items-start justify-between border-b border-border-warm px-6 py-4">
               <div>
-                <h2 className="text-lg font-semibold text-deep-charcoal">Candidate Profile</h2>
+                <h2 className="text-lg font-semibold text-deep-charcoal">Candidate CV Summary</h2>
                 <p className="text-sm text-slate-ink">
                   {profileLoading
                     ? 'Loading profile...'
@@ -1217,14 +1366,57 @@ We wish you the best of luck in your job search and future professional endeavor
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
-            <div className="space-y-4 p-6">
+            <div className="space-y-5 p-6">
               {profileLoading ? (
                 <p className="text-sm text-slate-ink">Loading...</p>
               ) : (
                 <>
-                  <ProfileLine label="Email" value={profileDetail?.email ?? '-'} />
-                  <ProfileLine label="Phone" value={profileDetail?.phone ?? '-'} />
-                  <ProfileLine label="Summary" value={profileDetail?.summary ?? '-'} />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <ProfileLine label="Email" value={profileDetail?.email ?? '-'} />
+                    <ProfileLine label="Phone" value={profileDetail?.phone ?? '-'} />
+                    <ProfileLine label="Current role" value={profileRole} />
+                    <ProfileLine label="Location" value={profileLocation} />
+                  </div>
+                  <ProfileLine label="Professional summary" value={profileDetail?.summary ?? '-'} />
+                  <section className="rounded-lg border border-border-warm bg-workflow-ivory/60 p-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">
+                      Parsed skills
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {profileSkills.length ? (
+                        profileSkills.map((skill) => (
+                          <span
+                            className="rounded-full bg-teal-command/10 px-2.5 py-1 text-xs font-semibold text-teal-command"
+                            key={skill}
+                          >
+                            {skill}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-sm text-slate-ink">No parsed skills available.</span>
+                      )}
+                    </div>
+                  </section>
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-teal-command/20 bg-teal-command/5 p-4">
+                    <div>
+                      <p className="text-sm font-bold text-deep-charcoal">
+                        {profileDetail?.cvDocuments?.[0]?.fileName ?? 'Latest candidate CV'}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-ink">
+                        {profileDetail?.cvDocuments?.[0]?.parsedAt
+                          ? 'Parsed CV available for full review.'
+                          : 'Open the original CV document for full details.'}
+                      </p>
+                    </div>
+                    <button
+                      className="inline-flex h-10 items-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary"
+                      onClick={() => void openCandidateCv()}
+                      type="button"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">description</span>
+                      View CV
+                    </button>
+                  </div>
                 </>
               )}
             </div>

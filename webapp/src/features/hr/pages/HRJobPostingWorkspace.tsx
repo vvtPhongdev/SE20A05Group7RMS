@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { isHrRole, UserRole } from '@wr/contracts';
 import { useAuth } from '../../../context/AuthContext';
@@ -23,6 +23,13 @@ type RecruitmentMediaAsset = {
   mimeType?: string;
   size?: number;
   uploadedAt?: string;
+};
+
+type PendingMediaAsset = {
+  id: string;
+  kind: MediaKind;
+  file: File;
+  previewUrl: string;
 };
 
 type RecruitmentNotice = {
@@ -228,14 +235,14 @@ export const HRJobPostingWorkspace: React.FC = () => {
   const [visibility, setVisibility] = useState<'PUBLIC' | 'PRIVATE'>('PUBLIC');
   const [startDate, setStartDate] = useState('');
   const [expireDate, setExpireDate] = useState('');
-  const [mediaKind, setMediaKind] = useState<MediaKind>('BANNER');
   const [media, setMedia] = useState<RecruitmentMediaAsset[]>([]);
+  const [pendingMedia, setPendingMedia] = useState<PendingMediaAsset[]>([]);
+  const pendingMediaRef = useRef<PendingMediaAsset[]>([]);
   const [notices, setNotices] = useState<RecruitmentNotice[]>([newNotice()]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [closing, setClosing] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [apiError, setApiError] = useState('');
   const [actionMessage, setActionMessage] = useState('');
 
@@ -274,19 +281,41 @@ export const HRJobPostingWorkspace: React.FC = () => {
     void loadWorkspace();
   }, [loadWorkspace]);
 
+  useEffect(() => {
+    pendingMediaRef.current = pendingMedia;
+  }, [pendingMedia]);
+
+  useEffect(
+    () => () => {
+      pendingMediaRef.current.forEach((asset) => URL.revokeObjectURL(asset.previewUrl));
+    },
+    [],
+  );
+
   const jobPostingTask = useMemo(
     () => plan?.tasks.find((task) => task.taskType === 'JOB_POSTING') ?? null,
     [plan],
   );
   const canUseWorkspace = user?.role === UserRole.ADMIN || isHrRole(user?.role);
-  const banner = media.find((item) => item.kind === 'BANNER') ?? null;
-  const noticeImages = media.filter((item) => item.kind === 'NOTICE');
+  const displayedMedia = [
+    ...media.map((asset, index) => ({ ...asset, id: `saved-${index}`, pending: false })),
+    ...pendingMedia.map((asset) => ({
+      id: asset.id,
+      kind: asset.kind,
+      url: asset.previewUrl,
+      fileName: asset.file.name,
+      pending: true,
+    })),
+  ];
+  const banner = displayedMedia.find((item) => item.kind === 'BANNER') ?? null;
+  const noticeImages = displayedMedia.filter((item) => item.kind === 'NOTICE');
+  const bannerImages = displayedMedia.filter((item) => item.kind === 'BANNER');
   const requirements = asRecord(posting?.requirements ?? request?.skillRequirements);
   const publicAvailability = getPublicAvailability(posting, { visibility, startDate, expireDate });
 
-  const buildRequirements = () => ({
+  const buildRequirements = (resolvedMedia: RecruitmentMediaAsset[] = media) => ({
     ...requirements,
-    recruitmentMedia: media,
+    recruitmentMedia: resolvedMedia,
     recruitmentNotices: notices.filter((notice) => notice.title.trim() || notice.body.trim()),
   });
 
@@ -296,13 +325,28 @@ export const HRJobPostingWorkspace: React.FC = () => {
     setApiError('');
     setActionMessage('');
     try {
+      const resolvedMedia = [...media];
+      for (const asset of pendingMedia) {
+        const body = new FormData();
+        body.append('file', asset.file);
+        body.append('requestId', request.id);
+        body.append('kind', asset.kind);
+        const uploaded = await apiRequest<RecruitmentMediaAsset>('/job-postings/media', token, {
+          method: 'POST',
+          body,
+        });
+        resolvedMedia.push(uploaded);
+        setMedia([...resolvedMedia]);
+        URL.revokeObjectURL(asset.previewUrl);
+        setPendingMedia((current) => current.filter((item) => item.id !== asset.id));
+      }
       const payload = {
         title: title.trim(),
         description: description.trim(),
         visibility,
         startDate: toPostingIso(startDate),
         expireDate: toPostingIso(expireDate, true),
-        requirements: buildRequirements(),
+        requirements: buildRequirements(resolvedMedia),
       };
       const saved = posting
         ? await apiRequest<JobPostingApiItem>(`/job-postings/${posting.id}`, token, {
@@ -360,27 +404,95 @@ export const HRJobPostingWorkspace: React.FC = () => {
     }
   };
 
-  const uploadMedia = async (file: File | null) => {
+  const stageMedia = (file: File | null, kind: MediaKind) => {
     if (!file || !request) return;
-    setUploading(true);
     setApiError('');
-    try {
-      const body = new FormData();
-      body.append('file', file);
-      body.append('requestId', request.id);
-      body.append('kind', mediaKind);
-      const uploaded = await apiRequest<RecruitmentMediaAsset>('/job-postings/media', token, {
-        method: 'POST',
-        body,
-      });
-      setMedia((current) => [...current, uploaded]);
-      setActionMessage('Media uploaded. Save the job posting to persist it.');
-    } catch (error) {
-      setApiError(error instanceof ApiError ? error.message : 'Unable to upload media');
-    } finally {
-      setUploading(false);
-    }
+    setPendingMedia((current) => [
+      ...current,
+      {
+        id: crypto.randomUUID?.() ?? `${Date.now()}-${file.name}`,
+        kind,
+        file,
+        previewUrl: URL.createObjectURL(file),
+      },
+    ]);
+    setActionMessage('Image selected. It will be uploaded when you save the job posting.');
   };
+
+  const removeDisplayedMedia = (asset: (typeof displayedMedia)[number]) => {
+    if (asset.pending) {
+      setPendingMedia((current) => {
+        const removed = current.find((item) => item.id === asset.id);
+        if (removed) URL.revokeObjectURL(removed.previewUrl);
+        return current.filter((item) => item.id !== asset.id);
+      });
+      return;
+    }
+    const savedIndex = Number(asset.id.replace('saved-', ''));
+    setMedia((current) => current.filter((_, index) => index !== savedIndex));
+  };
+
+  const renderMediaSection = (
+    kind: MediaKind,
+    title: string,
+    description: string,
+    guidance: string,
+    assets: typeof displayedMedia,
+  ) => (
+    <section className="rounded-lg border border-border-warm bg-workflow-ivory p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-deep-charcoal">{title}</h3>
+          <p className="mt-1 text-sm text-on-surface-variant">{description}</p>
+          <p className="mt-1 text-xs font-medium text-teal-command">{guidance}</p>
+        </div>
+        <label className="inline-flex h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary">
+          <Icon className="h-4 w-4" name="upload" />
+          Select Image
+          <input
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            className="hidden"
+            disabled={!canUseWorkspace || saving}
+            onChange={(event) => {
+              stageMedia(event.target.files?.[0] ?? null, kind);
+              event.target.value = '';
+            }}
+            type="file"
+          />
+        </label>
+      </div>
+
+      {assets.length ? (
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          {assets.map((asset) => (
+            <article className="overflow-hidden rounded-lg border border-border-warm bg-clean-surface" key={asset.id}>
+              <img alt={asset.fileName || asset.kind} className="h-36 w-full object-cover" src={asset.url} />
+              <div className="flex items-center justify-between gap-3 p-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-deep-charcoal">
+                    {asset.fileName || asset.kind}
+                  </p>
+                  {asset.pending ? <p className="text-xs text-on-surface-variant">Pending save</p> : null}
+                </div>
+                <button
+                  className="rounded-lg border border-border-warm px-2 py-1 text-xs font-semibold text-rejected transition hover:bg-rejected/5"
+                  disabled={!canUseWorkspace}
+                  onClick={() => removeDisplayedMedia(asset)}
+                  type="button"
+                >
+                  Remove
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-4 rounded-lg border border-dashed border-border-warm p-4 text-center text-sm text-on-surface-variant">
+          No {kind === 'BANNER' ? 'banner' : 'notice image'} selected yet.
+        </p>
+      )}
+    </section>
+  );
 
   const updateNotice = (id: string, field: 'title' | 'body', value: string) => {
     setNotices((current) =>
@@ -520,65 +632,28 @@ export const HRJobPostingWorkspace: React.FC = () => {
         </section>
 
         <HRCard className="rounded-lg p-5 shadow-sm">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-deep-charcoal">Media Library</h2>
-              <p className="mt-1 text-sm text-on-surface-variant">
-                Upload banner advertising images or recruitment notice visuals.
-              </p>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <select
-                className="h-10 rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                onChange={(event) => setMediaKind(event.target.value as MediaKind)}
-                value={mediaKind}
-              >
-                <option value="BANNER">Banner</option>
-                <option value="NOTICE">Notice Image</option>
-              </select>
-              <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary">
-                <Icon className="h-4 w-4" name="upload" />
-                {uploading ? 'Uploading...' : 'Upload Image'}
-                <input
-                  accept="image/jpeg,image/png,image/webp,image/gif"
-                  className="hidden"
-                  disabled={!canUseWorkspace || uploading}
-                  onChange={(event) => void uploadMedia(event.target.files?.[0] ?? null)}
-                  type="file"
-                />
-              </label>
-            </div>
-          </div>
-
-          {media.length ? (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {media.map((asset, index) => (
-                <article className="overflow-hidden rounded-lg border border-border-warm bg-workflow-ivory" key={`${asset.url}-${index}`}>
-                  <img alt={asset.fileName || asset.kind} className="h-36 w-full object-cover" src={asset.url} />
-                  <div className="flex items-center justify-between gap-3 p-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-deep-charcoal">
-                        {asset.fileName || asset.kind}
-                      </p>
-                      <p className="text-xs font-semibold uppercase text-teal-command">{asset.kind}</p>
-                    </div>
-                    <button
-                      className="rounded-lg border border-border-warm px-2 py-1 text-xs font-semibold text-rejected transition hover:bg-rejected/5"
-                      disabled={!canUseWorkspace}
-                      onClick={() => setMedia((current) => current.filter((_, itemIndex) => itemIndex !== index))}
-                      type="button"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <p className="rounded-lg border border-dashed border-border-warm p-6 text-center text-sm text-on-surface-variant">
-              No media uploaded yet.
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold text-deep-charcoal">Media Library</h2>
+            <p className="mt-1 text-sm text-on-surface-variant">
+              Banner and notice images are uploaded separately and stored in their dedicated buckets when saved.
             </p>
-          )}
+          </div>
+          <div className="grid gap-4 xl:grid-cols-2">
+            {renderMediaSection(
+              'BANNER',
+              'Banner Images',
+              'Displayed at the top of public job postings.',
+              'Recommended: 1440 × 400 px. Maximum file size: 20 MB.',
+              bannerImages,
+            )}
+            {renderMediaSection(
+              'NOTICE',
+              'Notice Images',
+              'Displayed with recruitment notices in job details.',
+              'Recommended: 1080 × 1080 px. Maximum file size: 20 MB.',
+              noticeImages,
+            )}
+          </div>
         </HRCard>
 
         <HRCard className="rounded-lg p-5 shadow-sm">

@@ -10,7 +10,7 @@ import {
 
 type ViewMode = 'This Week' | 'This Month';
 type SortKey = 'earliest' | 'position';
-type InterviewStatus = 'Confirmed' | 'Pending Confirmation';
+type InterviewStatus = 'Accepted' | 'Absent' | 'Pending Confirmation';
 type InterviewTone = 'teal' | 'cyan' | 'amber' | 'slate';
 
 interface CalendarEvent {
@@ -45,6 +45,10 @@ interface InterviewSchedule {
   duration: number;
   location: string;
   interviewers: string[];
+  interviewerAttendance?: Record<
+    string,
+    { response?: 'ACCEPTED' | 'ABSENT'; respondedAt?: string }
+  > | null;
   status: string;
 }
 
@@ -122,7 +126,8 @@ const toneStyles: Record<InterviewTone, string> = {
 };
 
 const statusStyles: Record<InterviewStatus, string> = {
-  Confirmed: 'bg-approved/10 text-approved',
+  Accepted: 'bg-approved/10 text-approved',
+  Absent: 'bg-rejected/10 text-rejected',
   'Pending Confirmation': 'bg-revision/10 text-revision',
 };
 
@@ -165,6 +170,8 @@ export const DeptHeadInterviews: React.FC = () => {
   const [cvPreview, setCvPreview] = useState<CvPreview | null>(null);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
+  const [respondingEventId, setRespondingEventId] = useState('');
 
   const calendarDays = useMemo(() => getCalendarDays(viewMode), [viewMode]);
 
@@ -237,7 +244,12 @@ export const DeptHeadInterviews: React.FC = () => {
               panel: schedule.interviewers.map(
                 (id) => interviewerNameById.get(id) || `Interviewer ${id.slice(0, 8)}`,
               ),
-              status: schedule.status === 'SCHEDULED' ? 'Confirmed' : 'Pending Confirmation',
+              status:
+                schedule.interviewerAttendance?.[user?.id ?? '']?.response === 'ACCEPTED'
+                  ? 'Accepted'
+                  : schedule.interviewerAttendance?.[user?.id ?? '']?.response === 'ABSENT'
+                    ? 'Absent'
+                    : 'Pending Confirmation',
               tone: TONES[index % TONES.length] ?? 'teal',
             };
           });
@@ -311,6 +323,42 @@ export const DeptHeadInterviews: React.FC = () => {
 
   const closeCvPreview = () => setCvPreview(null);
 
+  const respondToInterview = async (event: CalendarEvent, response: 'ACCEPTED' | 'ABSENT') => {
+    const nextStatus: InterviewStatus = response === 'ACCEPTED' ? 'Accepted' : 'Absent';
+    const previousStatus = event.status;
+
+    setRespondingEventId(event.id);
+    setApiError('');
+    setActionMessage('');
+    setEvents((current) =>
+      current.map((item) => (item.id === event.id ? { ...item, status: nextStatus } : item)),
+    );
+    try {
+      await apiRequest(`/interviews/schedules/${event.id}/interviewer-attendance`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ response }),
+      });
+      setActionMessage(
+        response === 'ACCEPTED'
+          ? 'Your participation has been confirmed.'
+          : 'Your absence has been recorded for this interview.',
+      );
+    } catch (responseError) {
+      setEvents((current) =>
+        current.map((item) =>
+          item.id === event.id ? { ...item, status: previousStatus } : item,
+        ),
+      );
+      setApiError(
+        responseError instanceof Error
+          ? responseError.message
+          : 'Unable to update interview participation',
+      );
+    } finally {
+      setRespondingEventId('');
+    }
+  };
+
   return (
     <DeptHeadDashboardPage className="gap-7">
       <DeptHeadPageHeader
@@ -354,6 +402,8 @@ export const DeptHeadInterviews: React.FC = () => {
       />
 
       {apiError && <DeptHeadInlineAlert>{apiError}</DeptHeadInlineAlert>}
+
+      {actionMessage && <DeptHeadInlineAlert tone="teal">{actionMessage}</DeptHeadInlineAlert>}
 
       {loading && <DeptHeadLoadingState label="Loading interviews..." />}
 
@@ -496,6 +546,40 @@ export const DeptHeadInterviews: React.FC = () => {
               </div>
 
               <div className="flex flex-wrap items-center gap-3 md:justify-end">
+                <button
+                  aria-pressed={event.status === 'Accepted'}
+                  className={`rounded-lg px-4 py-2 text-sm font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-80 ${
+                    event.status === 'Accepted'
+                      ? 'bg-emerald-600 text-white shadow-md ring-2 ring-emerald-200 hover:bg-emerald-700'
+                      : 'border border-emerald-600 bg-white text-emerald-700 hover:bg-emerald-50'
+                  }`}
+                  disabled={respondingEventId === event.id}
+                  onClick={() => void respondToInterview(event, 'ACCEPTED')}
+                  type="button"
+                >
+                  {respondingEventId === event.id
+                    ? 'Saving...'
+                    : event.status === 'Accepted'
+                      ? '✓ Accepted'
+                      : 'Accept Interview'}
+                </button>
+                <button
+                  aria-pressed={event.status === 'Absent'}
+                  className={`rounded-lg border px-4 py-2 text-sm font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-80 ${
+                    event.status === 'Absent'
+                      ? 'border-rose-600 bg-rose-600 text-white shadow-md ring-2 ring-rose-200 hover:bg-rose-700'
+                      : 'border-rose-600 bg-white text-rose-700 hover:bg-rose-50'
+                  }`}
+                  disabled={respondingEventId === event.id}
+                  onClick={() => void respondToInterview(event, 'ABSENT')}
+                  type="button"
+                >
+                  {respondingEventId === event.id
+                    ? 'Saving...'
+                    : event.status === 'Absent'
+                      ? '✓ Absent'
+                      : 'Mark Absent'}
+                </button>
                 <button
                   className="rounded-lg bg-teal-command/10 px-4 py-2 text-sm font-semibold text-teal-command transition hover:bg-teal-command/15 active:scale-[0.98]"
                   type="button"

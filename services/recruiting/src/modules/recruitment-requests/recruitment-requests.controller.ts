@@ -15,6 +15,7 @@ export class RecruitmentRequestsController {
   createForDepartmentHead(
     @Payload()
     payload: {
+      departmentId: string;
       positionTitle: string;
       headcount: number;
       jobDescription: string;
@@ -63,6 +64,11 @@ export class RecruitmentRequestsController {
   @MessagePattern('recruitment-requests.depthead.submit')
   submitDraft(@Payload() payload: { id: string; userId: string }) {
     return this.service.submitDraft(payload);
+  }
+
+  @MessagePattern('recruitment-requests.depthead.delete')
+  deletePending(@Payload() payload: { id: string; userId: string }) {
+    return this.service.deletePending(payload);
   }
 
   @MessagePattern('recruitment-requests.admin.assign')
