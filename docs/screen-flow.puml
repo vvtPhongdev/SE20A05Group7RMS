@@ -1,183 +1,320 @@
-@startuml
-title RMS - Screens Flow Diagram
+' RMS Screen Flow / Page Flow
+' Source of truth: docs/use-case-specifications.md, docs/backend-endpoints-summary.md,
+' webapp/src/App.tsx and webapp/src/metadata.json.
+' One independent state diagram per actor.  Blue = full page, yellow = modal/drawer,
+' red = validation/error/unauthorized state.  API traces are written in [square brackets].
+
+@startuml admin-screen-flow
+title RMS - Screen Flow: Admin
 
 left to right direction
-skinparam backgroundColor #FFFFFF
+skinparam monochrome false
 skinparam shadowing false
-skinparam roundCorner 10
+skinparam roundCorner 12
 skinparam defaultFontName Arial
-
-skinparam rectangle {
-  BackgroundColor #F8FAFC
-  BorderColor #475569
-  FontColor #0F172A
+skinparam state {
+  BackgroundColor<<Screen>> #E3F2FD
+  BackgroundColor<<Popup>> #FFF3CD
+  BackgroundColor<<Error>> #FDE2E1
+  BorderColor #1E3A5F
+  FontColor #172033
 }
 
-skinparam usecase {
-  BackgroundColor #FEF3C7
-  BorderColor #D97706
-  FontColor #78350F
+state "Đăng nhập\n/login" as Login <<Screen>>
+state "Admin Dashboard\n/admin" as Dashboard <<Screen>>
+state "Approval Queue\n/admin/approval-queue" as ApprovalQueue <<Screen>>
+state "All Recruitment Requests\n/admin/requests" as Requests <<Screen>>
+state "Interview Results\n/admin/interview-results" as Results <<Screen>>
+state "User Management\n/admin/users" as Users <<Screen>>
+state "System Settings\n/admin/settings" as Settings <<Screen>>
+state "Annual Reports\n/admin/reports" as Reports <<Screen>>
+state "Department Statistics\n/admin/dept-stats" as DeptStats <<Screen>>
+state "Unauthorized\n/unauthorized" as Unauthorized <<Error>>
+
+state "Modal / Drawer" as AdminModal {
+  state "Request / Plan detail\n<<drawer>>" as RequestDetail <<Popup>>
+  state "Approve / reject / request changes\n<<modal>>" as ApprovalDecision <<Popup>>
+  state "Candidate CV & feedback review\n<<drawer>>" as CandidateReview <<Popup>>
+  state "Hire / reject / request information\n<<modal>>" as HiringDecision <<Popup>>
+  state "User / role editor\n<<modal>>" as UserEditor <<Popup>>
+  state "Organization / department editor\n<<modal>>" as OrgEditor <<Popup>>
+  state "Export annual report\n<<modal>>" as ExportReport <<Popup>>
 }
 
-skinparam package {
-  BorderColor #64748B
-  FontColor #0F172A
-}
+[*] --> Login
+Login --> Dashboard : Đăng nhập thành công (ADMIN)\n[POST /api/v1/auth/login]
+Login --> Unauthorized : Không đúng role / JWT không hợp lệ
 
-skinparam note {
-  BackgroundColor #F1F5F9
-  BorderColor #94A3B8
-  FontColor #334155
-}
+Dashboard --> ApprovalQueue : Sidebar: Approval Queue\n[GET /api/v1/reports/admin-dashboard]
+Dashboard --> Requests : Sidebar: All Requests
+Dashboard --> Results : Sidebar: Interview Results
+Dashboard --> Users : Sidebar: Users
+Dashboard --> Settings : Sidebar: Settings
+Dashboard --> Reports : Sidebar: Reports
+Dashboard --> DeptStats : Sidebar: Department Statistics
 
-' Public screens
-rectangle "Landing Page\n/" as Landing
-rectangle "Login\n/login" as Login
-rectangle "Sign Up\n/signup" as SignUp
-rectangle "Forgot Password\n/forgot-password" as ForgotPassword
-rectangle "Unauthorized\n/unauthorized" as Unauthorized
-rectangle "Role Redirect\n/dashboard" as RoleRedirect
+ApprovalQueue --> RequestDetail : Mở request hoặc overall plan\n[GET /api/v1/recruitment-requests/:id]\n[GET /api/v1/overall-plan/by-request/:requestId]
+RequestDetail --> ApprovalDecision : Approve / Reject / Request changes
+ApprovalDecision --> ApprovalQueue : Lưu quyết định request\n[PATCH /api/v1/recruitment-requests/:id/decision]\n[PATCH /api/v1/recruitment-requests/:id/request-changes]
+ApprovalDecision --> ApprovalQueue : Duyệt / từ chối kế hoạch\n[PATCH /api/v1/overall-plan/:id/approve]\n[PATCH /api/v1/overall-plan/:id/reject]
 
-' Popup / modal-like screens
-usecase "Email OTP Verification\n/verify-email" as VerifyEmail <<popup>>
-usecase "Reset Password OTP" as ResetPasswordOtp <<popup>>
-usecase "Access Denied Notice" as AccessDenied <<popup>>
-usecase "Confirm Logout" as ConfirmLogout <<popup>>
-usecase "Approve / Reject Dialog" as ApprovalDialog <<popup>>
-usecase "Plan Revision Dialog" as PlanRevisionDialog <<popup>>
-usecase "Interview Invite Dialog" as InviteDialog <<popup>>
-usecase "Offer Response Dialog" as OfferDialog <<popup>>
+Requests --> RequestDetail : View tracking & audit\n[GET /api/v1/reports/realtime-tracking]\n[GET /api/v1/audit-logs]
+Results --> CandidateReview : Mở CV, lịch sử và panel feedback\n[GET /api/v1/admin-interview-results]\n[GET /api/v1/candidate/cvs/candidate/:candidateId/latest/file]
+CandidateReview --> HiringDecision : Hire / Reject / Request more information
+HiringDecision --> Results : Ghi quyết định cuối cùng; tạo offer khi Hire\n[POST /api/v1/admin-interview-results/:requestId/decision]\n[POST /api/v1/admin-interview-results/:requestId/request-info]
 
-package "Admin Screens (ADMIN)" {
-  rectangle "Admin Dashboard\n/admin" as AdminDashboard
-  rectangle "Approval Queue\n/admin/approval-queue" as AdminApprovalQueue
-  rectangle "All Requests\n/admin/requests" as AdminRequests <<tabbed>>
-  rectangle "Interview Results\n/admin/interview-results" as AdminInterviewResults
-  rectangle "User Management\n/admin/users" as AdminUsers <<tabbed>>
-  rectangle "System Settings\n/admin/settings" as AdminSettings <<tabbed>>
-  rectangle "Annual Recruitment Report\n/admin/reports/annual" as AdminAnnualReport
-  rectangle "Department Stats Report\n/admin/reports/dept-stats" as AdminDeptStats
-}
+Users --> UserEditor : Thêm/sửa user, role, trạng thái\n[GET|POST|PATCH /api/v1/users]
+UserEditor --> Users : Lưu role / active status\n[PATCH /api/v1/users/:id/role]\n[PATCH /api/v1/users/:id/status]
+Settings --> OrgEditor : Quản lý organization, department, job role\n[POST|PATCH /api/v1/organizations]\n[POST|PATCH /api/v1/departments]\n[POST|GET /api/v1/roles]
+OrgEditor --> Settings : Lưu cấu hình tổ chức\n[PATCH /api/v1/organizations/:id/settings]
+Reports --> ExportReport : Chọn kỳ báo cáo và export
+ExportReport --> Reports : Tải báo cáo\n[GET /api/v1/reports/annual/export]
+Reports --> DeptStats : Drill-down theo phòng ban\n[GET /api/v1/reports/annual]
+DeptStats --> Reports : Trở lại tổng quan\n[GET /api/v1/reports/departments]
+Dashboard --> Login : Logout\n[POST /api/v1/auth/logout]
 
-package "Department Head Screens (DEPARTMENT_HEAD)" {
-  rectangle "Department Dashboard\n/dept-head" as DeptDashboard
-  rectangle "Create Recruitment Request\n/dept-head/create-request" as DeptCreateRequest
-  rectangle "My Requests\n/dept-head/requests" as DeptRequests <<tabbed>>
-  rectangle "Interviews & Assessment\n/dept-head/interviews" as DeptInterviews
-}
-
-package "HR Manager Screens (HR_MANAGER)" {
-  rectangle "HR Dashboard\n/hr" as HrDashboard
-  rectangle "Request Queue\n/hr/requests" as HrRequests
-  rectangle "Recruitment Campaigns\n/hr/campaigns" as HrCampaigns <<tabbed>>
-  rectangle "Task Planner\n/hr/tasks" as HrTasks
-  rectangle "Talent Pool\n/hr/candidates" as HrCandidates <<tabbed>>
-  rectangle "Candidate Search\n/hr/search" as HrSearch
-  rectangle "Interview Schedule\n/hr/interviews" as HrInterviews
-  rectangle "Interview Results\n/hr/results" as HrResults
-  rectangle "Pipeline Reports\n/hr/reports" as HrReports
-  rectangle "System Notifications\n/hr/notifications" as HrNotifications
-}
-
-package "Candidate Screens (CANDIDATE)" {
-  rectangle "Candidate Dashboard\n/candidate" as CandidateDashboard
-  rectangle "My Profile\n/candidate/profile" as CandidateProfile <<tabbed>>
-  rectangle "Upload CV\n/candidate/upload-cv" as CandidateUploadCv
-  rectangle "Inbox Alerts\n/candidate/notifications" as CandidateNotifications
-}
-
-' Public and auth flow
-Landing --> Login : Sign in
-Landing --> SignUp : Create account
-Login --> RoleRedirect : Valid credentials
-Login --> ForgotPassword : Forgot password
-Login --> Unauthorized : Invalid role / blocked
-SignUp --> VerifyEmail : Submit registration
-VerifyEmail --> RoleRedirect : OTP verified
-ForgotPassword --> ResetPasswordOtp : Submit email
-ResetPasswordOtp --> Login : Password reset
-RoleRedirect --> AdminDashboard : role = ADMIN
-RoleRedirect --> DeptDashboard : role = DEPARTMENT_HEAD
-RoleRedirect --> HrDashboard : role = HR_MANAGER
-RoleRedirect --> CandidateDashboard : role = CANDIDATE
-RoleRedirect --> Unauthorized : unknown role
-
-' Shared guarded-route behavior
-AdminDashboard ..> AccessDenied : wrong role
-DeptDashboard ..> AccessDenied : wrong role
-HrDashboard ..> AccessDenied : wrong role
-CandidateDashboard ..> AccessDenied : wrong role
-AccessDenied --> Unauthorized
-
-' Admin screen flow
-AdminDashboard --> AdminApprovalQueue : Review pending approvals
-AdminDashboard --> AdminRequests : View all requests
-AdminDashboard --> AdminAnnualReport : View annual metrics
-AdminDashboard --> AdminDeptStats : View department metrics
-AdminDashboard --> AdminUsers : Manage users
-AdminDashboard --> AdminSettings : Configure system
-AdminApprovalQueue --> ApprovalDialog : Approve / reject request
-AdminApprovalQueue --> PlanRevisionDialog : Request plan revision
-AdminApprovalQueue --> AdminRequests : Open request detail
-AdminRequests --> AdminInterviewResults : View interview outcome
-AdminInterviewResults --> ApprovalDialog : Final hiring decision
-AdminUsers --> AdminSettings : Update role defaults
-AdminAnnualReport --> AdminDeptStats : Drill down by department
-
-' Department Head screen flow
-DeptDashboard --> DeptCreateRequest : Create new request
-DeptDashboard --> DeptRequests : Track submitted requests
-DeptDashboard --> DeptInterviews : View interview schedule
-DeptCreateRequest --> DeptRequests : Submit request
-DeptRequests --> DeptCreateRequest : Edit draft / revise
-DeptRequests --> DeptInterviews : Open related interview
-DeptInterviews --> DeptRequests : Return to request tracking
-
-' HR Manager screen flow
-HrDashboard --> HrRequests : Review incoming requests
-HrDashboard --> HrCampaigns : Manage campaigns
-HrDashboard --> HrTasks : Manage task plan
-HrDashboard --> HrCandidates : Browse candidates
-HrDashboard --> HrSearch : Search candidate CVs
-HrDashboard --> HrInterviews : Schedule interviews
-HrDashboard --> HrResults : Record interview results
-HrDashboard --> HrReports : View pipeline reports
-HrDashboard --> HrNotifications : Manage notifications
-HrRequests --> HrCampaigns : Create plan after approval
-HrCampaigns --> HrTasks : Break plan into tasks
-HrTasks --> HrCandidates : Start CV collection
-HrCandidates --> HrSearch : Semantic search
-HrSearch --> HrInterviews : Select candidates
-HrInterviews --> InviteDialog : Send interview invite
-HrInterviews --> HrResults : Interview completed
-HrResults --> AdminInterviewResults : Forward result to Admin
-HrResults --> OfferDialog : Prepare offer / rejection
-HrReports --> HrRequests : Investigate pipeline item
-HrNotifications --> InviteDialog : Manage email dispatch
-
-' Candidate screen flow
-CandidateDashboard --> CandidateProfile : Update profile
-CandidateDashboard --> CandidateUploadCv : Upload CV
-CandidateDashboard --> CandidateNotifications : Read alerts
-CandidateProfile --> CandidateUploadCv : Attach CV
-CandidateUploadCv --> CandidateDashboard : CV indexed
-CandidateNotifications --> OfferDialog : Accept / decline offer
-CandidateNotifications --> CandidateProfile : Update missing info
-
-' Logout flow available after login
-AdminDashboard ..> ConfirmLogout
-DeptDashboard ..> ConfirmLogout
-HrDashboard ..> ConfirmLogout
-CandidateDashboard ..> ConfirmLogout
-ConfirmLogout --> Login
-
-legend bottom
-  |= Notation |= Meaning |
-  | Rectangle | Normal screen / page |
-  | Oval | Popup, modal, or short verification step |
-  | <<tabbed>> | Screen containing multiple tabs or detail sections |
-  | Solid arrow | Main navigation or workflow transition |
-  | Dotted arrow | Conditional/system-triggered screen |
+legend right
+|= Ký hiệu |= Ý nghĩa |
+|<#E3F2FD> Blue | Full page / route |
+|<#FFF3CD> Yellow | Popup, modal hoặc drawer |
+|<#FDE2E1> Red | Lỗi phân quyền / validation |
 endlegend
+@enduml
 
+@startuml hr-screen-flow
+title RMS - Screen Flow: HR (Recruiter)
+
+left to right direction
+skinparam monochrome false
+skinparam shadowing false
+skinparam roundCorner 12
+skinparam defaultFontName Arial
+skinparam state {
+  BackgroundColor<<Screen>> #E3F2FD
+  BackgroundColor<<Popup>> #FFF3CD
+  BackgroundColor<<Error>> #FDE2E1
+  BorderColor #1E3A5F
+  FontColor #172033
+}
+
+state "Đăng nhập\n/login" as Login <<Screen>>
+state "HR Dashboard\n/hr" as Dashboard <<Screen>>
+state "Request Queue\n/hr/requests" as RequestQueue <<Screen>>
+state "Campaigns\n/hr/campaigns" as Campaigns <<Screen>>
+state "Campaign Detail & Planning\n/hr/campaigns/:id" as CampaignDetail <<Screen>>
+state "Job Posting Workspace\n/hr/job-postings/:requestId" as JobPosting <<Screen>>
+state "Task Planner\n/hr/tasks" as Tasks <<Screen>>
+state "Talent Pool\n/hr/candidates" as TalentPool <<Screen>>
+state "AI / Hybrid Candidate Search\n/hr/search" as CandidateSearch <<Screen>>
+state "Interview Schedule\n/hr/interviews" as InterviewSchedule <<Screen>>
+state "Interview Detail\n/hr/interview-detail" as InterviewDetail <<Screen>>
+state "Interview Results\n/hr/results" as InterviewResults <<Screen>>
+state "Pipeline Reports\n/hr/reports" as PipelineReports <<Screen>>
+state "System Notifications\n/hr/notifications" as Notifications <<Screen>>
+state "Google Calendar OAuth\nexternal integration" as GoogleCalendar <<Popup>>
+state "Supabase Storage\nsigned URL / media" as SupabaseStorage <<Popup>>
+
+state "Modal / Drawer" as HrModal {
+  state "Review / assign / return request\n<<drawer>>" as RequestReview <<Popup>>
+  state "Create / submit campaign plan\n<<modal>>" as PlanForm <<Popup>>
+  state "Create / assign / update task\n<<modal>>" as TaskForm <<Popup>>
+  state "Job posting editor & media uploader\n<<modal>>" as PostingEditor <<Popup>>
+  state "Candidate profile & latest CV\n<<drawer>>" as CandidateDrawer <<Popup>>
+  state "Schedule / reschedule interview\n<<modal>>" as ScheduleForm <<Popup>>
+  state "Send invitation / email logs\n<<modal>>" as InvitationModal <<Popup>>
+  state "Panel feedback & final recommendation\n<<drawer>>" as ResultDrawer <<Popup>>
+  state "Generate / review / send offer\n<<modal>>" as OfferModal <<Popup>>
+}
+
+[*] --> Login
+Login --> Dashboard : Đăng nhập thành công (HR_LEADER)\n[POST /api/v1/auth/login]
+Dashboard --> RequestQueue : Sidebar: Request Queue
+Dashboard --> Campaigns : Sidebar: Campaigns
+Dashboard --> Tasks : Sidebar: Task Planner
+Dashboard --> TalentPool : Sidebar: Talent Pool
+Dashboard --> CandidateSearch : Sidebar: Candidate Search
+Dashboard --> InterviewSchedule : Sidebar: Interview Schedule
+Dashboard --> InterviewResults : Sidebar: Interview Results
+Dashboard --> PipelineReports : Sidebar: Pipeline Reports
+Dashboard --> Notifications : Sidebar: System Notifications\n[GET /api/v1/notifications]
+
+RequestQueue --> RequestReview : Open request; review / assign / return
+RequestReview --> RequestQueue : Assign HR or return for revision\n[PATCH /api/v1/recruitment-requests/:id/assign]\n[PATCH /api/v1/recruitment-requests/:id/return-for-revision]
+RequestReview --> PlanForm : Forward request; create plan\n[PATCH /api/v1/recruitment-requests/:id/forward-to-admin]\n[POST /api/v1/overall-plan]
+PlanForm --> CampaignDetail : Submit / resubmit plan\n[PATCH /api/v1/overall-plan/:id/submit]\n[PATCH /api/v1/overall-plan/:id/resubmit]
+Campaigns --> CampaignDetail : Open campaign
+CampaignDetail --> Tasks : Plan execution tasks
+Tasks --> TaskForm : Create, assign or update task
+TaskForm --> Tasks : Save task / status\n[POST|PATCH /api/v1/task-plan]\n[PATCH /api/v1/task-plan/:id/assign-recruiter]\n[PATCH /api/v1/task-plan/:id/status]
+CampaignDetail --> JobPosting : Create/update job posting
+JobPosting --> PostingEditor : Edit, upload media, publish or close
+PostingEditor --> SupabaseStorage : Upload / receive signed media URL\n[POST /api/v1/job-postings/media]
+SupabaseStorage --> JobPosting : Save media and publishing state\n[POST /api/v1/job-postings/:id/publish]\n[POST /api/v1/job-postings/:id/close]
+
+TalentPool --> CandidateDrawer : View candidate profile and latest CV\n[GET /api/v1/candidate-profiles/:id]\n[GET /api/v1/candidate/cvs/candidate/:candidateId/latest/file]
+CandidateSearch --> CandidateDrawer : Run AI / hybrid search and open result\n[POST /api/v1/cv/search]\n[POST /api/v1/talent/search]
+CandidateDrawer --> CandidateSearch : Record screening / search feedback\n[POST /api/v1/cv/:candidateProfileId/screen]\n[POST /api/v1/talent/feedback]
+CandidateDrawer --> ScheduleForm : Select candidate for interview
+CampaignDetail --> ScheduleForm : Start campaign / schedule candidate\n[PATCH /api/v1/overall-plan/:id/start-campaign]
+InterviewSchedule --> ScheduleForm : Create or handle reschedule request
+ScheduleForm --> GoogleCalendar : Connect calendar / create Google Meet\n[GET /api/v1/google-calendar/auth-url]\n[POST /api/v1/google-calendar/meet]
+GoogleCalendar --> InvitationModal : Calendar event / Meet link returned
+ScheduleForm --> InvitationModal : Save schedule\n[POST /api/v1/interviews/schedules]\n[PATCH /api/v1/interviews/schedules/:id/reschedule]
+InvitationModal --> InterviewSchedule : Send invitation; view email log\n[POST /api/v1/interviews/schedules/:id/invitations]\n[GET /api/v1/interviews/schedules/:id/email-logs]
+InterviewSchedule --> InterviewDetail : View schedule detail\n[GET /api/v1/interviews/schedules/:id]
+InterviewDetail --> InterviewResults : Completed interview
+InterviewResults --> ResultDrawer : Enter result, feedback and recommendation\n[POST /api/v1/interviews/:id/results]\n[POST /api/v1/hr-interview-results/:id/final-recommendation]
+ResultDrawer --> OfferModal : Final decision permits offer
+OfferModal --> InterviewResults : Generate / review / send offer\n[POST /api/v1/offers]\n[GET /api/v1/offers/:id]\n[POST /api/v1/offers/:id/send]
+Notifications --> InterviewSchedule : Open related interview notification
+Notifications --> Tasks : Open related task notification
+PipelineReports --> CampaignDetail : Drill down campaign\n[GET /api/v1/reports/pipeline]
+Dashboard --> Login : Logout\n[POST /api/v1/auth/logout]
+@enduml
+
+@startuml department-head-screen-flow
+title RMS - Screen Flow: Department Head
+
+left to right direction
+skinparam monochrome false
+skinparam shadowing false
+skinparam roundCorner 12
+skinparam defaultFontName Arial
+skinparam state {
+  BackgroundColor<<Screen>> #E3F2FD
+  BackgroundColor<<Popup>> #FFF3CD
+  BackgroundColor<<Error>> #FDE2E1
+  BorderColor #1E3A5F
+  FontColor #172033
+}
+
+state "Đăng nhập\n/login" as Login <<Screen>>
+state "Department Dashboard\n/dept-head" as Dashboard <<Screen>>
+state "Create / Edit Recruitment Request\n/dept-head/create-request" as CreateRequest <<Screen>>
+state "My Recruitment Requests\n/dept-head/requests" as Requests <<Screen>>
+state "Department Interviews\n/dept-head/interviews" as Interviews <<Screen>>
+state "Interview Feedback\n/dept-head/feedback" as Feedback <<Screen>>
+state "Department Settings\n/dept-head/settings" as Settings <<Screen>>
+state "Validation / workflow error" as Error <<Error>>
+
+state "Modal / Drawer" as DeptModal {
+  state "Request detail & audit trail\n<<drawer>>" as RequestDetail <<Popup>>
+  state "Submit / resubmit confirmation\n<<modal>>" as SubmitConfirm <<Popup>>
+  state "Interview detail & candidate CV\n<<drawer>>" as InterviewDrawer <<Popup>>
+  state "Score & feedback form\n<<modal>>" as FeedbackForm <<Popup>>
+  state "Add / edit team member\n<<modal>>" as TeamForm <<Popup>>
+  state "Google Calendar connect\n<<modal / external>>" as CalendarConnect <<Popup>>
+}
+
+[*] --> Login
+Login --> Dashboard : Đăng nhập thành công (DEPARTMENT_HEAD)\n[POST /api/v1/auth/login]
+Dashboard --> CreateRequest : Sidebar / CTA: Create Request
+Dashboard --> Requests : Sidebar: My Requests
+Dashboard --> Interviews : Sidebar: Interviews
+Dashboard --> Feedback : Sidebar: Interview Evaluations
+Dashboard --> Settings : Sidebar: Department Settings
+
+CreateRequest --> Requests : Save draft / update request\n[POST /api/v1/recruitment-requests]\n[PATCH /api/v1/recruitment-requests/:id]
+CreateRequest --> SubmitConfirm : Submit request
+SubmitConfirm --> Requests : Submit / resubmit successfully\n[PATCH /api/v1/recruitment-requests/:id/submit]
+SubmitConfirm --> Error : Required field missing / status not editable
+Requests --> RequestDetail : View status, owner and audit trail\n[GET /api/v1/recruitment-requests/:id]\n[GET /api/v1/audit-logs]
+RequestDetail --> CreateRequest : Edit draft or revision-needed request
+RequestDetail --> Error : Attempt to edit submitted / approved request
+
+Interviews --> InterviewDrawer : Open interview, panel and latest CV\n[GET /api/v1/interviews/:id/details]\n[GET /api/v1/candidate/cvs/candidate/:candidateId/latest/file]
+InterviewDrawer --> CalendarConnect : Connect Google Calendar if needed\n[GET /api/v1/google-calendar/auth-url]
+CalendarConnect --> Interviews : OAuth callback completed\n[GET /api/v1/oauth2callback]
+Interviews --> Feedback : Select completed interview
+Feedback --> FeedbackForm : Enter score, strengths, weaknesses and recommendation
+FeedbackForm --> Feedback : Submit panel feedback\n[POST /api/v1/dept-head-interview-feedback/:id/my-feedback]
+FeedbackForm --> Error : Not a panel member / result already final
+
+Settings --> TeamForm : Add or update team member
+TeamForm --> Settings : Save team member\n[POST /api/v1/dept-head/settings/team-members]
+Dashboard --> Login : Logout\n[POST /api/v1/auth/logout]
+@enduml
+
+@startuml candidate-public-screen-flow
+title RMS - Screen Flow: Candidate and Public User
+
+left to right direction
+skinparam monochrome false
+skinparam shadowing false
+skinparam roundCorner 12
+skinparam defaultFontName Arial
+skinparam state {
+  BackgroundColor<<Screen>> #E3F2FD
+  BackgroundColor<<Popup>> #FFF3CD
+  BackgroundColor<<Error>> #FDE2E1
+  BorderColor #1E3A5F
+  FontColor #172033
+}
+
+state "Public Landing / Job Board\n/" as Landing <<Screen>>
+state "Public Job Detail\njob detail modal" as PublicJobDetail <<Popup>>
+state "Đăng ký\n/signup" as Register <<Screen>>
+state "Email OTP verification\n/verify-email" as VerifyOtp <<Screen>>
+state "Đăng nhập\n/login" as Login <<Screen>>
+state "Forgot password\n/forgot-password" as ForgotPassword <<Screen>>
+state "Reset password\n/reset-password" as ResetPassword <<Screen>>
+state "Supabase / Google SSO\nexternal identity provider" as SupabaseAuth <<Popup>>
+state "Candidate Dashboard & Open Jobs\n/candidate" as Dashboard <<Screen>>
+state "My Profile\n/candidate/profile" as Profile <<Screen>>
+state "Upload / Manage CV\n/candidate/upload-cv" as UploadCv <<Screen>>
+state "Notifications\n/candidate/notifications" as Notifications <<Screen>>
+state "Interview Details\n/candidate/interviews" as Interviews <<Screen>>
+state "My Offers\n/candidate/offers" as Offers <<Screen>>
+state "Offer Detail\n/candidate/offer/:offerId" as OfferDetail <<Screen>>
+state "Unauthorized / validation error\n/unauthorized" as Error <<Error>>
+
+state "Modal / Drawer" as CandidateModal {
+  state "Apply confirmation\n<<modal>>" as ApplyModal <<Popup>>
+  state "Avatar / profile editor\n<<drawer>>" as ProfileEditor <<Popup>>
+  state "CV upload / replace / delete\n<<modal>>" as CvModal <<Popup>>
+  state "Interview confirm / reschedule / cancel\n<<modal>>" as InterviewResponse <<Popup>>
+  state "Offer accept / decline\n<<modal>>" as OfferResponse <<Popup>>
+}
+
+[*] --> Landing
+Landing --> PublicJobDetail : Browse public job postings\n[GET /api/v1/public/job-postings]
+Landing --> Login : Sign in
+Landing --> Register : Create account
+PublicJobDetail --> Login : Apply requires authentication
+PublicJobDetail --> ApplyModal : Apply when signed in
+ApplyModal --> UploadCv : No CV available
+ApplyModal --> Dashboard : Submit application\n[POST /api/v1/applications]
+
+Register --> VerifyOtp : Email/password registration\n[POST /api/v1/auth/register]
+Register --> SupabaseAuth : Continue with Google / Supabase
+SupabaseAuth --> Register : New account registration\n[POST /api/v1/auth/supabase-register]
+SupabaseAuth --> Dashboard : Existing account login\n[POST /api/v1/auth/supabase-login]
+VerifyOtp --> Login : Verify or resend OTP\n[POST /api/v1/auth/verify-register]\n[POST /api/v1/auth/resend-register-otp]
+Login --> Dashboard : Candidate login succeeds\n[POST /api/v1/auth/login]
+Login --> SupabaseAuth : Google sign-in
+Login --> ForgotPassword : Forgot password
+ForgotPassword --> ResetPassword : Send password reset request\n[POST /api/v1/auth/forgot-password]
+ResetPassword --> Login : Reset successful\n[POST /api/v1/auth/reset-password]
+Login --> Error : Invalid credentials / non-candidate role
+
+Dashboard --> PublicJobDetail : View job details
+Dashboard --> ApplyModal : Apply from job card
+Dashboard --> Profile : Sidebar: My Profile
+Profile --> ProfileEditor : Edit profile / avatar
+ProfileEditor --> Profile : Save personal profile and avatar\n[PATCH /api/v1/candidate-profiles/me]\n[POST /api/v1/candidate-profiles/me/avatar]
+Dashboard --> UploadCv : Sidebar: Upload CV
+UploadCv --> CvModal : Upload, replace or delete CV
+CvModal --> UploadCv : Manage CV; queue parsing & embedding\n[POST /api/v1/candidate/cvs]\n[PATCH /api/v1/candidate/cvs/:id/file]\n[DELETE /api/v1/candidate/cvs/:id]
+UploadCv --> Dashboard : CV ready for application
+Dashboard --> Notifications : Sidebar: Inbox Alerts\n[GET /api/v1/notifications]
+Notifications --> OfferDetail : Open offer notification
+Notifications --> Interviews : Open interview notification
+Dashboard --> Interviews : Sidebar: Interview Details
+Interviews --> InterviewResponse : Confirm, request reschedule or cancel
+InterviewResponse --> Interviews : Save attendance/response\n[POST /api/v1/interviews/schedules/:id/confirm]\n[PATCH /api/v1/interviews/schedules/:id/candidate-reschedule]\n[PATCH /api/v1/interviews/schedules/:id/candidate-cancel]
+Dashboard --> Offers : Sidebar: My Offers\n[GET /api/v1/offers/me]
+Offers --> OfferDetail : Open offer
+OfferDetail --> OfferResponse : Accept / decline (decline requires reason)
+OfferResponse --> Offers : Persist response; notify HR/Admin\n[POST /api/v1/offers/:id/respond]
+Dashboard --> Login : Logout\n[POST /api/v1/auth/logout]
 @enduml

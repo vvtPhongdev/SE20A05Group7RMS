@@ -1,0 +1,81 @@
+@startuml candidate-public-screen-flow
+title RMS - Screen Flow: Candidate and Public User
+
+left to right direction
+skinparam monochrome false
+skinparam shadowing false
+skinparam roundCorner 12
+skinparam defaultFontName Arial
+skinparam state {
+  BackgroundColor<<Screen>> #E3F2FD
+  BackgroundColor<<Popup>> #FFF3CD
+  BackgroundColor<<Error>> #FDE2E1
+  BorderColor #1E3A5F
+  FontColor #172033
+}
+
+state "Public Landing / Job Board\n/" as Landing <<Screen>>
+state "Public Job Detail\njob detail modal" as PublicJobDetail <<Popup>>
+state "Đăng ký\n/signup" as Register <<Screen>>
+state "Email OTP verification\n/verify-email" as VerifyOtp <<Screen>>
+state "Đăng nhập\n/login" as Login <<Screen>>
+state "Forgot password\n/forgot-password" as ForgotPassword <<Screen>>
+state "Reset password\n/reset-password" as ResetPassword <<Screen>>
+state "Supabase / Google SSO\nexternal identity provider" as SupabaseAuth <<Popup>>
+state "Candidate Dashboard & Open Jobs\n/candidate" as Dashboard <<Screen>>
+state "My Profile\n/candidate/profile" as Profile <<Screen>>
+state "Upload / Manage CV\n/candidate/upload-cv" as UploadCv <<Screen>>
+state "Notifications\n/candidate/notifications" as Notifications <<Screen>>
+state "Interview Details\n/candidate/interviews" as Interviews <<Screen>>
+state "My Offers\n/candidate/offers" as Offers <<Screen>>
+state "Offer Detail\n/candidate/offer/:offerId" as OfferDetail <<Screen>>
+state "Unauthorized / validation error\n/unauthorized" as Error <<Error>>
+
+state "Modal / Drawer" as CandidateModal {
+  state "Apply confirmation\n<<modal>>" as ApplyModal <<Popup>>
+  state "Avatar / profile editor\n<<drawer>>" as ProfileEditor <<Popup>>
+  state "CV upload / replace / delete\n<<modal>>" as CvModal <<Popup>>
+  state "Interview confirm / reschedule / cancel\n<<modal>>" as InterviewResponse <<Popup>>
+  state "Offer accept / decline\n<<modal>>" as OfferResponse <<Popup>>
+}
+
+[*] --> Landing
+Landing --> PublicJobDetail : Browse public job postings\n[GET /api/v1/public/job-postings]
+Landing --> Login : Sign in
+Landing --> Register : Create account
+PublicJobDetail --> Login : Apply requires authentication
+PublicJobDetail --> ApplyModal : Apply when signed in
+ApplyModal --> UploadCv : No CV available
+ApplyModal --> Dashboard : Submit application\n[POST /api/v1/applications]
+Register --> VerifyOtp : Email/password registration\n[POST /api/v1/auth/register]
+Register --> SupabaseAuth : Continue with Google / Supabase
+SupabaseAuth --> Register : New account registration\n[POST /api/v1/auth/supabase-register]
+SupabaseAuth --> Dashboard : Existing account login\n[POST /api/v1/auth/supabase-login]
+VerifyOtp --> Login : Verify or resend OTP\n[POST /api/v1/auth/verify-register]\n[POST /api/v1/auth/resend-register-otp]
+Login --> Dashboard : Candidate login succeeds\n[POST /api/v1/auth/login]
+Login --> SupabaseAuth : Google sign-in
+Login --> ForgotPassword : Forgot password
+ForgotPassword --> ResetPassword : Send password reset request\n[POST /api/v1/auth/forgot-password]
+ResetPassword --> Login : Reset successful\n[POST /api/v1/auth/reset-password]
+Login --> Error : Invalid credentials / non-candidate role
+Dashboard --> PublicJobDetail : View job details
+Dashboard --> ApplyModal : Apply from job card
+Dashboard --> Profile : Sidebar: My Profile
+Profile --> ProfileEditor : Edit profile / avatar
+ProfileEditor --> Profile : Save personal profile and avatar\n[PATCH /api/v1/candidate-profiles/me]\n[POST /api/v1/candidate-profiles/me/avatar]
+Dashboard --> UploadCv : Sidebar: Upload CV
+UploadCv --> CvModal : Upload, replace or delete CV
+CvModal --> UploadCv : Manage CV; queue parsing & embedding\n[POST /api/v1/candidate/cvs]\n[PATCH /api/v1/candidate/cvs/:id/file]\n[DELETE /api/v1/candidate/cvs/:id]
+UploadCv --> Dashboard : CV ready for application
+Dashboard --> Notifications : Sidebar: Inbox Alerts\n[GET /api/v1/notifications]
+Notifications --> OfferDetail : Open offer notification
+Notifications --> Interviews : Open interview notification
+Dashboard --> Interviews : Sidebar: Interview Details
+Interviews --> InterviewResponse : Confirm, request reschedule or cancel
+InterviewResponse --> Interviews : Save attendance/response\n[POST /api/v1/interviews/schedules/:id/confirm]\n[PATCH /api/v1/interviews/schedules/:id/candidate-reschedule]\n[PATCH /api/v1/interviews/schedules/:id/candidate-cancel]
+Dashboard --> Offers : Sidebar: My Offers\n[GET /api/v1/offers/me]
+Offers --> OfferDetail : Open offer
+OfferDetail --> OfferResponse : Accept / decline (decline requires reason)
+OfferResponse --> Offers : Persist response; notify HR/Admin\n[POST /api/v1/offers/:id/respond]
+Dashboard --> Login : Logout\n[POST /api/v1/auth/logout]
+@enduml

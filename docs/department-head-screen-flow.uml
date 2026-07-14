@@ -1,0 +1,59 @@
+@startuml department-head-screen-flow
+title RMS - Screen Flow: Department Head
+
+left to right direction
+skinparam monochrome false
+skinparam shadowing false
+skinparam roundCorner 12
+skinparam defaultFontName Arial
+skinparam state {
+  BackgroundColor<<Screen>> #E3F2FD
+  BackgroundColor<<Popup>> #FFF3CD
+  BackgroundColor<<Error>> #FDE2E1
+  BorderColor #1E3A5F
+  FontColor #172033
+}
+
+state "Đăng nhập\n/login" as Login <<Screen>>
+state "Department Dashboard\n/dept-head" as Dashboard <<Screen>>
+state "Create / Edit Recruitment Request\n/dept-head/create-request" as CreateRequest <<Screen>>
+state "My Recruitment Requests\n/dept-head/requests" as Requests <<Screen>>
+state "Department Interviews\n/dept-head/interviews" as Interviews <<Screen>>
+state "Interview Feedback\n/dept-head/feedback" as Feedback <<Screen>>
+state "Department Settings\n/dept-head/settings" as Settings <<Screen>>
+state "Validation / workflow error" as Error <<Error>>
+
+state "Modal / Drawer" as DeptModal {
+  state "Request detail & audit trail\n<<drawer>>" as RequestDetail <<Popup>>
+  state "Submit / resubmit confirmation\n<<modal>>" as SubmitConfirm <<Popup>>
+  state "Interview detail & candidate CV\n<<drawer>>" as InterviewDrawer <<Popup>>
+  state "Score & feedback form\n<<modal>>" as FeedbackForm <<Popup>>
+  state "Add / edit team member\n<<modal>>" as TeamForm <<Popup>>
+  state "Google Calendar connect\n<<modal / external>>" as CalendarConnect <<Popup>>
+}
+
+[*] --> Login
+Login --> Dashboard : Đăng nhập thành công (DEPARTMENT_HEAD)\n[POST /api/v1/auth/login]
+Dashboard --> CreateRequest : Sidebar / CTA: Create Request
+Dashboard --> Requests : Sidebar: My Requests
+Dashboard --> Interviews : Sidebar: Interviews
+Dashboard --> Feedback : Sidebar: Interview Evaluations
+Dashboard --> Settings : Sidebar: Department Settings
+CreateRequest --> Requests : Save draft / update request\n[POST /api/v1/recruitment-requests]\n[PATCH /api/v1/recruitment-requests/:id]
+CreateRequest --> SubmitConfirm : Submit request
+SubmitConfirm --> Requests : Submit / resubmit successfully\n[PATCH /api/v1/recruitment-requests/:id/submit]
+SubmitConfirm --> Error : Required field missing / status not editable
+Requests --> RequestDetail : View status, owner and audit trail\n[GET /api/v1/recruitment-requests/:id]\n[GET /api/v1/audit-logs]
+RequestDetail --> CreateRequest : Edit draft or revision-needed request
+RequestDetail --> Error : Attempt to edit submitted / approved request
+Interviews --> InterviewDrawer : Open interview, panel and latest CV\n[GET /api/v1/interviews/:id/details]\n[GET /api/v1/candidate/cvs/candidate/:candidateId/latest/file]
+InterviewDrawer --> CalendarConnect : Connect Google Calendar if needed\n[GET /api/v1/google-calendar/auth-url]
+CalendarConnect --> Interviews : OAuth callback completed\n[GET /api/v1/oauth2callback]
+Interviews --> Feedback : Select completed interview
+Feedback --> FeedbackForm : Enter score, strengths, weaknesses and recommendation
+FeedbackForm --> Feedback : Submit panel feedback\n[POST /api/v1/dept-head-interview-feedback/:id/my-feedback]
+FeedbackForm --> Error : Not a panel member / result already final
+Settings --> TeamForm : Add or update team member
+TeamForm --> Settings : Save team member\n[POST /api/v1/dept-head/settings/team-members]
+Dashboard --> Login : Logout\n[POST /api/v1/auth/logout]
+@enduml
