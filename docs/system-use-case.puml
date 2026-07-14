@@ -1,360 +1,251 @@
 @startuml
-title RMS - Use Case Diagram by Actor
+title RMS - Use Case Diagram: Common and Enterprise Modules
 
 left to right direction
-skinparam backgroundColor #FFFFFF
 skinparam shadowing false
-skinparam roundCorner 10
 skinparam packageStyle rectangle
 skinparam defaultFontName Arial
 
-skinparam actor {
-  BackgroundColor #DBEAFE
-  BorderColor #1D4ED8
-  FontColor #172554
-}
+actor "Department Head" as DeptHead
+actor "HR Leader" as HR
+actor "Admin" as Admin
 
-skinparam usecase {
-  BackgroundColor #F8FAFC
-  BorderColor #475569
-  ArrowColor #475569
-  FontColor #0F172A
-}
-
-skinparam rectangle {
-  BorderColor #64748B
-  FontColor #0F172A
-}
-
-actor "Admin / Boss\n(ADMIN)" as Admin
-actor "Department Head\n(DEPARTMENT_HEAD)" as DeptHead
-actor "HR Manager\n(HR_MANAGER)" as HR
-actor "Candidate\n(CANDIDATE)" as Candidate
-
-actor "Email Service" as Email <<external>>
-actor "BullMQ Worker" as Worker <<system>>
-actor "PostgreSQL / pgvector" as Database <<external>>
-actor "Redis / BullMQ" as Queue <<external>>
-
-rectangle "Recruitment Management System (RMS)" {
-
-  package "Authentication" {
-    usecase "Register Account" as UC_Register
-    usecase "Verify Email OTP" as UC_VerifyEmail
-    usecase "Login" as UC_Login
-    usecase "Refresh Token" as UC_Refresh
-    usecase "Logout" as UC_Logout
-    usecase "Forgot Password" as UC_ForgotPassword
-    usecase "Reset Password" as UC_ResetPassword
-    usecase "View Current Profile" as UC_CurrentProfile
+package "RMS - Recruitment Management System" {
+  package "Common Authentication" {
+    usecase "Đăng nhập bằng Email/Password" as UC_Login
+    usecase "Đăng nhập với Google" as UC_GoogleLogin
+    usecase "Đăng ký tài khoản" as UC_Register
+    usecase "Xác thực Email OTP" as UC_VerifyOtp
+    usecase "Quên / Đặt lại mật khẩu" as UC_ResetPassword
+    usecase "Đăng xuất hệ thống" as UC_Logout
+    usecase "Xem thông báo" as UC_ViewNotifications
   }
 
-  package "User, Organization and Department Management" {
-    usecase "View Users" as UC_ViewUsers
-    usecase "Update User Role" as UC_UpdateUserRole
-    usecase "Activate / Deactivate User" as UC_UpdateUserStatus
-    usecase "View Organizations" as UC_ViewOrganizations
-    usecase "Create Organization" as UC_CreateOrganization
-    usecase "View Departments" as UC_ViewDepartments
-    usecase "Create Department" as UC_CreateDepartment
-    usecase "Update Department" as UC_UpdateDepartment
-    usecase "Assign Department Head" as UC_AssignDeptHead
-    usecase "Configure System Settings" as UC_SystemSettings
+  package "Department Head - Recruitment Request" {
+    usecase "Tạo yêu cầu tuyển dụng" as UC_CreateRequest
+    usecase "Lưu bản nháp yêu cầu" as UC_SaveDraft
+    usecase "Chỉnh sửa và gửi lại yêu cầu" as UC_EditResubmitRequest
+    usecase "Gửi yêu cầu để HR duyệt" as UC_SubmitRequest
+    usecase "Xem và theo dõi yêu cầu" as UC_TrackRequest
+    usecase "Xem trạng thái Campaign Plan" as UC_ViewCampaignState
+    usecase "Xóa yêu cầu đang chờ duyệt" as UC_DeletePendingRequest
+    usecase "Xem lịch phỏng vấn phòng ban" as UC_ViewDeptInterviews
+    usecase "Gửi phản hồi phỏng vấn" as UC_SubmitInterviewFeedback
+    usecase "Cập nhật cấu hình phòng ban" as UC_UpdateDepartmentSettings
   }
 
-  package "Recruitment Request Management" {
-    usecase "Create Recruitment Request" as UC_CreateRequest
-    usecase "Edit Draft Request" as UC_EditRequest
-    usecase "Submit Recruitment Request" as UC_SubmitRequest
-    usecase "View Request List" as UC_ViewRequests
-    usecase "View Request Detail" as UC_ViewRequestDetail
-    usecase "Review Request" as UC_ReviewRequest
-    usecase "Forward Request to Boss" as UC_ForwardRequest
-    usecase "Approve Request" as UC_ApproveRequest
-    usecase "Reject Request" as UC_RejectRequest
-    usecase "Request Revision" as UC_RequestRevision
-    usecase "View Request Audit Trail" as UC_RequestLogs
-    usecase "Track Request Progress" as UC_RequestTracking
+  package "HR - Request Review and Campaign" {
+    usecase "Nhận / claim yêu cầu tuyển dụng" as UC_ClaimRequest
+    usecase "Xem hàng đợi duyệt yêu cầu" as UC_ViewRequestQueue
+    usecase "Chỉnh sửa thông tin yêu cầu" as UC_EditRequestForReview
+    usecase "Trả yêu cầu để chỉnh sửa" as UC_ReturnRequest
+    usecase "Chuyển yêu cầu đến Admin" as UC_ForwardRequest
+    usecase "Xem danh sách Campaign" as UC_ViewCampaigns
+    usecase "Tạo Campaign Plan" as UC_CreatePlan
+    usecase "Cập nhật task của Campaign" as UC_UpdatePlanTasks
+    usecase "Gửi Campaign Plan để Admin duyệt" as UC_SubmitPlan
+    usecase "Gửi lại Campaign Plan bị trả về" as UC_ResubmitPlan
+    usecase "Quản lý Job Posting" as UC_ManageJobPosting
+    usecase "Quản lý task tuyển dụng" as UC_ManageRecruitmentTasks
   }
 
-  package "Recruitment Plan and Task Management" {
-    usecase "Create Overall Plan" as UC_CreatePlan
-    usecase "View Plan Detail" as UC_ViewPlan
-    usecase "Update Overall Plan" as UC_UpdatePlan
-    usecase "Submit Plan for Approval" as UC_SubmitPlan
-    usecase "Approve Plan" as UC_ApprovePlan
-    usecase "Request Plan Revision" as UC_RequestPlanRevision
-    usecase "Add Plan Task" as UC_AddTask
-    usecase "Update Plan Task" as UC_UpdateTask
-    usecase "Update Task Status" as UC_UpdateTaskStatus
-    usecase "Enforce Plan-Locked Execution" as UC_PlanLock
+  package "HR - Candidate and Interview Operations" {
+    usecase "Xem Talent Pool" as UC_ViewTalentPool
+    usecase "Tìm kiếm ứng viên Hybrid Search" as UC_HybridSearch
+    usecase "Xem hồ sơ và CV ứng viên" as UC_ViewCandidateCv
+    usecase "Thu thập ứng viên vào pipeline" as UC_CollectCandidate
+    usecase "Sàng lọc CV" as UC_ScreenCv
+    usecase "Lập lịch phỏng vấn" as UC_ScheduleInterview
+    usecase "Xem chi tiết phỏng vấn" as UC_ViewInterviewDetail
+    usecase "Ghi nhận kết quả phỏng vấn" as UC_RecordInterviewResult
+    usecase "Xem báo cáo Recruitment Pipeline" as UC_ViewPipelineReport
+    usecase "Quản lý thông báo HR" as UC_ManageHrNotifications
   }
 
-  package "Candidate and CV Management" {
-    usecase "Update Candidate Profile" as UC_UpdateProfile
-    usecase "Upload CV" as UC_UploadCV
-    usecase "Validate CV File" as UC_ValidateCV
-    usecase "Parse CV Content" as UC_ParseCV
-    usecase "Generate CV Embedding" as UC_GenerateEmbedding
-    usecase "List Candidates" as UC_ListCandidates
-    usecase "View Candidate Profile" as UC_ViewCandidate
-    usecase "View Candidate CV" as UC_ViewCV
-    usecase "Search Candidates by CV" as UC_SearchCandidates
-  }
-
-  package "Interview Management" {
-    usecase "View Interview List" as UC_ViewInterviews
-    usecase "View Interview Detail" as UC_ViewInterviewDetail
-    usecase "Check Available Slots" as UC_AvailableSlots
-    usecase "Schedule Interview" as UC_ScheduleInterview
-    usecase "Update Interview" as UC_UpdateInterview
-    usecase "Reschedule Interview" as UC_RescheduleInterview
-    usecase "Cancel Interview" as UC_CancelInterview
-    usecase "Receive Interview Invitation" as UC_ReceiveInvitation
-    usecase "Join Interview Panel" as UC_JoinPanel
-    usecase "Record Interview Result" as UC_RecordResult
-    usecase "Review Interview Result" as UC_ReviewResult
-    usecase "Make Final Hiring Decision" as UC_HiringDecision
-  }
-
-  package "Offer and Communication" {
-    usecase "Generate Offer Letter" as UC_GenerateOffer
-    usecase "Send Offer Letter" as UC_SendOffer
-    usecase "Accept / Decline Offer" as UC_OfferResponse
-    usecase "Send Rejection Email" as UC_SendRejection
-    usecase "Send Email" as UC_SendEmail
-    usecase "Track Email Delivery" as UC_EmailLog
-  }
-
-  package "Notification Management" {
-    usecase "View Notifications" as UC_ViewNotifications
-    usecase "View Unread Count" as UC_UnreadCount
-    usecase "Mark Notification as Read" as UC_MarkRead
-    usecase "Mark All Notifications as Read" as UC_MarkAllRead
-    usecase "Create System Notification" as UC_CreateNotification
-  }
-
-  package "Dashboard and Reporting" {
-    usecase "View Admin Dashboard" as UC_AdminDashboard
-    usecase "View Department Dashboard" as UC_DeptDashboard
-    usecase "View HR Dashboard" as UC_HRDashboard
-    usecase "View Candidate Dashboard" as UC_CandidateDashboard
-    usecase "View Annual Report" as UC_AnnualReport
-    usecase "View Department Report" as UC_DepartmentReport
-    usecase "View Time-to-Hire Metrics" as UC_TimeToHire
-    usecase "View Pipeline Overview" as UC_PipelineReport
-    usecase "Export Report" as UC_ExportReport
+  package "Admin - Approval, Governance and Reporting" {
+    usecase "Xem hàng đợi duyệt Request" as UC_AdminRequestQueue
+    usecase "Duyệt / từ chối Request" as UC_DecideRequest
+    usecase "Yêu cầu chỉnh sửa Request" as UC_RequestRequestChanges
+    usecase "Xem hàng đợi duyệt Campaign Plan" as UC_AdminPlanQueue
+    usecase "Duyệt / từ chối Campaign Plan" as UC_DecidePlan
+    usecase "Xem toàn bộ yêu cầu tuyển dụng" as UC_ViewAllRequests
+    usecase "Xem kết quả phỏng vấn" as UC_ViewInterviewResults
+    usecase "Ra quyết định tuyển dụng" as UC_MakeHiringDecision
+    usecase "Yêu cầu thêm thông tin ứng viên" as UC_RequestCandidateInformation
+    usecase "Quản lý Offer Letter" as UC_ManageOfferLetters
+    usecase "Quản lý người dùng" as UC_ManageUsers
+    usecase "Phân quyền và trạng thái tài khoản" as UC_ManageUserAccess
+    usecase "Cấu hình tổ chức và phòng ban" as UC_ManageOrganizationSettings
+    usecase "Xem báo cáo năm" as UC_ViewAnnualReport
+    usecase "Xem thống kê theo phòng ban / Campaign" as UC_ViewDepartmentStats
   }
 }
 
-' Shared authentication use cases
-Admin -- UC_Login
-Admin -- UC_Refresh
-Admin -- UC_Logout
-Admin -- UC_ForgotPassword
-Admin -- UC_ResetPassword
-Admin -- UC_CurrentProfile
+DeptHead --> UC_Login
+DeptHead --> UC_GoogleLogin
+DeptHead --> UC_ResetPassword
+DeptHead --> UC_Logout
+DeptHead --> UC_ViewNotifications
+DeptHead --> UC_CreateRequest
+DeptHead --> UC_EditResubmitRequest
+DeptHead --> UC_TrackRequest
+DeptHead --> UC_ViewCampaignState
+DeptHead --> UC_DeletePendingRequest
+DeptHead --> UC_ViewDeptInterviews
+DeptHead --> UC_SubmitInterviewFeedback
+DeptHead --> UC_UpdateDepartmentSettings
 
-DeptHead -- UC_Login
-DeptHead -- UC_Refresh
-DeptHead -- UC_Logout
-DeptHead -- UC_ForgotPassword
-DeptHead -- UC_ResetPassword
-DeptHead -- UC_CurrentProfile
+HR --> UC_Login
+HR --> UC_GoogleLogin
+HR --> UC_ResetPassword
+HR --> UC_Logout
+HR --> UC_ViewNotifications
+HR --> UC_ClaimRequest
+HR --> UC_ViewRequestQueue
+HR --> UC_ViewCampaigns
+HR --> UC_ManageJobPosting
+HR --> UC_ManageRecruitmentTasks
+HR --> UC_ViewTalentPool
+HR --> UC_HybridSearch
+HR --> UC_CollectCandidate
+HR --> UC_ScreenCv
+HR --> UC_ScheduleInterview
+HR --> UC_ViewInterviewDetail
+HR --> UC_RecordInterviewResult
+HR --> UC_ViewPipelineReport
+HR --> UC_ManageHrNotifications
 
-HR -- UC_Login
-HR -- UC_Refresh
-HR -- UC_Logout
-HR -- UC_ForgotPassword
-HR -- UC_ResetPassword
-HR -- UC_CurrentProfile
+Admin --> UC_Login
+Admin --> UC_GoogleLogin
+Admin --> UC_ResetPassword
+Admin --> UC_Logout
+Admin --> UC_ViewNotifications
+Admin --> UC_AdminRequestQueue
+Admin --> UC_AdminPlanQueue
+Admin --> UC_ViewAllRequests
+Admin --> UC_ViewInterviewResults
+Admin --> UC_MakeHiringDecision
+Admin --> UC_ManageOfferLetters
+Admin --> UC_ManageUsers
+Admin --> UC_ManageOrganizationSettings
+Admin --> UC_ViewAnnualReport
+Admin --> UC_ViewDepartmentStats
 
-Candidate -- UC_Register
-Candidate -- UC_VerifyEmail
-Candidate -- UC_Login
-Candidate -- UC_Refresh
-Candidate -- UC_Logout
-Candidate -- UC_ForgotPassword
-Candidate -- UC_ResetPassword
-Candidate -- UC_CurrentProfile
+UC_Register ..> UC_VerifyOtp : <<include>>
+UC_CreateRequest ..> UC_SaveDraft : <<include>>
+UC_EditResubmitRequest ..> UC_SubmitRequest : <<include>>
+UC_CreateRequest ..> UC_SubmitRequest : <<extend>>
+UC_DeletePendingRequest ..> UC_TrackRequest : <<extend>>
+UC_ViewCampaignState ..> UC_TrackRequest : <<extend>>
+UC_SubmitInterviewFeedback ..> UC_ViewDeptInterviews : <<extend>>
+UC_ClaimRequest ..> UC_ViewRequestQueue : <<extend>>
+UC_EditRequestForReview ..> UC_ViewRequestQueue : <<extend>>
+UC_ReturnRequest ..> UC_ViewRequestQueue : <<extend>>
+UC_ForwardRequest ..> UC_ViewRequestQueue : <<extend>>
+UC_CreatePlan ..> UC_ViewCampaigns : <<extend>>
+UC_UpdatePlanTasks ..> UC_CreatePlan : <<include>>
+UC_SubmitPlan ..> UC_UpdatePlanTasks : <<include>>
+UC_ResubmitPlan ..> UC_UpdatePlanTasks : <<include>>
+UC_ManageJobPosting ..> UC_ViewCampaigns : <<extend>>
+UC_ManageRecruitmentTasks ..> UC_ViewCampaigns : <<extend>>
+UC_ViewCandidateCv ..> UC_HybridSearch : <<extend>>
+UC_CollectCandidate ..> UC_ViewTalentPool : <<extend>>
+UC_ScreenCv ..> UC_CollectCandidate : <<extend>>
+UC_ScheduleInterview ..> UC_ScreenCv : <<extend>>
+UC_ViewInterviewDetail ..> UC_ScheduleInterview : <<extend>>
+UC_RecordInterviewResult ..> UC_ViewInterviewDetail : <<extend>>
+UC_DecideRequest ..> UC_AdminRequestQueue : <<extend>>
+UC_RequestRequestChanges ..> UC_AdminRequestQueue : <<extend>>
+UC_DecidePlan ..> UC_AdminPlanQueue : <<extend>>
+UC_MakeHiringDecision ..> UC_ViewInterviewResults : <<extend>>
+UC_RequestCandidateInformation ..> UC_MakeHiringDecision : <<extend>>
+UC_ManageOfferLetters ..> UC_MakeHiringDecision : <<include>>
+UC_ManageUserAccess ..> UC_ManageUsers : <<include>>
+UC_ViewDepartmentStats ..> UC_ViewAnnualReport : <<extend>>
 
-' Admin / Boss use cases
-Admin -- UC_ViewUsers
-Admin -- UC_UpdateUserRole
-Admin -- UC_UpdateUserStatus
-Admin -- UC_ViewOrganizations
-Admin -- UC_CreateOrganization
-Admin -- UC_ViewDepartments
-Admin -- UC_CreateDepartment
-Admin -- UC_UpdateDepartment
-Admin -- UC_AssignDeptHead
-Admin -- UC_SystemSettings
-Admin -- UC_ViewRequests
-Admin -- UC_ViewRequestDetail
-Admin -- UC_ApproveRequest
-Admin -- UC_RejectRequest
-Admin -- UC_RequestLogs
-Admin -- UC_ViewPlan
-Admin -- UC_ApprovePlan
-Admin -- UC_RequestPlanRevision
-Admin -- UC_ViewInterviews
-Admin -- UC_ViewInterviewDetail
-Admin -- UC_ReviewResult
-Admin -- UC_HiringDecision
-Admin -- UC_ViewCandidate
-Admin -- UC_AdminDashboard
-Admin -- UC_AnnualReport
-Admin -- UC_DepartmentReport
-Admin -- UC_TimeToHire
-Admin -- UC_ViewNotifications
-Admin -- UC_UnreadCount
-Admin -- UC_MarkRead
-Admin -- UC_MarkAllRead
+@enduml
 
-' Department Head use cases
-DeptHead -- UC_CreateRequest
-DeptHead -- UC_EditRequest
-DeptHead -- UC_SubmitRequest
-DeptHead -- UC_ViewRequests
-DeptHead -- UC_ViewRequestDetail
-DeptHead -- UC_RequestLogs
-DeptHead -- UC_RequestTracking
-DeptHead -- UC_ViewInterviews
-DeptHead -- UC_ViewInterviewDetail
-DeptHead -- UC_ReceiveInvitation
-DeptHead -- UC_JoinPanel
-DeptHead -- UC_DeptDashboard
-DeptHead -- UC_DepartmentReport
-DeptHead -- UC_ViewNotifications
-DeptHead -- UC_UnreadCount
-DeptHead -- UC_MarkRead
-DeptHead -- UC_MarkAllRead
+@startuml
+title RMS - Use Case Diagram: Candidate Module
 
-' HR Manager use cases
-HR -- UC_ViewDepartments
-HR -- UC_ViewRequests
-HR -- UC_ViewRequestDetail
-HR -- UC_ReviewRequest
-HR -- UC_ForwardRequest
-HR -- UC_RequestLogs
-HR -- UC_CreatePlan
-HR -- UC_ViewPlan
-HR -- UC_UpdatePlan
-HR -- UC_SubmitPlan
-HR -- UC_AddTask
-HR -- UC_UpdateTask
-HR -- UC_UpdateTaskStatus
-HR -- UC_ListCandidates
-HR -- UC_ViewCandidate
-HR -- UC_ViewCV
-HR -- UC_SearchCandidates
-HR -- UC_ViewInterviews
-HR -- UC_ViewInterviewDetail
-HR -- UC_AvailableSlots
-HR -- UC_ScheduleInterview
-HR -- UC_UpdateInterview
-HR -- UC_RescheduleInterview
-HR -- UC_CancelInterview
-HR -- UC_RecordResult
-HR -- UC_GenerateOffer
-HR -- UC_SendOffer
-HR -- UC_SendRejection
-HR -- UC_HRDashboard
-HR -- UC_PipelineReport
-HR -- UC_ViewNotifications
-HR -- UC_UnreadCount
-HR -- UC_MarkRead
-HR -- UC_MarkAllRead
+left to right direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
 
-' Candidate use cases
-Candidate -- UC_CandidateDashboard
-Candidate -- UC_UpdateProfile
-Candidate -- UC_UploadCV
-Candidate -- UC_ReceiveInvitation
-Candidate -- UC_ViewInterviewDetail
-Candidate -- UC_OfferResponse
-Candidate -- UC_ViewNotifications
-Candidate -- UC_UnreadCount
-Candidate -- UC_MarkRead
-Candidate -- UC_MarkAllRead
+actor "Candidate" as Candidate
 
-' Include / extend relationships
-UC_CreateDepartment .> UC_AssignDeptHead : <<include>>
-UC_SubmitRequest .> UC_CreateNotification : <<include>>
-UC_ForwardRequest .> UC_CreateNotification : <<include>>
-UC_ApproveRequest .> UC_RequestLogs : <<include>>
-UC_ApproveRequest .> UC_CreateNotification : <<include>>
-UC_RejectRequest .> UC_RequestLogs : <<include>>
-UC_RejectRequest .> UC_CreateNotification : <<include>>
-UC_RequestRevision .> UC_CreateNotification : <<include>>
+package "RMS - Candidate Self-Service" {
+  package "Authentication and Account" {
+    usecase "Đăng ký tài khoản" as UC_CandidateRegister
+    usecase "Xác thực Email OTP" as UC_CandidateVerifyOtp
+    usecase "Đăng nhập bằng Email/Password" as UC_CandidateLogin
+    usecase "Đăng nhập với Google" as UC_CandidateGoogleLogin
+    usecase "Quên / Đặt lại mật khẩu" as UC_CandidateResetPassword
+    usecase "Đăng xuất hệ thống" as UC_CandidateLogout
+  }
 
-UC_CreatePlan .> UC_PlanLock : <<include>>
-UC_UpdatePlan .> UC_PlanLock : <<include>>
-UC_AddTask .> UC_PlanLock : <<include>>
-UC_UpdateTask .> UC_PlanLock : <<include>>
-UC_UpdateTaskStatus .> UC_PlanLock : <<include>>
-UC_SubmitPlan .> UC_CreateNotification : <<include>>
-UC_ApprovePlan .> UC_CreateNotification : <<include>>
-UC_RequestPlanRevision .> UC_CreateNotification : <<include>>
+  package "Candidate Profile and CV" {
+    usecase "Xem hồ sơ ứng viên" as UC_ViewProfile
+    usecase "Cập nhật hồ sơ ứng viên" as UC_UpdateProfile
+    usecase "Tải lên CV" as UC_UploadCv
+    usecase "Thay thế CV hiện tại" as UC_ReplaceCv
+    usecase "Xóa CV" as UC_DeleteCv
+    usecase "Theo dõi trạng thái xử lý CV" as UC_TrackCvProcessing
+  }
 
-UC_UploadCV .> UC_ValidateCV : <<include>>
-UC_UploadCV .> UC_ParseCV : <<include>>
-UC_ParseCV .> UC_GenerateEmbedding : <<include>>
-UC_SearchCandidates .> UC_GenerateEmbedding : <<include>>
+  package "Job Search and Application" {
+    usecase "Xem danh sách việc làm" as UC_ViewJobs
+    usecase "Xem chi tiết việc làm" as UC_ViewJobDetail
+    usecase "Nộp hồ sơ ứng tuyển" as UC_SubmitApplication
+    usecase "Theo dõi trạng thái ứng tuyển" as UC_TrackApplication
+  }
 
-UC_ScheduleInterview .> UC_AvailableSlots : <<include>>
-UC_ScheduleInterview .> UC_CreateNotification : <<include>>
-UC_ScheduleInterview .> UC_SendEmail : <<include>>
-UC_UpdateInterview .> UC_CreateNotification : <<include>>
-UC_RescheduleInterview .> UC_AvailableSlots : <<include>>
-UC_RescheduleInterview .> UC_CreateNotification : <<include>>
-UC_RescheduleInterview .> UC_SendEmail : <<include>>
-UC_CancelInterview .> UC_CreateNotification : <<include>>
-UC_CancelInterview .> UC_SendEmail : <<include>>
-UC_RecordResult .> UC_RequestLogs : <<include>>
-UC_RecordResult .> UC_CreateNotification : <<include>>
-UC_HiringDecision .> UC_ReviewResult : <<include>>
-UC_HiringDecision .> UC_RequestLogs : <<include>>
+  package "Interview, Offer and Notification" {
+    usecase "Xem thông báo" as UC_CandidateNotifications
+    usecase "Xem lịch và chi tiết phỏng vấn" as UC_ViewInterview
+    usecase "Xem danh sách Offer" as UC_ViewOffers
+    usecase "Xem chi tiết Offer Letter" as UC_ViewOfferDetail
+    usecase "Chấp nhận Offer Letter" as UC_AcceptOffer
+    usecase "Từ chối Offer Letter" as UC_DeclineOffer
+  }
+}
 
-UC_GenerateOffer ..> UC_HiringDecision : <<extend>> HIRE
-UC_SendRejection ..> UC_HiringDecision : <<extend>> REJECT
-UC_SendOffer .> UC_GenerateOffer : <<include>>
-UC_SendOffer .> UC_SendEmail : <<include>>
-UC_SendOffer .> UC_EmailLog : <<include>>
-UC_SendRejection .> UC_SendEmail : <<include>>
-UC_SendRejection .> UC_EmailLog : <<include>>
-UC_OfferResponse .> UC_RequestLogs : <<include>>
-UC_OfferResponse .> UC_CreateNotification : <<include>>
+Candidate --> UC_CandidateRegister
+Candidate --> UC_CandidateLogin
+Candidate --> UC_CandidateGoogleLogin
+Candidate --> UC_CandidateResetPassword
+Candidate --> UC_CandidateLogout
+Candidate --> UC_ViewProfile
+Candidate --> UC_UpdateProfile
+Candidate --> UC_UploadCv
+Candidate --> UC_ReplaceCv
+Candidate --> UC_DeleteCv
+Candidate --> UC_TrackCvProcessing
+Candidate --> UC_ViewJobs
+Candidate --> UC_ViewJobDetail
+Candidate --> UC_SubmitApplication
+Candidate --> UC_TrackApplication
+Candidate --> UC_CandidateNotifications
+Candidate --> UC_ViewInterview
+Candidate --> UC_ViewOffers
+Candidate --> UC_ViewOfferDetail
+Candidate --> UC_AcceptOffer
+Candidate --> UC_DeclineOffer
 
-UC_ViewNotifications .> UC_UnreadCount : <<include>>
-UC_MarkAllRead ..> UC_MarkRead : <<extend>>
-UC_AnnualReport ..> UC_ExportReport : <<extend>>
-UC_DepartmentReport ..> UC_ExportReport : <<extend>>
-UC_TimeToHire ..> UC_ExportReport : <<extend>>
-UC_PipelineReport ..> UC_ExportReport : <<extend>>
-
-' External system associations
-Worker -- UC_ParseCV
-Worker -- UC_GenerateEmbedding
-Worker -- UC_SendEmail
-Queue -- UC_ParseCV
-Queue -- UC_GenerateEmbedding
-Queue -- UC_SendEmail
-Email -- UC_SendEmail
-Database -- UC_RequestLogs
-Database -- UC_SearchCandidates
-Database -- UC_EmailLog
-Database -- UC_AnnualReport
-Database -- UC_DepartmentReport
-Database -- UC_TimeToHire
-Database -- UC_PipelineReport
-
-legend bottom
-  |= Element |= Meaning |
-  | Actor | Human or external participant |
-  | Use case | System capability from RMS project |
-  | <<include>> | Mandatory reused behavior |
-  | <<extend>> | Conditional or optional behavior |
-endlegend
+UC_CandidateRegister ..> UC_CandidateVerifyOtp : <<include>>
+UC_UpdateProfile ..> UC_ViewProfile : <<extend>>
+UC_ReplaceCv ..> UC_UploadCv : <<extend>>
+UC_DeleteCv ..> UC_UploadCv : <<extend>>
+UC_TrackCvProcessing ..> UC_UploadCv : <<extend>>
+UC_ViewJobDetail ..> UC_ViewJobs : <<extend>>
+UC_SubmitApplication ..> UC_ViewJobDetail : <<extend>>
+UC_SubmitApplication ..> UC_UploadCv : <<include>>
+UC_TrackApplication ..> UC_SubmitApplication : <<extend>>
+UC_ViewInterview ..> UC_TrackApplication : <<extend>>
+UC_ViewOffers ..> UC_TrackApplication : <<extend>>
+UC_ViewOfferDetail ..> UC_ViewOffers : <<extend>>
+UC_AcceptOffer ..> UC_ViewOfferDetail : <<extend>>
+UC_DeclineOffer ..> UC_ViewOfferDetail : <<extend>>
 
 @enduml

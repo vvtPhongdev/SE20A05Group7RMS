@@ -1,0 +1,88 @@
+@startuml hr-screen-flow
+title RMS - Screen Flow: HR (Recruiter)
+
+left to right direction
+skinparam monochrome false
+skinparam shadowing false
+skinparam roundCorner 12
+skinparam defaultFontName Arial
+skinparam state {
+  BackgroundColor<<Screen>> #E3F2FD
+  BackgroundColor<<Popup>> #FFF3CD
+  BackgroundColor<<Error>> #FDE2E1
+  BorderColor #1E3A5F
+  FontColor #172033
+}
+
+state "Đăng nhập\n/login" as Login <<Screen>>
+state "HR Dashboard\n/hr" as Dashboard <<Screen>>
+state "Request Queue\n/hr/requests" as RequestQueue <<Screen>>
+state "Campaigns\n/hr/campaigns" as Campaigns <<Screen>>
+state "Campaign Detail & Planning\n/hr/campaigns/:id" as CampaignDetail <<Screen>>
+state "Job Posting Workspace\n/hr/job-postings/:requestId" as JobPosting <<Screen>>
+state "Task Planner\n/hr/tasks" as Tasks <<Screen>>
+state "Talent Pool\n/hr/candidates" as TalentPool <<Screen>>
+state "AI / Hybrid Candidate Search\n/hr/search" as CandidateSearch <<Screen>>
+state "Interview Schedule\n/hr/interviews" as InterviewSchedule <<Screen>>
+state "Interview Detail\n/hr/interview-detail" as InterviewDetail <<Screen>>
+state "Interview Results\n/hr/results" as InterviewResults <<Screen>>
+state "Pipeline Reports\n/hr/reports" as PipelineReports <<Screen>>
+state "System Notifications\n/hr/notifications" as Notifications <<Screen>>
+state "Google Calendar OAuth\nexternal integration" as GoogleCalendar <<Popup>>
+state "Supabase Storage\nsigned URL / media" as SupabaseStorage <<Popup>>
+
+state "Modal / Drawer" as HrModal {
+  state "Review / assign / return request\n<<drawer>>" as RequestReview <<Popup>>
+  state "Create / submit campaign plan\n<<modal>>" as PlanForm <<Popup>>
+  state "Create / assign / update task\n<<modal>>" as TaskForm <<Popup>>
+  state "Job posting editor & media uploader\n<<modal>>" as PostingEditor <<Popup>>
+  state "Candidate profile & latest CV\n<<drawer>>" as CandidateDrawer <<Popup>>
+  state "Schedule / reschedule interview\n<<modal>>" as ScheduleForm <<Popup>>
+  state "Send invitation / email logs\n<<modal>>" as InvitationModal <<Popup>>
+  state "Panel feedback & final recommendation\n<<drawer>>" as ResultDrawer <<Popup>>
+  state "Generate / review / send offer\n<<modal>>" as OfferModal <<Popup>>
+}
+
+[*] --> Login
+Login --> Dashboard : Đăng nhập thành công (HR_LEADER)\n[POST /api/v1/auth/login]
+Dashboard --> RequestQueue : Sidebar: Request Queue
+Dashboard --> Campaigns : Sidebar: Campaigns
+Dashboard --> Tasks : Sidebar: Task Planner
+Dashboard --> TalentPool : Sidebar: Talent Pool
+Dashboard --> CandidateSearch : Sidebar: Candidate Search
+Dashboard --> InterviewSchedule : Sidebar: Interview Schedule
+Dashboard --> InterviewResults : Sidebar: Interview Results
+Dashboard --> PipelineReports : Sidebar: Pipeline Reports
+Dashboard --> Notifications : Sidebar: System Notifications\n[GET /api/v1/notifications]
+RequestQueue --> RequestReview : Open request; review / assign / return
+RequestReview --> RequestQueue : Assign HR or return for revision\n[PATCH /api/v1/recruitment-requests/:id/assign]\n[PATCH /api/v1/recruitment-requests/:id/return-for-revision]
+RequestReview --> PlanForm : Forward request; create plan\n[PATCH /api/v1/recruitment-requests/:id/forward-to-admin]\n[POST /api/v1/overall-plan]
+PlanForm --> CampaignDetail : Submit / resubmit plan\n[PATCH /api/v1/overall-plan/:id/submit]\n[PATCH /api/v1/overall-plan/:id/resubmit]
+Campaigns --> CampaignDetail : Open campaign
+CampaignDetail --> Tasks : Plan execution tasks
+Tasks --> TaskForm : Create, assign or update task
+TaskForm --> Tasks : Save task / status\n[POST|PATCH /api/v1/task-plan]\n[PATCH /api/v1/task-plan/:id/assign-recruiter]\n[PATCH /api/v1/task-plan/:id/status]
+CampaignDetail --> JobPosting : Create/update job posting
+JobPosting --> PostingEditor : Edit, upload media, publish or close
+PostingEditor --> SupabaseStorage : Upload / receive signed media URL\n[POST /api/v1/job-postings/media]
+SupabaseStorage --> JobPosting : Save media and publishing state\n[POST /api/v1/job-postings/:id/publish]\n[POST /api/v1/job-postings/:id/close]
+TalentPool --> CandidateDrawer : View candidate profile and latest CV\n[GET /api/v1/candidate-profiles/:id]\n[GET /api/v1/candidate/cvs/candidate/:candidateId/latest/file]
+CandidateSearch --> CandidateDrawer : Run AI / hybrid search and open result\n[POST /api/v1/cv/search]\n[POST /api/v1/talent/search]
+CandidateDrawer --> CandidateSearch : Record screening / search feedback\n[POST /api/v1/cv/:candidateProfileId/screen]\n[POST /api/v1/talent/feedback]
+CandidateDrawer --> ScheduleForm : Select candidate for interview
+CampaignDetail --> ScheduleForm : Start campaign / schedule candidate\n[PATCH /api/v1/overall-plan/:id/start-campaign]
+InterviewSchedule --> ScheduleForm : Create or handle reschedule request
+ScheduleForm --> GoogleCalendar : Connect calendar / create Google Meet\n[GET /api/v1/google-calendar/auth-url]\n[POST /api/v1/google-calendar/meet]
+GoogleCalendar --> InvitationModal : Calendar event / Meet link returned
+ScheduleForm --> InvitationModal : Save schedule\n[POST /api/v1/interviews/schedules]\n[PATCH /api/v1/interviews/schedules/:id/reschedule]
+InvitationModal --> InterviewSchedule : Send invitation; view email log\n[POST /api/v1/interviews/schedules/:id/invitations]\n[GET /api/v1/interviews/schedules/:id/email-logs]
+InterviewSchedule --> InterviewDetail : View schedule detail\n[GET /api/v1/interviews/schedules/:id]
+InterviewDetail --> InterviewResults : Completed interview
+InterviewResults --> ResultDrawer : Enter result, feedback and recommendation\n[POST /api/v1/interviews/:id/results]\n[POST /api/v1/hr-interview-results/:id/final-recommendation]
+ResultDrawer --> OfferModal : Final decision permits offer
+OfferModal --> InterviewResults : Generate / review / send offer\n[POST /api/v1/offers]\n[GET /api/v1/offers/:id]\n[POST /api/v1/offers/:id/send]
+Notifications --> InterviewSchedule : Open related interview notification
+Notifications --> Tasks : Open related task notification
+PipelineReports --> CampaignDetail : Drill down campaign\n[GET /api/v1/reports/pipeline]
+Dashboard --> Login : Logout\n[POST /api/v1/auth/logout]
+@enduml
