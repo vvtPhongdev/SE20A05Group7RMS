@@ -43,6 +43,22 @@ export class TalentSearchController {
     return this.service.recordFeedback(payload);
   }
 
+  @MessagePattern('talent.screening-decision')
+  @UseGuards(PlanLockedGuard)
+  @PlanLocked(TaskType.CV_SCREENING)
+  updateScreeningDecision(
+    @Payload()
+    payload: {
+      requestId: string;
+      candidateIds: string[];
+      status: 'SHORTLISTED' | 'REJECTED' | 'PENDING';
+      actorUserId?: string;
+      actorRole?: string;
+    },
+  ) {
+    return this.service.updateScreeningDecision(payload);
+  }
+
   @MessagePattern('talent.feedback.export_triplets')
   exportTriplets(@Payload() payload: { requestId?: string; limit?: number }) {
     return this.service.exportTrainingTriplets(payload);

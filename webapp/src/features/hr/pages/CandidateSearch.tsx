@@ -15,6 +15,7 @@ type SearchResult = {
     vectorScore: number;
     graphScore: number;
     coverageScore: number;
+    vectorSimilarityPenalty?: number;
     feedbackScore?: number;
   };
   parsed: string;
@@ -29,6 +30,8 @@ type SearchResult = {
   };
   skills: string[];
   hasInterviewInvite: boolean;
+  latestCvId?: string;
+  screeningStatus: 'PENDING' | 'SHORTLISTED' | 'REJECTED';
 };
 
 const iconPaths: Record<string, React.ReactNode> = {
@@ -61,6 +64,24 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
   </svg>
 );
 
+const algorithmScore = (scores: SearchResult['scores']) =>
+  (scores.graphScore * 0.35 + scores.coverageScore * 0.25) / 0.6;
+
+const extractRequiredSkills = (requirements: unknown): string[] => {
+  if (!requirements || typeof requirements !== 'object' || Array.isArray(requirements)) return [];
+  const value = requirements as { skills?: unknown; required?: unknown };
+  const skills = Array.isArray(value.skills) ? value.skills : value.required;
+  return Array.isArray(skills)
+    ? [
+        ...new Set(
+          skills
+            .filter((skill): skill is string => typeof skill === 'string' && Boolean(skill.trim()))
+            .map((skill) => skill.trim()),
+        ),
+      ]
+    : [];
+};
+
 export const CandidateSearch: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -68,27 +89,41 @@ export const CandidateSearch: React.FC = () => {
   const { token } = useAuth();
   const [campaign, setCampaign] = useState('');
   const [query, setQuery] = useState('');
+  const [workMode, setWorkMode] = useState('ANY');
+  const [minYearsExperience, setMinYearsExperience] = useState('');
+  const [maxYearsExperience, setMaxYearsExperience] = useState('');
+  const [profileVisibility, setProfileVisibility] = useState<
+    'PUBLIC' | 'INCLUDE_PRIVATE' | 'PRIVATE'
+  >('PUBLIC');
   const [locked, setLocked] = useState(true);
   const [results, setResults] = useState<SearchResult[]>([]);
-  const [campaigns, setCampaigns] = useState<Array<{ requestId: string; label: string }>>([]);
+  const [campaigns, setCampaigns] = useState<
+    Array<{ requestId: string; label: string; requiredSkills: string[] }>
+  >([]);
   const [expandedTerms, setExpandedTerms] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState('');
   const [viewingCvId, setViewingCvId] = useState('');
   const [actionMessage, setActionMessage] = useState('');
   const [searchRunId, setSearchRunId] = useState('');
-  const [scheduleCandidate, setScheduleCandidate] = useState<SearchResult | null>(null);
-  const [scheduleAt, setScheduleAt] = useState('');
-  const [scheduleDuration, setScheduleDuration] = useState('60');
-  const [scheduleLocation, setScheduleLocation] = useState('');
-  const [scheduleSubmitting] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalResults, setTotalResults] = useState(0);
+  const [sortBy, setSortBy] = useState<'RELEVANCE' | 'VECTOR' | 'COVERAGE'>('RELEVANCE');
+  const [decisionFilter, setDecisionFilter] = useState<'ALL' | 'STRONG_MATCH' | 'CRITICAL_GAP'>(
+    'ALL',
+  );
+  const [shortlistOnly, setShortlistOnly] = useState(false);
+  const [shortlistModalOpen, setShortlistModalOpen] = useState(false);
+  const [detailCandidate, setDetailCandidate] = useState<SearchResult | null>(null);
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
+  const [decisionSubmitting, setDecisionSubmitting] = useState(false);
 
   useEffect(() => {
     type JobPosting = {
       requestId: string;
       title: string;
       status: string;
-      request?: { position: string } | null;
+      request?: { position: string; skillRequirements?: unknown } | null;
     };
     const loadCampaigns = async () => {
       try {
@@ -96,13 +131,14 @@ export const CandidateSearch: React.FC = () => {
         const mapped = response.map((posting) => ({
           requestId: posting.requestId,
           label: `${posting.title || posting.request?.position || 'Recruitment campaign'} (${posting.status})`,
+          requiredSkills: extractRequiredSkills(posting.request?.skillRequirements),
         }));
         setCampaigns(mapped);
         setCampaign(
           requestedCampaignId &&
             mapped.some((campaign) => campaign.requestId === requestedCampaignId)
             ? requestedCampaignId
-            : mapped[0]?.requestId ?? '',
+            : (mapped[0]?.requestId ?? ''),
         );
         setLocked(mapped.length === 0);
       } catch (loadError) {
@@ -112,8 +148,20 @@ export const CandidateSearch: React.FC = () => {
     void loadCampaigns();
   }, [requestedCampaignId, token]);
 
-  const handleSearch = async () => {
+  const handleSearch = async (
+    requestedPage = 1,
+    options: { shortlistOnly?: boolean; query?: string; pageSize?: number } = {},
+  ) => {
     if (!campaign) return;
+    const queryToRun = options.query ?? query;
+    const shouldShowShortlist = options.shortlistOnly ?? shortlistOnly;
+    const pageSize = options.pageSize ?? 20;
+    const minYears = Number(minYearsExperience);
+    const maxYears = Number(maxYearsExperience);
+    if (minYearsExperience && maxYearsExperience && maxYears < minYears) {
+      setApiError('Maximum experience must be greater than or equal to minimum experience.');
+      return;
+    }
     setLoading(true);
     setApiError('');
     try {
@@ -124,6 +172,7 @@ export const CandidateSearch: React.FC = () => {
           vectorScore: number;
           graphScore: number;
           coverageScore: number;
+          vectorSimilarityPenalty?: number;
           feedbackScore?: number;
           baseOverallScore?: number;
           displayName: string;
@@ -131,21 +180,33 @@ export const CandidateSearch: React.FC = () => {
           readinessLabel: string;
           matchExplanation?: SearchResult['matchExplanation'];
           skills: string[];
-          latestCv?: { parsedAt?: string | null } | null;
+          latestCv?: {
+            id: string;
+            parsedAt?: string | null;
+            screeningStatus?: string | null;
+          } | null;
           hasInterviewInvite?: boolean;
           latestInterview?: { status?: string | null; scheduledAt?: string | null } | null;
         }>;
         meta: {
           searchRunId: string | null;
           expandedQuery: { expandedSkills: string[] };
-          query?: { source?: string };
+          pagination: { page: number; pageSize: number; total: number };
         };
       }>('/talent/search', token, {
         method: 'POST',
         body: JSON.stringify({
-          query,
-          filters: { requestId: campaign },
-          pagination: { page: 1, pageSize: 20 },
+          query: queryToRun,
+          filters: {
+            requestId: campaign,
+            campaignMembersOnly: true,
+            ...(workMode !== 'ANY' ? { workMode } : {}),
+            ...(minYearsExperience ? { minYearsExperience: minYears } : {}),
+            ...(maxYearsExperience ? { maxYearsExperience: maxYears } : {}),
+            visibility: profileVisibility,
+            ...(shouldShowShortlist ? { screeningStatus: 'SHORTLISTED' } : {}),
+          },
+          pagination: { page: requestedPage, pageSize },
         }),
       });
       setResults(
@@ -154,12 +215,14 @@ export const CandidateSearch: React.FC = () => {
           name: result.displayName,
           title: result.headline || 'Candidate',
           similarity: Math.round(result.overallScore * 100),
-          rank: index + 1,
+          // Rank is global across the search result, not reset on each page.
+          rank: (response.meta.pagination.page - 1) * response.meta.pagination.pageSize + index + 1,
           scores: {
             overallScore: result.overallScore,
             vectorScore: result.vectorScore,
             graphScore: result.graphScore,
             coverageScore: result.coverageScore,
+            vectorSimilarityPenalty: result.vectorSimilarityPenalty,
             feedbackScore: result.feedbackScore,
           },
           parsed: result.latestCv?.parsedAt
@@ -169,9 +232,18 @@ export const CandidateSearch: React.FC = () => {
             result.matchExplanation?.assessment ?? result.readinessLabel.replaceAll('_', ' '),
           matchExplanation: result.matchExplanation,
           skills: result.skills,
+          latestCvId: result.latestCv?.id,
+          screeningStatus:
+            result.latestCv?.screeningStatus === 'SHORTLISTED' ||
+            result.latestCv?.screeningStatus === 'REJECTED'
+              ? result.latestCv.screeningStatus
+              : 'PENDING',
           hasInterviewInvite: Boolean(result.hasInterviewInvite || result.latestInterview),
         })),
       );
+      setPage(response.meta.pagination.page);
+      setTotalResults(response.meta.pagination.total);
+      setSelectedCandidateIds([]);
       setSearchRunId(response.meta.searchRunId ?? '');
       setExpandedTerms(response.meta.expandedQuery.expandedSkills);
     } catch (searchError) {
@@ -183,7 +255,7 @@ export const CandidateSearch: React.FC = () => {
 
   const recordFeedback = async (
     result: SearchResult,
-    action: 'VIEW_CV' | 'MARK_REVIEW' | 'SCHEDULE_INTERVIEW',
+    action: 'VIEW_CV' | 'MARK_REVIEW' | 'SCHEDULE_INTERVIEW' | 'SHORTLIST' | 'REJECT',
     metadata: Record<string, unknown> = {},
   ) => {
     if (!searchRunId) return;
@@ -220,11 +292,46 @@ export const CandidateSearch: React.FC = () => {
     );
   };
 
-  const createInterviewSchedule = async () => {
-    if (!scheduleCandidate || !campaign) return;
-    navigate(
-      `/hr/interviews?requestId=${encodeURIComponent(campaign)}&candidateId=${encodeURIComponent(scheduleCandidate.id)}`,
+  const openScheduleForSelectedShortlist = () => {
+    const candidateIds = selectedCandidateIds.filter(
+      (candidateId) =>
+        results.find((result) => result.id === candidateId)?.screeningStatus === 'SHORTLISTED',
     );
+    if (!candidateIds.length) {
+      setActionMessage('Select at least one shortlisted candidate to schedule interviews.');
+      return;
+    }
+    navigate(
+      `/hr/interviews?requestId=${encodeURIComponent(campaign)}&candidateIds=${encodeURIComponent(candidateIds.join(','))}`,
+    );
+  };
+
+  const updateScreeningDecision = async (
+    candidateIds: string[],
+    status: 'SHORTLISTED' | 'REJECTED' | 'PENDING',
+  ) => {
+    if (!campaign || candidateIds.length === 0) return;
+    setDecisionSubmitting(true);
+    setApiError('');
+    try {
+      await apiRequest('/talent/screening-decision', token, {
+        method: 'POST',
+        body: JSON.stringify({ requestId: campaign, candidateIds, status }),
+      });
+      setResults((current) =>
+        current.map((result) =>
+          candidateIds.includes(result.id) ? { ...result, screeningStatus: status } : result,
+        ),
+      );
+      setSelectedCandidateIds((current) => current.filter((id) => !candidateIds.includes(id)));
+      setActionMessage(
+        `${candidateIds.length} candidate${candidateIds.length === 1 ? '' : 's'} ${status.toLowerCase()}.`,
+      );
+    } catch (error) {
+      setApiError(error instanceof Error ? error.message : 'Unable to update screening decision');
+    } finally {
+      setDecisionSubmitting(false);
+    }
   };
 
   const handleViewCv = async (result: SearchResult) => {
@@ -274,7 +381,7 @@ export const CandidateSearch: React.FC = () => {
     {
       label: 'Avg. Similarity',
       value: `${averageSimilarity}%`,
-      helper: 'semantic match',
+      helper: 'hybrid match',
       tone: 'text-teal-command',
     },
     {
@@ -291,7 +398,53 @@ export const CandidateSearch: React.FC = () => {
     },
   ];
 
-  const visibleResults = results;
+  const visibleResults = results
+    .filter((result) => {
+      if (decisionFilter === 'STRONG_MATCH') {
+        return (
+          result.similarity >= 70 &&
+          !result.matchExplanation?.gaps.some((gap) => gap.severity === 'CRITICAL')
+        );
+      }
+      if (decisionFilter === 'CRITICAL_GAP') {
+        return Boolean(result.matchExplanation?.gaps.some((gap) => gap.severity === 'CRITICAL'));
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'VECTOR') return b.scores.vectorScore - a.scores.vectorScore;
+      if (sortBy === 'COVERAGE') return b.scores.coverageScore - a.scores.coverageScore;
+      return a.rank - b.rank;
+    });
+  const activeFilterLabels = [
+    workMode !== 'ANY' ? workMode : '',
+    minYearsExperience ? `Min. ${minYearsExperience} years` : '',
+    maxYearsExperience ? `Max. ${maxYearsExperience} years` : '',
+    profileVisibility === 'INCLUDE_PRIVATE' ? 'Including private profiles' : '',
+    profileVisibility === 'PRIVATE' ? 'Private profiles only' : '',
+  ].filter(Boolean);
+  const relatedSearchTags =
+    campaigns.find((item) => item.requestId === campaign)?.requiredSkills ?? [];
+
+  const resetAdvancedFilters = () => {
+    setWorkMode('ANY');
+    setMinYearsExperience('');
+    setMaxYearsExperience('');
+    setProfileVisibility('PUBLIC');
+  };
+
+  const showShortlistedCandidates = () => {
+    setShortlistOnly(true);
+    setDecisionFilter('ALL');
+    setShortlistModalOpen(true);
+    void handleSearch(1, { shortlistOnly: true, query: '', pageSize: 500 });
+  };
+
+  const showAllCandidates = () => {
+    setShortlistOnly(false);
+    setShortlistModalOpen(false);
+    void handleSearch(1, { shortlistOnly: false });
+  };
 
   return (
     <div className="mx-auto grid max-w-[1440px] gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -299,7 +452,7 @@ export const CandidateSearch: React.FC = () => {
         <HRPageHeader
           eyebrow="HR Manager Portal"
           title="CV Screening"
-          description="Use AI search evidence to screen only candidates already collected for or applied to the selected campaign."
+          description="Use AI Hybrid Search to screen only candidates already collected for or applied to the selected campaign."
         />
 
         {locked ? (
@@ -341,18 +494,27 @@ export const CandidateSearch: React.FC = () => {
             </div>
 
             <label className="block space-y-2">
-              <span className="text-sm font-semibold text-deep-charcoal">
-                Natural Language Semantic Search
-              </span>
+              <span className="text-sm font-semibold text-deep-charcoal">AI Hybrid Search</span>
               <p className="text-xs leading-5 text-on-surface-variant">
-                Results are limited to candidates already in this campaign through CV Collection or
-                candidate self-application.
+                AI Vector similarity and Skill Graph/Coverage matching run together. Their weighted
+                scores are combined to rank only candidates already in this campaign through CV
+                Collection or candidate self-application.
+              </p>
+              <p className="text-xs font-semibold leading-5 text-teal-command">
+                Your typed criteria are evaluated separately and contribute 65% of the Vector
+                component; campaign JD contributes the remaining 35%.
               </p>
               <div className="relative">
                 <textarea
                   className="w-full resize-none rounded-lg border border-border-warm bg-workflow-ivory p-4 pr-40 text-sm outline-none transition placeholder:text-slate-ink/40 focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
                   disabled={locked}
                   onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+                      event.preventDefault();
+                      void handleSearch();
+                    }
+                  }}
                   placeholder="backend developer with Go, PostgreSQL, Redis, and distributed systems experience in fintech"
                   rows={3}
                   value={query}
@@ -377,6 +539,77 @@ export const CandidateSearch: React.FC = () => {
                 </div>
               </div>
             </label>
+
+            <div className="grid gap-3 border-t border-border-warm pt-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
+              <label className="flex min-w-0 flex-col gap-1.5">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
+                  Work mode
+                </span>
+                <select
+                  className="h-10 rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                  disabled={locked}
+                  onChange={(event) => setWorkMode(event.target.value)}
+                  value={workMode}
+                >
+                  <option value="ANY">Any work mode</option>
+                  <option value="ONSITE">On-site</option>
+                  <option value="HYBRID">Hybrid</option>
+                  <option value="REMOTE">Remote</option>
+                </select>
+              </label>
+              <label className="flex min-w-0 flex-col gap-1.5">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
+                  Experience range
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    className="h-10 min-w-0 rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                    disabled={locked}
+                    min="0"
+                    onChange={(event) => setMinYearsExperience(event.target.value)}
+                    placeholder="Min years"
+                    type="number"
+                    value={minYearsExperience}
+                  />
+                  <input
+                    className="h-10 min-w-0 rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                    disabled={locked}
+                    min="0"
+                    onChange={(event) => setMaxYearsExperience(event.target.value)}
+                    placeholder="Max years"
+                    type="number"
+                    value={maxYearsExperience}
+                  />
+                </div>
+              </label>
+              <label className="flex min-w-0 flex-col gap-1.5">
+                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
+                  Profile visibility
+                </span>
+                <select
+                  className="h-10 rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                  disabled={locked}
+                  onChange={(event) =>
+                    setProfileVisibility(
+                      event.target.value as 'PUBLIC' | 'INCLUDE_PRIVATE' | 'PRIVATE',
+                    )
+                  }
+                  value={profileVisibility}
+                >
+                  <option value="PUBLIC">Public profiles</option>
+                  <option value="INCLUDE_PRIVATE">Include private profiles</option>
+                  <option value="PRIVATE">Private profiles only</option>
+                </select>
+              </label>
+              <button
+                className="h-10 rounded-lg border border-border-warm px-3 text-sm font-semibold text-slate-ink transition hover:bg-workflow-ivory disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={locked || activeFilterLabels.length === 0}
+                onClick={resetAdvancedFilters}
+                type="button"
+              >
+                Clear filters
+              </button>
+            </div>
           </div>
         </HRCard>
 
@@ -384,79 +617,202 @@ export const CandidateSearch: React.FC = () => {
 
         {actionMessage ? <HRInlineAlert tone="teal">{actionMessage}</HRInlineAlert> : null}
 
-        {scheduleCandidate ? (
-          <section className="rounded-lg border border-border-warm bg-clean-surface p-5 shadow-sm">
-            <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
-                  Schedule Interview
-                </p>
-                <h2 className="text-lg font-semibold text-deep-charcoal">
-                  {scheduleCandidate.name}
-                </h2>
-                <p className="text-sm text-on-surface-variant">{scheduleCandidate.title}</p>
+        {shortlistModalOpen ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-deep-charcoal/50 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Shortlisted candidates"
+          >
+            <section className="max-h-[85vh] w-full max-w-3xl overflow-hidden rounded-xl bg-clean-surface shadow-2xl">
+              <div className="flex items-start justify-between border-b border-border-warm p-5">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
+                    Selected campaign
+                  </p>
+                  <h2 className="mt-1 text-xl font-semibold text-deep-charcoal">
+                    Shortlisted candidates ({totalResults})
+                  </h2>
+                </div>
+                <button
+                  className="rounded-lg border border-border-warm px-3 py-1.5 text-sm font-semibold"
+                  onClick={showAllCandidates}
+                  type="button"
+                >
+                  Close
+                </button>
               </div>
-              <button
-                className="h-9 rounded-lg border border-border-warm px-4 text-sm font-semibold transition hover:bg-workflow-ivory"
-                onClick={() => setScheduleCandidate(null)}
-                type="button"
-              >
-                Cancel
-              </button>
-            </div>
-            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_120px]">
-              <label className="block">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
-                  Time
-                </span>
-                <input
-                  className="h-10 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                  min={new Date().toISOString().slice(0, 16)}
-                  onChange={(event) => setScheduleAt(event.target.value)}
-                  type="datetime-local"
-                  value={scheduleAt}
-                />
-              </label>
-              <label className="block">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
-                  Minutes
-                </span>
-                <input
-                  className="h-10 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                  min="15"
-                  onChange={(event) => setScheduleDuration(event.target.value)}
-                  type="number"
-                  value={scheduleDuration}
-                />
-              </label>
-              <label className="block md:col-span-2">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
-                  Location
-                </span>
-                <input
-                  className="h-10 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                  onChange={(event) => setScheduleLocation(event.target.value)}
-                  placeholder="Meeting room or online interview link"
-                  value={scheduleLocation}
-                />
-              </label>
-            </div>
-            <div className="mt-4 flex justify-end">
-              <button
-                className="h-10 rounded-lg bg-teal-command px-5 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={
-                  !scheduleAt ||
-                  !scheduleLocation.trim() ||
-                  Number(scheduleDuration) < 15 ||
-                  scheduleSubmitting
-                }
-                onClick={() => void createInterviewSchedule()}
-                type="button"
-              >
-                {scheduleSubmitting ? 'Scheduling...' : 'Schedule Interview'}
-              </button>
-            </div>
-          </section>
+              <div className="max-h-[68vh] space-y-3 overflow-y-auto p-5">
+                {loading ? (
+                  <p className="text-sm text-on-surface-variant">
+                    Loading shortlisted candidates...
+                  </p>
+                ) : null}
+                {!loading &&
+                  visibleResults.map((result) => (
+                    <article
+                      className="flex flex-col gap-3 rounded-lg border border-border-warm p-4 sm:flex-row sm:items-center sm:justify-between"
+                      key={result.id}
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-deep-charcoal">{result.name}</p>
+                        <p className="truncate text-sm text-slate-ink">{result.title}</p>
+                        <p className="mt-1 text-sm font-bold text-teal-command">
+                          {result.similarity}% compatibility · Rank #{result.rank}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        <button
+                          className="rounded-lg border border-border-warm px-3 py-2 text-sm font-semibold"
+                          onClick={() => setDetailCandidate(result)}
+                          type="button"
+                        >
+                          View details
+                        </button>
+                        <button
+                          className={`rounded-lg px-3 py-2 text-sm font-semibold ${result.hasInterviewInvite ? 'cursor-not-allowed bg-surface-container-high text-slate-ink' : 'bg-teal-command text-white'}`}
+                          disabled={result.hasInterviewInvite}
+                          onClick={() => openScheduleForm(result)}
+                          title={
+                            result.hasInterviewInvite
+                              ? 'Interview invite has already been sent'
+                              : 'Schedule interview'
+                          }
+                          type="button"
+                        >
+                          {result.hasInterviewInvite ? 'Invite Sent' : 'Schedule Interview'}
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                {!loading && !visibleResults.length ? (
+                  <p className="text-sm text-on-surface-variant">
+                    No shortlisted candidates in this campaign.
+                  </p>
+                ) : null}
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {detailCandidate ? (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-deep-charcoal/50 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Candidate search details"
+          >
+            <section className="max-h-[85vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-clean-surface p-6 shadow-2xl">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-deep-charcoal">
+                    {detailCandidate.name}
+                  </h2>
+                  <p className="text-sm text-slate-ink">
+                    {detailCandidate.title} · Rank #{detailCandidate.rank}
+                  </p>
+                </div>
+                <button
+                  className="rounded-lg border border-border-warm px-3 py-1.5 text-sm font-semibold"
+                  onClick={() => setDetailCandidate(null)}
+                  type="button"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="mt-5 grid gap-3 rounded-lg bg-workflow-ivory p-4 sm:grid-cols-4">
+                <p>
+                  <span className="block text-xs text-slate-ink">Final score</span>
+                  <strong>{detailCandidate.similarity}%</strong>
+                </p>
+                <p>
+                  <span className="block text-xs text-slate-ink">Vector</span>
+                  <strong>{Math.round(detailCandidate.scores.vectorScore * 100)}%</strong>
+                </p>
+                <p>
+                  <span className="block text-xs text-slate-ink">Skill graph</span>
+                  <strong>{Math.round(detailCandidate.scores.graphScore * 100)}%</strong>
+                </p>
+                <p>
+                  <span className="block text-xs text-slate-ink">Required skills</span>
+                  <strong>{Math.round(detailCandidate.scores.coverageScore * 100)}%</strong>
+                </p>
+              </div>
+              <div className="mt-5 space-y-4 text-sm">
+                <div>
+                  <p className="font-semibold text-deep-charcoal">AI assessment</p>
+                  <p className="mt-1 text-on-surface-variant">{detailCandidate.evidence}</p>
+                </div>
+                <div>
+                  <p className="font-semibold text-deep-charcoal">Candidate skills</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {detailCandidate.skills.map((skill) => (
+                      <span
+                        className="rounded bg-surface-container-high px-2 py-1 text-xs font-semibold"
+                        key={skill}
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="font-semibold text-deep-charcoal">Matched requirements</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {detailCandidate.matchExplanation?.matchedSkills.length ? (
+                      detailCandidate.matchExplanation.matchedSkills.map((match) => (
+                        <span
+                          className="rounded bg-teal-command/10 px-2 py-1 text-xs font-semibold text-teal-command"
+                          key={`${match.skill}-${match.source}`}
+                        >
+                          {match.skill} {Math.round(match.confidence * 100)}%
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-on-surface-variant">No strong evidence recorded.</span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="font-semibold text-deep-charcoal">Remaining gaps</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {detailCandidate.matchExplanation?.gaps.length ? (
+                      detailCandidate.matchExplanation.gaps.map((gap) => (
+                        <span
+                          className="rounded bg-revision/10 px-2 py-1 text-xs font-semibold text-revision"
+                          key={`${gap.skill}-${gap.severity}`}
+                        >
+                          {gap.skill} · {gap.severity.toLowerCase()}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-on-surface-variant">
+                        No required-skill gaps detected.
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="font-semibold text-deep-charcoal">Score drivers</p>
+                  <ul className="mt-1 list-disc space-y-1 pl-5 text-on-surface-variant">
+                    {detailCandidate.matchExplanation?.scoreDrivers.map((driver) => (
+                      <li key={driver}>{driver}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+              <div className="mt-6 flex justify-end">
+                <button
+                  className={`rounded-lg px-4 py-2 text-sm font-semibold ${detailCandidate.hasInterviewInvite ? 'cursor-not-allowed bg-surface-container-high text-slate-ink' : 'bg-teal-command text-white'}`}
+                  disabled={detailCandidate.hasInterviewInvite}
+                  onClick={() => openScheduleForm(detailCandidate)}
+                  type="button"
+                >
+                  {detailCandidate.hasInterviewInvite ? 'Invite Sent' : 'Schedule Interview'}
+                </button>
+              </div>
+            </section>
+          </div>
         ) : null}
 
         <section
@@ -479,25 +835,83 @@ export const CandidateSearch: React.FC = () => {
         <section className="space-y-4">
           <div className="flex flex-col gap-3 px-2 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-xl font-semibold text-deep-charcoal">
-              Ranked Match Results ({visibleResults.length})
+              {shortlistOnly ? 'Shortlisted Candidates' : 'Ranked Match Results'} (
+              {totalResults || visibleResults.length})
             </h2>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-2">
               <button
-                className="inline-flex items-center gap-2 text-sm font-semibold text-slate-ink transition hover:text-teal-command"
+                className={`h-9 rounded-lg px-3 text-xs font-semibold ${shortlistOnly ? 'bg-teal-command text-white' : 'border border-teal-command text-teal-command'}`}
+                onClick={() => (shortlistOnly ? showAllCandidates() : showShortlistedCandidates())}
                 type="button"
               >
-                <Icon className="h-4 w-4" name="sort" />
-                Relevance
+                {shortlistOnly ? 'Back to candidates' : 'View shortlist'}
               </button>
-              <button
-                className="inline-flex items-center gap-2 text-sm font-semibold text-slate-ink transition hover:text-teal-command"
-                type="button"
+              <select
+                aria-label="Sort candidates"
+                className="h-9 rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm font-semibold text-slate-ink"
+                onChange={(event) =>
+                  setSortBy(event.target.value as 'RELEVANCE' | 'VECTOR' | 'COVERAGE')
+                }
+                value={sortBy}
               >
-                <Icon className="h-4 w-4" name="filter" />
-                Filters
-              </button>
+                <option value="RELEVANCE">Best match</option>
+                <option value="VECTOR">CV similarity</option>
+                <option value="COVERAGE">Required skills</option>
+              </select>
+              {(['ALL', 'STRONG_MATCH', 'CRITICAL_GAP'] as const).map((filter) => (
+                <button
+                  className={`h-9 rounded-lg px-3 text-xs font-semibold ${decisionFilter === filter ? 'bg-teal-command text-white' : 'border border-border-warm text-slate-ink'}`}
+                  key={filter}
+                  onClick={() => setDecisionFilter(filter)}
+                  type="button"
+                >
+                  {filter === 'ALL'
+                    ? 'All'
+                    : filter === 'STRONG_MATCH'
+                      ? 'Strong match'
+                      : 'Critical gaps'}
+                </button>
+              ))}
             </div>
           </div>
+
+          {selectedCandidateIds.length ? (
+            <div className="flex flex-wrap items-center gap-3 rounded-lg border border-teal-command/20 bg-teal-command/5 p-3 text-sm">
+              <span className="font-semibold text-teal-command">
+                {selectedCandidateIds.length} selected
+              </span>
+              <button
+                className="rounded-lg bg-teal-command px-3 py-2 font-semibold text-white disabled:opacity-50"
+                disabled={decisionSubmitting}
+                onClick={() => void updateScreeningDecision(selectedCandidateIds, 'SHORTLISTED')}
+                type="button"
+              >
+                Shortlist selected
+              </button>
+              <button
+                className="rounded-lg border border-rejected px-3 py-2 font-semibold text-rejected disabled:opacity-50"
+                disabled={decisionSubmitting}
+                onClick={() => void updateScreeningDecision(selectedCandidateIds, 'REJECTED')}
+                type="button"
+              >
+                Reject selected
+              </button>
+              <button
+                className="rounded-lg border border-teal-command px-3 py-2 font-semibold text-teal-command disabled:opacity-50"
+                disabled={
+                  !selectedCandidateIds.some(
+                    (candidateId) =>
+                      results.find((result) => result.id === candidateId)?.screeningStatus ===
+                      'SHORTLISTED',
+                  )
+                }
+                onClick={openScheduleForSelectedShortlist}
+                type="button"
+              >
+                Schedule shortlisted
+              </button>
+            </div>
+          ) : null}
 
           {visibleResults.map((result) => (
             <article
@@ -506,6 +920,19 @@ export const CandidateSearch: React.FC = () => {
             >
               <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex gap-4">
+                  <input
+                    aria-label={`Select ${result.name}`}
+                    checked={selectedCandidateIds.includes(result.id)}
+                    className="mt-1 h-4 w-4 accent-teal-command"
+                    onChange={(event) =>
+                      setSelectedCandidateIds((current) =>
+                        event.target.checked
+                          ? [...current, result.id]
+                          : current.filter((id) => id !== result.id),
+                      )
+                    }
+                    type="checkbox"
+                  />
                   <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-border-warm bg-parchment-lift text-teal-command">
                     <Icon className="h-8 w-8" name="user" />
                   </div>
@@ -514,11 +941,16 @@ export const CandidateSearch: React.FC = () => {
                     <p className="text-sm text-slate-ink">
                       {result.title} / <span className="font-mono text-xs">{result.id}</span>
                     </p>
+                    <span
+                      className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${result.screeningStatus === 'SHORTLISTED' ? 'bg-approved/10 text-approved' : result.screeningStatus === 'REJECTED' ? 'bg-rejected/10 text-rejected' : 'bg-surface-container-high text-slate-ink'}`}
+                    >
+                      {result.screeningStatus.toLowerCase()}
+                    </span>
                   </div>
                 </div>
                 <div className="sm:text-right">
                   <div className="mb-1 flex items-center gap-2 font-bold text-teal-command sm:justify-end">
-                    <span className="text-sm font-semibold text-slate-ink">Similarity</span>
+                    <span className="text-sm font-semibold text-slate-ink">Hybrid Score</span>
                     <span className="text-xl">{result.similarity}%</span>
                   </div>
                   <div className="h-1.5 w-32 overflow-hidden rounded-full bg-surface-container">
@@ -528,6 +960,126 @@ export const CandidateSearch: React.FC = () => {
                     />
                   </div>
                 </div>
+              </div>
+
+              <div className="mb-6 grid grid-cols-3 gap-2 rounded-lg border border-border-warm bg-workflow-ivory p-3 text-center">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-on-surface-variant">
+                    AI Vector · 40%
+                  </p>
+                  <p className="mt-1 font-mono text-sm font-bold text-teal-command">
+                    {Math.round(result.scores.vectorScore * 100)}%
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-on-surface-variant">
+                    Algorithm · 60%
+                  </p>
+                  <p className="mt-1 font-mono text-sm font-bold text-deep-charcoal">
+                    {Math.round(algorithmScore(result.scores) * 100)}%
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-on-surface-variant">
+                    Final rank · #{result.rank}
+                  </p>
+                  <p className="mt-1 font-mono text-sm font-bold text-approved">
+                    {Math.round(result.scores.overallScore * 100)}%
+                  </p>
+                </div>
+              </div>
+
+              <div className="mb-6 grid gap-2 rounded-lg border border-border-warm bg-clean-surface p-3 text-xs sm:grid-cols-2">
+                <div>
+                  <p className="font-semibold text-on-surface-variant">Required skill coverage</p>
+                  <p className="mt-1 font-mono text-sm font-bold text-deep-charcoal">
+                    {Math.round(result.scores.coverageScore * 100)}% ·{' '}
+                    {Math.round(result.scores.coverageScore * 25)}/25 points
+                  </p>
+                </div>
+                <div>
+                  <p className="font-semibold text-on-surface-variant">Score safeguards</p>
+                  <p
+                    className={`mt-1 font-semibold ${
+                      (result.scores.vectorSimilarityPenalty ?? 1) < 1
+                        ? 'text-revision'
+                        : 'text-approved'
+                    }`}
+                  >
+                    {(result.scores.vectorSimilarityPenalty ?? 1) < 1
+                      ? `Low similarity: score retained ${Math.round((result.scores.vectorSimilarityPenalty ?? 1) * 100)}%`
+                      : 'No score safeguard applied'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mb-6 rounded-lg border border-border-warm bg-workflow-ivory p-3">
+                <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-on-surface-variant">
+                  Score contribution / 100
+                </p>
+                <div className="space-y-2 text-xs">
+                  {[
+                    {
+                      label: 'AI Vector similarity',
+                      score: result.scores.vectorScore,
+                      weight: 40,
+                      tone: 'bg-teal-command',
+                    },
+                    {
+                      label: 'Skill graph relevance',
+                      score: result.scores.graphScore,
+                      weight: 35,
+                      tone: 'bg-pending',
+                    },
+                    {
+                      label: 'Required skills (direct CV evidence)',
+                      score: result.scores.coverageScore,
+                      weight: 25,
+                      tone: 'bg-approved',
+                    },
+                  ].map((component) => {
+                    const contribution = component.score * component.weight;
+                    return (
+                      <div
+                        className="grid grid-cols-[minmax(0,1fr)_48px] items-center gap-3"
+                        key={component.label}
+                      >
+                        <div className="min-w-0">
+                          <div className="mb-1 flex justify-between gap-2 text-on-surface-variant">
+                            <span className="truncate">{component.label}</span>
+                            <span className="shrink-0">
+                              {Math.round(contribution)}/{component.weight}
+                            </span>
+                          </div>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-surface-container">
+                            <div
+                              className={`h-full rounded-full ${component.tone}`}
+                              style={{ width: `${Math.round(component.score * 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                        <span className="text-right font-mono font-bold text-deep-charcoal">
+                          {Math.round(component.score * 100)}%
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="mt-3 border-t border-border-warm pt-2 text-xs text-on-surface-variant">
+                  Base score{' '}
+                  {Math.round(
+                    (result.scores.vectorScore * 0.4 +
+                      result.scores.graphScore * 0.35 +
+                      result.scores.coverageScore * 0.25) *
+                      100,
+                  )}
+                  %{' · '}safeguard {Math.round((result.scores.vectorSimilarityPenalty ?? 1) * 100)}
+                  %{' · '}HR feedback{' '}
+                  {result.scores.feedbackScore
+                    ? `${result.scores.feedbackScore > 0 ? '+' : ''}${Math.round(result.scores.feedbackScore * 100)} points`
+                    : 'none'}
+                  {' · '}final {Math.round(result.scores.overallScore * 100)}%
+                </p>
               </div>
 
               <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -587,7 +1139,9 @@ export const CandidateSearch: React.FC = () => {
                           </span>
                         ))
                       ) : (
-                        <span className="text-xs text-on-surface-variant">No strong skill evidence.</span>
+                        <span className="text-xs text-on-surface-variant">
+                          No strong skill evidence.
+                        </span>
                       )}
                     </div>
                   </div>
@@ -612,7 +1166,9 @@ export const CandidateSearch: React.FC = () => {
                           </span>
                         ))
                       ) : (
-                        <span className="text-xs text-on-surface-variant">No required-skill gaps detected.</span>
+                        <span className="text-xs text-on-surface-variant">
+                          No required-skill gaps detected.
+                        </span>
                       )}
                     </div>
                   </div>
@@ -634,16 +1190,20 @@ export const CandidateSearch: React.FC = () => {
                     {viewingCvId === result.id ? 'Opening...' : 'View CV'}
                   </button>
                   <button
-                    className="h-9 rounded-lg border border-teal-command px-4 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5"
-                    onClick={() => {
-                      void recordFeedback(result, 'MARK_REVIEW', { source: 'candidate_search' });
-                      setActionMessage(
-                        'Screening decision actions should update CV status; collection is handled in Talent Pool.',
-                      );
-                    }}
+                    className="h-9 rounded-lg border border-teal-command px-4 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 disabled:opacity-50"
+                    disabled={decisionSubmitting || result.screeningStatus === 'SHORTLISTED'}
+                    onClick={() => void updateScreeningDecision([result.id], 'SHORTLISTED')}
                     type="button"
                   >
-                    Mark for Review
+                    {result.screeningStatus === 'SHORTLISTED' ? 'Shortlisted' : 'Shortlist'}
+                  </button>
+                  <button
+                    className="h-9 rounded-lg border border-rejected px-4 text-sm font-semibold text-rejected transition hover:bg-rejected/5 disabled:opacity-50"
+                    disabled={decisionSubmitting || result.screeningStatus === 'REJECTED'}
+                    onClick={() => void updateScreeningDecision([result.id], 'REJECTED')}
+                    type="button"
+                  >
+                    {result.screeningStatus === 'REJECTED' ? 'Rejected' : 'Reject'}
                   </button>
                   <button
                     className={`h-9 rounded-lg px-4 text-sm font-semibold transition ${
@@ -666,6 +1226,37 @@ export const CandidateSearch: React.FC = () => {
               </div>
             </article>
           ))}
+          {!loading && campaign && visibleResults.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border-warm bg-clean-surface px-6 py-10 text-center text-sm text-on-surface-variant">
+              No candidates have been added to this campaign with a matching CV yet. Add candidates
+              from Talent Pool or wait for candidate applications before screening.
+            </div>
+          ) : null}
+          {!shortlistOnly && totalResults > 20 ? (
+            <div className="flex items-center justify-between rounded-lg border border-border-warm bg-clean-surface p-3 text-sm">
+              <span>
+                Page {page} of {Math.max(1, Math.ceil(totalResults / 20))}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  className="rounded-lg border border-border-warm px-3 py-1.5 font-semibold disabled:opacity-50"
+                  disabled={loading || page <= 1}
+                  onClick={() => void handleSearch(page - 1)}
+                  type="button"
+                >
+                  Previous
+                </button>
+                <button
+                  className="rounded-lg border border-border-warm px-3 py-1.5 font-semibold disabled:opacity-50"
+                  disabled={loading || page >= Math.ceil(totalResults / 20)}
+                  onClick={() => void handleSearch(page + 1)}
+                  type="button"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          ) : null}
         </section>
       </main>
 
@@ -682,8 +1273,21 @@ export const CandidateSearch: React.FC = () => {
                   'No campaign selected'}
               </p>
               <p className="mt-2 text-xs leading-5 text-on-surface-variant">
-                Search scope: collected CVs and applicants already linked to this campaign.
+                Search scope: only collected CVs and applicants already linked to this campaign.
+                Candidates outside this campaign are excluded before hybrid ranking.
               </p>
+              {activeFilterLabels.length ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {activeFilterLabels.map((filter) => (
+                    <span
+                      className="rounded-full bg-teal-command/10 px-2.5 py-1 text-xs font-semibold text-teal-command"
+                      key={filter}
+                    >
+                      {filter}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </div>
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
@@ -729,17 +1333,26 @@ export const CandidateSearch: React.FC = () => {
         </section>
 
         <section className="rounded-lg border border-border-warm bg-clean-surface p-6 shadow-sm">
-          <h3 className="mb-4 text-sm font-semibold text-deep-charcoal">Related Search Tags</h3>
+          <h3 className="mb-1 text-sm font-semibold text-deep-charcoal">Required Skills</h3>
+          <p className="mb-4 text-xs leading-5 text-on-surface-variant">
+            From the selected recruitment request. Click a skill to add it to the HR query.
+          </p>
           <div className="flex flex-wrap gap-2">
-            {['Microservices', 'Cloud Infra', 'Docker/K8s', 'Performance'].map((tag) => (
+            {relatedSearchTags.map((tag) => (
               <button
                 className="rounded-lg bg-surface-container px-3 py-1.5 text-xs font-semibold transition hover:bg-surface-container-high active:scale-[0.98]"
                 key={tag}
+                onClick={() => setQuery((current) => (current ? `${current}, ${tag}` : tag))}
                 type="button"
               >
                 {tag}
               </button>
             ))}
+            {!relatedSearchTags.length ? (
+              <span className="text-xs text-on-surface-variant">
+                No required skills have been configured for this request.
+              </span>
+            ) : null}
           </div>
         </section>
 
