@@ -62,11 +62,12 @@ const PROGRESS_BY_STATUS: Record<PlanStatus, number> = {
   PENDING_APPROVAL: 10,
   APPROVED: 50,
   REVISION_REQUIRED: 30,
+  COMPLETED: 100,
 };
 
 const mapCampaign = (item: RecruitmentRequestApiItem): Campaign => {
   const plan = item.overallPlan;
-  const status = mapPlanStatus(plan);
+  const status = item.status === 'COMPLETED' ? 'COMPLETED' : mapPlanStatus(plan);
   const skills = (item.skillRequirements ?? {}) as Record<string, unknown>;
   const salaryMin = skills.salaryMin as string | number | undefined;
   const salaryMax = skills.salaryMax as string | number | undefined;
@@ -120,6 +121,12 @@ const statusConfig: Record<
     dot: 'bg-revision',
     badge: 'border-revision/20 bg-revision/10 text-revision',
     progress: 'bg-revision',
+  },
+  COMPLETED: {
+    label: 'COMPLETED',
+    dot: 'bg-approved',
+    badge: 'border-approved/20 bg-approved/10 text-approved',
+    progress: 'bg-approved',
   },
 };
 
@@ -246,6 +253,7 @@ export const HRCampaigns: React.FC = () => {
         { label: 'Pending Approval', status: 'PENDING_APPROVAL' as PlanStatus, tone: 'pending' },
         { label: 'Approved Active', status: 'APPROVED' as PlanStatus, tone: 'approved' },
         { label: 'Revision Required', status: 'REVISION_REQUIRED' as PlanStatus, tone: 'revision' },
+        { label: 'Completed', status: 'COMPLETED' as PlanStatus, tone: 'approved' },
       ].map((card) => ({
         ...card,
         value: campaigns.filter((campaign) => campaign.status === card.status).length,
@@ -414,6 +422,7 @@ export const HRCampaigns: React.FC = () => {
                   <option value="PENDING_APPROVAL">Pending</option>
                   <option value="APPROVED">Approved</option>
                   <option value="REVISION_REQUIRED">Revision</option>
+                  <option value="COMPLETED">Completed</option>
                 </select>
               </label>
             </div>

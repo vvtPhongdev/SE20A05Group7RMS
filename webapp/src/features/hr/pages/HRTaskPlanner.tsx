@@ -199,15 +199,23 @@ export const TaskPlanner: React.FC = () => {
 
   const visibleTasks = useMemo(
     () =>
-      tasks.filter((task) => {
-        const taskCampaign = task.overallPlan.request.position;
-        const taskAssignee = task.assignedTo?.displayName ?? 'Unassigned';
-        const matchesCampaign = campaign === 'All Campaigns' || taskCampaign === campaign;
-        const matchesType = type === 'All Types' || task.taskType === type;
-        const matchesAssignee = assignee === 'All Personnel' || taskAssignee === assignee;
-        const matchesStatus = status === 'Any Status' || task.status === status;
-        return matchesCampaign && matchesType && matchesAssignee && matchesStatus;
-      }),
+      tasks
+        .filter((task) => {
+          const taskCampaign = task.overallPlan.request.position;
+          const taskAssignee = task.assignedTo?.displayName ?? 'Unassigned';
+          const matchesCampaign = campaign === 'All Campaigns' || taskCampaign === campaign;
+          const matchesType = type === 'All Types' || task.taskType === type;
+          const matchesAssignee = assignee === 'All Personnel' || taskAssignee === assignee;
+          const matchesStatus = status === 'Any Status' || task.status === status;
+          return matchesCampaign && matchesType && matchesAssignee && matchesStatus;
+        })
+        .sort((left, right) => {
+          const completionDifference =
+            Number(left.status === 'COMPLETED') - Number(right.status === 'COMPLETED');
+          if (completionDifference !== 0) return completionDifference;
+
+          return new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime();
+        }),
     [assignee, campaign, status, tasks, type],
   );
 
@@ -254,9 +262,7 @@ export const TaskPlanner: React.FC = () => {
   const getSourcingStats = (task: TaskPlanApiItem) => {
     if (task.taskType !== 'CV_COLLECTION') return null;
     const stats = cvCollectionStats[task.overallPlan.requestId] ?? { total: 0, byCollector: {} };
-    const assigneeCollected = task.assignedToId
-      ? (stats.byCollector[task.assignedToId] ?? 0)
-      : 0;
+    const assigneeCollected = task.assignedToId ? (stats.byCollector[task.assignedToId] ?? 0) : 0;
     return {
       total: stats.total,
       assigneeCollected,

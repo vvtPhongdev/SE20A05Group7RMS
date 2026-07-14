@@ -11,7 +11,12 @@ import {
   HRSelectControl,
 } from '../components';
 
-type CampaignStage = 'Interviewing' | 'CV Screening' | 'Hired' | 'Planning';
+type CampaignStage =
+  | 'Planning'
+  | 'Sourcing'
+  | 'CV Screening'
+  | 'Interviewing'
+  | 'Completed';
 
 type CampaignProgress = {
   role: string;
@@ -66,6 +71,8 @@ interface RealtimeTrackingItem {
   createdBy?: string;
   headcount: number;
   hiredCount?: number;
+  applicationCount?: number;
+  interviewedCandidateCount?: number;
   filledHeadcount?: number;
   taskProgress?: {
     total: number;
@@ -99,12 +106,12 @@ const STAGE_MAP: Record<string, CampaignStage> = {
   PLANNING: 'Planning',
   PLAN_APPROVED: 'Planning',
   APPROVED: 'Planning',
+  ACTIVE: 'Sourcing',
   SCREENING: 'CV Screening',
   INTERVIEWING: 'Interviewing',
   INTERVIEW_COMPLETED: 'Interviewing',
-  OFFER_EXTENDED: 'Hired',
-  OFFER_ACCEPTED: 'Hired',
-  CLOSED: 'Hired',
+  COMPLETED: 'Completed',
+  CLOSED: 'Completed',
 };
 
 const EXCLUDED_CAMPAIGN_STATUSES = new Set([
@@ -113,9 +120,12 @@ const EXCLUDED_CAMPAIGN_STATUSES = new Set([
   'REJECTED',
   'REVISION_NEEDED',
   'CANCELLED',
+  'OFFER_EXTENDED',
+  'OFFER_ACCEPTED',
+  'HIRED',
 ]);
 
-const ALL_CAMPAIGNS = 'All active campaigns';
+const ALL_CAMPAIGNS = 'All campaigns';
 
 const CAMPAIGN_PIPELINE_STAGES = [
   {
@@ -141,18 +151,6 @@ const CAMPAIGN_PIPELINE_STAGES = [
     label: 'Interview',
     taskTypes: ['INTERVIEW_COORDINATION'],
     activeStatuses: ['INTERVIEWING', 'INTERVIEW_COMPLETED'],
-  },
-  {
-    key: 'offer',
-    label: 'Offer',
-    taskTypes: [],
-    activeStatuses: ['OFFER_EXTENDED', 'OFFER_ACCEPTED', 'CLOSED'],
-  },
-  {
-    key: 'hiring',
-    label: 'Hiring',
-    taskTypes: ['HIRING'],
-    activeStatuses: ['HIRED', 'COMPLETED'],
   },
 ] as const;
 
@@ -199,10 +197,11 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
 );
 
 const stageClass: Record<CampaignStage, string> = {
-  Interviewing: 'bg-pending/10 text-pending',
-  'CV Screening': 'bg-revision/10 text-revision',
-  Hired: 'bg-approved/10 text-approved',
   Planning: 'bg-slate-ink/10 text-slate-ink',
+  Sourcing: 'bg-teal-command/10 text-teal-command',
+  'CV Screening': 'bg-revision/10 text-revision',
+  Interviewing: 'bg-pending/10 text-pending',
+  Completed: 'border border-emerald-300 bg-emerald-100 text-emerald-900',
 };
 
 export const HRPipelineReports: React.FC = () => {
@@ -266,7 +265,9 @@ export const HRPipelineReports: React.FC = () => {
         .map((request) => {
           const tracked = trackingByRequest.get(request.id);
           const completion =
-            tracked?.taskProgress && tracked.taskProgress.total > 0
+            ['COMPLETED', 'CLOSED'].includes(request.status)
+              ? 100
+              : tracked?.taskProgress && tracked.taskProgress.total > 0
               ? Math.round((tracked.taskProgress.completed / tracked.taskProgress.total) * 100)
               : request.headcount > 0
                 ? Math.round((request.filledHeadcount / request.headcount) * 100)
@@ -318,64 +319,79 @@ export const HRPipelineReports: React.FC = () => {
     return tracking.filter((item) => ids.has(item.requestId || item.id || ''));
   }, [tracking, visibleCampaigns]);
 
+  const kpiTracking = useMemo(() => {
+    const campaignRequestIds = new Set(visibleCampaigns.map((campaign) => campaign.requestId));
+    return tracking.filter((item) => {
+      const matchesDepartment =
+        department === 'All Departments' ||
+        (item.departmentName ?? item.department ?? 'Unassigned') === department;
+      const requestId = item.requestId || item.id || '';
+      const matchesCampaign =
+        campaignFilter === ALL_CAMPAIGNS || campaignRequestIds.has(requestId);
+      return matchesDepartment && matchesCampaign;
+    });
+  }, [campaignFilter, department, tracking, visibleCampaigns]);
+
   const campaignPipelines = useMemo(() => {
     const trackingByRequest = new Map(
       filteredTracking.map((item) => [item.requestId || item.id || '', item]),
     );
 
-    return visibleCampaigns.map((campaign) => {
-      const tracked = trackingByRequest.get(campaign.requestId);
-      const tasks = tracked?.taskBreakdown ?? [];
-      const activeIndex = Math.max(
-        0,
-        CAMPAIGN_PIPELINE_STAGES.findIndex((stage) =>
-          (stage.activeStatuses as readonly string[]).includes(campaign.status),
-        ),
-      );
-
-      const stages = CAMPAIGN_PIPELINE_STAGES.map((stage, index) => {
-        const stageTasks = tasks.filter((task) =>
-          (stage.taskTypes as readonly string[]).includes(task.taskType),
-        );
-        const assignees = [
-          ...new Set(
-            stageTasks
-              .map((task) => task.assignedTo?.displayName)
-              .filter((name): name is string => !!name),
+    return visibleCampaigns
+      .filter((campaign) => !['COMPLETED', 'CLOSED'].includes(campaign.status))
+      .map((campaign) => {
+        const tracked = trackingByRequest.get(campaign.requestId);
+        const tasks = tracked?.taskBreakdown ?? [];
+        const activeIndex = Math.max(
+          0,
+          CAMPAIGN_PIPELINE_STAGES.findIndex((stage) =>
+            (stage.activeStatuses as readonly string[]).includes(campaign.status),
           ),
-        ];
-        const complete =
-          stageTasks.length > 0
-            ? stageTasks.every((task) => task.status === 'COMPLETED')
-            : index < activeIndex;
-        const active =
-          (stage.activeStatuses as readonly string[]).includes(campaign.status) ||
-          stageTasks.some((task) => task.status === 'IN_PROGRESS') ||
-          (!complete && index === activeIndex);
-        const overdue = stageTasks.some((task) => task.isOverdue);
+        );
+
+        const stages = CAMPAIGN_PIPELINE_STAGES.map((stage, index) => {
+          const stageTasks = tasks.filter((task) =>
+            (stage.taskTypes as readonly string[]).includes(task.taskType),
+          );
+          const assignees = [
+            ...new Set(
+              stageTasks
+                .map((task) => task.assignedTo?.displayName)
+                .filter((name): name is string => !!name),
+            ),
+          ];
+          const complete =
+            stageTasks.length > 0
+              ? stageTasks.every((task) => task.status === 'COMPLETED')
+              : index < activeIndex;
+          const active =
+            (stage.activeStatuses as readonly string[]).includes(campaign.status) ||
+            stageTasks.some((task) => task.status === 'IN_PROGRESS') ||
+            (!complete && index === activeIndex);
+          const overdue = stageTasks.some((task) => task.isOverdue);
+
+          return {
+            key: stage.key,
+            label: stage.label,
+            complete,
+            active,
+            overdue,
+            taskCount: stageTasks.length,
+            completedCount: stageTasks.filter((task) => task.status === 'COMPLETED').length,
+            assignees,
+            owner:
+              assignees.join(', ') ||
+              (active ? tracked?.handler ?? tracked?.currentOwner ?? campaign.owner : 'Unassigned'),
+          };
+        });
 
         return {
-          key: stage.key,
-          label: stage.label,
-          complete,
-          active,
-          overdue,
-          taskCount: stageTasks.length,
-          completedCount: stageTasks.filter((task) => task.status === 'COMPLETED').length,
-          assignees,
-          owner:
-            assignees.join(', ') ||
-            (active ? tracked?.handler ?? tracked?.currentOwner ?? campaign.owner : 'Unassigned'),
+          ...campaign,
+          taskTotal: tracked?.taskProgress?.total ?? 0,
+          taskCompleted: tracked?.taskProgress?.completed ?? 0,
+          stages,
         };
       });
-
-      return {
-        ...campaign,
-        taskTotal: tracked?.taskProgress?.total ?? 0,
-        taskCompleted: tracked?.taskProgress?.completed ?? 0,
-        stages,
-      };
-    });
   }, [filteredTracking, visibleCampaigns]);
 
   const funnel = useMemo(() => {
@@ -385,10 +401,10 @@ export const HRPipelineReports: React.FC = () => {
     }, {});
     const total = visibleCampaigns.length;
     const plan = (breakdown.APPROVED ?? 0) + (breakdown.PLANNING ?? 0) + (breakdown.PLAN_APPROVED ?? 0);
+    const sourcing = breakdown.ACTIVE ?? 0;
     const screen = breakdown.SCREENING ?? 0;
-    const interview = breakdown.INTERVIEWING ?? 0;
-    const decision = breakdown.OFFER_EXTENDED ?? 0;
-    const hired = (breakdown.OFFER_ACCEPTED ?? 0) + (breakdown.CLOSED ?? 0);
+    const interview = (breakdown.INTERVIEWING ?? 0) + (breakdown.INTERVIEW_COMPLETED ?? 0);
+    const completed = (breakdown.COMPLETED ?? 0) + (breakdown.CLOSED ?? 0);
 
     const rate = (value: number) => (total > 0 ? Math.round((value / total) * 100) : 0);
     const width = (value: number) => `${Math.max(rate(value), total > 0 && value > 0 ? 8 : 0)}%`;
@@ -409,6 +425,13 @@ export const HRPipelineReports: React.FC = () => {
         tone: 'bg-teal-command/75 text-white',
       },
       {
+        label: 'SOURCING',
+        value: `${sourcing} Sourcing`,
+        rate: `${rate(sourcing)}%`,
+        width: width(sourcing),
+        tone: 'bg-teal-command/65 text-white',
+      },
+      {
         label: 'SCREEN',
         value: `${screen} CV Screening`,
         rate: `${rate(screen)}%`,
@@ -423,18 +446,11 @@ export const HRPipelineReports: React.FC = () => {
         tone: 'bg-teal-command/45 text-on-primary-fixed-variant',
       },
       {
-        label: 'DECISION',
-        value: `${decision} Decision`,
-        rate: `${rate(decision)}%`,
-        width: width(decision),
-        tone: 'bg-teal-command/30 text-on-primary-fixed-variant',
-      },
-      {
-        label: 'HIRED',
-        value: `${hired} Hired`,
-        rate: `${rate(hired)}%`,
-        width: width(hired),
-        tone: 'border border-teal-command/20 bg-teal-command/15 text-teal-command',
+        label: 'COMPLETED',
+        value: `${completed} Completed`,
+        rate: `${rate(completed)}%`,
+        width: width(completed),
+        tone: 'bg-emerald-700 text-white',
       },
     ];
   }, [visibleCampaigns]);
@@ -442,7 +458,10 @@ export const HRPipelineReports: React.FC = () => {
   const riskCampaigns = useMemo(
     () =>
       visibleCampaigns
-        .filter((campaign) => campaign.overdue > 0)
+        .filter(
+          (campaign) =>
+            !['COMPLETED', 'CLOSED'].includes(campaign.status) && campaign.overdue > 0,
+        )
         .sort((a, b) => b.overdue - a.overdue)
         .slice(0, 4),
     [visibleCampaigns],
@@ -520,23 +539,35 @@ export const HRPipelineReports: React.FC = () => {
     return `${hired}/${target} headcount filled across visible campaigns.`;
   }, [visibleCampaigns]);
 
+  const completedCampaigns = visibleCampaigns.filter((campaign) =>
+    ['COMPLETED', 'CLOSED'].includes(campaign.status),
+  ).length;
   const pipelineScopeSummary = `${visibleCampaigns.length} visible campaign${
     visibleCampaigns.length === 1 ? '' : 's'
-  } of ${pipeline?.totalActiveCampaigns ?? campaigns.length} active campaign${
-    (pipeline?.totalActiveCampaigns ?? campaigns.length) === 1 ? '' : 's'
-  }`;
+  }${completedCampaigns > 0 ? `, including ${completedCampaigns} completed` : ''} of ${
+    pipeline?.totalCampaigns ?? campaigns.length
+  } total campaign${(pipeline?.totalCampaigns ?? campaigns.length) === 1 ? '' : 's'}`;
 
   const kpis = useMemo(() => {
-    const breakdown = visibleCampaigns.reduce<Record<string, number>>((acc, campaign) => {
-      acc[campaign.status] = (acc[campaign.status] ?? 0) + 1;
-      return acc;
-    }, {});
-    const screen = breakdown.SCREENING ?? 0;
-    const interview = breakdown.INTERVIEWING ?? 0;
-    const offerAccepted = breakdown.OFFER_ACCEPTED ?? 0;
-    const offerDeclined = breakdown.OFFER_DECLINED ?? 0;
+    const candidateCount = kpiTracking.reduce(
+      (sum, item) => sum + (item.applicationCount ?? 0),
+      0,
+    );
+    const interviewedCandidates = kpiTracking.reduce(
+      (sum, item) => sum + (item.interviewedCandidateCount ?? 0),
+      0,
+    );
+    const offerAccepted = kpiTracking.reduce(
+      (sum, item) => sum + (item.offerProgress?.accepted ?? 0),
+      0,
+    );
+    const offerDeclined = kpiTracking.reduce(
+      (sum, item) => sum + (item.offerProgress?.declined ?? 0),
+      0,
+    );
 
-    const cvToInterview = screen > 0 ? Math.round((interview / screen) * 100) : 0;
+    const cvToInterview =
+      candidateCount > 0 ? Math.round((interviewedCandidates / candidateCount) * 100) : 0;
     const cvToInterviewRate = `${cvToInterview}%`;
     const offerAcceptanceValue =
       offerAccepted + offerDeclined > 0
@@ -561,7 +592,7 @@ export const HRPipelineReports: React.FC = () => {
       {
         label: 'CV to Interview Rate',
         value: cvToInterviewRate,
-        helper: `${interview}/${screen || 0} screening requests moved`,
+        helper: `${interviewedCandidates}/${candidateCount} candidates interviewed`,
         tone: cvToInterview >= 30 ? 'text-approved' : 'text-pending',
         progress: cvToInterview,
         fill: 'bg-pending',
@@ -583,7 +614,7 @@ export const HRPipelineReports: React.FC = () => {
         fill: 'bg-slate-ink',
       },
     ];
-  }, [riskCampaigns, timeToHire, visibleCampaigns]);
+  }, [kpiTracking, riskCampaigns, timeToHire]);
 
   const exportReport = () => {
     const generatedAt = new Date();
@@ -823,7 +854,7 @@ export const HRPipelineReports: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="mt-5 grid gap-3 md:grid-cols-5">
+                <div className="mt-5 grid gap-3 md:grid-cols-4">
                   {campaign.stages.map((stage) => (
                     <div
                       className={`rounded-lg border px-3 py-3 ${

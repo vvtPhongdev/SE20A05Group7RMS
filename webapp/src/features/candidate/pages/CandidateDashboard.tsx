@@ -66,6 +66,10 @@ type ProfileResponse = {
   interviews: Interview[];
 };
 
+type CvDocumentSummary = {
+  id: string;
+};
+
 const asRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -146,18 +150,21 @@ export const CandidateDashboard: React.FC = () => {
   const [actionMessage, setActionMessage] = useState('');
   const [applyingRequestId, setApplyingRequestId] = useState('');
   const [selectedJob, setSelectedJob] = useState<JobPosting | null>(null);
+  const [hasUploadedCv, setHasUploadedCv] = useState(false);
+  const [showMissingCvNotice, setShowMissingCvNotice] = useState(false);
 
   useEffect(() => {
     const loadDashboard = async () => {
       setLoading(true);
       setError('');
       try {
-        const [profile, jobs] = await Promise.all([
+        const [profile, jobs, cvs] = await Promise.all([
           apiRequest<ProfileResponse>('/candidate-profiles/me', token),
           apiRequest<JobPosting[]>(
             '/public/job-postings?status=PUBLISHED&visibility=PUBLIC',
             null,
           ).catch(() => []),
+          apiRequest<CvDocumentSummary[]>('/candidate/cvs', token),
         ]);
         const mapped = profile.applications.map((application): Application => {
           const status = application.status.toUpperCase();
@@ -204,6 +211,7 @@ export const CandidateDashboard: React.FC = () => {
         });
         setApplications(mapped);
         setOpenJobs(jobs);
+        setHasUploadedCv(cvs.length > 0);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Unable to load applications');
       } finally {
@@ -230,6 +238,12 @@ export const CandidateDashboard: React.FC = () => {
   };
 
   const applyToJob = async (job: JobPosting) => {
+    if (!hasUploadedCv) {
+      setSelectedJob(null);
+      setShowMissingCvNotice(true);
+      return;
+    }
+
     setApplyingRequestId(job.requestId);
     setActionMessage('');
     setError('');
@@ -510,6 +524,39 @@ export const CandidateDashboard: React.FC = () => {
         job={selectedJob}
         onClose={() => setSelectedJob(null)}
       />
+
+      {showMissingCvNotice ? (
+        <div
+          aria-labelledby="missing-cv-title"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-deep-charcoal/45 p-4"
+          role="dialog"
+        >
+          <CandidateCard className="w-full max-w-md p-6 shadow-xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-pending">
+              CV required
+            </p>
+            <h2 className="mt-2 text-xl font-semibold text-deep-charcoal" id="missing-cv-title">
+              Upload your CV before applying
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-secondary">
+              You have not uploaded a CV yet. Upload one to submit an application.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                className="rounded-lg border border-outline-variant px-4 py-2 text-sm font-semibold text-secondary transition hover:bg-surface-container-low"
+                onClick={() => setShowMissingCvNotice(false)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <CandidateActionButton onClick={() => navigate('/candidate/upload-cv')}>
+                Upload CV
+              </CandidateActionButton>
+            </div>
+          </CandidateCard>
+        </div>
+      ) : null}
     </CandidateDashboardPage>
   );
 };

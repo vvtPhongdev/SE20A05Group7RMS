@@ -20,6 +20,8 @@ describe('OfferLetterService', () => {
       create: jest.fn(),
       update: jest.fn(),
     },
+    jobPosting: { updateMany: jest.fn() },
+    user: { update: jest.fn() },
     application: { update: jest.fn() },
     taskPlan: { updateMany: jest.fn() },
     overallPlan: { updateMany: jest.fn() },
@@ -155,6 +157,9 @@ describe('OfferLetterService', () => {
       },
       request: {
         id: 'request-1',
+        departmentId: 'department-1',
+        headcount: 1,
+        applications: [],
         status: RecruitmentRequestStatus.OFFER_EXTENDED,
         createdById: 'dept-head-1',
       },
@@ -186,10 +191,19 @@ describe('OfferLetterService', () => {
         data: { status: RecruitmentRequestStatus.HIRED },
       }),
     );
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'user-1' },
+      data: { departmentId: 'department-1' },
+    });
     expect(prisma.recruitmentRequest.update).toHaveBeenCalledWith({
       where: { id: 'request-1' },
       data: { status: RecruitmentRequestStatus.COMPLETED },
     });
+    expect(prisma.jobPosting.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ requestId: 'request-1' }),
+      }),
+    );
     expect(prisma.taskPlan.updateMany).toHaveBeenCalledWith({
       where: {
         taskType: TaskType.HIRING,

@@ -1,4 +1,9 @@
-export type PlanStatus = 'PENDING_APPROVAL' | 'APPROVED' | 'DRAFT' | 'REVISION_REQUIRED';
+export type PlanStatus =
+  | 'PENDING_APPROVAL'
+  | 'APPROVED'
+  | 'DRAFT'
+  | 'REVISION_REQUIRED'
+  | 'COMPLETED';
 
 export interface OverallPlanSummary {
   id: string;
@@ -19,6 +24,8 @@ export const mapPlanStatus = (plan: { status: string } | null | undefined): Plan
       return 'PENDING_APPROVAL';
     case 'APPROVED':
       return 'APPROVED';
+    case 'COMPLETED':
+      return 'COMPLETED';
     case 'REJECTED':
       return 'REVISION_REQUIRED';
     default:

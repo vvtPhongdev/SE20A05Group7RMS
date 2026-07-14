@@ -221,6 +221,11 @@ const statusConfig: Record<PlanStatus, { label: string; dot: string; badge: stri
     dot: 'bg-revision',
     badge: 'border-revision/20 bg-revision/10 text-revision',
   },
+  COMPLETED: {
+    label: 'COMPLETED',
+    dot: 'bg-approved',
+    badge: 'border-approved/20 bg-approved/10 text-approved',
+  },
 };
 
 const iconPaths: Record<string, React.ReactNode> = {
