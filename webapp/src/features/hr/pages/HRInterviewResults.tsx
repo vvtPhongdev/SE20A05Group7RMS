@@ -10,7 +10,7 @@ import {
   HRSearchInput,
 } from '../components';
 
-type RecordingStatus = 'Pending Recording' | 'Recorded';
+type RecordingStatus = 'Pending Recording' | 'Interviewing' | 'Interview Complete' | 'Recorded';
 type Recommendation = 'Recommend Hire' | 'Recommend Reject' | 'Hold for Further';
 
 type CompletedInterview = {
@@ -174,11 +174,14 @@ const hrInterviewResultsApi = {
   list: '/hr/interview-results',
   details: (id: string) => `/hr/interview-results/${id}`,
   myFeedback: (id: string) => `/hr/interview-results/${id}/my-feedback`,
+  evaluationDraft: (id: string) => `/hr/interview-results/${id}/evaluation-draft`,
   finalRecommendation: (id: string) => `/hr/interview-results/${id}/final-recommendation`,
 };
 
 const OFFLINE_EVIDENCE_START = '[OFFLINE_INTERVIEW_EVIDENCE]';
 const OFFLINE_EVIDENCE_END = '[/OFFLINE_INTERVIEW_EVIDENCE]';
+const EVALUATION_DRAFT_START = '[HR_EVALUATION_DRAFT]';
+const EVALUATION_DRAFT_END = '[/HR_EVALUATION_DRAFT]';
 const MAX_EVIDENCE_IMAGE_BYTES = 2 * 1024 * 1024;
 
 const isOnlineInterviewLocation = (value: string) =>
@@ -203,6 +206,34 @@ const parseOfflineEvidence = (value: string) => {
 
 const composeOfflineEvidence = (summary: string, evidence: OfflineEvidence) =>
   [summary.trim(), `${OFFLINE_EVIDENCE_START}${JSON.stringify(evidence)}${OFFLINE_EVIDENCE_END}`]
+    .filter(Boolean)
+    .join('\n\n');
+
+const parseEvaluationDraft = (value: string) => {
+  const pattern = new RegExp(
+    `${EVALUATION_DRAFT_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s\\S]*?)${EVALUATION_DRAFT_END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
+  );
+  const match = value.match(pattern);
+  if (!match) return { cleanSummary: value, recommendation: null as Recommendation | null };
+
+  try {
+    const parsed = JSON.parse(match[1].trim()) as { recommendation?: unknown };
+    return {
+      cleanSummary: value.replace(pattern, '').trim(),
+      recommendation: RECOMMENDATION_OPTIONS_VALUES.includes(parsed.recommendation as Recommendation)
+        ? (parsed.recommendation as Recommendation)
+        : null,
+    };
+  } catch {
+    return { cleanSummary: value.replace(pattern, '').trim(), recommendation: null };
+  }
+};
+
+const composeEvaluationDraft = (summary: string, draftRecommendation: Recommendation) =>
+  [
+    summary.trim(),
+    `${EVALUATION_DRAFT_START}${JSON.stringify({ recommendation: draftRecommendation })}${EVALUATION_DRAFT_END}`,
+  ]
     .filter(Boolean)
     .join('\n\n');
 
@@ -235,6 +266,8 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
 
 const statusClass: Record<RecordingStatus, string> = {
   'Pending Recording': 'border-revision/20 bg-revision/10 text-revision',
+  Interviewing: 'border-teal-command/20 bg-teal-command/10 text-teal-command',
+  'Interview Complete': 'border-slate-ink/20 bg-slate-ink/10 text-slate-ink',
   Recorded: 'border-approved/20 bg-approved/10 text-approved',
 };
 
@@ -384,12 +417,14 @@ export const HRInterviewResults: React.FC = () => {
           );
         }
         setFeedback(nextFeedback);
+        const parsedDraft = parseEvaluationDraft(details.summaryNotes ?? '');
         setRecommendation(
-          RECOMMENDATION_OPTIONS_VALUES.includes(details.finalRecommendation as Recommendation)
-            ? (details.finalRecommendation as Recommendation)
-            : 'Hold for Further',
+          parsedDraft.recommendation ??
+            (RECOMMENDATION_OPTIONS_VALUES.includes(details.finalRecommendation as Recommendation)
+              ? (details.finalRecommendation as Recommendation)
+              : 'Hold for Further'),
         );
-        const parsedDeal = parseSalaryDeal(details.summaryNotes ?? '');
+        const parsedDeal = parseSalaryDeal(parsedDraft.cleanSummary);
         const parsedSummary = parseOfflineEvidence(parsedDeal.cleanSummary);
         setSummaryNotes(parsedSummary.cleanSummary);
         setSalaryDeal(parsedDeal.deal ?? emptySalaryDeal());
@@ -535,7 +570,28 @@ export const HRInterviewResults: React.FC = () => {
         );
       }
 
+      const summaryWithSalaryDeal = composeSalaryDeal(summaryNotes, salaryDeal);
+      const submittedSummaryNotes =
+        isOfflineInterview || offlineEvidenceReport.trim() || offlineEvidencePhotoDataUrl
+          ? composeOfflineEvidence(summaryWithSalaryDeal, {
+              location: selectedInterview.location,
+              report: offlineEvidenceReport.trim(),
+              photoName: offlineEvidencePhotoName || undefined,
+              photoDataUrl: offlineEvidencePhotoDataUrl || undefined,
+              recordedAt: new Date().toISOString(),
+            })
+          : summaryWithSalaryDeal;
+
       if (!submitFinalRecommendation || !canSubmitDecision) {
+        if (canSubmitDecision) {
+          await apiRequest(hrInterviewResultsApi.evaluationDraft(selectedInterview.id), token, {
+            method: 'POST',
+            body: JSON.stringify({
+              finalRecommendation: recommendation,
+              summaryNotes: composeEvaluationDraft(submittedSummaryNotes, recommendation),
+            }),
+          });
+        }
         setSubmitMessage('Your evaluation was saved successfully.');
         return;
       }
@@ -545,17 +601,6 @@ export const HRInterviewResults: React.FC = () => {
           'Offline interviews require a meeting photo or a written interview report.',
         );
       }
-
-      const summaryWithSalaryDeal = composeSalaryDeal(summaryNotes, salaryDeal);
-      const submittedSummaryNotes = isOfflineInterview
-        ? composeOfflineEvidence(summaryWithSalaryDeal, {
-            location: selectedInterview.location,
-            report: offlineEvidenceReport.trim(),
-            photoName: offlineEvidencePhotoName || undefined,
-            photoDataUrl: offlineEvidencePhotoDataUrl || undefined,
-            recordedAt: new Date().toISOString(),
-          })
-        : summaryWithSalaryDeal;
 
       await apiRequest(hrInterviewResultsApi.finalRecommendation(selectedInterview.id), token, {
         method: 'POST',
@@ -597,14 +642,12 @@ export const HRInterviewResults: React.FC = () => {
 
       {apiError && <HRInlineAlert>{apiError}</HRInlineAlert>}
       {!canSubmitDecision && selectedInterview ? (
-        <HRInlineAlert tone="teal">
-          You can save your own interview evaluation. Final Recommendation is reserved for HR
-          Leader.
-        </HRInlineAlert>
+        <HRInlineAlert tone="teal">Interview evaluation saved successfully.</HRInlineAlert>
       ) : null}
       {adminDecision && selectedInterview ? (
         <HRInlineAlert tone={adminDecision === 'HIRED' ? 'teal' : undefined}>
-          Admin has finalized this candidate as {adminDecision === 'HIRED' ? 'Hire' : 'Not Hire'}. No further recommendation can be sent.
+          Admin has finalized this candidate as {adminDecision === 'HIRED' ? 'Hire' : 'Not Hire'}.
+          No further recommendation can be sent.
         </HRInlineAlert>
       ) : null}
 
@@ -736,8 +779,8 @@ export const HRInterviewResults: React.FC = () => {
                                     item.attendanceStatus === 'ABSENT'
                                       ? 'border-rejected/30 bg-rejected/10 text-rejected'
                                       : item.isRecorded
-                                      ? 'border-approved/30 bg-approved/10 text-approved'
-                                      : 'border-revision/30 bg-revision/10 text-revision'
+                                        ? 'border-approved/30 bg-approved/10 text-approved'
+                                        : 'border-revision/30 bg-revision/10 text-revision'
                                   }`}
                                 >
                                   {item.attendanceStatus === 'ABSENT'
@@ -772,7 +815,8 @@ export const HRInterviewResults: React.FC = () => {
 
                             {item.attendanceStatus === 'ABSENT' ? (
                               <p className="rounded-lg border border-rejected/20 bg-rejected/5 px-3 py-2 text-sm text-rejected">
-                                This panel member marked absent and is not required to evaluate the candidate.
+                                This panel member marked absent and is not required to evaluate the
+                                candidate.
                               </p>
                             ) : null}
 
@@ -882,7 +926,8 @@ export const HRInterviewResults: React.FC = () => {
                           {formatSalaryRange(salaryRange)}
                         </p>
                         <p className="mt-1 text-xs leading-5 text-slate-ink">
-                          Compare this approved range with the candidate expectation and HR proposed salary below.
+                          Compare this approved range with the candidate expectation and HR proposed
+                          salary below.
                         </p>
                       </div>
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -972,58 +1017,56 @@ export const HRInterviewResults: React.FC = () => {
                       />
                     </label>
 
-                    {isOfflineInterview && (
-                      <section className="space-y-4 rounded-lg border-2 border-dashed border-revision/40 bg-revision/5 p-5">
-                        <div className="flex items-start gap-3">
-                          <Icon className="mt-0.5 h-5 w-5 shrink-0 text-revision" name="upload" />
-                          <div>
-                            <p className="text-sm font-bold text-deep-charcoal">
-                              Offline interview evidence required
-                            </p>
-                            <p className="mt-1 text-sm leading-6 text-slate-ink">
-                              Location: {selectedInterview.location}. Attach a meeting photo or
-                              write a short report so Admin can review the interview process.
-                            </p>
-                          </div>
+                    <section className="space-y-4 rounded-lg border-2 border-dashed border-teal-command/30 bg-teal-command/5 p-5">
+                      <div className="flex items-start gap-3">
+                        <Icon className="mt-0.5 h-5 w-5 shrink-0 text-revision" name="upload" />
+                        <div>
+                          <p className="text-sm font-bold text-deep-charcoal">Meeting evidence</p>
+                          <p className="mt-1 text-sm leading-6 text-slate-ink">
+                            Location: {selectedInterview.location}. Attach a meeting photo as
+                            evidence for this final recommendation. A short report is optional.
+                          </p>
                         </div>
-                        <label className="block space-y-2">
-                          <span className="text-sm font-bold text-slate-ink">Interview Report</span>
-                          <textarea
-                            className="min-h-[96px] w-full rounded-lg border border-border-warm bg-clean-surface p-3 text-sm leading-6 outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-70"
-                            disabled={submitting}
-                            onChange={(event) => setOfflineEvidenceReport(event.target.value)}
-                            placeholder="Summarize attendance, room, interview flow, and any notable observations..."
-                            value={offlineEvidenceReport}
+                      </div>
+                      <label className="block space-y-2">
+                        <span className="text-sm font-bold text-slate-ink">
+                          Interview Report (optional)
+                        </span>
+                        <textarea
+                          className="min-h-[96px] w-full rounded-lg border border-border-warm bg-clean-surface p-3 text-sm leading-6 outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20 disabled:cursor-not-allowed disabled:opacity-70"
+                          disabled={submitting}
+                          onChange={(event) => setOfflineEvidenceReport(event.target.value)}
+                          placeholder="Summarize attendance, room, interview flow, and any notable observations..."
+                          value={offlineEvidenceReport}
+                        />
+                      </label>
+                      <label className="block space-y-2">
+                        <span className="text-sm font-bold text-slate-ink">Meeting Photo</span>
+                        <input
+                          accept="image/*"
+                          className="block w-full rounded-lg border border-border-warm bg-clean-surface p-2 text-sm file:mr-4 file:rounded-md file:border-0 file:bg-teal-command file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white disabled:cursor-not-allowed disabled:opacity-70"
+                          disabled={submitting}
+                          onChange={handleEvidencePhotoChange}
+                          type="file"
+                        />
+                        <span className="text-xs text-slate-ink">
+                          JPG or PNG up to 2MB. A written report can be used when no photo is
+                          available.
+                        </span>
+                      </label>
+                      {offlineEvidencePhotoDataUrl && (
+                        <div className="rounded-lg border border-border-warm bg-clean-surface p-3">
+                          <p className="mb-2 text-xs font-bold uppercase tracking-[0.1em] text-slate-ink">
+                            {offlineEvidencePhotoName}
+                          </p>
+                          <img
+                            alt="Meeting evidence"
+                            className="max-h-56 w-full rounded-md object-contain"
+                            src={offlineEvidencePhotoDataUrl}
                           />
-                        </label>
-                        <label className="block space-y-2">
-                          <span className="text-sm font-bold text-slate-ink">Meeting Photo</span>
-                          <input
-                            accept="image/*"
-                            className="block w-full rounded-lg border border-border-warm bg-clean-surface p-2 text-sm file:mr-4 file:rounded-md file:border-0 file:bg-teal-command file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white disabled:cursor-not-allowed disabled:opacity-70"
-                            disabled={submitting}
-                            onChange={handleEvidencePhotoChange}
-                            type="file"
-                          />
-                          <span className="text-xs text-slate-ink">
-                            JPG or PNG up to 2MB. A written report can be used when no photo is
-                            available.
-                          </span>
-                        </label>
-                        {offlineEvidencePhotoDataUrl && (
-                          <div className="rounded-lg border border-border-warm bg-clean-surface p-3">
-                            <p className="mb-2 text-xs font-bold uppercase tracking-[0.1em] text-slate-ink">
-                              {offlineEvidencePhotoName}
-                            </p>
-                            <img
-                              alt="Offline interview evidence"
-                              className="max-h-56 w-full rounded-md object-contain"
-                              src={offlineEvidencePhotoDataUrl}
-                            />
-                          </div>
-                        )}
-                      </section>
-                    )}
+                        </div>
+                      )}
+                    </section>
                   </>
                 ) : (
                   <div className="rounded-lg border border-border-warm bg-workflow-ivory p-4 text-sm leading-6 text-slate-ink">
@@ -1042,14 +1085,14 @@ export const HRInterviewResults: React.FC = () => {
                 {submitError && <span className="font-semibold text-rejected">{submitError}</span>}
               </div>
               <div className="flex flex-col gap-3 sm:flex-row">
-                {canEditOwnFeedback && (
+                {(canEditOwnFeedback || canSubmitDecision) && (
                   <button
                     className="rounded-lg border border-teal-command px-6 py-2.5 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5 disabled:opacity-70"
                     disabled={submitting}
                     onClick={() => void submitResults(false)}
                     type="button"
                   >
-                    {submitting ? 'Saving...' : 'Save My Evaluation'}
+                    {submitting ? 'Saving...' : 'Save Evaluation'}
                   </button>
                 )}
                 <button

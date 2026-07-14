@@ -36,6 +36,20 @@ export class ResultsController {
     return this.resultsService.recordMyFeedback(payload);
   }
 
+  @MessagePattern('interview.save_evaluation_draft')
+  async saveEvaluationDraft(
+    @Payload()
+    payload: {
+      interviewId: string;
+      evaluatorId: string;
+      actorRole: string;
+      finalRecommendation: string;
+      summaryNotes?: string;
+    },
+  ) {
+    return this.resultsService.saveEvaluationDraft(payload);
+  }
+
   /** FR-14: Record PASS/FAIL result with panel notes and evaluator. */
   @MessagePattern('interview.record_result')
   async recordResult(

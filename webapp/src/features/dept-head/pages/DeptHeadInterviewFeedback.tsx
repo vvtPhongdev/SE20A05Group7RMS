@@ -98,6 +98,8 @@ const statusTone: Record<RecordingStatus, 'approved' | 'revision'> = {
 
 const scoreFields = [
   ['technical', 'Technical'],
+  ['communication', 'Communication'],
+  ['culture', 'Culture fit'],
 ] as const;
 
 const deptHeadFeedbackApi = {
@@ -283,10 +285,7 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
     );
   }, [interviews, query]);
 
-  const updateMyScore = (
-    key: 'technical',
-    value: number,
-  ) => {
+  const updateMyScore = (key: (typeof scoreFields)[number][0], value: number) => {
     setMyFeedback((current) => ({ ...current, [key]: value }));
   };
 
@@ -305,8 +304,8 @@ export const DeptHeadInterviewFeedback: React.FC = () => {
           body: JSON.stringify({
             decision: myFeedback.decision,
             technical: myFeedback.technical,
-            communication: 0,
-            culture: 0,
+            communication: myFeedback.communication,
+            culture: myFeedback.culture,
             notes: myFeedback.notes,
           }),
         },

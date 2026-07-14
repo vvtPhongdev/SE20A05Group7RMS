@@ -10,7 +10,12 @@ import {
 
 type ViewMode = 'This Week' | 'This Month';
 type SortKey = 'earliest' | 'position';
-type InterviewStatus = 'Accepted' | 'Absent' | 'Pending Confirmation';
+type InterviewStatus =
+  | 'Accepted'
+  | 'Absent'
+  | 'Pending Confirmation'
+  | 'Missed Interview'
+  | 'Interview Completed';
 type InterviewTone = 'teal' | 'cyan' | 'amber' | 'slate';
 
 interface CalendarEvent {
@@ -20,6 +25,7 @@ interface CalendarEvent {
   date: string;
   dateKey: string;
   scheduledAt: string;
+  duration: number;
   time: string;
   round: string;
   position: string;
@@ -129,19 +135,42 @@ const statusStyles: Record<InterviewStatus, string> = {
   Accepted: 'bg-approved/10 text-approved',
   Absent: 'bg-rejected/10 text-rejected',
   'Pending Confirmation': 'bg-revision/10 text-revision',
+  'Missed Interview': 'bg-rejected/10 text-rejected',
+  'Interview Completed': 'bg-slate-ink/10 text-slate-ink',
 };
+
+const getInterviewStatus = (
+  response: 'ACCEPTED' | 'ABSENT' | undefined,
+  scheduledAt: string,
+  duration: number,
+): InterviewStatus => {
+  if (response === 'ABSENT') return 'Absent';
+  if (Date.now() >= new Date(scheduledAt).getTime() + duration * 60_000) {
+    return response === 'ACCEPTED' ? 'Interview Completed' : 'Missed Interview';
+  }
+  return response === 'ACCEPTED' ? 'Accepted' : 'Pending Confirmation';
+};
+
+const hasInterviewEnded = (event: Pick<CalendarEvent, 'scheduledAt' | 'duration'>) =>
+  Date.now() >= new Date(event.scheduledAt).getTime() + event.duration * 60_000;
 
 const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: string }) => {
   const paths: Record<string, React.ReactNode> = {
     calendar: (
       <path d="M7 3v4m10-4v4M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
     ),
-    candidates: <path d="M16 19a4 4 0 0 0-8 0M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm6 6a3 3 0 0 0-2-2.83M18 7.5a3 3 0 0 1 0 5" />,
+    candidates: (
+      <path d="M16 19a4 4 0 0 0-8 0M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm6 6a3 3 0 0 0-2-2.83M18 7.5a3 3 0 0 1 0 5" />
+    ),
     room: <path d="M4 21V5a2 2 0 0 1 2-2h9v18M15 7h5v14M10 12h.01" />,
     video: <path d="M4 7h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4V7Zm12 3 4-2v8l-4-2" />,
     notification: <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />,
-    help: <path d="M9.5 9a2.5 2.5 0 1 1 4.45 1.55c-.7.64-1.45 1.12-1.45 2.45M12 17h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0" />,
-    empty: <path d="M7 3v4m10-4v4M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm5 8h6" />,
+    help: (
+      <path d="M9.5 9a2.5 2.5 0 1 1 4.45 1.55c-.7.64-1.45 1.12-1.45 2.45M12 17h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0" />
+    ),
+    empty: (
+      <path d="M7 3v4m10-4v4M4 9h16M6 5h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm5 8h6" />
+    ),
     close: <path d="M18 6 6 18M6 6l12 12" />,
   };
 
@@ -180,16 +209,18 @@ export const DeptHeadInterviews: React.FC = () => {
       setLoading(true);
       setApiError('');
       try {
-        const requests = await apiRequest<RealtimeTrackingItem[]>('/reports/realtime-tracking', token);
-        const activeRequests = requests.filter((request) => !TERMINAL_STATUSES.includes(request.status));
+        const requests = await apiRequest<RealtimeTrackingItem[]>(
+          '/reports/realtime-tracking',
+          token,
+        );
+        const activeRequests = requests.filter(
+          (request) => !TERMINAL_STATUSES.includes(request.status),
+        );
 
         const [scheduleLists, applicationLists, usersResponse] = await Promise.all([
           Promise.all(
             activeRequests.map((request) =>
-              apiRequest<InterviewSchedule[]>(
-                `/interviews/requests/${request.id}/schedules`,
-                token,
-              )
+              apiRequest<InterviewSchedule[]>(`/interviews/requests/${request.id}/schedules`, token)
                 .then((schedules) =>
                   schedules.map((schedule) => ({ schedule, position: request.position })),
                 )
@@ -198,9 +229,10 @@ export const DeptHeadInterviews: React.FC = () => {
           ),
           Promise.all(
             activeRequests.map((request) =>
-              apiRequest<ApplicationApiItem[]>(`/applications?requestId=${request.id}`, token).catch(
-                () => [] as ApplicationApiItem[],
-              ),
+              apiRequest<ApplicationApiItem[]>(
+                `/applications?requestId=${request.id}`,
+                token,
+              ).catch(() => [] as ApplicationApiItem[]),
             ),
           ),
           apiRequest<{ data: UserOption[] }>('/users/interviewers', token).catch(() => ({
@@ -208,10 +240,9 @@ export const DeptHeadInterviews: React.FC = () => {
           })),
         ]);
         const candidateNameById = new Map(
-          applicationLists.flat().map((application) => [
-            application.candidateId,
-            application.candidate.fullName,
-          ]),
+          applicationLists
+            .flat()
+            .map((application) => [application.candidateId, application.candidate.fullName]),
         );
         const interviewerNameById = new Map(
           usersResponse.data.map((interviewer) => [interviewer.id, interviewer.displayName]),
@@ -235,6 +266,7 @@ export const DeptHeadInterviews: React.FC = () => {
               date: formatDateLabel(date),
               dateKey: date.toDateString(),
               scheduledAt: schedule.scheduledAt,
+              duration: schedule.duration,
               time: date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
               round: 'Interview',
               position,
@@ -244,12 +276,11 @@ export const DeptHeadInterviews: React.FC = () => {
               panel: schedule.interviewers.map(
                 (id) => interviewerNameById.get(id) || `Interviewer ${id.slice(0, 8)}`,
               ),
-              status:
-                schedule.interviewerAttendance?.[user?.id ?? '']?.response === 'ACCEPTED'
-                  ? 'Accepted'
-                  : schedule.interviewerAttendance?.[user?.id ?? '']?.response === 'ABSENT'
-                    ? 'Absent'
-                    : 'Pending Confirmation',
+              status: getInterviewStatus(
+                schedule.interviewerAttendance?.[user?.id ?? '']?.response,
+                schedule.scheduledAt,
+                schedule.duration,
+              ),
               tone: TONES[index % TONES.length] ?? 'teal',
             };
           });
@@ -345,9 +376,7 @@ export const DeptHeadInterviews: React.FC = () => {
       );
     } catch (responseError) {
       setEvents((current) =>
-        current.map((item) =>
-          item.id === event.id ? { ...item, status: previousStatus } : item,
-        ),
+        current.map((item) => (item.id === event.id ? { ...item, status: previousStatus } : item)),
       );
       setApiError(
         responseError instanceof Error
@@ -366,37 +395,37 @@ export const DeptHeadInterviews: React.FC = () => {
         description="Your upcoming interviews as panel member"
         actions={
           <>
-          <div className="flex rounded-lg bg-secondary-container p-1">
-            {(['This Week', 'This Month'] as ViewMode[]).map((item) => (
-              <button
-                className={`rounded-md px-4 py-1.5 text-xs font-semibold transition active:scale-[0.98] ${
-                  viewMode === item
-                    ? 'bg-clean-surface text-teal-command shadow-sm'
-                    : 'text-on-secondary-fixed-variant hover:text-on-surface'
-                }`}
-                key={item}
-                onClick={() => setViewMode(item)}
-                type="button"
-              >
-                {item}
-              </button>
-            ))}
-          </div>
-          <div className="hidden h-8 w-px bg-border-warm sm:block" />
-          <button
-            aria-label="Notifications"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-secondary-container active:scale-[0.98]"
-            type="button"
-          >
-            <Icon name="notification" />
-          </button>
-          <button
-            aria-label="Help"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-secondary-container active:scale-[0.98]"
-            type="button"
-          >
-            <Icon name="help" />
-          </button>
+            <div className="flex rounded-lg bg-secondary-container p-1">
+              {(['This Week', 'This Month'] as ViewMode[]).map((item) => (
+                <button
+                  className={`rounded-md px-4 py-1.5 text-xs font-semibold transition active:scale-[0.98] ${
+                    viewMode === item
+                      ? 'bg-clean-surface text-teal-command shadow-sm'
+                      : 'text-on-secondary-fixed-variant hover:text-on-surface'
+                  }`}
+                  key={item}
+                  onClick={() => setViewMode(item)}
+                  type="button"
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+            <div className="hidden h-8 w-px bg-border-warm sm:block" />
+            <button
+              aria-label="Notifications"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-secondary-container active:scale-[0.98]"
+              type="button"
+            >
+              <Icon name="notification" />
+            </button>
+            <button
+              aria-label="Help"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant transition hover:bg-secondary-container active:scale-[0.98]"
+              type="button"
+            >
+              <Icon name="help" />
+            </button>
           </>
         }
       />
@@ -462,9 +491,7 @@ export const DeptHeadInterviews: React.FC = () => {
                   ) : (
                     <div className="flex flex-1 flex-col items-center justify-center text-center">
                       <Icon className="mb-2 h-8 w-8 text-outline-variant" name="empty" />
-                      <p className="text-sm text-on-surface-variant/70">
-                        No interviews scheduled
-                      </p>
+                      <p className="text-sm text-on-surface-variant/70">No interviews scheduled</p>
                     </div>
                   )}
                 </div>
@@ -553,7 +580,7 @@ export const DeptHeadInterviews: React.FC = () => {
                       ? 'bg-emerald-600 text-white shadow-md ring-2 ring-emerald-200 hover:bg-emerald-700'
                       : 'border border-emerald-600 bg-white text-emerald-700 hover:bg-emerald-50'
                   }`}
-                  disabled={respondingEventId === event.id}
+                  disabled={respondingEventId === event.id || hasInterviewEnded(event)}
                   onClick={() => void respondToInterview(event, 'ACCEPTED')}
                   type="button"
                 >
@@ -570,7 +597,7 @@ export const DeptHeadInterviews: React.FC = () => {
                       ? 'border-rose-600 bg-rose-600 text-white shadow-md ring-2 ring-rose-200 hover:bg-rose-700'
                       : 'border-rose-600 bg-white text-rose-700 hover:bg-rose-50'
                   }`}
-                  disabled={respondingEventId === event.id}
+                  disabled={respondingEventId === event.id || hasInterviewEnded(event)}
                   onClick={() => void respondToInterview(event, 'ABSENT')}
                   type="button"
                 >
@@ -691,7 +718,9 @@ const AvatarStack = ({ names }: { names: string[] }) => {
       {visibleNames.map((name, index) => (
         <div
           className={`grid h-8 w-8 place-items-center rounded-full border-2 border-clean-surface text-[10px] font-bold ${
-            index === 0 ? 'bg-teal-command/15 text-teal-command' : 'bg-secondary-container text-on-secondary-container'
+            index === 0
+              ? 'bg-teal-command/15 text-teal-command'
+              : 'bg-secondary-container text-on-secondary-container'
           }`}
           key={name}
           title={name}

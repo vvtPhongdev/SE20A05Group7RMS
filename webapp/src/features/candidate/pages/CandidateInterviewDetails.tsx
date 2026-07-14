@@ -25,6 +25,16 @@ type CandidateInterview = {
 
 const preparationItems: Array<{ label: string; done: boolean }> = [];
 
+const getInterviewParticipationStatus = (interview: CandidateInterview) => {
+  const ended =
+    Date.now() >= new Date(interview.scheduledAt).getTime() + interview.duration * 60_000;
+  if (interview.status === 'CONFIRMED' && ended) return 'Interview Completed';
+  if (interview.status !== 'CONFIRMED' && interview.status !== 'COMPLETED' && ended) {
+    return 'Missed Interview';
+  }
+  return interview.status;
+};
+
 const iconPaths: Record<string, React.ReactNode> = {
   calendar: (
     <path d="M8 2v4m8-4v4M4 10h16M6 5h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
@@ -160,7 +170,9 @@ export const CandidateInterviewDetails: React.FC = () => {
       setActionMessage('New interview time sent. HR and the interview panel have been notified.');
     } catch (rescheduleError) {
       setActionError(
-        rescheduleError instanceof Error ? rescheduleError.message : 'Unable to reschedule interview',
+        rescheduleError instanceof Error
+          ? rescheduleError.message
+          : 'Unable to reschedule interview',
       );
     } finally {
       setActionSubmitting(false);
@@ -222,7 +234,11 @@ export const CandidateInterviewDetails: React.FC = () => {
   const startsAt = new Date(interview.scheduledAt);
   const endsAt = new Date(startsAt.getTime() + interview.duration * 60_000);
   const isMeetingLink = /^https?:\/\//i.test(interview.location);
-  const isClosed = interview.status === 'CANCELLED' || interview.status === 'COMPLETED';
+  const participationStatus = getInterviewParticipationStatus(interview);
+  const isClosed =
+    interview.status === 'CANCELLED' ||
+    interview.status === 'COMPLETED' ||
+    endsAt.getTime() <= Date.now();
   const isConfirmed = interview.status === 'CONFIRMED';
   const panelMembers = (
     interview.panel?.length
@@ -246,9 +262,7 @@ export const CandidateInterviewDetails: React.FC = () => {
 
   return (
     <CandidateDashboardPage className="flex max-w-[900px] flex-col items-center">
-      {actionError ? (
-        <CandidateInlineAlert>{actionError}</CandidateInlineAlert>
-      ) : null}
+      {actionError ? <CandidateInlineAlert>{actionError}</CandidateInlineAlert> : null}
       {actionMessage ? (
         <p className="mb-4 w-full rounded-lg border border-approved/20 bg-approved/10 p-4 text-sm font-semibold text-approved">
           {actionMessage}
@@ -266,7 +280,7 @@ export const CandidateInterviewDetails: React.FC = () => {
               </p>
             </div>
             <span className="w-fit rounded-lg border border-white/30 bg-white/20 px-4 py-2 text-sm font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]">
-              {interview.status}
+              {participationStatus}
             </span>
           </div>
         </header>

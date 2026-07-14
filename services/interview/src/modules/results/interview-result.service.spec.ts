@@ -123,12 +123,14 @@ describe('InterviewResultService', () => {
       candidateId: 'candidate-1',
       requestId: 'request-1',
       status: InterviewStatus.SCHEDULED,
+      interviewers: ['evaluator-1'],
       candidate: { fullName: 'John Doe', email: 'john@example.com', userId: 'user-1' },
       request: {
         id: 'request-1',
         position: 'Software Engineer',
         status: 'ACTIVE',
         createdById: 'dept-head-1',
+        reviewedById: 'evaluator-1',
       },
     });
 
@@ -172,12 +174,14 @@ describe('InterviewResultService', () => {
       candidateId: 'candidate-1',
       requestId: 'request-1',
       status: InterviewStatus.SCHEDULED,
+      interviewers: ['evaluator-1'],
       candidate: { fullName: 'John Doe', email: 'john@example.com', userId: 'user-1' },
       request: {
         id: 'request-1',
         position: 'Software Engineer',
         status: 'ACTIVE',
         createdById: 'dept-head-1',
+        reviewedById: 'evaluator-1',
       },
     });
 
@@ -210,7 +214,7 @@ describe('InterviewResultService', () => {
     );
   });
 
-  it('records only the technical score for a department head after interview time', async () => {
+  it('records all three scores for a department head after interview time', async () => {
     const past = new Date(Date.now() - 60 * 60 * 1000);
     prisma.interviewSchedule.findUnique.mockResolvedValue({
       id: 'interview-1',
@@ -252,8 +256,8 @@ describe('InterviewResultService', () => {
           evaluatorId: 'dept-head-1',
           result: 'PASS',
           technical: 8,
-          communication: 0,
-          culture: 0,
+          communication: 9,
+          culture: 8,
         }),
       }),
     );
