@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/combobox';
 
 type ParseStatus = 'Parsed' | 'Pending';
-type CandidateStage = 'Talent Pool' | 'Screening' | 'Interview' | 'Offer';
+type CandidateStage = 'Talent Pool' | 'Screening' | 'Interview' | 'Offer' | 'Hired';
 
 type RecentApplication = {
   requestId: string;
@@ -192,15 +192,18 @@ const STAGE_RANK: Record<string, number> = {
   INTERVIEWING: 2,
   OFFER_EXTENDED: 3,
   OFFER_ACCEPTED: 3,
+  HIRED: 4,
 };
 
 const STAGE_BY_RANK: Record<number, CandidateStage> = {
   1: 'Screening',
   2: 'Interview',
   3: 'Offer',
+  4: 'Hired',
 };
 
 const APPLICATION_STATUS_LABEL: Record<string, string> = {
+  HIRED: 'Hired',
   OFFER_ACCEPTED: 'Offer',
   OFFER_EXTENDED: 'Offer',
   INTERVIEWING: 'Interview',

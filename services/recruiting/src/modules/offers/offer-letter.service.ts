@@ -3,6 +3,7 @@ import { HttpStatus, Injectable, Inject } from '@nestjs/common';
 import { RpcException, ClientProxy } from '@nestjs/microservices';
 import {
   EmailStatus,
+  JobPostingStatus,
   OfferResponse,
   OfferStatus,
   RecruitmentRequestStatus,
@@ -291,7 +292,14 @@ export class OfferLetterService {
 
     const offer = await this.prisma.offerLetter.findUnique({
       where: { id },
-      include: { candidate: true, request: true },
+      include: {
+        candidate: true,
+        request: {
+          include: {
+            applications: { select: { status: true } },
+          },
+        },
+      },
     });
     if (!offer) {
       throw new RpcException({
@@ -319,8 +327,14 @@ export class OfferLetterService {
     const applicationStatus = accepted
       ? RecruitmentRequestStatus.HIRED
       : RecruitmentRequestStatus.OFFER_DECLINED;
+    const hiredCount = offer.request.applications.filter(
+      (application) => application.status === RecruitmentRequestStatus.HIRED,
+    ).length;
+    const campaignCompleted = accepted && hiredCount + 1 >= offer.request.headcount;
     const requestStatus = accepted
-      ? RecruitmentRequestStatus.COMPLETED
+      ? campaignCompleted
+        ? RecruitmentRequestStatus.COMPLETED
+        : RecruitmentRequestStatus.OFFER_ACCEPTED
       : RecruitmentRequestStatus.OFFER_DECLINED;
 
     const transitionLogs = accepted
@@ -352,19 +366,23 @@ export class OfferLetterService {
               },
             },
           }),
-          this.prisma.requestLog.create({
-            data: {
-              requestId: offer.requestId,
-              action: 'CAMPAIGN_COMPLETED',
-              fromStatus: RecruitmentRequestStatus.HIRED,
-              toStatus: RecruitmentRequestStatus.COMPLETED,
-              performedById: candidateUserId,
-              metadata: {
-                offerId: id,
-                candidateId: offer.candidateId,
-              },
-            },
-          }),
+          ...(campaignCompleted
+            ? [
+                this.prisma.requestLog.create({
+                  data: {
+                    requestId: offer.requestId,
+                    action: 'CAMPAIGN_COMPLETED',
+                    fromStatus: RecruitmentRequestStatus.HIRED,
+                    toStatus: RecruitmentRequestStatus.COMPLETED,
+                    performedById: candidateUserId,
+                    metadata: {
+                      offerId: id,
+                      candidateId: offer.candidateId,
+                    },
+                  },
+                }),
+              ]
+            : []),
         ]
       : [
           this.prisma.requestLog.create({
@@ -402,12 +420,27 @@ export class OfferLetterService {
         },
         data: { status: applicationStatus },
       }),
+      ...(accepted
+        ? [
+            this.prisma.user.update({
+              where: { id: offer.candidate.userId },
+              data: { departmentId: offer.request.departmentId },
+            }),
+          ]
+        : []),
       this.prisma.recruitmentRequest.update({
         where: { id: offer.requestId },
         data: { status: requestStatus },
       }),
-      ...(accepted
+      ...(campaignCompleted
         ? [
+            this.prisma.jobPosting.updateMany({
+              where: {
+                requestId: offer.requestId,
+                status: { in: [JobPostingStatus.DRAFT, JobPostingStatus.PUBLISHED] },
+              },
+              data: { status: JobPostingStatus.CLOSED },
+            }),
             this.prisma.taskPlan.updateMany({
               where: {
                 taskType: TaskType.HIRING,
@@ -429,9 +462,11 @@ export class OfferLetterService {
       .send('notification.create_notification', {
         userId: offer.request.createdById,
         type: NotificationType.REQUEST_UPDATE,
-        title: accepted ? 'Campaign Completed' : 'Offer Declined',
-        body: accepted
+        title: campaignCompleted ? 'Campaign Completed' : accepted ? 'Offer Accepted' : 'Offer Declined',
+        body: campaignCompleted
           ? `The offer for ${offer.positionTitle} was accepted and the recruitment campaign is completed.`
+          : accepted
+            ? `The offer for ${offer.positionTitle} was accepted. Recruitment remains open until all positions are filled.`
           : `The offer for ${offer.positionTitle} was declined by the candidate.`,
         relatedEntityId: offer.requestId,
         relatedEntityType: 'RecruitmentRequest',
@@ -445,9 +480,11 @@ export class OfferLetterService {
       .send('notification.send_to_role', {
         role: UserRole.HR_LEADER,
         type: NotificationType.REQUEST_UPDATE,
-        title: accepted ? 'Campaign Completed' : 'Offer Declined',
-        body: accepted
+        title: campaignCompleted ? 'Campaign Completed' : accepted ? 'Offer Accepted' : 'Offer Declined',
+        body: campaignCompleted
           ? `The offer for ${offer.positionTitle} was accepted and the recruitment campaign is completed.`
+          : accepted
+            ? `The offer for ${offer.positionTitle} was accepted. Recruitment remains open until all positions are filled.`
           : `The offer for ${offer.positionTitle} was declined by the candidate.`,
         relatedEntityId: offer.requestId,
         relatedEntityType: 'RecruitmentRequest',
@@ -460,9 +497,11 @@ export class OfferLetterService {
       .send('notification.send_to_role', {
         role: UserRole.HR_LEADER,
         type: NotificationType.REQUEST_UPDATE,
-        title: accepted ? 'Campaign Completed' : 'Offer Declined',
-        body: accepted
+        title: campaignCompleted ? 'Campaign Completed' : accepted ? 'Offer Accepted' : 'Offer Declined',
+        body: campaignCompleted
           ? `The offer for ${offer.positionTitle} was accepted and the recruitment campaign is completed.`
+          : accepted
+            ? `The offer for ${offer.positionTitle} was accepted. Recruitment remains open until all positions are filled.`
           : `The offer for ${offer.positionTitle} was declined by the candidate.`,
         relatedEntityId: offer.requestId,
         relatedEntityType: 'RecruitmentRequest',
@@ -476,9 +515,11 @@ export class OfferLetterService {
       .send('notification.send_to_role', {
         role: UserRole.ADMIN,
         type: NotificationType.REQUEST_UPDATE,
-        title: accepted ? 'Campaign Completed' : 'Offer Declined',
-        body: accepted
+        title: campaignCompleted ? 'Campaign Completed' : accepted ? 'Offer Accepted' : 'Offer Declined',
+        body: campaignCompleted
           ? `The offer for ${offer.positionTitle} was accepted and the recruitment campaign is completed.`
+          : accepted
+            ? `The offer for ${offer.positionTitle} was accepted. Recruitment remains open until all positions are filled.`
           : `The offer for ${offer.positionTitle} was declined by the candidate.`,
         relatedEntityId: offer.requestId,
         relatedEntityType: 'RecruitmentRequest',

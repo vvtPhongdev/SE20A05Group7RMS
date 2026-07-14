@@ -262,7 +262,7 @@ export class RecruitmentRequestsService {
           urgency: request.urgency,
           headcount: request.headcount,
           filledHeadcount: request.applications.filter(
-            (application) => application.status === 'OFFER_ACCEPTED',
+            (application) => ['OFFER_ACCEPTED', 'HIRED'].includes(application.status),
           ).length,
           jobDescription: request.jobDescription,
           skillRequirements: request.skillRequirements,

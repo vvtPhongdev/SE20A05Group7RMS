@@ -29,11 +29,14 @@ export class JobPostingsService {
     ];
   }
 
-  private async closeExpiredPublishedPostings(now = new Date()) {
+  private async closeInactivePostings(now = new Date()) {
     await this.prisma.jobPosting.updateMany({
       where: {
-        status: JobPostingStatus.PUBLISHED,
-        expireDate: { lte: now },
+        status: { in: [JobPostingStatus.DRAFT, JobPostingStatus.PUBLISHED] },
+        OR: [
+          { expireDate: { lte: now } },
+          { request: { status: RecruitmentRequestStatus.COMPLETED } },
+        ],
       },
       data: { status: JobPostingStatus.CLOSED },
     });
@@ -156,7 +159,7 @@ export class JobPostingsService {
     userRole?: string;
     userDeptId?: string;
   }) {
-    await this.closeExpiredPublishedPostings();
+    await this.closeInactivePostings();
 
     const { status, visibility, search, userRole, userDeptId } = query;
     const where: any = {};
@@ -222,7 +225,7 @@ export class JobPostingsService {
   }
 
   async get(payload: { id: string; userRole?: string; userDeptId?: string }) {
-    await this.closeExpiredPublishedPostings();
+    await this.closeInactivePostings();
 
     const { id, userRole, userDeptId } = payload;
     const now = new Date();

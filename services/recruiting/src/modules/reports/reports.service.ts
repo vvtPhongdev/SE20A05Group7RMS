@@ -564,6 +564,10 @@ export class ReportsService {
         pendingAction: pendingActions[request.status] ?? 'NONE',
         headcount: request.headcount,
         hiredCount,
+        applicationCount: request.applications.length,
+        interviewedCandidateCount: new Set(
+          request.interviews.map((interview) => interview.candidateId),
+        ).size,
         taskProgress: {
           total: tasks.length,
           completed: tasks.filter((task) => task.status === 'COMPLETED').length,
@@ -1036,7 +1040,7 @@ export class ReportsService {
     const completedRequests: CompletedRequestSummary[] =
       await this.prisma.recruitmentRequest.findMany({
         where: {
-          status: { in: ['CLOSED', 'OFFER_ACCEPTED'] },
+          status: { in: ['CLOSED', 'OFFER_ACCEPTED', 'COMPLETED'] },
         },
         select: {
           id: true,

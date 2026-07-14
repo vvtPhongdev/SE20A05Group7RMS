@@ -255,8 +255,11 @@ describe('JobPostingsService', () => {
 
       expect(prisma.jobPosting.updateMany).toHaveBeenCalledWith({
         where: {
-          status: JobPostingStatus.PUBLISHED,
-          expireDate: { lte: expect.any(Date) },
+          status: { in: [JobPostingStatus.DRAFT, JobPostingStatus.PUBLISHED] },
+          OR: [
+            { expireDate: { lte: expect.any(Date) } },
+            { request: { status: RecruitmentRequestStatus.COMPLETED } },
+          ],
         },
         data: { status: JobPostingStatus.CLOSED },
       });
