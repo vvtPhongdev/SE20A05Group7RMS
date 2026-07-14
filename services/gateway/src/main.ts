@@ -13,11 +13,18 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
 import { config as appConfig } from './config';
 import { PinoLogger } from '@wr/logger';
 import helmet from 'helmet';
+import { json, urlencoded } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(GatewayModule, {
     logger: new PinoLogger('gateway', appConfig.LOG_LEVEL),
+    bodyParser: false,
   });
+
+  // Meeting-evidence images are sent as base64 and can be larger than Nest's 100 KB default.
+  // The UI restricts the original file to 2 MB; 4 MB accommodates base64 overhead safely.
+  app.use(json({ limit: '4mb' }));
+  app.use(urlencoded({ extended: true, limit: '4mb' }));
 
   // Apply security headers via Helmet
   app.use(helmet());

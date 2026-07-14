@@ -715,7 +715,7 @@ export const AdminInterviewResults: React.FC = () => {
 
           {/* Detail container card */}
           <div className="flex-grow bg-clean-surface border border-border-warm shadow-md overflow-hidden flex flex-col relative rounded-lg h-full">
-            <div className="flex-grow overflow-y-auto custom-scrollbar p-6 space-y-6 pb-28">
+            <div className="flex-grow overflow-y-auto custom-scrollbar p-6 space-y-6 pb-40">
               {/* Candidate Profile Details */}
               <div className="border-b border-border-warm pb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
@@ -979,47 +979,52 @@ export const AdminInterviewResults: React.FC = () => {
             </div>
 
             {/* Sticky Action Panel */}
-            <div className="absolute bottom-0 left-0 right-0 p-4 bg-clean-surface border-t border-border-warm flex justify-between items-center shadow-lg z-10">
-              <div className="flex gap-3">
+            <div className="absolute bottom-0 left-0 right-0 space-y-3 border-t border-border-warm bg-clean-surface p-4 shadow-lg z-10">
+              {activeCandidate.id && recordedFeedbackCount < 2 ? (
+                <div className="flex items-start gap-2 rounded-lg border border-revision/30 bg-revision/10 px-3 py-2.5 text-sm font-semibold text-revision">
+                  <span className="material-symbols-outlined mt-0.5 text-[18px]">info</span>
+                  <p>
+                    Need at least 2 recorded interview feedbacks to approve hire. Current:{' '}
+                    <span className="font-bold">{recordedFeedbackCount}/2</span>.
+                  </p>
+                </div>
+              ) : null}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex gap-3">
+                  <button
+                    className="px-6 py-2.5 border border-rejected hover:bg-[#fde8e8] text-rejected rounded-lg font-bold text-sm transition-all"
+                    type="button"
+                    disabled={submitting || !activeCandidate.id || isFinalDecision}
+                    onClick={openRejectEmailForm}
+                  >
+                    Reject
+                  </button>
+                  <button
+                    className="px-6 py-2.5 border border-teal-command hover:bg-teal-command/5 text-teal-command rounded-lg font-bold text-sm transition-all"
+                    type="button"
+                    disabled={submitting || !activeCandidate.id || isFinalDecision}
+                    onClick={openRequestInfoForm}
+                  >
+                    Request More Info
+                  </button>
+                </div>
                 <button
-                  className="px-6 py-2.5 border border-rejected hover:bg-[#fde8e8] text-rejected rounded-lg font-bold text-sm transition-all"
+                  className="px-8 py-2.5 bg-teal-command hover:bg-[#09776d] text-white rounded-lg font-bold text-sm transition-all shadow-md flex items-center gap-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                   type="button"
-                  disabled={submitting || !activeCandidate.id || isFinalDecision}
-                  onClick={openRejectEmailForm}
+                  disabled={submitting || !canApproveHire || isFinalDecision}
+                  onClick={openOfferEmailForm}
+                  title={
+                    recordedFeedbackCount < 2
+                      ? 'Need at least 2 recorded interview feedbacks before Hire'
+                      : activeCandidate.passCount === 0
+                        ? 'Candidate needs at least one PASS feedback before Hire'
+                        : undefined
+                  }
                 >
-                  Reject
-                </button>
-                <button
-                  className="px-6 py-2.5 border border-teal-command hover:bg-teal-command/5 text-teal-command rounded-lg font-bold text-sm transition-all"
-                  type="button"
-                  disabled={submitting || !activeCandidate.id || isFinalDecision}
-                  onClick={openRequestInfoForm}
-                >
-                  Request More Info
+                  Approve Hire → Send Offer
                 </button>
               </div>
-              <button
-                className="px-8 py-2.5 bg-teal-command hover:bg-[#09776d] text-white rounded-lg font-bold text-sm transition-all shadow-md flex items-center gap-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                type="button"
-                disabled={submitting || !canApproveHire || isFinalDecision}
-                onClick={openOfferEmailForm}
-                title={
-                  recordedFeedbackCount < 2
-                    ? 'Need at least 2 recorded interview feedbacks before Hire'
-                    : activeCandidate.passCount === 0
-                      ? 'Candidate needs at least one PASS feedback before Hire'
-                      : undefined
-                }
-              >
-                Approve Hire → Send Offer
-              </button>
             </div>
-            {activeCandidate.id && recordedFeedbackCount < 2 && (
-              <p className="absolute bottom-[4.75rem] right-4 max-w-sm rounded-lg border border-revision/30 bg-revision/10 px-3 py-2 text-xs font-semibold text-revision shadow-sm">
-                Need at least 2 recorded interview feedbacks to approve hire. Current:{' '}
-                {recordedFeedbackCount}/2.
-              </p>
-            )}
           </div>
         </section>
       </div>

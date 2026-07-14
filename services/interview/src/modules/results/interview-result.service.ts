@@ -73,10 +73,13 @@ export class InterviewResultService {
         : [];
 
     return schedules.map((s) => {
+      const endsAt = new Date(s.scheduledAt.getTime() + s.duration * 60_000);
       const status =
         s.finalRecommendation || s.status === InterviewStatus.COMPLETED
           ? 'Recorded'
-          : 'Pending Recording';
+          : new Date() < endsAt
+            ? 'Interviewing'
+            : 'Interview Complete';
       const latestInfoRequest = infoRequestLogs.find((log) => {
         if (log.requestId !== s.requestId || !log.metadata || typeof log.metadata !== 'object') {
           return false;
@@ -416,12 +419,6 @@ export class InterviewResultService {
       });
     }
 
-    // Department Heads provide role-specific technical feedback only.
-    // Communication and culture scores are deliberately not accepted from this role.
-    const isDepartmentHead = actorRole === UserRole.DEPARTMENT_HEAD;
-    const effectiveCommunication = isDepartmentHead ? 0 : communication;
-    const effectiveCulture = isDepartmentHead ? 0 : culture;
-
     if (this.getInterviewerAttendanceStatus(schedule, evaluatorId) === 'ABSENT') {
       throw new RpcException({
         status: HttpStatus.FORBIDDEN,
@@ -438,8 +435,8 @@ export class InterviewResultService {
 
     for (const [label, value] of [
       ['technical', technical],
-      ['communication', effectiveCommunication],
-      ['culture', effectiveCulture],
+      ['communication', communication],
+      ['culture', culture],
     ] as const) {
       if (!Number.isInteger(value) || value < 0 || value > 10) {
         throw new RpcException({
@@ -470,8 +467,8 @@ export class InterviewResultService {
             result: decision,
             notes: notes?.trim() || null,
             technical,
-            communication: effectiveCommunication,
-            culture: effectiveCulture,
+            communication,
+            culture,
           },
         })
       : await this.prisma.interviewResult.create({
@@ -481,8 +478,8 @@ export class InterviewResultService {
             result: decision,
             notes: notes?.trim() || null,
             technical,
-            communication: effectiveCommunication,
-            culture: effectiveCulture,
+            communication,
+            culture,
           },
         });
 
@@ -520,6 +517,54 @@ export class InterviewResultService {
         isRecorded: true,
       },
     };
+  }
+
+  async saveEvaluationDraft(payload: {
+    interviewId: string;
+    evaluatorId: string;
+    actorRole: string;
+    finalRecommendation: string;
+    summaryNotes?: string;
+  }) {
+    const { interviewId, evaluatorId, actorRole, finalRecommendation, summaryNotes } = payload;
+    const schedule = await this.prisma.interviewSchedule.findUnique({
+      where: { id: interviewId },
+      include: { request: true },
+    });
+
+    if (!schedule) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `Interview schedule ${interviewId} not found`,
+      });
+    }
+    if (schedule.status === InterviewStatus.CANCELLED) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: 'Cannot save an evaluation draft for a cancelled interview',
+      });
+    }
+    if (!isHrRole(actorRole) || schedule.request.reviewedById !== evaluatorId) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'Claim this request before saving its evaluation draft',
+      });
+    }
+
+    const validRecommendations = ['Recommend Hire', 'Recommend Reject', 'Hold for Further'];
+    if (!validRecommendations.includes(finalRecommendation)) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: `finalRecommendation must be one of: ${validRecommendations.join(', ')}`,
+      });
+    }
+
+    await this.prisma.interviewSchedule.update({
+      where: { id: interviewId },
+      data: { summaryNotes: summaryNotes?.trim() || null },
+    });
+
+    return { success: true };
   }
 
   private getInterviewerAttendanceStatus(
@@ -680,7 +725,9 @@ export class InterviewResultService {
     const requiredEvaluatorIds = schedule.interviewers.filter(
       (userId) => this.getInterviewerAttendanceStatus(schedule, userId) !== 'ABSENT',
     );
+    const submittedEvaluatorIds = new Set(feedbacks.map((feedback) => feedback.evaluatorId));
     const missingEvaluations = requiredEvaluatorIds.filter((userId) => {
+      if (submittedEvaluatorIds.has(userId)) return false;
       const result = existingResults.find((item) => item.evaluatorId === userId);
       return (
         !result ||

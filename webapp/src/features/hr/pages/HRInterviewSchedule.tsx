@@ -475,7 +475,9 @@ export const HRInterviewSchedule: React.FC = () => {
   const selectedApplications = useMemo(
     () =>
       selectedCandidateIds
-        .map((candidateId) => applications.find((application) => application.candidateId === candidateId))
+        .map((candidateId) =>
+          applications.find((application) => application.candidateId === candidateId),
+        )
         .filter((application): application is ApplicationApiItem => Boolean(application)),
     [applications, selectedCandidateIds],
   );
@@ -491,8 +493,9 @@ export const HRInterviewSchedule: React.FC = () => {
   const selectedQueueApplication = useMemo(
     () =>
       selectedQueueSchedule
-        ? applications.find((application) => application.candidateId === selectedQueueSchedule.candidateId) ??
-          null
+        ? (applications.find(
+            (application) => application.candidateId === selectedQueueSchedule.candidateId,
+          ) ?? null)
         : null,
     [applications, selectedQueueSchedule],
   );
@@ -567,9 +570,22 @@ export const HRInterviewSchedule: React.FC = () => {
       if (requestedId && candidateOptions.some((item) => item.candidateId === requestedId)) {
         return [requestedId];
       }
-      const availableCandidateIds = new Set(candidateOptions.map((application) => application.candidateId));
+      const requestedIds = searchParams
+        .get('candidateIds')
+        ?.split(',')
+        .filter((candidateId) => candidateOptions.some((item) => item.candidateId === candidateId));
+      if (requestedIds?.length) {
+        return [...new Set(requestedIds)];
+      }
+      const availableCandidateIds = new Set(
+        candidateOptions.map((application) => application.candidateId),
+      );
       const retained = current.filter((candidateId) => availableCandidateIds.has(candidateId));
-      return retained.length ? retained : candidateOptions[0] ? [candidateOptions[0].candidateId] : [];
+      return retained.length
+        ? retained
+        : candidateOptions[0]
+          ? [candidateOptions[0].candidateId]
+          : [];
     });
   }, [candidateOptions, searchParams]);
 
@@ -785,7 +801,9 @@ export const HRInterviewSchedule: React.FC = () => {
 
   const createGoogleMeet = async () => {
     if (!selectedRequest || selectedApplications.length === 0 || !scheduleDate || !scheduleTime) {
-      setApiError('Select campaign, at least one candidate, date, and time before creating Google Meet.');
+      setApiError(
+        'Select campaign, at least one candidate, date, and time before creating Google Meet.',
+      );
       return;
     }
 
@@ -811,7 +829,9 @@ export const HRInterviewSchedule: React.FC = () => {
         ...selectedApplications.map((application) => application.candidate.email),
         ...selectedInterviewerEmails,
       ]);
-      const candidateNames = selectedApplications.map((application) => application.candidate.fullName);
+      const candidateNames = selectedApplications.map(
+        (application) => application.candidate.fullName,
+      );
 
       const response = await apiRequest<GoogleMeetResponse>('/google-calendar/meet', token, {
         method: 'POST',
@@ -925,8 +945,8 @@ export const HRInterviewSchedule: React.FC = () => {
         selectedQueueSchedule?.status === 'RESCHEDULED'
           ? 'Rescheduled invitation sent successfully.'
           : selectedCandidateIds.length > 1
-          ? `Interview invitations sent to ${selectedCandidateIds.length} candidates.`
-          : 'Interview invitation sent successfully.',
+            ? `Interview invitations sent to ${selectedCandidateIds.length} candidates.`
+            : 'Interview invitation sent successfully.',
       );
       setScheduleDate('');
       setScheduleTime('');
@@ -1181,29 +1201,31 @@ export const HRInterviewSchedule: React.FC = () => {
           >
             {selectedQueueSchedule ? (
               <section
-                className={`rounded-lg border p-3 ${
+                className={`min-w-0 overflow-hidden rounded-lg border p-3 ${
                   selectedQueueSchedule.status === 'RESCHEDULED'
                     ? 'border-revision/40 bg-revision/10'
                     : 'border-teal-command/20 bg-teal-command/5'
                 }`}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
                     <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">
                       Selected interview
                     </p>
-                    <p className="mt-1 text-sm font-bold text-deep-charcoal">
+                    <p className="mt-1 break-words text-sm font-bold text-deep-charcoal">
                       {selectedQueueApplication?.candidate.fullName ??
                         candidateNameById.get(selectedQueueSchedule.candidateId) ??
                         'Candidate'}
                     </p>
-                    <p className="text-xs text-slate-ink">
-                      {selectedQueueApplication?.candidate.email ?? 'Email unavailable'} ·{' '}
-                      {selectedQueueSchedule.position}
+                    <p className="break-words text-xs text-slate-ink">
+                      <span className="break-all">
+                        {selectedQueueApplication?.candidate.email ?? 'Email unavailable'}
+                      </span>{' '}
+                      · {selectedQueueSchedule.position}
                     </p>
                   </div>
                   <span
-                    className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] ${
+                    className={`w-fit shrink-0 self-start rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] ${
                       statusClass[STATUS_MAP[selectedQueueSchedule.status] ?? 'Scheduled']
                     }`}
                   >
@@ -1423,7 +1445,11 @@ export const HRInterviewSchedule: React.FC = () => {
                   hasSentInvitation ||
                   (selectedQueueSchedule?.status === 'RESCHEDULED' && !rescheduleReason.trim())
                 }
-                title={hasSentInvitation ? 'Invitation has already been sent for this schedule.' : undefined}
+                title={
+                  hasSentInvitation
+                    ? 'Invitation has already been sent for this schedule.'
+                    : undefined
+                }
                 onClick={() => void createSchedule()}
                 type="submit"
               >
@@ -1431,9 +1457,9 @@ export const HRInterviewSchedule: React.FC = () => {
                   ? 'Sending...'
                   : hasSentInvitation
                     ? 'Invitation Sent'
-                  : selectedQueueSchedule?.status === 'RESCHEDULED'
-                    ? 'Resend Rescheduled Invitation'
-                    : 'Send Invitation'}
+                    : selectedQueueSchedule?.status === 'RESCHEDULED'
+                      ? 'Resend Rescheduled Invitation'
+                      : 'Send Invitation'}
               </button>
             </div>
           </form>

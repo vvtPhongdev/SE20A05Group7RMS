@@ -84,4 +84,27 @@ export class HrInterviewResultsController {
       }),
     );
   }
+
+  @Post(':id/evaluation-draft')
+  @Roles(UserRole.HR_LEADER)
+  @ApiOperation({ summary: 'Save an HR final recommendation draft without sending it to Admin' })
+  saveEvaluationDraft(
+    @Param('id') interviewId: string,
+    @Body()
+    body: {
+      finalRecommendation: string;
+      summaryNotes?: string;
+    },
+    @CurrentUser() user: any,
+  ) {
+    return firstValueFrom(
+      this.interviewClient.send('interview.save_evaluation_draft', {
+        interviewId,
+        finalRecommendation: body.finalRecommendation,
+        summaryNotes: body.summaryNotes,
+        evaluatorId: user.sub,
+        actorRole: user.role,
+      }),
+    );
+  }
 }

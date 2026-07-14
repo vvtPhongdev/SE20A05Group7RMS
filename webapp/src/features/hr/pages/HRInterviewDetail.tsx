@@ -14,7 +14,18 @@ import {
 
 type ViewMode = 'This Week' | 'This Month';
 type SortKey = 'earliest' | 'position';
-type AttendanceStatus = 'Accepted' | 'Absent' | 'Pending Confirmation';
+type AttendanceStatus =
+  | 'Accepted'
+  | 'Absent from Interview'
+  | 'Pending Confirmation'
+  | 'Missed Interview'
+  | 'Interview Completed';
+type CandidateParticipationStatus =
+  | 'Awaiting Confirmation'
+  | 'Confirmed'
+  | 'Reschedule Pending'
+  | 'Interview Completed'
+  | 'Missed Interview';
 type InterviewTone = 'teal' | 'cyan' | 'amber' | 'slate';
 
 type InterviewSchedule = {
@@ -52,6 +63,7 @@ type InterviewEvent = {
   duration: number;
   location: string;
   locationType: 'room' | 'video';
+  candidateParticipation: CandidateParticipationStatus;
   panel: PanelMember[];
   tone: InterviewTone;
 };
@@ -68,8 +80,18 @@ const toneStyles: Record<InterviewTone, string> = {
 
 const attendanceStyles: Record<AttendanceStatus, string> = {
   Accepted: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  Absent: 'border-rose-200 bg-rose-50 text-rose-700',
+  'Absent from Interview': 'border-rose-200 bg-rose-50 text-rose-700',
   'Pending Confirmation': 'border-amber-200 bg-amber-50 text-amber-800',
+  'Missed Interview': 'border-rose-200 bg-rose-50 text-rose-700',
+  'Interview Completed': 'border-slate-ink/20 bg-slate-ink/10 text-slate-ink',
+};
+
+const candidateParticipationStyles: Record<CandidateParticipationStatus, string> = {
+  Confirmed: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  'Awaiting Confirmation': 'border-amber-200 bg-amber-50 text-amber-800',
+  'Reschedule Pending': 'border-revision/30 bg-revision/10 text-revision',
+  'Interview Completed': 'border-slate-ink/20 bg-slate-ink/10 text-slate-ink',
+  'Missed Interview': 'border-rose-200 bg-rose-50 text-rose-700',
 };
 
 const getStartOfWeek = (date = new Date()) => {
@@ -108,12 +130,35 @@ const getCalendarDays = (viewMode: ViewMode) => {
   });
 };
 
-const getAttendance = (response?: 'ACCEPTED' | 'ABSENT'): AttendanceStatus =>
-  response === 'ACCEPTED'
-    ? 'Accepted'
-    : response === 'ABSENT'
-      ? 'Absent'
-      : 'Pending Confirmation';
+const hasInterviewEnded = (scheduledAt: string, duration: number) =>
+  Date.now() >= new Date(scheduledAt).getTime() + duration * 60_000;
+
+const getAttendance = (
+  response: 'ACCEPTED' | 'ABSENT' | undefined,
+  scheduledAt: string,
+  duration: number,
+): AttendanceStatus => {
+  if (response === 'ABSENT') return 'Absent from Interview';
+  if (hasInterviewEnded(scheduledAt, duration)) {
+    return response === 'ACCEPTED' ? 'Interview Completed' : 'Missed Interview';
+  }
+  return response === 'ACCEPTED' ? 'Accepted' : 'Pending Confirmation';
+};
+
+const getCandidateParticipation = (
+  status: string,
+  scheduledAt: string,
+  duration: number,
+): CandidateParticipationStatus => {
+  if (status === 'CONFIRMED' && hasInterviewEnded(scheduledAt, duration))
+    return 'Interview Completed';
+  if (status !== 'CONFIRMED' && status !== 'COMPLETED' && hasInterviewEnded(scheduledAt, duration))
+    return 'Missed Interview';
+  if (status === 'CONFIRMED') return 'Confirmed';
+  if (status === 'RESCHEDULED') return 'Reschedule Pending';
+  if (status === 'COMPLETED') return 'Interview Completed';
+  return 'Awaiting Confirmation';
+};
 
 export const HRInterviewDetail: React.FC = () => {
   const { token, user } = useAuth();
@@ -131,21 +176,29 @@ export const HRInterviewDetail: React.FC = () => {
       setLoading(true);
       setApiError('');
       try {
-        const requests = await apiRequest<RealtimeTrackingItem[]>('/reports/realtime-tracking', token);
-        const activeRequests = requests.filter((request) => !TERMINAL_STATUSES.includes(request.status));
+        const requests = await apiRequest<RealtimeTrackingItem[]>(
+          '/reports/realtime-tracking',
+          token,
+        );
+        const activeRequests = requests.filter(
+          (request) => !TERMINAL_STATUSES.includes(request.status),
+        );
         const [scheduleLists, applicationLists, usersResponse] = await Promise.all([
           Promise.all(
             activeRequests.map((request) =>
               apiRequest<InterviewSchedule[]>(`/interviews/requests/${request.id}/schedules`, token)
-                .then((schedules) => schedules.map((schedule) => ({ schedule, position: request.position })))
+                .then((schedules) =>
+                  schedules.map((schedule) => ({ schedule, position: request.position })),
+                )
                 .catch(() => [] as { schedule: InterviewSchedule; position: string }[]),
             ),
           ),
           Promise.all(
             activeRequests.map((request) =>
-              apiRequest<ApplicationApiItem[]>(`/applications?requestId=${request.id}`, token).catch(
-                () => [] as ApplicationApiItem[],
-              ),
+              apiRequest<ApplicationApiItem[]>(
+                `/applications?requestId=${request.id}`,
+                token,
+              ).catch(() => [] as ApplicationApiItem[]),
             ),
           ),
           apiRequest<{ data: UserOption[] }>('/users/interviewers', token).catch(() => ({
@@ -154,7 +207,9 @@ export const HRInterviewDetail: React.FC = () => {
         ]);
 
         const candidateNames = new Map(
-          applicationLists.flat().map((application) => [application.candidateId, application.candidate.fullName]),
+          applicationLists
+            .flat()
+            .map((application) => [application.candidateId, application.candidate.fullName]),
         );
         const usersById = new Map(usersResponse.data.map((user) => [user.id, user]));
         const mapped = scheduleLists
@@ -171,17 +226,27 @@ export const HRInterviewDetail: React.FC = () => {
               scheduledAt: schedule.scheduledAt,
               position,
               candidate:
-                candidateNames.get(schedule.candidateId) || `Candidate ${schedule.candidateId.slice(0, 8)}`,
+                candidateNames.get(schedule.candidateId) ||
+                `Candidate ${schedule.candidateId.slice(0, 8)}`,
               duration: schedule.duration,
               location: schedule.location,
               locationType: /https?:\/\/|zoom|meet/i.test(schedule.location) ? 'video' : 'room',
+              candidateParticipation: getCandidateParticipation(
+                schedule.status,
+                schedule.scheduledAt,
+                schedule.duration,
+              ),
               panel: schedule.interviewers.map((userId) => {
                 const user = usersById.get(userId);
                 return {
                   id: userId,
                   name: user?.displayName || `Interviewer ${userId.slice(0, 8)}`,
                   email: user?.email,
-                  attendance: getAttendance(schedule.interviewerAttendance?.[userId]?.response),
+                  attendance: getAttendance(
+                    schedule.interviewerAttendance?.[userId]?.response,
+                    schedule.scheduledAt,
+                    schedule.duration,
+                  ),
                 };
               }),
               tone: TONES[index % TONES.length] ?? 'teal',
@@ -217,7 +282,7 @@ export const HRInterviewDetail: React.FC = () => {
 
   const respondToAttendance = async (event: InterviewEvent, response: 'ACCEPTED' | 'ABSENT') => {
     if (!user?.id) return;
-    const nextAttendance = getAttendance(response);
+    const nextAttendance = getAttendance(response, event.scheduledAt, event.duration);
     const previousAttendance = event.panel.find((member) => member.id === user.id)?.attendance;
 
     setRespondingEventId(event.id);
@@ -323,16 +388,27 @@ export const HRInterviewDetail: React.FC = () => {
                   {dayEvents.length ? (
                     <div className="mt-4 flex flex-col gap-3">
                       {dayEvents.map((event) => (
-                        <div className={`rounded border-l-4 p-3 ${toneStyles[event.tone]}`} key={event.id}>
+                        <div
+                          className={`rounded border-l-4 p-3 ${toneStyles[event.tone]}`}
+                          key={event.id}
+                        >
                           <p className="text-sm font-bold">{event.time}</p>
-                          <p className="mt-1 text-sm leading-tight text-on-surface">{event.position}</p>
-                          <p className="mt-1 text-[11px] text-on-surface-variant">{event.candidate}</p>
-                          <p className="mt-2 truncate text-[11px] text-on-surface-variant">{event.location}</p>
+                          <p className="mt-1 text-sm leading-tight text-on-surface">
+                            {event.position}
+                          </p>
+                          <p className="mt-1 text-[11px] text-on-surface-variant">
+                            {event.candidate}
+                          </p>
+                          <p className="mt-2 truncate text-[11px] text-on-surface-variant">
+                            {event.location}
+                          </p>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="m-auto text-center text-sm text-on-surface-variant/70">No interviews scheduled</p>
+                    <p className="m-auto text-center text-sm text-on-surface-variant/70">
+                      No interviews scheduled
+                    </p>
                   )}
                 </div>
               </div>
@@ -361,80 +437,112 @@ export const HRInterviewDetail: React.FC = () => {
           {sortedEvents.map((event) => (
             <HRCard className="rounded-xl p-5" key={event.id}>
               {(() => {
-                const myAttendance = event.panel.find((member) => member.id === user?.id)?.attendance;
+                const myAttendance = event.panel.find(
+                  (member) => member.id === user?.id,
+                )?.attendance;
                 const isResponding = respondingEventId === event.id;
+                const interviewEnded = hasInterviewEnded(event.scheduledAt, event.duration);
+                const hasAccepted =
+                  myAttendance === 'Accepted' || myAttendance === 'Interview Completed';
+                const isAbsent = myAttendance === 'Absent from Interview';
                 return (
-              <div className="flex flex-col gap-5 xl:flex-row xl:items-start">
-                <div className="min-w-[112px] rounded-lg bg-parchment-lift px-4 py-3 text-center">
-                  <p className="font-mono text-sm font-bold text-on-surface">{event.time}</p>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-on-surface-variant">{event.date}</p>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-lg font-semibold text-on-surface">{event.position} - Interview</h3>
-                    <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${toneStyles[event.tone]}`}>
-                      {event.duration} minutes
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm text-slate-ink">
-                    Candidate: <span className="font-semibold text-deep-charcoal">{event.candidate}</span>
-                  </p>
-                  <p className="mt-1 text-sm text-slate-ink">
-                    {event.locationType === 'video' ? 'Online meeting' : 'Interview room'}: {event.location}
-                  </p>
-                </div>
-                <div className="min-w-0 xl:w-[420px]">
-                  <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-on-surface-variant">
-                    Participants ({event.panel.length})
-                  </p>
-                  <div className="space-y-2">
-                    {event.panel.map((member) => (
-                      <div
-                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border-warm bg-workflow-ivory/40 px-3 py-2"
-                        key={member.id}
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-deep-charcoal">{member.name}</p>
-                          {member.email && <p className="truncate text-xs text-slate-ink">{member.email}</p>}
-                        </div>
-                        <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] ${attendanceStyles[member.attendance]}`}>
-                          {member.attendance}
+                  <div className="flex flex-col gap-5 xl:flex-row xl:items-start">
+                    <div className="min-w-[112px] rounded-lg bg-parchment-lift px-4 py-3 text-center">
+                      <p className="font-mono text-sm font-bold text-on-surface">{event.time}</p>
+                      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-on-surface-variant">
+                        {event.date}
+                      </p>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <h3 className="text-lg font-semibold text-on-surface">
+                          {event.position} - Interview
+                        </h3>
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${toneStyles[event.tone]}`}
+                        >
+                          {event.duration} minutes
                         </span>
                       </div>
-                    ))}
-                  </div>
-                  {myAttendance ? (
-                    <div className="mt-3 flex flex-wrap gap-2 border-t border-border-warm pt-3">
-                      <button
-                        aria-pressed={myAttendance === 'Accepted'}
-                        className={`rounded-lg px-3 py-2 text-xs font-bold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 ${
-                          myAttendance === 'Accepted'
-                            ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-200'
-                            : 'border border-emerald-600 bg-white text-emerald-700 hover:bg-emerald-50'
-                        }`}
-                        disabled={isResponding}
-                        onClick={() => void respondToAttendance(event, 'ACCEPTED')}
-                        type="button"
-                      >
-                        {isResponding ? 'Saving...' : myAttendance === 'Accepted' ? '✓ Accepted' : 'Accept'}
-                      </button>
-                      <button
-                        aria-pressed={myAttendance === 'Absent'}
-                        className={`rounded-lg px-3 py-2 text-xs font-bold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 ${
-                          myAttendance === 'Absent'
-                            ? 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-200'
-                            : 'border border-rose-600 bg-white text-rose-700 hover:bg-rose-50'
-                        }`}
-                        disabled={isResponding}
-                        onClick={() => void respondToAttendance(event, 'ABSENT')}
-                        type="button"
-                      >
-                        {isResponding ? 'Saving...' : myAttendance === 'Absent' ? '✓ Absent' : 'Mark Absent'}
-                      </button>
+                      <p className="mt-2 text-sm text-slate-ink">
+                        Candidate:{' '}
+                        <span className="font-semibold text-deep-charcoal">{event.candidate}</span>
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-ink">
+                        <span>Candidate participation:</span>
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] ${candidateParticipationStyles[event.candidateParticipation]}`}
+                        >
+                          {event.candidateParticipation}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-ink">
+                        {event.locationType === 'video' ? 'Online meeting' : 'Interview room'}:{' '}
+                        {event.location}
+                      </p>
                     </div>
-                  ) : null}
-                </div>
-              </div>
+                    <div className="min-w-0 xl:w-[420px]">
+                      <p className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-on-surface-variant">
+                        Participants ({event.panel.length})
+                      </p>
+                      <div className="space-y-2">
+                        {event.panel.map((member) => (
+                          <div
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border-warm bg-workflow-ivory/40 px-3 py-2"
+                            key={member.id}
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-deep-charcoal">
+                                {member.name}
+                              </p>
+                              {member.email && (
+                                <p className="truncate text-xs text-slate-ink">{member.email}</p>
+                              )}
+                            </div>
+                            <span
+                              className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] ${attendanceStyles[member.attendance]}`}
+                            >
+                              {member.attendance}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      {myAttendance ? (
+                        <div className="mt-3 flex flex-wrap gap-2 border-t border-border-warm pt-3">
+                          <button
+                            aria-pressed={hasAccepted}
+                            className={`rounded-lg px-3 py-2 text-xs font-bold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 ${
+                              hasAccepted
+                                ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-200'
+                                : 'border border-emerald-600 bg-white text-emerald-700 hover:bg-emerald-50'
+                            }`}
+                            disabled={isResponding || interviewEnded}
+                            onClick={() => void respondToAttendance(event, 'ACCEPTED')}
+                            type="button"
+                          >
+                            {isResponding
+                              ? 'Saving...'
+                              : myAttendance === 'Accepted'
+                                ? '✓ Accepted'
+                                : 'Accept'}
+                          </button>
+                          <button
+                            aria-pressed={isAbsent}
+                            className={`rounded-lg px-3 py-2 text-xs font-bold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 ${
+                              isAbsent
+                                ? 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-200'
+                                : 'border border-rose-600 bg-white text-rose-700 hover:bg-rose-50'
+                            }`}
+                            disabled={isResponding || interviewEnded}
+                            onClick={() => void respondToAttendance(event, 'ABSENT')}
+                            type="button"
+                          >
+                            {isResponding ? 'Saving...' : isAbsent ? '✓ Absent' : 'Mark Absent'}
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
                 );
               })()}
             </HRCard>

@@ -298,9 +298,8 @@ export class SchedulesService {
     const requestedPanel = payload.scheduledById
       ? [...payload.interviewers, payload.scheduledById]
       : payload.interviewers;
-    const { uniqueIds: interviewerIds, users: panel } = await this.assertValidInterviewers(
-      requestedPanel,
-    );
+    const { uniqueIds: interviewerIds, users: panel } =
+      await this.assertValidInterviewers(requestedPanel);
     const performedById = payload.scheduledById ?? interviewerIds[0]!;
 
     // Conflict check
@@ -601,10 +600,23 @@ export class SchedulesService {
       });
     }
 
-    if ([InterviewStatus.CANCELLED, InterviewStatus.COMPLETED].includes(schedule.status as InterviewStatus)) {
+    if (
+      [InterviewStatus.CANCELLED, InterviewStatus.COMPLETED].includes(
+        schedule.status as InterviewStatus,
+      )
+    ) {
       throw new RpcException({
         status: HttpStatus.CONFLICT,
         message: 'Attendance cannot be changed for a cancelled or completed interview',
+      });
+    }
+    if (
+      payload.response === 'ACCEPTED' &&
+      Date.now() >= schedule.scheduledAt.getTime() + schedule.duration * 60_000
+    ) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: 'Attendance can no longer be accepted after the interview has ended',
       });
     }
 
@@ -654,6 +666,12 @@ export class SchedulesService {
       throw new RpcException({
         status: HttpStatus.CONFLICT,
         message: 'Cannot cancel a completed interview',
+      });
+    }
+    if (Date.now() >= schedule.scheduledAt.getTime() + schedule.duration * 60_000) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: 'Cannot confirm attendance after the interview has ended',
       });
     }
 
