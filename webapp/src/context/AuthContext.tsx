@@ -148,6 +148,19 @@ const readAuthError = async (response: Response) => {
   return error;
 };
 
+const shouldClearSupabaseSession = (error: unknown) => {
+  if (!error || typeof error !== 'object') return false;
+
+  const { status, code } = error as { status?: number; code?: string };
+  return (
+    status === 401 ||
+    code === 'bad_jwt' ||
+    code === 'invalid_jwt' ||
+    code === 'refresh_token_not_found' ||
+    code === 'refresh_token_already_used'
+  );
+};
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -257,16 +270,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const { data, error } = await supabase.auth.getSession();
         if (error || !data.session?.access_token) {
-          if (error) {
+          if (shouldClearSupabaseSession(error)) {
             await clearSupabaseSession();
           }
           restoreStoredAuth();
           return;
         }
 
+        // Let the callback pages exchange this session exactly once. In particular,
+        // a new Google account must retain its Supabase session while SignUp creates
+        // the corresponding RMS account after a 404 from /supabase-login.
+        if (new URLSearchParams(window.location.search).get('auth') === 'google') {
+          restoreStoredAuth();
+          return;
+        }
+
         await exchangeSupabaseToken(data.session.access_token);
-      } catch {
-        await clearSupabaseSession();
+      } catch (error) {
+        if (shouldClearSupabaseSession(error)) {
+          await clearSupabaseSession();
+        }
         if (!cancelled) {
           restoreStoredAuth();
         }
