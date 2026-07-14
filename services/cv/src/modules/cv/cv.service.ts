@@ -28,6 +28,19 @@ export class CvService {
     await unlink(filePath);
   }
 
+  private async removeStoredFiles(filePaths: string[]) {
+    const uniquePaths = [...new Set(filePaths.filter(Boolean))];
+    const results = await Promise.allSettled(
+      uniquePaths.map((filePath) => this.removeStoredFile(filePath)),
+    );
+
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        console.error(`Failed to remove superseded CV file ${uniquePaths[index]}:`, result.reason);
+      }
+    });
+  }
+
   private async enqueueParse(cvRecord: { id: string; filePath: string }) {
     await this.cvParseQueue.add(
       JOB_NAMES.PARSE_CV,
@@ -72,7 +85,12 @@ export class CvService {
       });
     }
 
-    // Save CV record to database
+    const previousCvs = await this.prisma.candidateCV.findMany({
+      where: { candidateId: profile.id },
+      select: { id: true, filePath: true },
+    });
+
+    // A candidate has one current CV. Keep the new record, then retire any legacy CVs.
     const cvRecord = await this.prisma.candidateCV.create({
       data: {
         candidateId: profile.id,
@@ -94,11 +112,18 @@ export class CvService {
         action: AuditAction.CV_UPLOADED,
         toStatus: 'UPLOADED',
         performedById: candidateId,
-        metadata: { fileName, fileType },
+        metadata: { fileName, fileType, replacedCvCount: previousCvs.length },
       })
       .catch((err) => console.error('Failed to write audit log for CV_UPLOADED:', err));
 
     await this.enqueueParse(cvRecord);
+
+    if (previousCvs.length > 0) {
+      await this.prisma.candidateCV.deleteMany({
+        where: { id: { in: previousCvs.map((cv) => cv.id) } },
+      });
+      await this.removeStoredFiles(previousCvs.map((cv) => cv.filePath));
+    }
 
     return cvRecord;
   }
@@ -124,6 +149,14 @@ export class CvService {
         message: `CV Document with ID ${payload.id} not found or access denied`,
       });
     }
+
+    const legacyCvs = await this.prisma.candidateCV.findMany({
+      where: {
+        candidateId: existing.candidateId,
+        id: { not: existing.id },
+      },
+      select: { id: true, filePath: true },
+    });
 
     const updated = await this.prisma.candidateCV.update({
       where: { id: existing.id },
@@ -159,9 +192,17 @@ export class CvService {
 
     await this.enqueueParse(updated);
 
-    if (existing.filePath !== payload.filePath) {
-      await this.removeStoredFile(existing.filePath).catch(() => undefined);
+    if (legacyCvs.length > 0) {
+      await this.prisma.candidateCV.deleteMany({
+        where: { id: { in: legacyCvs.map((cv) => cv.id) } },
+      });
     }
+
+    const supersededPaths = [
+      ...legacyCvs.map((cv) => cv.filePath),
+      ...(existing.filePath !== payload.filePath ? [existing.filePath] : []),
+    ];
+    await this.removeStoredFiles(supersededPaths);
 
     return updated;
   }

@@ -1032,7 +1032,7 @@ export const CandidateUploadCv: React.FC = () => {
         createdAt: string;
       }>('/candidate/cvs', token, { method: 'POST', body: formData });
       const newDoc = mapDocument(uploaded);
-      setDocuments((current) => [newDoc, ...current]);
+      setDocuments([newDoc]);
       if (newDoc.parsingStatus === 'Parsing...') {
         setUploadedCvId(newDoc.id);
         setUploadProgress({
@@ -1107,9 +1107,7 @@ export const CandidateUploadCv: React.FC = () => {
         createdAt: string;
       }>(`/candidate/cvs/${doc.id}/file`, token, { method: 'PATCH', body: formData });
       const updatedDoc = mapDocument(updated);
-      setDocuments((current) =>
-        current.map((item) => (item.id === updatedDoc.id ? updatedDoc : item)),
-      );
+      setDocuments([updatedDoc]);
       setUploadedCvId(updatedDoc.id);
       setUploadProgress({
         phase: 'parsing',
