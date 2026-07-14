@@ -435,9 +435,7 @@ export const HRCampaignDetail: React.FC = () => {
           dueDate: hasScheduledDates ? formatDate(task.endDate ?? '') : '',
           dueDateInput: hasScheduledDates ? toDateInputValue(task.endDate ?? '') : '',
           assigneeId: isHrRole(task.assignedTo?.role) ? task.assignedTo.id : undefined,
-          assigneeName: isHrRole(task.assignedTo?.role)
-            ? task.assignedTo.displayName
-            : undefined,
+          assigneeName: isHrRole(task.assignedTo?.role) ? task.assignedTo.displayName : undefined,
           assigneeRole: task.assignedTo?.role,
           reminderStatus: task.reminders?.some((reminder) => reminder.status === 'SENT')
             ? 'Reminder sent'
@@ -452,7 +450,7 @@ export const HRCampaignDetail: React.FC = () => {
   const completedTasks = tasks.filter((task) => task.done).length;
   const taskProgress = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
   const visibleTasks = tasks;
-  const canUseTaskPermission = (_taskType: string) => isHr;
+  const canUseTaskPermission = () => isHr;
   const collectionCountsByRecruiter = useMemo(() => {
     const counts = new Map<string, number>();
     for (const application of applications) {
@@ -645,13 +643,9 @@ export const HRCampaignDetail: React.FC = () => {
     tasks.some((task) => task.taskType === 'CV_COLLECTION') ||
     tasks.some((task) => task.taskType === 'CV_SCREENING');
   const canScheduleInterview =
-    request?.status === 'ACTIVE' &&
-    hasInterviewTask &&
-    canUseTaskPermission('INTERVIEW_COORDINATION');
+    request?.status === 'ACTIVE' && hasInterviewTask && canUseTaskPermission();
   const canFindCandidates =
-    request?.status === 'ACTIVE' &&
-    hasCandidateSearchTask &&
-    (canUseTaskPermission('CV_COLLECTION') || canUseTaskPermission('CV_SCREENING'));
+    request?.status === 'ACTIVE' && hasCandidateSearchTask && canUseTaskPermission();
 
   const submitPlan = async () => {
     if (!plan) return;
@@ -1087,9 +1081,7 @@ export const HRCampaignDetail: React.FC = () => {
                     style={{ width: `${taskProgress}%` }}
                   />
                 </div>
-                <span className="font-mono text-xs text-on-surface-variant">
-                  {taskProgress}%
-                </span>
+                <span className="font-mono text-xs text-on-surface-variant">{taskProgress}%</span>
               </div>
             </div>
             {taskActionError && (
@@ -1506,11 +1498,7 @@ export const HRCampaignDetail: React.FC = () => {
                 <div className="flex gap-2">
                   <button
                     className="h-10 flex-1 rounded-lg bg-teal-command px-4 text-sm font-bold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={
-                      !scheduleCandidateId ||
-                      !scheduleAt ||
-                      !scheduleLocation.trim()
-                    }
+                    disabled={!scheduleCandidateId || !scheduleAt || !scheduleLocation.trim()}
                     onClick={() => void createInterviewSchedule()}
                     type="button"
                   >

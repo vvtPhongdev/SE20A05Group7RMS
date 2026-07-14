@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { UserRole } from '@wr/contracts';
 import { getRoleHomePath } from '../lib/auth';
+import { getErrorMessage, getErrorMetadata } from '../lib/errors';
 
 const accountTypes = [
   {
@@ -151,9 +152,10 @@ export const SignUp: React.FC = () => {
 
         const loggedUser = await completeSupabaseLogin();
         navigate(getRoleHomePath(loggedUser.role), { replace: true });
-      } catch (err: any) {
-        if (err.status !== 404 && err.code !== 'RMS_ACCOUNT_NOT_REGISTERED') {
-          setError(err.message || 'Google sign-up could not be completed.');
+      } catch (err: unknown) {
+        const authError = getErrorMetadata(err);
+        if (authError.status !== 404 && authError.code !== 'RMS_ACCOUNT_NOT_REGISTERED') {
+          setError(getErrorMessage(err, 'Google sign-up could not be completed.'));
         }
       } finally {
         setGoogleLoading(false);
@@ -224,8 +226,8 @@ export const SignUp: React.FC = () => {
 
       setOtpSecondsLeft(272);
       window.setTimeout(() => otpInputRefs.current[0]?.focus(), 0);
-    } catch (err: any) {
-      setOtpError(err.message || 'Failed to resend code. Please try again.');
+    } catch (err: unknown) {
+      setOtpError(getErrorMessage(err, 'Failed to resend code. Please try again.'));
     }
   };
 
@@ -269,8 +271,8 @@ export const SignUp: React.FC = () => {
         loginWithToken(data.accessToken, data.user, data.refreshToken);
         setVerifiedRole(data.user.role);
       }
-    } catch (err: any) {
-      setOtpError(err.message || 'Invalid or expired code. Please try again.');
+    } catch (err: unknown) {
+      setOtpError(getErrorMessage(err, 'Invalid or expired code. Please try again.'));
     } finally {
       setOtpLoading(false);
     }
@@ -304,9 +306,9 @@ export const SignUp: React.FC = () => {
 
     try {
       await signInWithGoogle('/signup?auth=google');
-    } catch (err: any) {
+    } catch (err: unknown) {
       setGoogleLoading(false);
-      setError(err.message || 'Could not start Google sign-up.');
+      setError(getErrorMessage(err, 'Could not start Google sign-up.'));
     }
   };
 
@@ -378,8 +380,8 @@ export const SignUp: React.FC = () => {
 
       localStorage.setItem('registered_email', email);
       setSubmitted(true);
-    } catch (err: any) {
-      setError(err.message || 'An error occurred during signup.');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'An error occurred during signup.'));
     } finally {
       setLoading(false);
     }
@@ -667,7 +669,9 @@ export const SignUp: React.FC = () => {
                           Full name
                         </label>
                         <input
-                          aria-describedby={fieldErrors.fullName ? 'signup-full-name-error' : undefined}
+                          aria-describedby={
+                            fieldErrors.fullName ? 'signup-full-name-error' : undefined
+                          }
                           aria-invalid={!!fieldErrors.fullName}
                           className={`h-12 w-full rounded-[var(--wr-radius-lg)] border bg-[#fefdfb] px-4 text-sm outline-none transition focus:bg-white focus:ring-2 ${fieldErrors.fullName ? 'border-[var(--wr-error-border)] focus:border-[var(--wr-error-border)] focus:ring-[var(--wr-error-border)]/20' : 'border-[var(--wr-border-default)] focus:border-[var(--wr-focus-ring)] focus:ring-[var(--wr-focus-ring)]/20'}`}
                           id="fullName"
@@ -679,9 +683,17 @@ export const SignUp: React.FC = () => {
                           }}
                         />
                         {fieldErrors.fullName ? (
-                          <p id="signup-full-name-error" role="alert" className="text-xs font-medium text-[var(--wr-error-text)]">{fieldErrors.fullName}</p>
+                          <p
+                            id="signup-full-name-error"
+                            role="alert"
+                            className="text-xs font-medium text-[var(--wr-error-text)]"
+                          >
+                            {fieldErrors.fullName}
+                          </p>
                         ) : (
-                          <p className="text-xs text-[var(--wr-text-muted)]">Use your legal or workplace display name.</p>
+                          <p className="text-xs text-[var(--wr-text-muted)]">
+                            Use your legal or workplace display name.
+                          </p>
                         )}
                       </div>
 
@@ -721,9 +733,17 @@ export const SignUp: React.FC = () => {
                         }}
                       />
                       {fieldErrors.email ? (
-                        <p id="signup-email-error" role="alert" className="text-xs font-medium text-[var(--wr-error-text)]">{fieldErrors.email}</p>
+                        <p
+                          id="signup-email-error"
+                          role="alert"
+                          className="text-xs font-medium text-[var(--wr-error-text)]"
+                        >
+                          {fieldErrors.email}
+                        </p>
                       ) : (
-                        <p className="text-xs text-[var(--wr-text-muted)]">Invitations and review updates are sent here.</p>
+                        <p className="text-xs text-[var(--wr-text-muted)]">
+                          Invitations and review updates are sent here.
+                        </p>
                       )}
                     </div>
 
@@ -765,7 +785,9 @@ export const SignUp: React.FC = () => {
                         </label>
                         <div className="relative">
                           <input
-                            aria-describedby={fieldErrors.password ? 'signup-password-error' : undefined}
+                            aria-describedby={
+                              fieldErrors.password ? 'signup-password-error' : undefined
+                            }
                             aria-invalid={!!fieldErrors.password}
                             className={`h-12 w-full rounded-[var(--wr-radius-lg)] border bg-[#fefdfb] px-4 pr-12 text-sm outline-none transition focus:bg-white focus:ring-2 ${fieldErrors.password ? 'border-[var(--wr-error-border)] focus:border-[var(--wr-error-border)] focus:ring-[var(--wr-error-border)]/20' : 'border-[var(--wr-border-default)] focus:border-[var(--wr-focus-ring)] focus:ring-[var(--wr-focus-ring)]/20'}`}
                             id="password"
@@ -795,9 +817,17 @@ export const SignUp: React.FC = () => {
                           ))}
                         </div>
                         {fieldErrors.password ? (
-                          <p id="signup-password-error" role="alert" className="text-xs font-medium text-[var(--wr-error-text)]">{fieldErrors.password}</p>
+                          <p
+                            id="signup-password-error"
+                            role="alert"
+                            className="text-xs font-medium text-[var(--wr-error-text)]"
+                          >
+                            {fieldErrors.password}
+                          </p>
                         ) : (
-                          <p className="text-xs text-[var(--wr-text-muted)]">Use 8+ characters with mixed character types.</p>
+                          <p className="text-xs text-[var(--wr-text-muted)]">
+                            Use 8+ characters with mixed character types.
+                          </p>
                         )}
                       </div>
                     )}

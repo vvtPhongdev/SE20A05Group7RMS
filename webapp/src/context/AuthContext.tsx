@@ -25,6 +25,12 @@ interface SupabaseRegisterData {
   rememberMe?: boolean;
 }
 
+interface AuthResponse {
+  accessToken: string;
+  refreshToken?: string;
+  user: User;
+}
+
 interface AuthContextType {
   user: User | null;
   token: string | null;
@@ -122,7 +128,7 @@ const revokeStoredRefreshToken = async (refreshToken: string | null) => {
   }
 };
 
-const mapAuthUser = (data: any): User => ({
+const mapAuthUser = (data: AuthResponse): User => ({
   id: data.user.id,
   email: data.user.email,
   displayName: data.user.displayName,
@@ -241,8 +247,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const saveAuthResponse = (data: any, rememberMe = false) => {
-    const loggedUser = mapAuthUser(data);
+  const saveAuthResponse = async (data: AuthResponse, rememberMe = false) => {
+    let loggedUser = mapAuthUser(data);
+    try {
+      const profileResponse = await fetch('/api/v1/me', {
+        headers: { Authorization: `Bearer ${data.accessToken}` },
+      });
+      if (profileResponse.ok) {
+        loggedUser = { ...loggedUser, ...(await profileResponse.json()) } as User;
+      }
+    } catch {
+      // The login payload remains sufficient for routing if profile hydration is unavailable.
+    }
     storeAuth(data.accessToken, loggedUser, data.refreshToken, rememberMe);
     setToken(data.accessToken);
     setUser(loggedUser);
@@ -483,10 +499,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem(AUTH_LOGOUT_EVENT_KEY, Date.now().toString());
     localStorage.removeItem(AUTH_LOGOUT_EVENT_KEY);
 
-    await Promise.allSettled([
-      revokeStoredRefreshToken(refreshToken),
-      revokeSupabaseSession(),
-    ]);
+    await Promise.allSettled([revokeStoredRefreshToken(refreshToken), revokeSupabaseSession()]);
   };
 
   return (

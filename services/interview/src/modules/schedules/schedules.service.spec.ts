@@ -88,6 +88,13 @@ describe('SchedulesService', () => {
           role: UserRole.DEPARTMENT_HEAD,
           isActive: true,
         },
+        {
+          id: 'hr-1',
+          displayName: 'HR Scheduler',
+          email: 'scheduler@example.com',
+          role: UserRole.HR_LEADER,
+          isActive: true,
+        },
       ]);
       // Mock conflict check returns no conflict
       prisma.interviewSchedule.findMany.mockResolvedValue([]);

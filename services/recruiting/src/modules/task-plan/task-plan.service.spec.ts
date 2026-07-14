@@ -116,24 +116,28 @@ describe('TaskPlanService', () => {
     });
 
     it('creates a task and writes a TASK_PLAN_ASSIGNED audit log', async () => {
+      const planStart = new Date();
+      planStart.setUTCHours(0, 0, 0, 0);
+      const taskEnd = new Date(planStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const planEnd = new Date(planStart.getTime() + 30 * 24 * 60 * 60 * 1000);
       prisma.overallPlan.findUnique.mockResolvedValue({
         id: 'plan-1',
         status: PlanStatus.DRAFT,
-        startDate: new Date('2026-07-01'),
-        endDate: new Date('2026-07-31'),
+        startDate: planStart,
+        endDate: planEnd,
       });
       prisma.taskPlan.create.mockResolvedValue({
         id: 'task-1',
         status: TaskStatus.PENDING,
-        endDate: new Date('2026-07-10'),
+        endDate: taskEnd,
       });
 
       const result = await service.create({
         overallPlanId: 'plan-1',
         taskType: TaskType.JOB_POSTING,
         assignedToId: 'user-1',
-        startDate: '2026-07-01',
-        endDate: '2026-07-10',
+        startDate: planStart.toISOString().slice(0, 10),
+        endDate: taskEnd.toISOString().slice(0, 10),
       });
 
       expect(auditLog.log).toHaveBeenCalledWith(

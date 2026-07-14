@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { getErrorMessage } from '../lib/errors';
 
 const OTP_LENGTH = 6;
 const INITIAL_SECONDS = 272;
@@ -132,8 +133,8 @@ export const EmailOtpVerification: React.FC = () => {
 
       setSecondsLeft(INITIAL_SECONDS);
       window.setTimeout(() => focusInput(0), 0);
-    } catch (err: any) {
-      setError(err.message || 'Failed to resend code. Please try again.');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to resend code. Please try again.'));
     }
   };
 
@@ -171,8 +172,8 @@ export const EmailOtpVerification: React.FC = () => {
 
       setVerified(true);
       localStorage.removeItem('registered_email');
-    } catch (err: any) {
-      setError(err.message || 'Invalid or expired code. Please try again.');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Invalid or expired code. Please try again.'));
     } finally {
       setLoading(false);
     }

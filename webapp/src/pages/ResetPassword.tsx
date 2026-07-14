@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { getErrorMessage } from '../lib/errors';
 
 const trustItems = [
   { label: 'Secure encryption', icon: 'shield' },
@@ -90,8 +91,8 @@ export const ResetPassword: React.FC = () => {
       }
 
       setSuccess(true);
-    } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred. Please try again.');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'An unexpected error occurred. Please try again.'));
     } finally {
       setLoading(false);
     }

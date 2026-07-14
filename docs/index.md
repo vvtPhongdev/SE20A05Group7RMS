@@ -4,17 +4,18 @@
 
 ### Quick Links
 
-| Document                                                      | Description                                                 |
-| ------------------------------------------------------------- | ----------------------------------------------------------- |
-| [Project Overview](../PROJECT_OVERVIEW/index.md)              | Table of contents for project overview documents            |
-| [Enterprise Hiring Workflow](./enterprise-hiring-workflow.md) | Detailed state machine, transition rules, planning entities |
-| [Architecture](./architecture.md)                             | System architecture, service diagram, communication rules   |
-| [Data Models](./data-models.md)                               | Entity definitions, relationships, enum catalog             |
-| [API Contracts](./api-contracts.md)                           | HTTP endpoints, TCP message patterns, RBAC matrix           |
-| [Auth Design](./auth-design.md)                               | JWT strategy, refresh tokens, role-based guards             |
-| [All Tasks](./all-tasks.md)                                   | Master task list with dependencies                          |
-| [RMS Implementation Spec](./specs/spec-rms-implementation/SPEC.md) | Canonical spec and per-task implementation matrix            |
+| Document                                                                                | Description                                                               |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| [Project Overview](../PROJECT_OVERVIEW/index.md)                                        | Table of contents for project overview documents                          |
+| [Enterprise Hiring Workflow](./enterprise-hiring-workflow.md)                           | Detailed state machine, transition rules, planning entities               |
+| [Architecture](./architecture.md)                                                       | System architecture, service diagram, communication rules                 |
+| [Data Models](./data-models.md)                                                         | Entity definitions, relationships, enum catalog                           |
+| [API Contracts](./api-contracts.md)                                                     | HTTP endpoints, TCP message patterns, RBAC matrix                         |
+| [Auth Design](./auth-design.md)                                                         | JWT strategy, refresh tokens, role-based guards                           |
+| [All Tasks](./all-tasks.md)                                                             | Master task list with dependencies                                        |
+| [RMS Implementation Spec](./specs/spec-rms-implementation/SPEC.md)                      | Canonical spec and per-task implementation matrix                         |
 | [Requirement v1.0 Implementation Task](./tasks/requirement-v1.0-implementation-task.md) | Focused task for interview panel, offer response, tracking, and reminders |
+| [End-to-End Role Flow Testing](./e2e-testing.md)                                        | Executable API and responsive UI verification for all roles               |
 
 ### Project Overview Documents
 
