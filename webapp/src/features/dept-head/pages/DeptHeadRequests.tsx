@@ -26,6 +26,7 @@ type RequestStatus =
 type Priority = 'Low' | 'Medium' | 'High' | 'Critical';
 type FilterKey = 'All' | 'Pending' | 'Approved' | 'Revision' | 'Completed';
 type SortKey = 'submitted' | 'priority' | 'status' | 'quantity';
+type WorkflowWorkspace = 'Request' | 'Campaign Plan';
 
 interface DeptRequest {
   id: string;
@@ -36,6 +37,8 @@ interface DeptRequest {
   submitted: string;
   submittedAt: string;
   status: RequestStatus;
+  workflowWorkspace: WorkflowWorkspace;
+  workflowStatus: string;
   rejectionReason?: string | null;
 }
 
@@ -81,6 +84,24 @@ interface RecruitmentRequestDetails {
 }
 
 const filterOptions: FilterKey[] = ['All', 'Pending', 'Approved', 'Revision', 'Completed'];
+
+const CAMPAIGN_MANAGED_REQUEST_STATUSES = new Set([
+  'PLANNING',
+  'PLAN_PENDING_APPROVAL',
+  'PLAN_APPROVED',
+  'ACTIVE',
+  'SCREENING',
+  'INTERVIEWING',
+  'INTERVIEW_COMPLETED',
+  'DECISION_PENDING',
+  'OFFER_EXTENDED',
+  'OFFER_ACCEPTED',
+  'OFFER_DECLINED',
+  'HIRED',
+  'NOT_HIRED',
+  'COMPLETED',
+  'CLOSED',
+]);
 
 const priorityWeight: Record<Priority, number> = {
   Critical: 4,
@@ -161,8 +182,19 @@ const mapRequest = (item: RealtimeTrackingItem): DeptRequest => ({
   }),
   submittedAt: item.createdAt,
   status: statusFromApi(item.status, item.filledHeadcount, item.targetHeadcount),
+  workflowWorkspace: CAMPAIGN_MANAGED_REQUEST_STATUSES.has(item.status)
+    ? 'Campaign Plan'
+    : 'Request',
+  workflowStatus: item.status,
   rejectionReason: item.rejectionReason,
 });
+
+const formatWorkflowStatus = (status: string) =>
+  status
+    .toLowerCase()
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 
 const priorityStyles: Record<Priority, string> = {
   Critical: 'rounded-full border border-[#dc2626]/30 bg-[#dc2626]/10 px-2.5 py-1 text-[#b91c1c]',
@@ -228,6 +260,7 @@ export const DeptHeadRequests: React.FC = () => {
     useState<RecruitmentRequestDetails | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [deletingRequestId, setDeletingRequestId] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<DeptRequest | null>(null);
 
   useEffect(() => {
     const loadRequests = async () => {
@@ -235,7 +268,17 @@ export const DeptHeadRequests: React.FC = () => {
       setApiError('');
       try {
         const data = await apiRequest<RealtimeTrackingItem[]>('/reports/realtime-tracking', token);
-        const mapped = data.map(mapRequest);
+        // Keep the request visible to its Department Head, but mark campaign-owned
+        // work explicitly. Deduplicate the tracking payload by request ID.
+        const latestById = new Map<string, RealtimeTrackingItem>();
+        data
+          .forEach((item) => {
+            const current = latestById.get(item.id);
+            if (!current || new Date(item.updatedAt) > new Date(current.updatedAt)) {
+              latestById.set(item.id, item);
+            }
+          });
+        const mapped = [...latestById.values()].map(mapRequest);
         setRequests(mapped);
         setSelectedRequestId((current) => current || mapped[0]?.id || '');
       } catch (loadError) {
@@ -322,16 +365,18 @@ export const DeptHeadRequests: React.FC = () => {
     }
   };
 
-  const deletePendingRequest = async (request: DeptRequest) => {
-    if (request.status !== 'Pending') {
-      setApiError('Only pending requests can be deleted.');
+  const requestDelete = (request: DeptRequest) => {
+    if (request.status !== 'Pending' || request.workflowWorkspace === 'Campaign Plan') {
+      setApiError('Only pending requests that have not entered campaign planning can be deleted.');
       return;
     }
 
-    const confirmed = window.confirm(
-      `Delete pending request "${request.position}"? This action cannot be undone.`,
-    );
-    if (!confirmed) return;
+    setDeleteTarget(request);
+  };
+
+  const deletePendingRequest = async () => {
+    if (!deleteTarget) return;
+    const request = deleteTarget;
 
     setApiError('');
     setDeletingRequestId(request.id);
@@ -350,6 +395,7 @@ export const DeptHeadRequests: React.FC = () => {
         setSelectedRequestDetails(null);
       }
       setIsViewModalOpen(false);
+      setDeleteTarget(null);
     } catch (deleteError) {
       setApiError(
         deleteError instanceof ApiError
@@ -521,7 +567,7 @@ export const DeptHeadRequests: React.FC = () => {
 
         <div className="overflow-hidden rounded-xl border border-border-warm bg-clean-surface shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left">
+            <table className="w-full min-w-[1020px] text-left">
               <thead>
                 <tr className="border-b border-border-warm bg-parchment-lift text-sm text-on-surface-variant">
                   <th className="px-6 py-4 font-semibold">ID</th>
@@ -530,6 +576,7 @@ export const DeptHeadRequests: React.FC = () => {
                   <th className="px-6 py-4 font-semibold">Priority</th>
                   <th className="px-6 py-4 font-semibold">Submitted</th>
                   <th className="px-6 py-4 font-semibold">Status</th>
+                  <th className="px-6 py-4 font-semibold">Workspace</th>
                   <th className="px-6 py-4 text-right font-semibold">Actions</th>
                 </tr>
               </thead>
@@ -569,6 +616,22 @@ export const DeptHeadRequests: React.FC = () => {
                       >
                         {request.status}
                       </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {request.workflowWorkspace === 'Campaign Plan' ? (
+                        <div>
+                          <span className="inline-flex rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-bold text-violet-700">
+                            Campaign Plan
+                          </span>
+                          <p className="mt-1 text-[11px] font-medium text-violet-700">
+                            {formatWorkflowStatus(request.workflowStatus)}
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="inline-flex rounded-full border border-teal-command/20 bg-teal-command/5 px-2.5 py-1 text-xs font-bold text-teal-command">
+                          Request
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end gap-3">
@@ -613,11 +676,11 @@ export const DeptHeadRequests: React.FC = () => {
                         >
                           View
                         </button>
-                        {request.status === 'Pending' && (
+                        {request.status === 'Pending' && request.workflowWorkspace === 'Request' && (
                           <button
                             className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 transition hover:underline active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                             disabled={deletingRequestId === request.id}
-                            onClick={() => void deletePendingRequest(request)}
+                            onClick={() => requestDelete(request)}
                             type="button"
                           >
                             <Icon className="h-3.5 w-3.5" name="trash" />
@@ -704,8 +767,13 @@ export const DeptHeadRequests: React.FC = () => {
                 ['Submitted', selectedRequest.submitted],
                 [
                   'Next action',
-                  selectedRequest.status === 'Draft' ? 'Submit request' : 'Monitor status',
+                  selectedRequest.workflowWorkspace === 'Campaign Plan'
+                    ? 'Track campaign progress'
+                    : selectedRequest.status === 'Draft'
+                      ? 'Submit request'
+                      : 'Monitor request',
                 ],
+                ['Workspace', selectedRequest.workflowWorkspace],
               ].map(([label, value]) => (
                 <div
                   className="rounded-lg border border-border-warm bg-workflow-ivory/70 p-4"
@@ -749,8 +817,10 @@ export const DeptHeadRequests: React.FC = () => {
                     ? 'HR returned this request for edits. Update the justification before resubmitting.'
                     : selectedRequest.status === 'Completed'
                       ? 'Hiring has been completed and the request can be used for reporting.'
-                      : selectedRequest.status === 'Approved'
-                        ? 'The request is approved and ready for HR planning or active recruitment.'
+                    : selectedRequest.workflowWorkspace === 'Campaign Plan'
+                        ? `This request is now managed as a Campaign Plan (${formatWorkflowStatus(selectedRequest.workflowStatus)}). It cannot be deleted.`
+                        : selectedRequest.status === 'Approved'
+                          ? 'The request is approved and ready for HR planning.'
                         : selectedRequest.status === 'Pending'
                           ? 'The request is waiting for review from the approval workflow.'
                           : 'The request is still a draft and has not entered approval yet.'}
@@ -782,11 +852,12 @@ export const DeptHeadRequests: React.FC = () => {
                       Submit Draft
                     </button>
                   )}
-                  {selectedRequest.status === 'Pending' && (
+                  {selectedRequest.status === 'Pending' &&
+                    selectedRequest.workflowWorkspace === 'Request' && (
                     <button
                       className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 text-xs font-semibold text-red-600 transition hover:bg-red-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                       disabled={deletingRequestId === selectedRequest.id}
-                      onClick={() => void deletePendingRequest(selectedRequest)}
+                      onClick={() => requestDelete(selectedRequest)}
                       type="button"
                     >
                       <Icon className="h-4 w-4" name="trash" />
@@ -871,6 +942,25 @@ export const DeptHeadRequests: React.FC = () => {
                     <span className="h-1.5 w-1.5 rounded-full bg-current" />
                     {selectedRequest.priority}
                   </span>
+                </div>
+                <div className="p-4 bg-workflow-ivory rounded-lg border border-border-warm shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant mb-1">
+                    Workflow Workspace
+                  </p>
+                  <span
+                    className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${
+                      selectedRequest.workflowWorkspace === 'Campaign Plan'
+                        ? 'border-violet-200 bg-violet-50 text-violet-700'
+                        : 'border-teal-command/20 bg-teal-command/5 text-teal-command'
+                    }`}
+                  >
+                    {selectedRequest.workflowWorkspace}
+                  </span>
+                  {selectedRequest.workflowWorkspace === 'Campaign Plan' ? (
+                    <p className="mt-2 text-xs font-medium text-violet-700">
+                      {formatWorkflowStatus(selectedRequest.workflowStatus)}
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
@@ -1056,11 +1146,12 @@ export const DeptHeadRequests: React.FC = () => {
                   Submit Request
                 </button>
               )}
-              {selectedRequest.status === 'Pending' && (
+              {selectedRequest.status === 'Pending' &&
+                selectedRequest.workflowWorkspace === 'Request' && (
                 <button
                   className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-5 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={deletingRequestId === selectedRequest.id}
-                  onClick={() => void deletePendingRequest(selectedRequest)}
+                  onClick={() => requestDelete(selectedRequest)}
                   type="button"
                 >
                   <Icon className="h-4 w-4" name="trash" />
@@ -1071,6 +1162,52 @@ export const DeptHeadRequests: React.FC = () => {
           </div>
         </div>
       )}
+
+      {deleteTarget ? (
+        <div
+          aria-labelledby="delete-request-title"
+          aria-modal="true"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-deep-charcoal/55 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !deletingRequestId) {
+              setDeleteTarget(null);
+            }
+          }}
+          role="dialog"
+        >
+          <section className="w-full max-w-md rounded-xl border border-border-warm bg-clean-surface p-6 shadow-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-rejected">
+              Confirm deletion
+            </p>
+            <h2 className="mt-2 text-xl font-semibold text-deep-charcoal" id="delete-request-title">
+              Delete this pending request?
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-slate-ink">
+              <span className="font-semibold text-deep-charcoal">{deleteTarget.position}</span>{' '}
+              will be permanently removed. This action cannot be undone.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                className="rounded-lg border border-border-warm px-4 py-2 text-sm font-semibold text-on-surface-variant transition hover:bg-surface-container-low disabled:opacity-60"
+                disabled={Boolean(deletingRequestId)}
+                onClick={() => setDeleteTarget(null)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="inline-flex items-center gap-2 rounded-lg bg-rejected px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={deletingRequestId === deleteTarget.id}
+                onClick={() => void deletePendingRequest()}
+                type="button"
+              >
+                <Icon className="h-4 w-4" name="trash" />
+                {deletingRequestId === deleteTarget.id ? 'Deleting...' : 'Delete Request'}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </DeptHeadDashboardPage>
   );
 };

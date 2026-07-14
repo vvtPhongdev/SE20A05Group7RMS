@@ -58,6 +58,13 @@ type SortField =
   | 'urgency';
 type SortDirection = 'asc' | 'desc' | 'none';
 
+const PRIORITY_RANK: Record<Urgency, number> = {
+  Critical: 4,
+  High: 3,
+  Medium: 2,
+  Low: 1,
+};
+
 export const AdminAllRequests: React.FC = () => {
   const navigate = useNavigate();
   const { token } = useAuth();
@@ -84,15 +91,26 @@ export const AdminAllRequests: React.FC = () => {
   const mapStatus = (status: string): RequestStatus => {
     const statuses: Record<string, RequestStatus> = {
       DRAFT: 'Draft',
+      PENDING_HR_REVIEW: 'Pending Review',
+      PENDING_BOSS_APPROVAL: 'Pending',
       PENDING_REVIEW: 'Pending',
       APPROVED: 'Approved',
       REVISION_NEEDED: 'Revision Needed',
       PLANNING: 'Planning',
+      PLAN_PENDING_APPROVAL: 'Planning',
       PLAN_APPROVED: 'Active',
+      ACTIVE: 'Active',
+      SOURCING: 'Active',
       SCREENING: 'Screening',
       INTERVIEWING: 'Interviewing',
+      INTERVIEW_COMPLETED: 'Interviewing',
+      DECISION_PENDING: 'Interviewing',
       OFFER_EXTENDED: 'Active',
+      OFFER_DECLINED: 'Active',
       OFFER_ACCEPTED: 'Completed',
+      HIRED: 'Completed',
+      NOT_HIRED: 'Active',
+      COMPLETED: 'Completed',
       CLOSED: 'Completed',
       CANCELLED: 'Rejected',
       REJECTED: 'Rejected',
@@ -254,6 +272,9 @@ export const AdminAllRequests: React.FC = () => {
       if (sortField === 'submittedDate') {
         aVal = new Date(a.submittedDate).getTime();
         bVal = new Date(b.submittedDate).getTime();
+      } else if (sortField === 'urgency') {
+        aVal = PRIORITY_RANK[a.urgency];
+        bVal = PRIORITY_RANK[b.urgency];
       }
 
       if (typeof aVal === 'string') {
@@ -307,7 +328,7 @@ export const AdminAllRequests: React.FC = () => {
       setSortDir((prev) => (prev === 'asc' ? 'desc' : prev === 'desc' ? 'none' : 'asc'));
     } else {
       setSortField(field);
-      setSortDir('asc');
+      setSortDir(field === 'urgency' ? 'desc' : 'asc');
     }
   };
 

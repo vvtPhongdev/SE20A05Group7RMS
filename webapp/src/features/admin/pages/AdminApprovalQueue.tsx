@@ -2,18 +2,16 @@
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest } from '../../../lib/api';
 import {
-  AdminCard,
   AdminDashboardPage,
   AdminInlineAlert,
   AdminPageHeader,
   AdminSearchInput,
 } from '../components';
 
-type ApprovalStatus = 'Pending' | 'Approved' | 'Rejected' | 'Revision' | 'Draft';
+type ApprovalStatus = 'Pending';
 type Priority = 'High' | 'Medium' | 'Low';
-type FilterKey = 'All' | ApprovalStatus;
 type ReviewAction = 'APPROVED' | 'REJECTED' | 'REQUEST_CHANGES';
-type ApprovalTypeFilter = 'ALL' | 'REQUEST' | 'PLAN';
+type ApprovalQueueType = 'REQUEST' | 'PLAN';
 
 interface ApprovalRequest {
   id: string;
@@ -44,14 +42,15 @@ interface ApprovalRequest {
   }>;
   planWindow?: string;
 }
-const filters: FilterKey[] = ['All', 'Pending', 'Revision', 'Approved', 'Rejected', 'Draft'];
-const approvalTypeFilters: Array<{ key: ApprovalTypeFilter; label: string }> = [
-  { key: 'ALL', label: 'All Types' },
+const approvalQueueTabs: Array<{ key: ApprovalQueueType; label: string }> = [
   { key: 'REQUEST', label: 'Request Approval' },
-  { key: 'PLAN', label: 'Plan Approval' },
+  { key: 'PLAN', label: 'Campaign Plan Approval' },
 ];
-const ADMIN_PLAN_STATUSES = new Set(['PENDING_APPROVAL', 'APPROVED', 'REJECTED']);
-const ADMIN_REQUEST_STATUSES = new Set(['PENDING_BOSS_APPROVAL', 'APPROVED', 'REJECTED']);
+const PENDING_PLAN_APPROVAL_STATUSES = new Set(['PENDING_APPROVAL']);
+const PENDING_REQUEST_APPROVAL_STATUSES = new Set([
+  'PENDING_BOSS_APPROVAL',
+  'PENDING_REVIEW',
+]);
 
 interface RecruitmentRequestApi {
   id: string;
@@ -109,8 +108,7 @@ const salaryRangeFromRequirements = (requirements?: Record<string, unknown> | nu
 export const AdminApprovalQueue: React.FC = () => {
   const { token } = useAuth();
   const [requests, setRequests] = useState<ApprovalRequest[]>([]);
-  const [filter, setFilter] = useState<FilterKey>('All');
-  const [approvalTypeFilter, setApprovalTypeFilter] = useState<ApprovalTypeFilter>('ALL');
+  const [activeQueue, setActiveQueue] = useState<ApprovalQueueType>('REQUEST');
   const [department, setDepartment] = useState('All');
   const [query, setQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -149,17 +147,20 @@ export const AdminApprovalQueue: React.FC = () => {
         setRequests(
           response.data
             .filter((request) => {
-              const isPlanApproval = ADMIN_PLAN_STATUSES.has(request.overallPlan?.status ?? '');
+              const isPlanApproval = PENDING_PLAN_APPROVAL_STATUSES.has(
+                request.overallPlan?.status ?? '',
+              );
               const isForwardedRequest =
-                ADMIN_REQUEST_STATUSES.has(request.status) ||
-                (request.status === 'REVISION_NEEDED' && request.forwardedToAdmin) ||
-                (request.status === 'PENDING_REVIEW' && request.forwardedToAdmin);
+                request.status === 'PENDING_BOSS_APPROVAL' ||
+                (PENDING_REQUEST_APPROVAL_STATUSES.has(request.status) &&
+                  request.status === 'PENDING_REVIEW' &&
+                  request.forwardedToAdmin === true);
 
               return isPlanApproval || isForwardedRequest;
             })
             .map((request) => {
               const planStatus = request.overallPlan?.status;
-              const isPlanApproval = ADMIN_PLAN_STATUSES.has(planStatus ?? '');
+              const isPlanApproval = PENDING_PLAN_APPROVAL_STATUSES.has(planStatus ?? '');
               return {
                 id: request.id,
                 position: request.position,
@@ -172,22 +173,7 @@ export const AdminApprovalQueue: React.FC = () => {
                     : request.urgency === 'MEDIUM'
                       ? 'Medium'
                       : 'Low',
-                status: isPlanApproval
-                  ? planStatus === 'PENDING_APPROVAL'
-                    ? 'Pending'
-                    : planStatus === 'APPROVED'
-                      ? 'Approved'
-                      : 'Rejected'
-                  : request.status === 'PENDING_BOSS_APPROVAL' ||
-                      (request.status === 'PENDING_REVIEW' && request.forwardedToAdmin)
-                    ? 'Pending'
-                    : request.status === 'REVISION_NEEDED'
-                      ? 'Revision'
-                      : request.status === 'APPROVED'
-                        ? 'Approved'
-                        : request.status === 'REJECTED'
-                          ? 'Rejected'
-                          : 'Draft',
+                status: 'Pending',
                 submitted: new Date(request.createdAt).toLocaleDateString(),
                 salaryRange: salaryRangeFromRequirements(request.skillRequirements),
                 description: request.jobDescription || request.justification,
@@ -223,29 +209,17 @@ export const AdminApprovalQueue: React.FC = () => {
     };
   }, [token]);
 
-  // Reset page when filter, query, or department changes
+  // Reset page when the selected approval queue, query, or department changes.
   useEffect(() => {
     setCurrentPage(1);
-  }, [approvalTypeFilter, filter, query, department]);
+  }, [activeQueue, query, department]);
 
   const departments = useMemo(() => {
     return ['All', ...Array.from(new Set(requests.map((r) => r.department)))];
   }, [requests]);
 
-  const counts = useMemo(() => {
-    return {
-      All: requests.length,
-      Pending: requests.filter((r) => r.status === 'Pending').length,
-      Approved: requests.filter((r) => r.status === 'Approved').length,
-      Rejected: requests.filter((r) => r.status === 'Rejected').length,
-      Revision: requests.filter((r) => r.status === 'Revision').length,
-      Draft: requests.filter((r) => r.status === 'Draft').length,
-    };
-  }, [requests]);
-
   const typeCounts = useMemo(
     () => ({
-      ALL: requests.length,
       REQUEST: requests.filter((request) => request.approvalType === 'REQUEST').length,
       PLAN: requests.filter((request) => request.approvalType === 'PLAN').length,
     }),
@@ -255,7 +229,7 @@ export const AdminApprovalQueue: React.FC = () => {
   const notificationItems = useMemo(
     () =>
       requests
-        .filter((request) => request.status === 'Pending' || request.status === 'Revision')
+        .filter((request) => request.status === 'Pending')
         .slice(0, 6),
     [requests],
   );
@@ -287,9 +261,7 @@ export const AdminApprovalQueue: React.FC = () => {
     const normalizedQuery = query.trim().toLowerCase();
 
     return requests.filter((request) => {
-      const matchesFilter = filter === 'All' || request.status === filter;
-      const matchesApprovalType =
-        approvalTypeFilter === 'ALL' || request.approvalType === approvalTypeFilter;
+      const matchesApprovalType = request.approvalType === activeQueue;
       const matchesDepartment = department === 'All' || request.department === department;
       const matchesQuery =
         !normalizedQuery ||
@@ -298,9 +270,9 @@ export const AdminApprovalQueue: React.FC = () => {
         request.department.toLowerCase().includes(normalizedQuery) ||
         request.requestedBy.toLowerCase().includes(normalizedQuery);
 
-      return matchesFilter && matchesApprovalType && matchesDepartment && matchesQuery;
+      return matchesApprovalType && matchesDepartment && matchesQuery;
     });
-  }, [approvalTypeFilter, department, filter, query, requests]);
+  }, [activeQueue, department, query, requests]);
 
   const totalPages = Math.ceil(filteredRequests.length / itemsPerPage) || 1;
 
@@ -398,46 +370,10 @@ export const AdminApprovalQueue: React.FC = () => {
         });
       }
 
-      const status: ApprovalStatus =
-        reviewAction === 'APPROVED'
-          ? 'Approved'
-          : reviewAction === 'REJECTED'
-            ? 'Rejected'
-            : 'Revision';
-      setRequests((prev) =>
-        prev.map((request) =>
-          request.id === id
-            ? {
-                ...request,
-                status,
-                rejectionReason: reviewAction !== 'APPROVED' ? reviewNotes.trim() : null,
-                position:
-                  reviewAction === 'REQUEST_CHANGES'
-                    ? reviewForm.positionTitle.trim()
-                    : request.position,
-                headcount:
-                  reviewAction === 'REQUEST_CHANGES' ? reviewForm.headcount : request.headcount,
-                jobDescription:
-                  reviewAction === 'REQUEST_CHANGES'
-                    ? reviewForm.jobDescription.trim()
-                    : request.jobDescription,
-                justification:
-                  reviewAction === 'REQUEST_CHANGES'
-                    ? reviewForm.justification.trim()
-                    : request.justification,
-              }
-            : request,
-        ),
-      );
-      setSelectedRequest((prev) =>
-        prev?.id === id
-          ? {
-              ...prev,
-              status,
-              rejectionReason: reviewAction !== 'APPROVED' ? reviewNotes.trim() : null,
-            }
-          : prev,
-      );
+      // A completed review leaves this pending-only queue. Processed requests and
+      // plans remain available in their respective management screens.
+      setRequests((prev) => prev.filter((request) => request.id !== id));
+      setSelectedRequest(null);
       setReviewAction(null);
       setIsDrawerOpen(false);
     } catch (error) {
@@ -505,11 +441,7 @@ export const AdminApprovalQueue: React.FC = () => {
                           onClick={() => handleOpenNotificationItem(request)}
                           type="button"
                         >
-                          <span
-                            className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${
-                              request.status === 'Revision' ? 'bg-revision' : 'bg-pending'
-                            }`}
-                          ></span>
+                          <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-pending"></span>
                           <span className="min-w-0 flex-1">
                             <span className="flex items-center gap-2">
                               <span className="truncate text-sm font-semibold text-deep-charcoal">
@@ -523,9 +455,7 @@ export const AdminApprovalQueue: React.FC = () => {
                               {request.department} / {request.requestedBy}
                             </span>
                             <span className="mt-1 block text-xs font-semibold text-teal-command">
-                              {request.status === 'Revision'
-                                ? 'Revision requested'
-                                : 'Waiting for admin review'}
+                              Waiting for admin review
                             </span>
                           </span>
                         </button>
@@ -552,120 +482,27 @@ export const AdminApprovalQueue: React.FC = () => {
       />
       {apiError && <AdminInlineAlert>{apiError}</AdminInlineAlert>}
 
-      {/* Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        {/* Pending */}
-        <AdminCard className="flex items-start justify-between">
-          <div>
-            <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
-              Pending
-            </p>
-            <h3 className="font-headline-xl text-headline-xl text-pending mt-1 font-semibold">
-              {String(counts.Pending).padStart(2, '0')}
-            </h3>
-            <p className="font-body-sm text-body-sm text-on-surface-variant mt-2">
-              Requires immediate review
-            </p>
-          </div>
-          <div className="p-3 bg-surface-container-low rounded-lg text-pending">
-            <span
-              className="material-symbols-outlined text-[28px]"
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              pending_actions
-            </span>
-          </div>
-        </AdminCard>
-
-        {/* Approved */}
-        <div className="bg-clean-surface p-6 rounded-lg border border-border-warm flex items-start justify-between shadow-sm">
-          <div>
-            <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
-              Approved
-            </p>
-            <h3 className="font-headline-xl text-headline-xl text-approved mt-1 font-semibold">
-              {String(counts.Approved).padStart(2, '0')}
-            </h3>
-            <p className="font-body-sm text-body-sm text-on-surface-variant mt-2">
-              Processed this week
-            </p>
-          </div>
-          <div className="p-3 bg-surface-container-low rounded-lg text-approved">
-            <span
-              className="material-symbols-outlined text-[28px]"
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              check_circle
-            </span>
-          </div>
-        </div>
-
-        {/* Rejected */}
-        <div className="bg-clean-surface p-6 rounded-lg border border-border-warm flex items-start justify-between shadow-sm">
-          <div>
-            <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
-              Rejected
-            </p>
-            <h3 className="font-headline-xl text-headline-xl text-rejected mt-1 font-semibold">
-              {String(counts.Rejected).padStart(2, '0')}
-            </h3>
-            <p className="font-body-sm text-body-sm text-on-surface-variant mt-2">
-              Failed requirements
-            </p>
-          </div>
-          <div className="p-3 bg-surface-container-low rounded-lg text-rejected">
-            <span
-              className="material-symbols-outlined text-[28px]"
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              cancel
-            </span>
-          </div>
-        </div>
-
-        {/* Total */}
-        <div className="bg-clean-surface p-6 rounded-lg border border-border-warm flex items-start justify-between shadow-sm">
-          <div>
-            <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
-              Total Requests
-            </p>
-            <h3 className="font-headline-xl text-headline-xl text-teal-command mt-1 font-semibold">
-              {String(counts.All).padStart(2, '0')}
-            </h3>
-            <p className="font-body-sm text-body-sm text-on-surface-variant mt-2">
-              All-time volume
-            </p>
-          </div>
-          <div className="p-3 bg-surface-container-low rounded-lg text-teal-command">
-            <span
-              className="material-symbols-outlined text-[28px]"
-              style={{ fontVariationSettings: "'FILL' 1" }}
-            >
-              analytics
-            </span>
-          </div>
-        </div>
-      </div>
-
       {/* Table Container */}
       <div className="bg-clean-surface rounded-lg border border-border-warm overflow-hidden shadow-sm flex flex-col">
         {/* Table Action Bar */}
         <div className="px-6 py-4 border-b border-border-warm flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center bg-workflow-ivory/50">
-          {/* Tab Filter Navigation */}
-          <div className="flex flex-col gap-3">
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+              Select approval queue
+            </p>
             <div className="flex flex-wrap gap-1">
-              {approvalTypeFilters.map((item) => (
+              {approvalQueueTabs.map((item) => (
                 <button
                   key={item.key}
                   className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-semibold transition active:scale-[0.98] ${
-                    approvalTypeFilter === item.key
+                    activeQueue === item.key
                       ? item.key === 'PLAN'
                         ? 'bg-deep-charcoal text-white shadow-sm'
                         : 'bg-teal-command text-white shadow-sm'
                       : 'text-slate-ink hover:bg-surface-container-high'
                   }`}
                   type="button"
-                  onClick={() => setApprovalTypeFilter(item.key)}
+                  onClick={() => setActiveQueue(item.key)}
                 >
                   {item.key === 'PLAN' ? (
                     <span className="material-symbols-outlined text-[18px]">assignment</span>
@@ -677,38 +514,12 @@ export const AdminApprovalQueue: React.FC = () => {
                   {item.label}
                   <span
                     className={`text-xs py-0.5 px-1.5 rounded-full ${
-                      approvalTypeFilter === item.key
+                      activeQueue === item.key
                         ? 'bg-white/20 text-white'
                         : 'bg-surface-container-highest text-slate-ink'
                     }`}
                   >
                     {typeCounts[item.key]}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            <div className="flex flex-wrap gap-1">
-              {filters.map((item) => (
-                <button
-                  key={item}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition active:scale-[0.98] ${
-                    filter === item
-                      ? 'bg-teal-command text-white shadow-sm'
-                      : 'text-slate-ink hover:bg-surface-container-high'
-                  }`}
-                  type="button"
-                  onClick={() => setFilter(item)}
-                >
-                  {item === 'All' ? 'All Statuses' : item}
-                  <span
-                    className={`ml-2 text-xs py-0.5 px-1.5 rounded-full ${
-                      filter === item
-                        ? 'bg-white/20 text-white'
-                        : 'bg-surface-container-highest text-slate-ink'
-                    }`}
-                  >
-                    {counts[item as keyof typeof counts] ?? counts.All}
                   </span>
                 </button>
               ))}
@@ -743,13 +554,13 @@ export const AdminApprovalQueue: React.FC = () => {
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm border-b border-border-warm">
-                <th className="px-6 py-4 font-semibold uppercase tracking-wider">Request ID</th>
-                <th className="px-6 py-4 font-semibold uppercase tracking-wider">Approval Type</th>
+                <th className="px-6 py-4 font-semibold uppercase tracking-wider">
+                  {activeQueue === 'PLAN' ? 'Campaign Request ID' : 'Request ID'}
+                </th>
                 <th className="px-6 py-4 font-semibold uppercase tracking-wider">Department</th>
                 <th className="px-6 py-4 font-semibold uppercase tracking-wider">Position</th>
                 <th className="px-6 py-4 font-semibold uppercase tracking-wider">Quantity</th>
                 <th className="px-6 py-4 font-semibold uppercase tracking-wider">Priority</th>
-                <th className="px-6 py-4 font-semibold uppercase tracking-wider">Status</th>
                 <th className="px-6 py-4 font-semibold uppercase tracking-wider">Date</th>
                 <th className="px-6 py-4 font-semibold uppercase tracking-wider text-right">
                   Actions
@@ -765,20 +576,6 @@ export const AdminApprovalQueue: React.FC = () => {
                 >
                   <td className="px-6 py-4 font-data-mono text-data-mono text-teal-command font-semibold">
                     #{request.id}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold ${
-                        request.approvalType === 'PLAN'
-                          ? 'border-deep-charcoal/20 bg-deep-charcoal/5 text-deep-charcoal'
-                          : 'border-teal-command/20 bg-teal-command/5 text-teal-command'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[16px]">
-                        {request.approvalType === 'PLAN' ? 'assignment' : 'fact_check'}
-                      </span>
-                      {request.approvalType === 'PLAN' ? 'Plan Approval' : 'Request Approval'}
-                    </span>
                   </td>
                   <td className="px-6 py-4">{request.department}</td>
                   <td className="px-6 py-4 font-medium text-deep-charcoal">{request.position}</td>
@@ -801,67 +598,28 @@ export const AdminApprovalQueue: React.FC = () => {
                       {request.priority}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`px-2.5 py-1 rounded-lg font-label-sm text-label-sm flex items-center gap-1.5 w-fit ${
-                        request.status === 'Approved'
-                          ? 'bg-surface-container-high text-approved'
-                          : request.status === 'Rejected'
-                            ? 'bg-surface-container-high text-rejected'
-                            : request.status === 'Pending'
-                              ? 'bg-surface-container-high text-pending'
-                              : request.status === 'Revision'
-                                ? 'bg-revision/10 text-revision'
-                                : 'bg-surface-container-high text-draft'
-                      }`}
-                    >
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${
-                          request.status === 'Approved'
-                            ? 'bg-approved'
-                            : request.status === 'Rejected'
-                              ? 'bg-rejected'
-                              : request.status === 'Pending'
-                                ? 'bg-pending'
-                                : request.status === 'Revision'
-                                  ? 'bg-revision'
-                                  : 'bg-draft'
-                        }`}
-                      ></span>
-                      {request.status}
-                    </span>
-                  </td>
                   <td className="px-6 py-4 text-on-surface-variant">{request.submitted}</td>
                   <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
-                    {request.status === 'Pending' || request.status === 'Draft' ? (
-                      <button
-                        className="px-4 py-1.5 border border-teal-command text-teal-command rounded-lg font-label-md hover:bg-teal-command hover:text-white transition-all font-semibold"
-                        onClick={() => handleOpenDrawer(request)}
-                      >
-                        Review {request.approvalType === 'PLAN' ? 'Plan' : 'Request'}
-                      </button>
-                    ) : (
-                      <button
-                        className="px-4 py-1.5 border border-border-warm text-slate-ink rounded-lg font-label-md hover:border-teal-command hover:text-teal-command hover:bg-teal-command/5 transition-all font-semibold"
-                        onClick={() => handleOpenDrawer(request)}
-                        type="button"
-                      >
-                        Details
-                      </button>
-                    )}
+                    <button
+                      className="px-4 py-1.5 border border-teal-command text-teal-command rounded-lg font-label-md hover:bg-teal-command hover:text-white transition-all font-semibold"
+                      onClick={() => handleOpenDrawer(request)}
+                      type="button"
+                    >
+                      Review {activeQueue === 'PLAN' ? 'Plan' : 'Request'}
+                    </button>
                   </td>
                 </tr>
               ))}
 
               {filteredRequests.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-on-surface-variant">
+                  <td colSpan={7} className="px-6 py-12 text-center text-on-surface-variant">
                     <span className="material-symbols-outlined text-4xl block mb-2 text-slate-ink">
                       search_off
                     </span>
                     {loading
                       ? 'Loading recruitment requests...'
-                      : 'No requests found matching the current search parameters and filters.'}
+                      : `No ${activeQueue === 'PLAN' ? 'campaign plans' : 'requests'} are waiting for approval.`}
                   </td>
                 </tr>
               )}

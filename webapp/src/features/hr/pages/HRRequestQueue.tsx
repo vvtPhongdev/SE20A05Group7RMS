@@ -4,7 +4,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { apiRequest, ApiError } from '../../../lib/api';
 
 type RequestUrgency = 'Critical' | 'High' | 'Normal' | 'Low';
-type QueueStatus = 'PENDING' | 'FORWARDED' | 'APPROVED' | 'RETURNED';
+type QueueStatus = 'PENDING' | 'FORWARDED' | 'RETURNED';
 
 type RecruitmentRequest = {
   id: string;
@@ -87,9 +87,7 @@ const mapRequest = (item: RecruitmentRequestApiItem): RecruitmentRequest => {
   }
 
   let status: QueueStatus = 'FORWARDED';
-  if (item.status === 'APPROVED') {
-    status = 'APPROVED';
-  } else if (item.status === 'PENDING_HR_REVIEW') {
+  if (item.status === 'PENDING_HR_REVIEW') {
     status = 'PENDING';
   } else if (item.status === 'PENDING_BOSS_APPROVAL') {
     status = 'FORWARDED';
@@ -122,9 +120,15 @@ const mapRequest = (item: RecruitmentRequestApiItem): RecruitmentRequest => {
 const statusTabs: Array<{ key: QueueStatus; label: string }> = [
   { key: 'PENDING', label: 'Pending Review' },
   { key: 'FORWARDED', label: 'Forwarded to Admin' },
-  { key: 'APPROVED', label: 'Approved' },
   { key: 'RETURNED', label: 'Returned' },
 ];
+
+const QUEUE_REQUEST_STATUSES = new Set([
+  'PENDING_HR_REVIEW',
+  'PENDING_REVIEW',
+  'PENDING_BOSS_APPROVAL',
+  'REVISION_NEEDED',
+]);
 
 const urgencyConfig: Record<RequestUrgency, { label: string; badge: string; rail: string }> = {
   Critical: {
@@ -164,7 +168,6 @@ const iconPaths: Record<string, React.ReactNode> = {
   ),
   close: <path d="m6 6 12 12M18 6 6 18" />,
   send: <path d="m22 2-7 20-4-9-9-4 20-7Z" />,
-  campaign: <path d="M4 12h3l9-5v10l-9-5H4Zm3 0v6a2 2 0 0 0 2 2h1" />,
   inbox: <path d="M4 4h16l-2 10h-4a2 2 0 0 1-4 0H6L4 4Zm0 10v6h16v-6" />,
 };
 
@@ -220,7 +223,11 @@ export const HRRequestQueue: React.FC = () => {
         '/recruitment-requests?limit=100',
         token,
       );
-      setRequests(response.data.map(mapRequest));
+      // The queue is limited to request-review work. Once a request has moved into
+      // planning, its plan lifecycle is owned by the Campaigns workspace.
+      setRequests(
+        response.data.filter((item) => QUEUE_REQUEST_STATUSES.has(item.status)).map(mapRequest),
+      );
     } catch (loadError) {
       setApiError(loadError instanceof Error ? loadError.message : 'Unable to load requests');
     } finally {
@@ -265,10 +272,6 @@ export const HRRequestQueue: React.FC = () => {
 
   const openReview = (request: RecruitmentRequest) => {
     setSelectedRequest(request);
-  };
-
-  const openCreatePlan = (requestId: string) => {
-    navigate(`/hr/campaigns?createRequestId=${encodeURIComponent(requestId)}`);
   };
 
   const forwardToAdmin = async (id: string) => {
@@ -482,7 +485,7 @@ export const HRRequestQueue: React.FC = () => {
               type="button"
             >
               <Icon className="h-4 w-4" name="add" />
-              New Requisition
+              View Campaigns
             </button>
           </div>
         </header>
@@ -615,16 +618,7 @@ export const HRRequestQueue: React.FC = () => {
                       </>
                     ) : request.ownerId === user?.id ? (
                       <>
-                        {request.status === 'APPROVED' ? (
-                          <button
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary active:scale-[0.98]"
-                            onClick={() => openCreatePlan(request.id)}
-                            type="button"
-                          >
-                            <Icon className="h-4 w-4" name="campaign" />
-                            Create Plan
-                          </button>
-                        ) : request.status === 'PENDING' ? (
+                        {request.status === 'PENDING' ? (
                           <button
                             className="h-10 rounded-lg border border-teal-command px-4 text-sm font-semibold text-teal-command transition hover:bg-teal-command hover:text-white active:scale-[0.98]"
                             onClick={() => setRevisionTarget(request)}
@@ -1031,16 +1025,7 @@ export const HRRequestQueue: React.FC = () => {
                 <>
                   {selectedRequest.ownerId === user?.id ? (
                     <>
-                      {selectedRequest.status === 'APPROVED' ? (
-                        <button
-                          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-teal-command text-sm font-semibold text-white shadow-sm transition hover:bg-primary active:scale-[0.98]"
-                          onClick={() => openCreatePlan(selectedRequest.id)}
-                          type="button"
-                        >
-                          <Icon className="h-4 w-4" name="campaign" />
-                          Create Plan
-                        </button>
-                      ) : selectedRequest.status === 'FORWARDED' ? (
+                      {selectedRequest.status === 'FORWARDED' ? (
                         <div className="rounded-lg border border-border-warm bg-clean-surface p-3 text-center text-sm font-medium text-secondary">
                           This request has been forwarded to Admin for approval.
                         </div>
