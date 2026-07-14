@@ -21,6 +21,7 @@ type TalentFeedbackAction =
 
 type SkillRequirements = {
   skills?: unknown;
+  required?: unknown;
   jobLevel?: unknown;
   employmentType?: unknown;
   experience?: unknown;
@@ -51,6 +52,25 @@ const FEEDBACK_ACTION_WEIGHTS: Record<Exclude<TalentFeedbackAction, 'IMPRESSION'
   REJECT: -0.12,
 };
 
+type RoleTrack = 'FRONTEND' | 'BACKEND' | 'FULLSTACK' | null;
+
+const getRoleTrack = (value?: string | null): RoleTrack => {
+  const normalized = value?.toLowerCase().replace(/[^a-z0-9]/g, '') ?? '';
+  if (!normalized) return null;
+  if (normalized.includes('fullstack') || normalized.includes('fullstack')) return 'FULLSTACK';
+  if (normalized.includes('frontend') || normalized.includes('front end')) return 'FRONTEND';
+  if (normalized.includes('backend') || normalized.includes('back end')) return 'BACKEND';
+  return null;
+};
+
+const isRoleTrackCompatible = (campaignRole: string | undefined, candidateRole?: string | null) => {
+  const campaignTrack = getRoleTrack(campaignRole);
+  const candidateTrack = getRoleTrack(candidateRole);
+  if (!campaignTrack || !candidateTrack) return true;
+  if (candidateTrack === 'FULLSTACK') return true;
+  return campaignTrack === candidateTrack;
+};
+
 @Injectable()
 export class TalentSearchService {
   private readonly logger = new Logger(TalentSearchService.name);
@@ -70,6 +90,7 @@ export class TalentSearchService {
     const page = pagination?.page ?? 1;
     const pageSize = pagination?.pageSize ?? 20;
     const requestId = typeof filters?.requestId === 'string' ? filters.requestId : undefined;
+    const campaignMembersOnly = filters?.campaignMembersOnly === true;
     const originalQuery = query.trim();
     const requestContext = requestId ? await this.getRequestSearchContext(requestId) : null;
     const effectiveQuery = this.buildEffectiveQuery(originalQuery, requestContext);
@@ -93,41 +114,68 @@ export class TalentSearchService {
       };
     }
 
-    const expanded = this.expander.expand(effectiveQuery);
-    this.logger.debug(`Expanded "${effectiveQuery}" -> ${expanded.expandedSkills.length} skills`);
+    const campaignExpanded = requestContext
+      ? this.expander.expand(requestContext.searchText)
+      : { resolvedSkill: null, expandedSkills: [] };
+    const manualExpanded = originalQuery
+      ? this.expander.expand(originalQuery)
+      : { resolvedSkill: null, expandedSkills: [] };
+    const expandedSkills = this.uniqueSkills([
+      ...campaignExpanded.expandedSkills,
+      ...manualExpanded.expandedSkills,
+    ]);
+    this.logger.debug(
+      `Expanded campaign query -> ${campaignExpanded.expandedSkills.length} skills; manual query -> ${manualExpanded.expandedSkills.length} skills`,
+    );
 
     // A campaign provides the JD and required-skill context for ranking. It must not
     // restrict discovery to candidates already added to that campaign, otherwise a
     // new campaign can never find candidates to add.
-    const candidates = await this.prisma.candidateProfile.findMany({
-      include: {
-        user: { select: { displayName: true } },
-        cvDocuments: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-        },
-        interviews: requestId
-          ? {
-              where: {
-                requestId,
-                status: { not: 'CANCELLED' },
-              },
-              select: { id: true, status: true, scheduledAt: true },
-              orderBy: { createdAt: 'desc' },
-              take: 1,
-            }
-          : false,
-      },
-      take: pageSize * 3,
-      skip: 0,
-    });
-
     const requiredSkills = this.uniqueSkills([
       ...(requestContext?.explicitSkills ?? []),
-      ...(expanded.resolvedSkill ? [expanded.resolvedSkill] : []),
-      ...expanded.expandedSkills,
+      ...(campaignExpanded.resolvedSkill ? [campaignExpanded.resolvedSkill] : []),
+      ...campaignExpanded.expandedSkills,
+      ...(manualExpanded.resolvedSkill ? [manualExpanded.resolvedSkill] : []),
+      ...manualExpanded.expandedSkills,
     ]).slice(0, 30);
-    const vectorScores = await this.getVectorScores(effectiveQuery);
+
+    // Candidate Search opts into campaignMembersOnly so it only ranks CVs that were
+    // collected for, or applied to, the selected campaign. Talent Pool deliberately
+    // leaves this off so HR can still discover new external candidates.
+    const campaignVectorQuery = requestContext?.searchText ?? effectiveQuery;
+    const shouldPrioritizeManualQuery = Boolean(requestContext && originalQuery);
+    const [candidates, campaignVectorScores, manualVectorScores] = await Promise.all([
+      this.prisma.candidateProfile.findMany({
+        where:
+          campaignMembersOnly && requestId ? { applications: { some: { requestId } } } : undefined,
+        include: {
+          user: { select: { displayName: true } },
+          cvDocuments: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+          interviews: requestId
+            ? {
+                where: {
+                  requestId,
+                  status: { not: 'CANCELLED' },
+                },
+                select: { id: true, status: true, scheduledAt: true },
+                orderBy: { createdAt: 'desc' },
+                take: 1,
+              }
+            : false,
+        },
+        // Rank the complete campaign pool before slicing a page. Taking only a
+        // small multiple of pageSize made later pages empty and the reported
+        // total misleading.
+        take: 500,
+        skip: 0,
+      }),
+      this.getVectorScores(campaignVectorQuery),
+      shouldPrioritizeManualQuery ? this.getVectorScores(originalQuery) : Promise.resolve(null),
+    ]);
+
     const feedbackScores = await this.getFeedbackScores(
       candidates.map((candidate: any) => candidate.id),
       requestId,
@@ -146,6 +194,12 @@ export class TalentSearchService {
           ...(capabilities?.skills ?? []),
           ...(capabilities?.currentRole ? [capabilities.currentRole] : []),
         ];
+        if (
+          typeof filters?.screeningStatus === 'string' &&
+          candidate.cvDocuments[0]?.screeningStatus !== filters.screeningStatus
+        ) {
+          return null;
+        }
         if (filters?.workMode && capabilities?.preferredWorkMode !== filters.workMode) {
           return null;
         }
@@ -165,25 +219,51 @@ export class TalentSearchService {
         if (capabilities?.visibility === 'PRIVATE' && filters?.visibility !== 'PRIVATE') {
           return null;
         }
+        if (!isRoleTrackCompatible(requestContext?.position, capabilities?.currentRole)) {
+          return null;
+        }
+
+        // A manual query is a deliberate recruiter refinement, not a note appended to the JD.
+        // Keep campaign fit in the score while giving the typed criteria the stronger vector signal.
+        const campaignVectorScore = campaignVectorScores.get(candidate.id) ?? 0;
+        const manualVectorScore = manualVectorScores?.get(candidate.id) ?? 0;
+        const vectorSimilarity = shouldPrioritizeManualQuery
+          ? manualVectorScore * 0.65 + campaignVectorScore * 0.35
+          : campaignVectorScore;
 
         const baseResult = this.scorer.scoreCandidate({
           candidateProfileId: candidate.id,
           candidateSkills,
           requiredSkills,
-          vectorSimilarity: vectorScores.get(candidate.id) ?? 0,
+          vectorSimilarity,
         });
+        // When the campaign declares required skills, use direct CV evidence for the
+        // coverage component. Graph expansion still contributes through graphScore,
+        // but it cannot inflate the required-skill evidence shown to HR.
+        const coverageScore = requestContext?.explicitSkills.length
+          ? this.getDirectSkillCoverage(candidateSkills, requestContext.explicitSkills)
+          : baseResult.coverageScore;
+        const adjustedBaseScore = this.roundScore(
+          vectorSimilarity * 0.4 + baseResult.graphScore * 0.35 + coverageScore * 0.25,
+        );
+        const vectorSimilarityPenalty = this.getVectorSimilarityPenalty(vectorSimilarity);
+        const safeguardedBaseScore = this.roundScore(adjustedBaseScore * vectorSimilarityPenalty);
         const feedbackScore = feedbackScores.get(candidate.id) ?? 0;
-        const overallScore = this.roundScore(this.clamp(baseResult.overallScore + feedbackScore));
+        const overallScore = this.roundScore(this.clamp(safeguardedBaseScore + feedbackScore));
         const matchExplanation = this.buildMatchExplanation({
           ...baseResult,
+          coverageScore,
           overallScore,
+          vectorSimilarityPenalty,
           feedbackScore,
         });
 
         return {
           ...baseResult,
+          coverageScore,
           overallScore,
-          baseOverallScore: baseResult.overallScore,
+          baseOverallScore: safeguardedBaseScore,
+          vectorSimilarityPenalty,
           feedbackScore,
           matchExplanation,
           displayName: candidate.user.displayName,
@@ -211,7 +291,7 @@ export class TalentSearchService {
           originalQuery,
           querySource,
         } as any,
-        expandedSkills: expanded.expandedSkills.slice(0, 20) as any,
+        expandedSkills: expandedSkills.slice(0, 20) as any,
         resultCount: total,
         modelVersion: EMBEDDING_MODEL_VERSION,
       },
@@ -252,8 +332,8 @@ export class TalentSearchService {
         searchRunId: searchRun.id,
         pagination: { page, pageSize, total },
         expandedQuery: {
-          resolved: expanded.resolvedSkill,
-          expandedSkills: expanded.expandedSkills.slice(0, 10),
+          resolved: manualExpanded.resolvedSkill ?? campaignExpanded.resolvedSkill,
+          expandedSkills: expandedSkills.slice(0, 10),
         },
         query: {
           original: originalQuery,
@@ -323,8 +403,95 @@ export class TalentSearchService {
     return record;
   }
 
+  async updateScreeningDecision(payload: {
+    requestId: string;
+    candidateIds: string[];
+    status: 'SHORTLISTED' | 'REJECTED' | 'PENDING';
+    actorUserId?: string;
+    actorRole?: string;
+  }) {
+    const candidateIds = [...new Set(payload.candidateIds.filter(Boolean))];
+    if (!payload.requestId || candidateIds.length === 0) {
+      throw new Error('requestId and at least one candidateId are required');
+    }
+    if (!['SHORTLISTED', 'REJECTED', 'PENDING'].includes(payload.status)) {
+      throw new Error('Invalid screening status');
+    }
+
+    const applications = await this.prisma.application.findMany({
+      where: { requestId: payload.requestId, candidateId: { in: candidateIds } },
+      select: { candidateId: true },
+    });
+    if (applications.length !== candidateIds.length) {
+      throw new Error('Every selected candidate must belong to the campaign');
+    }
+
+    const action: TalentFeedbackAction =
+      payload.status === 'SHORTLISTED'
+        ? 'SHORTLIST'
+        : payload.status === 'REJECTED'
+          ? 'REJECT'
+          : 'MARK_REVIEW';
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const latestCvs = await tx.candidateCV.findMany({
+        where: { candidateId: { in: candidateIds } },
+        distinct: ['candidateId'],
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, candidateId: true },
+      });
+      await Promise.all(
+        latestCvs.map((cv) =>
+          tx.candidateCV.update({
+            where: { id: cv.id },
+            data: { screeningStatus: payload.status },
+          }),
+        ),
+      );
+      await tx.application.updateMany({
+        where: { requestId: payload.requestId, candidateId: { in: candidateIds } },
+        data: {
+          status:
+            payload.status === 'SHORTLISTED'
+              ? 'SCREENING'
+              : payload.status === 'REJECTED'
+                ? 'REJECTED'
+                : 'SUBMITTED',
+        },
+      });
+      const searchRun = await tx.talentSearchRun.findFirst({
+        where: { requestId: payload.requestId, actorUserId: payload.actorUserId },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, query: true },
+      });
+      if (searchRun) {
+        await tx.talentSearchFeedback.createMany({
+          data: candidateIds.map((candidateId) => ({
+            searchRunId: searchRun.id,
+            candidateId,
+            actorUserId: payload.actorUserId,
+            requestId: payload.requestId,
+            action,
+            query: searchRun.query,
+            candidateSnapshot: {},
+            metadata: { source: 'candidate_search_decision', actorRole: payload.actorRole },
+          })),
+        });
+      }
+      return { updatedCandidateIds: candidateIds, status: payload.status };
+    });
+
+    return updated;
+  }
+
   async exportTrainingTriplets(params: { requestId?: string; limit?: number }) {
-    const positiveActions = ['VIEW_CV', 'MARK_REVIEW', 'SCHEDULE_INTERVIEW', 'SHORTLIST', 'INVITE', 'HIRE'];
+    const positiveActions = [
+      'VIEW_CV',
+      'MARK_REVIEW',
+      'SCHEDULE_INTERVIEW',
+      'SHORTLIST',
+      'INVITE',
+      'HIRE',
+    ];
     const negativeActions = ['REJECT'];
     const rows = await this.prisma.talentSearchFeedback.findMany({
       where: {
@@ -349,7 +516,8 @@ export class TalentSearchService {
     const negatives = rows.filter((row) => negativeActions.includes(row.action));
     const triplets = positives.flatMap((positive) => {
       const negative = negatives.find(
-        (item) => item.searchRunId === positive.searchRunId && item.candidateId !== positive.candidateId,
+        (item) =>
+          item.searchRunId === positive.searchRunId && item.candidateId !== positive.candidateId,
       );
       if (!negative) return [];
       return [
@@ -416,7 +584,11 @@ export class TalentSearchService {
     if (!request) return null;
 
     const skillRequirements = this.asSkillRequirements(request.skillRequirements);
-    const explicitSkills = this.extractSkillList(skillRequirements.skills);
+    const explicitSkills = this.extractSkillList(
+      Array.isArray(skillRequirements.skills)
+        ? skillRequirements.skills
+        : skillRequirements.required,
+    );
     const fields = this.flattenTemplateFields(skillRequirements.templateFields);
     const searchText = [
       `Position: ${request.position}`,
@@ -446,7 +618,10 @@ export class TalentSearchService {
     };
   }
 
-  private async getFeedbackScores(candidateIds: string[], requestId?: string): Promise<Map<string, number>> {
+  private async getFeedbackScores(
+    candidateIds: string[],
+    requestId?: string,
+  ): Promise<Map<string, number>> {
     if (candidateIds.length === 0) return new Map();
 
     const rows = await this.prisma.talentSearchFeedback.findMany({
@@ -466,7 +641,8 @@ export class TalentSearchService {
       if (seen.has(key)) continue;
       seen.add(key);
 
-      const baseWeight = FEEDBACK_ACTION_WEIGHTS[row.action as Exclude<TalentFeedbackAction, 'IMPRESSION'>] ?? 0;
+      const baseWeight =
+        FEEDBACK_ACTION_WEIGHTS[row.action as Exclude<TalentFeedbackAction, 'IMPRESSION'>] ?? 0;
       const scopeMultiplier = !requestId || row.requestId === requestId ? 1 : 0.35;
       const current = scores.get(row.candidateId) ?? 0;
       scores.set(row.candidateId, this.clamp(current + baseWeight * scopeMultiplier, -0.2, 0.2));
@@ -541,11 +717,29 @@ export class TalentSearchService {
     return Math.round(value * 10000) / 10000;
   }
 
+  private getDirectSkillCoverage(candidateSkills: string[], requiredSkills: string[]) {
+    if (requiredSkills.length === 0) return 0;
+    const normalizeSkill = (skill: string) => skill.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const candidateSkillSet = new Set(candidateSkills.map(normalizeSkill).filter(Boolean));
+    const matchedCount = requiredSkills.filter((skill) =>
+      candidateSkillSet.has(normalizeSkill(skill)),
+    ).length;
+    return this.roundScore(matchedCount / requiredSkills.length);
+  }
+
+  private getVectorSimilarityPenalty(vectorSimilarity: number) {
+    if (vectorSimilarity >= 0.4) return 1;
+    if (vectorSimilarity >= 0.25) return 0.7;
+    if (vectorSimilarity > 0) return 0.4;
+    return 0.25;
+  }
+
   private buildMatchExplanation(result: {
     overallScore: number;
     vectorScore: number;
     graphScore: number;
     coverageScore: number;
+    vectorSimilarityPenalty?: number;
     feedbackScore?: number;
     readinessLabel: string;
     matchedSkills?: Array<{ skill: string; confidence: number; source: string; distance?: number }>;
@@ -563,6 +757,9 @@ export class TalentSearchService {
       `Semantic CV/JD similarity: ${Math.round(result.vectorScore * 100)}%`,
       `Skill graph proximity: ${Math.round(result.graphScore * 100)}%`,
       `Required skill coverage: ${Math.round(result.coverageScore * 100)}%`,
+      result.vectorSimilarityPenalty && result.vectorSimilarityPenalty < 1
+        ? `Low CV/JD similarity safeguard: score retained ${Math.round(result.vectorSimilarityPenalty * 100)}%`
+        : '',
       result.feedbackScore
         ? `HR feedback adjustment: ${result.feedbackScore > 0 ? '+' : ''}${Math.round(result.feedbackScore * 100)}%`
         : '',
@@ -574,8 +771,7 @@ export class TalentSearchService {
       scoreDrivers,
       matchedSkills,
       gaps,
-      note:
-        'Candidates in the same score band should be treated as comparable; review matched skills and gaps before making a decision.',
+      note: 'Candidates in the same score band should be treated as comparable; review matched skills and gaps before making a decision.',
     };
   }
 

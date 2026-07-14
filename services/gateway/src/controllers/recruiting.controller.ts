@@ -210,7 +210,6 @@ export class CreateRecruitmentRequestDto {
   @IsOptional()
   @IsBoolean()
   submit?: boolean;
-
 }
 
 export class UpdateRecruitmentRequestDto {
@@ -465,9 +464,12 @@ export class RequestHiringInfoDto {
 export class RecruitingController {
   constructor(@Inject(SERVICE_TOKENS.RECRUITING) private readonly recruitingClient: ClientProxy) {}
 
-  private async withSignedRecruitmentMedia<T extends { requirements?: unknown }>(posting: T): Promise<T> {
+  private async withSignedRecruitmentMedia<T extends { requirements?: unknown }>(
+    posting: T,
+  ): Promise<T> {
     const requirements = posting.requirements;
-    if (!requirements || typeof requirements !== 'object' || Array.isArray(requirements)) return posting;
+    if (!requirements || typeof requirements !== 'object' || Array.isArray(requirements))
+      return posting;
 
     const recruitmentMedia = (requirements as Record<string, unknown>).recruitmentMedia;
     if (!Array.isArray(recruitmentMedia)) return posting;
@@ -1034,6 +1036,19 @@ export class RecruitingController {
     );
   }
 
+  @Post('talent/screening-decision')
+  @Roles(UserRole.HR_LEADER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Persist shortlist or rejection decisions from CV screening' })
+  updateTalentScreeningDecision(@Body() body: any, @CurrentUser() user?: any) {
+    return firstValueFrom(
+      this.recruitingClient.send('talent.screening-decision', {
+        ...body,
+        actorUserId: user?.sub,
+        actorRole: user?.role,
+      }),
+    );
+  }
+
   @Get('talent/feedback/export-triplets')
   @Roles(UserRole.ADMIN, UserRole.HR_LEADER)
   @ApiOperation({ summary: 'Export talent search feedback as embedding training triplets' })
@@ -1135,7 +1150,11 @@ export class RecruitingController {
         userDeptId: user?.departmentId,
       }),
     );
-    return Promise.all(postings.map((posting: { requirements?: unknown }) => this.withSignedRecruitmentMedia(posting)));
+    return Promise.all(
+      postings.map((posting: { requirements?: unknown }) =>
+        this.withSignedRecruitmentMedia(posting),
+      ),
+    );
   }
 
   @Get('public/job-postings')
@@ -1150,7 +1169,11 @@ export class RecruitingController {
         userRole: UserRole.CANDIDATE,
       }),
     );
-    return Promise.all(postings.map((posting: { requirements?: unknown }) => this.withSignedRecruitmentMedia(posting)));
+    return Promise.all(
+      postings.map((posting: { requirements?: unknown }) =>
+        this.withSignedRecruitmentMedia(posting),
+      ),
+    );
   }
 
   @Get('job-postings/:id')
