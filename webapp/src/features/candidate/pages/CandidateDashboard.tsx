@@ -438,7 +438,7 @@ export const CandidateDashboard: React.FC = () => {
                   <span className="font-mono">Applied: {application.appliedDate}</span>
                 </div>
 
-                <div className="flex max-w-3xl items-start overflow-x-auto pb-1">
+                <div className="flex max-w-3xl items-start pb-1">
                   {steps.map((step, index) => {
                     const lineActive =
                       index < steps.length - 1 && application.completedSteps.includes(step);
@@ -446,7 +446,7 @@ export const CandidateDashboard: React.FC = () => {
                       application.currentStep === step || application.completedSteps.includes(step);
                     return (
                       <React.Fragment key={step}>
-                        <div className="flex min-w-[76px] flex-col items-center text-center">
+                        <div className="flex min-w-0 flex-1 flex-col items-center text-center">
                           <StepMarker application={application} step={step} />
                           <span
                             className={`mt-2 text-xs font-semibold ${labelActive ? 'text-teal-command' : 'text-secondary'}`}
@@ -456,7 +456,7 @@ export const CandidateDashboard: React.FC = () => {
                         </div>
                         {index < steps.length - 1 ? (
                           <div
-                            className={`mx-2 mt-3 h-0.5 min-w-10 flex-1 rounded-full ${lineActive ? 'bg-approved' : 'bg-surface-variant'}`}
+                            className={`mx-1 mt-3 h-0.5 min-w-2 flex-[0.6] rounded-full sm:mx-2 sm:min-w-10 sm:flex-1 ${lineActive ? 'bg-approved' : 'bg-surface-variant'}`}
                           />
                         ) : null}
                       </React.Fragment>

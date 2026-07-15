@@ -414,7 +414,10 @@ function buildHtmlTemplate(subject: string, body: string, hasLogo: boolean): str
   const safeBody = escapeHtml(body.trim());
   const formattedBody = safeBody
     .split(/\n\s*\n/)
-    .map((paragraph) => `<p style="margin: 0 0 16px 0; line-height: 1.6;">${paragraph.replace(/\n/g, '<br>')}</p>`)
+    .map(
+      (paragraph) =>
+        `<p style="margin: 0 0 16px 0; line-height: 1.6;">${paragraph.replace(/\n/g, '<br>')}</p>`,
+    )
     .join('');
 
   // Căn chỉnh logo: Thêm padding xung quanh và background màu trắng để tiệp màu với viền bo góc của form bên dưới
@@ -478,12 +481,17 @@ function buildHtmlTemplate(subject: string, body: string, hasLogo: boolean): str
 export async function processEmailSendJob(payload: EmailSendJobPayload): Promise<void> {
   const { emailLogId, to, subject, body } = payload;
 
+  const emailLog = await prisma.emailLog.findUnique({ where: { id: emailLogId } });
+  if (emailLog?.status === EmailStatus.SENT) {
+    logger.log(`[Idempotency] Email ${emailLogId} has already been sent; skipping`);
+    return;
+  }
+
   const logoPath = getLogoPath();
   const html = buildHtmlTemplate(subject, body, !!logoPath);
 
   try {
     await transporter.sendMail({
-      // 3. SỬA LỖI CHÍNH TẢ: Thay thế 'Works Reruiter' thành 'Works Recruiter' đúng chính tả
       from: process.env.SMTP_FROM || 'Works Recruiter <noreply@worksrecruiter.com>',
       to,
       subject,

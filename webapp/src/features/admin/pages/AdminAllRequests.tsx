@@ -48,6 +48,19 @@ interface RecruitmentRequest {
   initials: string;
 }
 
+interface RecruitmentRequestDetail {
+  position: string;
+  department?: { name: string } | null;
+  requester?: { displayName: string } | null;
+  owner?: { displayName: string } | null;
+  reviewedBy?: { displayName: string } | null;
+  status: string;
+  urgency: string;
+  headcount: number;
+  justification?: string | null;
+  jobDescription?: string | null;
+}
+
 type SortField =
   | 'id'
   | 'position'
@@ -85,7 +98,7 @@ export const AdminAllRequests: React.FC = () => {
   // Sorting state
   const [sortField, setSortField] = useState<SortField>('submittedDate');
   const [sortDir, setSortDir] = useState<SortDirection>('desc');
-  const [detailRequest, setDetailRequest] = useState<any | null>(null);
+  const [detailRequest, setDetailRequest] = useState<RecruitmentRequestDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
   const mapStatus = (status: string): RequestStatus => {
@@ -186,9 +199,13 @@ export const AdminAllRequests: React.FC = () => {
     setDetailLoading(true);
     setApiError('');
     try {
-      setDetailRequest(await apiRequest(`/recruitment-requests/${id}`, token));
+      setDetailRequest(
+        await apiRequest<RecruitmentRequestDetail>(`/recruitment-requests/${id}`, token),
+      );
     } catch (detailError) {
-      setApiError(detailError instanceof Error ? detailError.message : 'Unable to load request detail');
+      setApiError(
+        detailError instanceof Error ? detailError.message : 'Unable to load request detail',
+      );
     } finally {
       setDetailLoading(false);
     }
@@ -949,16 +966,29 @@ export const AdminAllRequests: React.FC = () => {
               ) : (
                 <>
                   <DetailItem label="Department" value={detailRequest?.department?.name ?? '-'} />
-                  <DetailItem label="Requester" value={detailRequest?.requester?.displayName ?? '-'} />
+                  <DetailItem
+                    label="Requester"
+                    value={detailRequest?.requester?.displayName ?? '-'}
+                  />
                   <DetailItem label="Status" value={detailRequest?.status ?? '-'} />
                   <DetailItem label="Urgency" value={detailRequest?.urgency ?? '-'} />
                   <DetailItem label="Headcount" value={String(detailRequest?.headcount ?? '-')} />
-                  <DetailItem label="Owner" value={detailRequest?.owner?.displayName ?? detailRequest?.reviewedBy?.displayName ?? 'Not assigned'} />
+                  <DetailItem
+                    label="Owner"
+                    value={
+                      detailRequest?.owner?.displayName ??
+                      detailRequest?.reviewedBy?.displayName ??
+                      'Not assigned'
+                    }
+                  />
                   <div className="md:col-span-2">
                     <DetailItem label="Justification" value={detailRequest?.justification ?? '-'} />
                   </div>
                   <div className="md:col-span-2">
-                    <DetailItem label="Job Description" value={detailRequest?.jobDescription ?? '-'} />
+                    <DetailItem
+                      label="Job Description"
+                      value={detailRequest?.jobDescription ?? '-'}
+                    />
                   </div>
                 </>
               )}

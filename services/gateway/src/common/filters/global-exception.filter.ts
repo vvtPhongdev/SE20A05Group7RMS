@@ -84,7 +84,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     // 2. TCP microservice errors — RpcException payloads from interview/recruiting/etc.
     //    services arrive as { status, message, ...extra } or { error: { status, message, ...extra } }.
     // Express/body-parser errors carry their HTTP status directly instead of extending HttpException.
-    if (exception && typeof exception === 'object' && 'status' in exception) {
+    if (exception instanceof Error && 'status' in exception) {
       const status = Number((exception as { status?: unknown }).status);
       if (Number.isInteger(status) && status >= 400 && status < 600) {
         const message =

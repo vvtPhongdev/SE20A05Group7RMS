@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getRoleHomePath } from '../lib/auth';
-
+import { getErrorMessage, getErrorMetadata } from '../lib/errors';
 
 const pipelineStages = [
   { label: 'Approved', value: '93.4%', width: '93.4%', tone: 'bg-[var(--wr-success)]' },
@@ -78,13 +78,14 @@ export const Login: React.FC = () => {
       try {
         const loggedUser = await completeSupabaseLogin(rememberMe);
         navigate(getRoleHomePath(loggedUser.role), { replace: true });
-      } catch (err: any) {
-        if (err.status === 404 || err.code === 'RMS_ACCOUNT_NOT_REGISTERED') {
+      } catch (err: unknown) {
+        const authError = getErrorMetadata(err);
+        if (authError.status === 404 || authError.code === 'RMS_ACCOUNT_NOT_REGISTERED') {
           navigate('/signup?auth=google', { replace: true });
           return;
         }
 
-        setError(err.message || 'Google sign-in failed. Please try again.');
+        setError(getErrorMessage(err, 'Google sign-in failed. Please try again.'));
       } finally {
         setGoogleLoading(false);
       }
@@ -116,8 +117,8 @@ export const Login: React.FC = () => {
     try {
       const loggedUser = await login(normalizedEmail, password, rememberMe);
       navigate(getRoleHomePath(loggedUser.role), { replace: true });
-    } catch (err: any) {
-      setError(err.message || 'Login failed. Please check your credentials.');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Login failed. Please check your credentials.'));
     } finally {
       setLoading(false);
     }
@@ -129,9 +130,9 @@ export const Login: React.FC = () => {
 
     try {
       await signInWithGoogle('/login?auth=google');
-    } catch (err: any) {
+    } catch (err: unknown) {
       setGoogleLoading(false);
-      setError(err.message || 'Could not start Google sign-in.');
+      setError(getErrorMessage(err, 'Could not start Google sign-in.'));
     }
   };
 
@@ -351,11 +352,17 @@ export const Login: React.FC = () => {
                     }}
                   />
                   {fieldErrors.email ? (
-                    <p id="login-email-error" role="alert" className="text-xs font-medium text-[var(--wr-error-text)]">
+                    <p
+                      id="login-email-error"
+                      role="alert"
+                      className="text-xs font-medium text-[var(--wr-error-text)]"
+                    >
                       {fieldErrors.email}
                     </p>
                   ) : (
-                    <p className="text-xs text-[var(--wr-text-muted)]">Use the email assigned to your workspace.</p>
+                    <p className="text-xs text-[var(--wr-text-muted)]">
+                      Use the email assigned to your workspace.
+                    </p>
                   )}
                 </div>
 
@@ -390,11 +397,17 @@ export const Login: React.FC = () => {
                     </button>
                   </div>
                   {fieldErrors.password ? (
-                    <p id="login-password-error" role="alert" className="text-xs font-medium text-[var(--wr-error-text)]">
+                    <p
+                      id="login-password-error"
+                      role="alert"
+                      className="text-xs font-medium text-[var(--wr-error-text)]"
+                    >
                       {fieldErrors.password}
                     </p>
                   ) : (
-                    <p className="text-xs text-[var(--wr-text-muted)]">Keep your session private on shared devices.</p>
+                    <p className="text-xs text-[var(--wr-text-muted)]">
+                      Keep your session private on shared devices.
+                    </p>
                   )}
                 </div>
 

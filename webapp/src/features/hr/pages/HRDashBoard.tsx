@@ -282,7 +282,9 @@ export const HRDashBoard: React.FC = () => {
     const now = new Date();
     const tones: Tone[] = ['revision', 'teal', 'approved'];
     return schedules
-      .filter((schedule) => schedule.status !== 'CANCELLED' && new Date(schedule.scheduledAt) >= now)
+      .filter(
+        (schedule) => schedule.status !== 'CANCELLED' && new Date(schedule.scheduledAt) >= now,
+      )
       .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
       .slice(0, 3)
       .map((schedule, index) => ({
@@ -300,12 +302,15 @@ export const HRDashBoard: React.FC = () => {
 
   const pipelineBars = useMemo(() => {
     const counts = {
-      Applied: requests.filter((item) => ['PENDING_REVIEW', 'APPROVED'].includes(item.status)).length,
-      Screened: requests.filter((item) => ['PLANNING', 'PLAN_APPROVED', 'SCREENING'].includes(item.status))
+      Applied: requests.filter((item) => ['PENDING_REVIEW', 'APPROVED'].includes(item.status))
         .length,
+      Screened: requests.filter((item) =>
+        ['PLANNING', 'PLAN_APPROVED', 'SCREENING'].includes(item.status),
+      ).length,
       Interview: requests.filter((item) => item.status === 'INTERVIEWING').length,
       Final: requests.filter((item) => item.status === 'INTERVIEW_COMPLETED').length,
-      Offer: requests.filter((item) => ['OFFER_EXTENDED', 'OFFER_ACCEPTED'].includes(item.status)).length,
+      Offer: requests.filter((item) => ['OFFER_EXTENDED', 'OFFER_ACCEPTED'].includes(item.status))
+        .length,
     };
     const max = Math.max(1, ...Object.values(counts));
     return Object.entries(counts).map(([label, value]) => ({
@@ -368,8 +373,8 @@ export const HRDashBoard: React.FC = () => {
         ))}
       </section>
 
-      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.45fr_0.75fr]">
-        <div className="space-y-6">
+      <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,0.75fr)]">
+        <div className="min-w-0 space-y-6">
           <DashboardCard className="overflow-hidden p-0">
             <div className="flex flex-col gap-4 border-b border-border-warm bg-workflow-ivory/60 p-5 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -509,7 +514,7 @@ export const HRDashBoard: React.FC = () => {
           </section>
         </div>
 
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <DashboardCard>
             <div className="mb-5 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">

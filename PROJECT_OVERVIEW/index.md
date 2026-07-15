@@ -34,3 +34,8 @@
   - [8. Recruitment Workflow Reference](./8-recruitment-workflow-reference.md)
     - [Workflow Diagram](./8-recruitment-workflow-reference.md#workflow-diagram)
     - [Core Workflow Focus](./8-recruitment-workflow-reference.md#core-workflow-focus)
+
+## Verification
+
+The executable API and responsive UI role-flow suites are documented in
+[End-to-End Role Flow Testing](../docs/e2e-testing.md).

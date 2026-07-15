@@ -1,0 +1,1410 @@
+
+
+
+
+
+
+
+
+
+
+Requirement & Design Specification
+
+Global Access Management System (GAMS)
+
+Version: 1.0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+– Hanoi, August 2022 –
+
+
+
+Record of Changes
+
+Version
+
+Date
+
+A*M, D
+
+In charge
+
+Change Description
+
+V1.0
+
+15/2
+
+A
+
+KienNTHE11
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*A - Added M - Modified D - Deleted
+
+
+
+Contents
+
+Record of Changes	2
+
+I. Overview	4
+
+1. User Requirements	4
+
+1.1 Actors	4
+
+1.2 Use Cases	4
+
+2. Overall Functionalities	5
+
+2.1 Screens Flow	5
+
+2.2 Screen Descriptions	5
+
+2.3 Screen Authorization	5
+
+2.4 Non-UI Functions	6
+
+3. System High Level Design	6
+
+3.1 Database Design	6
+
+3.2 Code Packages	7
+
+II. Requirement Specifications	8
+
+1. <<Feature Name>>	8
+
+1.1 <<UseCaseCode_UC Name>>	8
+
+2. Common Functions	11
+
+2.1 UC-2_Login System	11
+
+3. Patron Feature	12
+
+3.1 UC-5_Order a Meal	12
+
+3.2 UC-6_Register for Payroll Deduction	13
+
+III. Design Specifications	14
+
+1. <<Feature Name>>	14
+
+1.1 <<SubFeature Name>>	14
+
+1.2 System Access	15
+
+IV. Appendix	19
+
+1. Assumptions & Dependencies	19
+
+2. Limitations & Exclusions	19
+
+3. Business Rules	19
+
+4. ..	19
+
+
+
+
+
+III. Design Specifications
+
+This section translates the RMS requirement specifications into implementable screen, service, database and integration designs. UI labels may be refined during usability review, but access scope, workflow transitions and data ownership are mandatory.
+
+1. System Architecture and Shared Platform
+
+1.1 High-Level Runtime Design
+
+a. Screen / Function Description
+
+RMS is a TypeScript monorepo. React/Vite communicates with the NestJS HTTP Gateway. The Gateway validates JWT and roles, then calls Identity, Recruiting, Profiles/CV, Interview and Notification services. PostgreSQL is shared through Prisma; Redis/BullMQ handles asynchronous CV parsing, embeddings and reminders.
+
+Related use cases: UC-60, UC-61 and all cross-cutting use cases
+
+UI Design and Components
+
+Field / Component
+
+Field Type
+
+Description
+
+Web application
+
+React 19 SPA
+
+Role-specific routes, forms, dashboards and reusable UI components.
+
+API Gateway
+
+NestJS HTTP
+
+REST endpoint, Swagger, validation, JWT/role guard and TCP proxy.
+
+Domain services
+
+NestJS microservices
+
+Identity, Recruiting, Profiles/CV, Interview and Notification business logic.
+
+Worker
+
+BullMQ consumer
+
+Processes CV extraction, embedding and deadline notification jobs.
+
+Data platform
+
+PostgreSQL + pgvector
+
+Transactional RMS data and 384-dimensional vector search.
+
+Queue/cache
+
+Redis 7
+
+BullMQ transport, retry control and asynchronous processing.
+
+
+
+Database Access
+
+Table / Store
+
+CRUD
+
+Description
+
+All domain tables
+
+CRUD
+
+Accessed through service-owned Prisma repositories; the Gateway does not query the database directly.
+
+AuditLog / RequestLog
+
+C,R
+
+Records actor, transition, entity and timestamp for traceability.
+
+Redis queues
+
+C,R,U,D
+
+Stores pending, active, completed and failed background jobs with retry policies.
+
+
+
+API / Implementation Design
+
+Key paths: services/gateway, services/identity, services/recruiting, services/profiles, services/cv, services/interview, services/notification, services/worker, packages/contracts, packages/database, packages/queue and packages/ai.
+
+Data-access rule: all mutations are validated and authorized before Prisma/queue operations. Queries are parameterized through Prisma or safe pgvector helpers; passwords, tokens and secrets are never embedded in SQL or returned in API payloads.
+
+2. Authentication, Identity and Administration
+
+2.1 Login, Profile, User and Organization Management
+
+a. Screen / Function Description
+
+Provides registration, OTP verification, login, refresh-token rotation, logout, password recovery, profile management, user/role/status administration, organizations, departments and Google Calendar connection. The frontend redirects users to the dashboard permitted by their canonical role.
+
+Related use cases: UC-01 to UC-15, UC-60
+
+UI Design and Components
+
+Field / Component
+
+Field Type
+
+Description
+
+Email
+
+Text box
+
+Required login/registration identifier; normalized and checked for uniqueness.
+
+Password
+
+Password box
+
+Validated client-side and server-side; stored only as a password hash.
+
+OTP
+
+Numeric/text input
+
+Short-lived registration or reset verification code.
+
+Role
+
+Select
+
+ADMIN, HR_MANAGER/HR, DEPARTMENT_HEAD or CANDIDATE according to canonical contracts.
+
+Account status
+
+Switch/select
+
+Activates or deactivates internal accounts.
+
+Organization / Department
+
+Select
+
+Scopes user access, reporting and recruitment ownership.
+
+Google Calendar
+
+Connect action
+
+Starts OAuth and stores refresh token for authorized scheduling.
+
+
+
+Database Access
+
+Table / Store
+
+CRUD
+
+Description
+
+User
+
+C,R,U,D
+
+Account, role, status, profile summary and Google Calendar refresh token.
+
+Organization
+
+C,R,U
+
+Company-level configuration and settings.
+
+Department
+
+C,R,U,D
+
+Department structure and department-head ownership.
+
+AuditLog
+
+C,R
+
+Records administrative account and role changes.
+
+
+
+API / Implementation Design
+
+Representative APIs: /api/v1/auth/*, /api/v1/me/profile, /api/v1/users, /api/v1/organizations, /api/v1/departments, /api/v1/google-calendar/auth-url and /api/v1/oauth2callback.
+
+Data-access rule: all mutations are validated and authorized before Prisma/queue operations. Queries are parameterized through Prisma or safe pgvector helpers; passwords, tokens and secrets are never embedded in SQL or returned in API payloads.
+
+3. Recruitment Request and Approval Workflow
+
+3.1 Request Creation, Review, Approval and Timeline
+
+a. Screen / Function Description
+
+Department Heads create recruitment requests, save drafts and submit them to HR. HR validates business need, assigns recruiters, requests revision or forwards to Admin. Admin makes the final approval/rejection decision. Every transition is state-validated and written to the request log.
+
+Related use cases: UC-16 to UC-23
+
+UI Design and Components
+
+Field / Component
+
+Field Type
+
+Description
+
+Position title
+
+Text box
+
+Required role/position requested by the department.
+
+Headcount
+
+Number
+
+Positive requested hiring quantity.
+
+Job description
+
+Rich text/textarea
+
+Responsibilities, skills, qualification and business justification.
+
+Urgency / dates
+
+Select/date
+
+Priority and expected recruitment period.
+
+Assignee
+
+User select
+
+Eligible active HR member responsible for handling the request.
+
+Decision / reason
+
+Action + textarea
+
+Approve, reject, request changes or return for revision with mandatory reason where applicable.
+
+Timeline
+
+Read-only list
+
+Displays RequestLog entries in chronological order.
+
+
+
+Database Access
+
+Table / Store
+
+CRUD
+
+Description
+
+RecruitmentRequest
+
+C,R,U,D
+
+Stores request content, owner, assignee, lifecycle state and filled count.
+
+ApprovalRecord
+
+C,R
+
+Stores formal review/approval decisions.
+
+RequestLog
+
+C,R
+
+Immutable workflow transition and note history.
+
+Department / User
+
+R
+
+Resolves department scope, requester and HR assignee.
+
+
+
+API / Implementation Design
+
+Representative APIs: GET/POST/PATCH /api/v1/recruitment-requests, submit, assign, return-for-revision, request-changes, forward-to-admin and decision endpoints.
+
+Data-access rule: all mutations are validated and authorized before Prisma/queue operations. Queries are parameterized through Prisma or safe pgvector helpers; passwords, tokens and secrets are never embedded in SQL or returned in API payloads.
+
+4. Recruitment Planning, Tasks and Campaigns
+
+4.1 Overall Plan and Task Plan Workspace
+
+a. Screen / Function Description
+
+An approved recruitment request is converted into an OverallPlan. HR defines dates, activities and TaskPlans, submits the plan for Admin approval and starts the campaign only after approval. Task assignment, progress and deadline reminders provide operational control.
+
+Related use cases: UC-24 to UC-31
+
+UI Design and Components
+
+Field / Component
+
+Field Type
+
+Description
+
+Plan period
+
+Date range
+
+Start/end dates must be valid and cover child task dates.
+
+Plan status
+
+Status badge
+
+Draft, pending approval, approved/active, rejected or revision state.
+
+Task type
+
+Select
+
+Operational recruitment activity such as sourcing, screening or interview coordination.
+
+Assignee
+
+HR user select
+
+Active eligible recruiter responsible for the task.
+
+Deadline
+
+Date/time
+
+Used by worker reminder jobs and overdue tracking.
+
+Task status
+
+Status control
+
+PENDING, IN_PROGRESS or COMPLETED with guarded transitions.
+
+Revision note
+
+Textarea
+
+Required when Admin rejects or requests changes.
+
+
+
+Database Access
+
+Table / Store
+
+CRUD
+
+Description
+
+OverallPlan
+
+C,R,U
+
+Plan scope, dates, status, approval and campaign start data.
+
+TaskPlan
+
+C,R,U
+
+Task type, assignee, deadline, status and notes.
+
+TaskReminder
+
+C,R,U
+
+Deduplicated reminder schedule and delivery state.
+
+Notification / EmailLog
+
+C,R,U
+
+Reminder messages and delivery records.
+
+
+
+API / Implementation Design
+
+Representative APIs: /api/v1/overall-plan, submit, approve, reject, resubmit, start-campaign; /api/v1/task-plan and task status/assignment endpoints.
+
+Data-access rule: all mutations are validated and authorized before Prisma/queue operations. Queries are parameterized through Prisma or safe pgvector helpers; passwords, tokens and secrets are never embedded in SQL or returned in API payloads.
+
+5. Candidate, CV, Applications and Talent Search
+
+5.1 Candidate Profile, CV Processing and Hybrid Search
+
+a. Screen / Function Description
+
+Candidates maintain profiles, upload CVs and apply to published jobs. CV files are stored with metadata, parsed asynchronously and converted into 384-dimensional embeddings. HR searches the Talent Pool using semantic similarity combined with graph/coverage signals and can submit search feedback.
+
+Related use cases: UC-32 to UC-42
+
+UI Design and Components
+
+Field / Component
+
+Field Type
+
+Description
+
+Profile fields
+
+Form controls
+
+Name, contact, skills, experience, education and availability.
+
+CV file
+
+File upload
+
+PDF/DOC/DOCX with type/size validation and processing state.
+
+Job posting
+
+Card/detail
+
+Published role, requirements, status and apply action.
+
+Search query
+
+Text input
+
+Free-text requirements expanded before embedding/search.
+
+Filters
+
+Selects
+
+Department, skills, experience, location and availability.
+
+Ranked result
+
+Result card/table
+
+Candidate, similarity, supporting skill/coverage evidence and latest CV.
+
+Feedback
+
+Relevant/not relevant action
+
+Stores search quality signal and training triplets.
+
+
+
+Database Access
+
+Table / Store
+
+CRUD
+
+Description
+
+CandidateProfile
+
+C,R,U
+
+Candidate identity-linked profile and structured attributes.
+
+CandidateCV
+
+C,R,U,D
+
+File metadata, raw/parsed content and processing status.
+
+CvEmbedding
+
+C,R,U,D
+
+384-dimensional pgvector representation linked to CV.
+
+JobPosting
+
+C,R,U
+
+Recruitment advertising lifecycle and media.
+
+Application
+
+C,R,U
+
+Candidate application and screening status.
+
+TalentSearchRun / TalentSearchFeedback
+
+C,R
+
+Search trace, ranking evidence and feedback.
+
+
+
+API / Implementation Design
+
+Upload writes CV metadata first; BullMQ workers parse and embed asynchronously. Search uses packages/ai plus pgvector. Representative APIs: /api/v1/cv, /candidate-profiles, /applications, /job-postings, /cv/search, /talent/search and /talent/feedback.
+
+Data-access rule: all mutations are validated and authorized before Prisma/queue operations. Queries are parameterized through Prisma or safe pgvector helpers; passwords, tokens and secrets are never embedded in SQL or returned in API payloads.
+
+6. Interview Scheduling, Calendar and Evaluation
+
+6.1 Online/Offline Interview Coordination and Results
+
+a. Screen / Function Description
+
+HR schedules interviews for candidates under an approved plan, selects at least two active internal panel members, chooses online or offline mode, sends invitations and manages reschedule/cancel/confirmation. Online mode may create Google Meet; offline mode records venue and supporting evidence. Panel feedback and final recommendation are stored separately for Admin review.
+
+Related use cases: UC-43 to UC-53
+
+UI Design and Components
+
+Field / Component
+
+Field Type
+
+Description
+
+Candidate / request
+
+Search/select
+
+Selects an eligible application and recruitment request.
+
+Interview mode
+
+Radio/select
+
+ONLINE or OFFLINE; controls link versus venue/evidence requirements.
+
+Date and time
+
+Date/time picker
+
+Must be future-valid and checked for panel conflicts.
+
+Panel
+
+Multi-select
+
+At least two distinct active internal interviewers.
+
+Meeting link / venue
+
+Text
+
+Meet URL for online mode or physical location for offline mode.
+
+Offline evidence
+
+Upload/reference
+
+Proof available to Admin during result review.
+
+Scores
+
+Numeric controls
+
+Technical, communication and culture scores.
+
+Decision and notes
+
+Select/textarea
+
+Individual decision, evaluator notes, summary and final recommendation.
+
+
+
+Database Access
+
+Table / Store
+
+CRUD
+
+Description
+
+InterviewSchedule
+
+C,R,U
+
+Time, mode, location/link, panel, status and calendar reference.
+
+InterviewResult
+
+C,R,U
+
+Per-evaluator feedback, scores, decision and final recommendation.
+
+EmailLog
+
+C,R
+
+Invitation/reminder delivery history.
+
+Notification
+
+C,R,U
+
+Candidate and panel in-app updates.
+
+User
+
+R,U
+
+Panel eligibility and Google Calendar refresh token.
+
+
+
+API / Implementation Design
+
+Google Meet creation uses conferenceDataVersion=1. Invitations use sendUpdates=all. Representative APIs: /api/v1/interviews/schedules, reschedule, cancel, confirm, invitations, details, my-feedback, results, HR interview results and Admin interview results.
+
+Data-access rule: all mutations are validated and authorized before Prisma/queue operations. Queries are parameterized through Prisma or safe pgvector helpers; passwords, tokens and secrets are never embedded in SQL or returned in API payloads.
+
+7. Hiring Decision, Offers and Notifications
+
+7.1 Decision-to-Offer and Candidate Response
+
+a. Screen / Function Description
+
+Admin reviews interview results and chooses HIRE, REJECT or requests more information. A HIRE decision requires compensation and start date and creates an offer transactionally. HR reviews/sends the offer; the owning candidate accepts or declines. Notifications and EmailLog records preserve communication history.
+
+Related use cases: UC-54 to UC-57
+
+UI Design and Components
+
+Field / Component
+
+Field Type
+
+Description
+
+Decision
+
+Select/action
+
+HIRE, REJECT or REQUEST_INFO according to permitted workflow state.
+
+Compensation
+
+Currency/number
+
+Required for HIRE and validated as a positive amount.
+
+Start date
+
+Date
+
+Required for HIRE and must satisfy business constraints.
+
+Reason / request note
+
+Textarea
+
+Required for reject or request-more-information paths.
+
+Offer preview
+
+Read-only document view
+
+Candidate, role, compensation, start date and terms.
+
+Candidate response
+
+Accept/Decline action
+
+Ownership-scoped response with optional note.
+
+Notification center
+
+List/actions
+
+Read, unread, delete and mark-all-read operations with SSE updates.
+
+
+
+Database Access
+
+Table / Store
+
+CRUD
+
+Description
+
+OfferLetter
+
+C,R,U
+
+Offer content, send state, response, note and timestamps.
+
+RecruitmentRequest / Application
+
+R,U
+
+Updates final workflow and candidate outcome.
+
+Notification
+
+C,R,U,D
+
+User-scoped in-app messages and read state.
+
+EmailLog
+
+C,R
+
+Outbound email template, status, error and related entity.
+
+AuditLog / RequestLog
+
+C,R
+
+Final decision and workflow evidence.
+
+
+
+API / Implementation Design
+
+Representative APIs: /api/v1/hiring-decisions/:requestId, request-info, /api/v1/offers, offer send/respond and /api/v1/notifications including SSE.
+
+Data-access rule: all mutations are validated and authorized before Prisma/queue operations. Queries are parameterized through Prisma or safe pgvector helpers; passwords, tokens and secrets are never embedded in SQL or returned in API payloads.
+
+8. Dashboards, Reports, Security and Operations
+
+8.1 Role Dashboards, Analytics and Health Monitoring
+
+a. Screen / Function Description
+
+Each role receives a scoped dashboard. Admin sees approval queues and strategic metrics; HR sees requests, campaigns, tasks and interviews; Department Heads see their department; Candidates see applications, interviews and offers. Report services calculate annual, department, time-to-hire, pipeline and realtime tracking data.
+
+Related use cases: UC-58 to UC-61
+
+UI Design and Components
+
+Field / Component
+
+Field Type
+
+Description
+
+Role dashboard
+
+Cards/tables
+
+Scoped counts, pending actions and navigation shortcuts.
+
+Date/year filters
+
+Date/select
+
+Controls annual, department and pipeline aggregation.
+
+Department filter
+
+Select
+
+Restricted by actor scope where required.
+
+Export
+
+Button
+
+Downloads supported annual report output.
+
+Realtime tracking
+
+Table
+
+Request owner, pending action, task/interview/offer counters and update time.
+
+Health status
+
+Status response
+
+Gateway and dependent service availability.
+
+Audit lookup
+
+Filter/table
+
+Entity type/id search over audit history.
+
+
+
+Database Access
+
+Table / Store
+
+CRUD
+
+Description
+
+RecruitmentRequest / RequestLog
+
+R
+
+Pipeline, annual, ownership and time-to-hire metrics.
+
+OverallPlan / TaskPlan
+
+R
+
+Campaign and work-progress metrics.
+
+InterviewSchedule / InterviewResult
+
+R
+
+Interview workload and outcome metrics.
+
+OfferLetter / Application
+
+R
+
+Offer and candidate conversion metrics.
+
+AuditLog
+
+R
+
+Operational traceability.
+
+
+
+API / Implementation Design
+
+Representative APIs: /api/v1/reports/admin-dashboard, annual, departments, department/:id, time-to-hire, pipeline, annual/export, realtime-tracking, /api/v1/audit-logs and /api/v1/health.
+
+Data-access rule: all mutations are validated and authorized before Prisma/queue operations. Queries are parameterized through Prisma or safe pgvector helpers; passwords, tokens and secrets are never embedded in SQL or returned in API payloads.
+
+IV. Appendix
+
+1. Assumptions & Dependencies
+
+ID
+
+Assumption
+
+AS-01
+
+All users have a unique email address and a valid canonical RMS role.
+
+AS-02
+
+Internal users belong to an organization and, where applicable, a department.
+
+AS-03
+
+Department Heads provide complete recruitment justification and job requirements before submission.
+
+AS-04
+
+HR and Admin follow the configured workflow rather than modifying database state directly.
+
+AS-05
+
+Uploaded CVs are readable PDF, DOC or DOCX files within configured limits.
+
+AS-06
+
+Interview panel members maintain accurate availability and contact information.
+
+AS-07
+
+Server time, database time and business timezone are synchronized.
+
+AS-08
+
+Email addresses and Google accounts used for calendar invitations are reachable.
+
+AS-09
+
+Report accuracy depends on complete RequestLog, interview, application and offer events.
+
+AS-10
+
+The system is deployed for a single enterprise organization in the MVP unless organization scoping is explicitly enabled.
+
+
+
+ID
+
+Dependency
+
+DE-01
+
+Node.js 22+, npm workspaces and Turborepo for build orchestration.
+
+DE-02
+
+PostgreSQL 16 with pgvector enabled and Prisma migrations applied.
+
+DE-03
+
+Redis 7 and BullMQ workers for CV, embedding and reminder jobs.
+
+DE-04
+
+Object/file storage configuration for CV, avatar, evidence and job-posting media.
+
+DE-05
+
+SMTP/email provider configuration for OTP, invitations, reminders, offers and rejections.
+
+DE-06
+
+Google OAuth credentials and Calendar API for optional Google Meet/calendar integration.
+
+DE-07
+
+Supabase configuration when Supabase-backed login/registration is enabled.
+
+DE-08
+
+Local ONNX embedding model or configured embedding endpoint producing 384 dimensions.
+
+DE-09
+
+Gemini configuration when Gemini-based CV extraction is selected.
+
+DE-10
+
+Modern browser with JavaScript, secure cookies/local session storage and SSE support.
+
+
+
+2. Limitations & Exclusions
+
+ID
+
+Limitation / Exclusion
+
+LE-01
+
+RMS supports recruitment workflow management; it is not a payroll, attendance or employee-performance system.
+
+LE-02
+
+AI assists CV extraction and search; it does not make autonomous hiring decisions.
+
+LE-03
+
+Semantic ranking quality depends on parsed CV content and successful embedding generation. Newly uploaded CVs may not be searchable until asynchronous jobs finish.
+
+LE-04
+
+Google Calendar reminders do not guarantee email delivery; strict delivery requires the RMS notification/email worker.
+
+LE-05
+
+Calendar conflict detection is limited to accessible calendars and information granted by users.
+
+LE-06
+
+Offline interview evidence is retained for review but is not a digital-signature or legal-verification service.
+
+LE-07
+
+The MVP uses a shared PostgreSQL database; independent database-per-service deployment is excluded.
+
+LE-08
+
+Annual export supports implemented CSV/PDF formats only; arbitrary report-builder functionality is excluded.
+
+LE-09
+
+Mobile native applications are excluded; responsive web access is the supported client.
+
+LE-10
+
+External job boards, HRIS, payroll and background-check integrations are excluded unless separately configured.
+
+LE-11
+
+The system does not guarantee extraction accuracy for encrypted, scanned or malformed CV documents.
+
+LE-12
+
+Disaster recovery, multi-region active-active deployment and unlimited retention are operational extensions beyond the MVP.
+
+
+
+3. Business Rules
+
+ID
+
+Category
+
+Rule Definition
+
+BR-01
+
+Security
+
+Every protected API requires a valid access token and an authorized role.
+
+BR-02
+
+Identity
+
+Inactive users cannot authenticate or perform protected business actions.
+
+BR-03
+
+Scope
+
+Users may access only organization, department, request, candidate or offer records permitted by their role and ownership.
+
+BR-04
+
+Request workflow
+
+A recruitment request must follow valid state transitions; rejection, revision and request-change actions require a reason.
+
+BR-05
+
+Approval
+
+Only Admin performs final request approval and final hiring decision.
+
+BR-06
+
+Plan lock
+
+Sourcing, screening, interview and offer activities are blocked until the related OverallPlan is approved/active.
+
+BR-07
+
+Task planning
+
+Task dates must be within the OverallPlan period; only eligible active HR users may be assigned.
+
+BR-08
+
+CV processing
+
+A CV becomes semantically searchable only after parse success and creation of a 384-dimensional embedding.
+
+BR-09
+
+Search
+
+Hybrid ranking may combine vector similarity, skill-graph proximity and requirement coverage; ranking is advisory.
+
+BR-10
+
+Interview panel
+
+A scheduled interview requires at least two distinct active internal panel members.
+
+BR-11
+
+Interview mode
+
+ONLINE requires a meeting link or successfully generated Meet link; OFFLINE requires a venue and may require supporting evidence for Admin review.
+
+BR-12
+
+Calendar
+
+Meet creation uses authorized Google Calendar credentials; attendee updates are sent to configured participants.
+
+BR-13
+
+Feedback
+
+Only authorized panel/HR evaluators may submit feedback; an evaluator cannot impersonate another evaluator.
+
+BR-14
+
+Decision
+
+HIRE requires candidateId, compensation and startDate; REJECT or REQUEST_INFO requires an explanatory reason/note.
+
+BR-15
+
+Offer ownership
+
+Only the candidate who owns an offer may accept or decline it; a finalized response cannot be silently overwritten.
+
+BR-16
+
+Notifications
+
+Notifications are user-scoped; only the owner may read, mark, delete or stream them.
+
+BR-17
+
+Audit
+
+Material workflow, role, decision and status changes must write RequestLog and/or AuditLog records.
+
+BR-18
+
+Reminders
+
+Deadline reminders must be idempotent and must not create duplicate notification/email logs for the same reminder point.
+
+BR-19
+
+Reporting
+
+Department Heads see their department only; HR and Admin report scope follows configured role permissions.
+
+BR-20
+
+Data integrity
+
+Database mutations that create related decision, offer, log and notification records must be transactional where consistency requires it.
+
+
+
+4. Traceability and Technical References
+
+Area
+
+Repository Reference
+
+Functional requirements
+
+docs/use-case-specifications.md; docs/backend-endpoints-summary.md; docs/all-tasks.md
+
+Architecture
+
+docs/architecture.md; docs/project-overview.md; docs/source-tree-analysis.md
+
+Database
+
+packages/database/prisma/schema.prisma; packages/database/prisma/migrations
+
+API Gateway
+
+services/gateway/src/controllers
+
+Domain services
+
+services/identity; services/recruiting; services/profiles; services/cv; services/interview; services/notification
+
+Frontend
+
+webapp/src/features; webapp/src/App.tsx; webapp/src/metadata.json
+
+AI and workers
+
+packages/ai; packages/ai-models; services/worker; packages/queue
+
+Contracts and validation
+
+packages/contracts; packages/config
+
+
+
+Document completion note: Sections III and IV are grounded in the current RMS repository structure and implemented endpoints as of 11 July 2026. If database models, role enums, APIs or workflow states change, these sections must be updated in the same change set.
+
