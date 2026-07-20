@@ -21,87 +21,65 @@ type RecruitmentPlan = {
   department: string;
   phase: PlanPhase;
   progress: number;
-  deadline: string;
+  deadline: string | null;
   owner: string;
 };
 
-interface RealtimeTrackingItem {
-  id: string;
-  position: string;
-  department: string;
-  targetHeadcount: number;
-  filledHeadcount: number;
-  status: string;
-  createdBy: string;
-  handler: string;
-  createdAt: string;
-  updatedAt: string;
-  pendingAction?: string;
-  currentOwner?: string;
-  taskProgress?: { total: number; completed: number; overdue: number };
+interface HRDashboardResponse {
+  kpis: {
+    approvedRequests: number;
+    activePlans: number;
+    activeDepartments: number;
+    interviewsThisWeek: number;
+    interviewStagesThisWeek: number;
+    nextInterviewStageAt: string | null;
+    candidatesInPipeline: number;
+    candidatesInFinalReview: number;
+  };
+  plans: Array<{
+    id: string;
+    position: string;
+    department: string;
+    status: string;
+    phase: PlanPhase;
+    progress: number;
+    deadline: string | null;
+    owner: string;
+  }>;
+  upcomingInterviews: Array<{
+    id: string;
+    scheduledAt: string;
+    candidate: string;
+    position: string;
+    location: string;
+  }>;
+  upcomingInterviewMilestones: Array<{
+    id: string;
+    scheduledAt: string;
+    position: string;
+    owner: string;
+    status: string;
+  }>;
+  pipeline: Array<{ label: string; value: number }>;
+  metrics: { hiringVelocityDays: number | null; passRate: number | null };
+  attentionItems: Array<{ id: string; message: string }>;
 }
-
-interface InterviewSchedule {
-  id: string;
-  requestId: string;
-  candidateId: string;
-  scheduledAt: string;
-  duration: number;
-  location: string;
-  interviewers: string[];
-  status: string;
-}
-
-interface UpcomingInterview extends InterviewSchedule {
-  position: string;
-}
-
-const ACTIVE_PLAN_STATUSES = [
-  'PLANNING',
-  'PLAN_APPROVED',
-  'SCREENING',
-  'INTERVIEWING',
-  'INTERVIEW_COMPLETED',
-  'OFFER_EXTENDED',
-  'OFFER_ACCEPTED',
-];
-
-const APPROVED_REQUEST_STATUSES = [...ACTIVE_PLAN_STATUSES, 'APPROVED', 'CLOSED'];
 
 const STATUS_TO_PHASE: Record<string, PlanPhase> = {
   APPROVED: 'CV Screening',
   PLANNING: 'CV Screening',
   PLAN_APPROVED: 'CV Screening',
+  ACTIVE: 'CV Screening',
   SCREENING: 'CV Screening',
   INTERVIEWING: 'Interview',
   INTERVIEW_COMPLETED: 'Final Review',
+  DECISION_PENDING: 'Final Review',
+  NOT_HIRED: 'Final Review',
   OFFER_EXTENDED: 'Offer Prep',
   OFFER_ACCEPTED: 'Offer Prep',
+  OFFER_DECLINED: 'Offer Prep',
+  HIRED: 'Offer Prep',
 };
-
-const PHASE_PROGRESS: Record<PlanPhase, number> = {
-  'CV Screening': 30,
-  Interview: 60,
-  'Final Review': 85,
-  'Offer Prep': 95,
-};
-
-const stats = [
-  { label: 'Approved Requests', value: '5', helper: '+2 this week', tone: 'approved' as Tone },
-  { label: 'Active Plans', value: '8', helper: 'Across 4 departments', tone: 'teal' as Tone },
-  {
-    label: 'Interviews This Week',
-    value: '12',
-    helper: '3 final rounds',
-    tone: 'revision' as Tone,
-  },
-  {
-    label: 'Candidates in Pipeline',
-    value: '34',
-    helper: '8 in final review',
-    tone: 'pending' as Tone,
-  },
-];
 
 const phaseStyles: Record<PlanPhase, string> = {
   'CV Screening': 'bg-teal-command/10 text-teal-command',
@@ -163,24 +141,12 @@ const formatDate = (value: string) =>
     year: 'numeric',
   }).format(new Date(value));
 
-const getWeekRange = () => {
-  const now = new Date();
-  const startOfWeek = new Date(now);
-  const day = startOfWeek.getDay();
-  startOfWeek.setDate(startOfWeek.getDate() - (day === 0 ? 6 : day - 1));
-  startOfWeek.setHours(0, 0, 0, 0);
-  const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(endOfWeek.getDate() + 7);
-  return { startOfWeek, endOfWeek };
-};
-
 export const HRDashBoard: React.FC = () => {
   const navigate = useNavigate();
   const { token } = useAuth();
   const [query, setQuery] = useState('');
   const [phase, setPhase] = useState<PlanPhase | 'All'>('All');
-  const [requests, setRequests] = useState<RealtimeTrackingItem[]>([]);
-  const [schedules, setSchedules] = useState<UpcomingInterview[]>([]);
+  const [dashboard, setDashboard] = useState<HRDashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
 
@@ -189,18 +155,7 @@ export const HRDashBoard: React.FC = () => {
       setLoading(true);
       setApiError('');
       try {
-        const data = await apiRequest<RealtimeTrackingItem[]>('/reports/realtime-tracking', token);
-        setRequests(data);
-
-        const activeRequests = data.filter((item) => ACTIVE_PLAN_STATUSES.includes(item.status));
-        const scheduleLists = await Promise.all(
-          activeRequests.map((item) =>
-            apiRequest<InterviewSchedule[]>(`/interviews/requests/${item.id}/schedules`, token)
-              .then((list) => list.map((schedule) => ({ ...schedule, position: item.position })))
-              .catch(() => [] as UpcomingInterview[]),
-          ),
-        );
-        setSchedules(scheduleLists.flat());
+        setDashboard(await apiRequest<HRDashboardResponse>('/reports/hr-dashboard', token));
       } catch (loadError) {
         setApiError(loadError instanceof Error ? loadError.message : 'Unable to load dashboard');
       } finally {
@@ -210,57 +165,59 @@ export const HRDashBoard: React.FC = () => {
     void loadDashboard();
   }, [token]);
 
-  const approvedRequestsCount = useMemo(
-    () => requests.filter((item) => APPROVED_REQUEST_STATUSES.includes(item.status)).length,
-    [requests],
-  );
-
-  const activePlanItems = useMemo(
-    () => requests.filter((item) => ACTIVE_PLAN_STATUSES.includes(item.status)),
-    [requests],
-  );
-
-  const candidatesInPipeline = useMemo(() => {
-    const ids = new Set(schedules.map((schedule) => schedule.candidateId));
-    return ids.size;
-  }, [schedules]);
-
-  const interviewsThisWeek = useMemo(() => {
-    const { startOfWeek, endOfWeek } = getWeekRange();
-    return schedules.filter((schedule) => {
-      const date = new Date(schedule.scheduledAt);
-      return date >= startOfWeek && date < endOfWeek;
-    }).length;
-  }, [schedules]);
-
   const dashboardStats = useMemo(
     () => [
-      { ...stats[0], value: String(approvedRequestsCount) },
-      { ...stats[1], value: String(activePlanItems.length) },
-      { ...stats[2], value: String(interviewsThisWeek) },
-      { ...stats[3], value: String(candidatesInPipeline) },
+      {
+        label: 'Approved Requests',
+        value: dashboard ? String(dashboard.kpis.approvedRequests) : '—',
+        helper: 'Ready or in execution',
+        tone: 'approved' as Tone,
+      },
+      {
+        label: 'Active Plans',
+        value: dashboard ? String(dashboard.kpis.activePlans) : '—',
+        helper: dashboard ? `Across ${dashboard.kpis.activeDepartments} departments` : 'Loading',
+        tone: 'teal' as Tone,
+      },
+      {
+        label: 'Interviews This Week',
+        value: dashboard ? String(dashboard.kpis.interviewsThisWeek) : '—',
+        helper: dashboard
+          ? dashboard.kpis.interviewsThisWeek > 0
+            ? `${dashboard.kpis.interviewsThisWeek} scheduled`
+            : dashboard.kpis.interviewStagesThisWeek > 0
+              ? `${dashboard.kpis.interviewStagesThisWeek} interview stage planned`
+              : dashboard.kpis.nextInterviewStageAt
+                ? `Next stage ${formatDate(dashboard.kpis.nextInterviewStageAt)}`
+                : 'No interviews scheduled'
+          : 'Loading',
+        tone: 'revision' as Tone,
+      },
+      {
+        label: 'Candidates in Pipeline',
+        value: dashboard ? String(dashboard.kpis.candidatesInPipeline) : '—',
+        helper: dashboard ? `${dashboard.kpis.candidatesInFinalReview} in final review` : 'Loading',
+        tone: 'pending' as Tone,
+      },
     ],
-    [approvedRequestsCount, activePlanItems.length, interviewsThisWeek, candidatesInPipeline],
+    [dashboard],
   );
 
   const activePlans: RecruitmentPlan[] = useMemo(
     () =>
-      activePlanItems.map((item) => {
-        const planPhase = STATUS_TO_PHASE[item.status] ?? 'CV Screening';
+      (dashboard?.plans ?? []).map((item) => {
+        const planPhase = item.phase ?? STATUS_TO_PHASE[item.status] ?? 'CV Screening';
         return {
           id: item.id,
           position: item.position,
           department: item.department,
           phase: planPhase,
-          progress:
-            item.taskProgress && item.taskProgress.total > 0
-              ? Math.round((item.taskProgress.completed / item.taskProgress.total) * 100)
-              : PHASE_PROGRESS[planPhase],
-          deadline: item.updatedAt,
-          owner: item.handler || item.currentOwner || 'Unassigned',
+          progress: item.progress,
+          deadline: item.deadline,
+          owner: item.owner,
         };
       }),
-    [activePlanItems],
+    [dashboard],
   );
 
   const visiblePlans = useMemo(() => {
@@ -279,47 +236,41 @@ export const HRDashBoard: React.FC = () => {
   }, [activePlans, phase, query]);
 
   const interviews = useMemo(() => {
-    const now = new Date();
     const tones: Tone[] = ['revision', 'teal', 'approved'];
-    return schedules
-      .filter(
-        (schedule) => schedule.status !== 'CANCELLED' && new Date(schedule.scheduledAt) >= now,
-      )
-      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
-      .slice(0, 3)
-      .map((schedule, index) => ({
-        time: new Date(schedule.scheduledAt).toLocaleTimeString(undefined, {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-        type: 'Interview',
-        candidate: `Candidate ${schedule.candidateId.slice(0, 8)}`,
-        role: schedule.position,
-        location: schedule.location,
-        tone: tones[index % tones.length],
-      }));
-  }, [schedules]);
+    return (dashboard?.upcomingInterviews ?? []).map((schedule, index) => ({
+      id: schedule.id,
+      date: formatDate(schedule.scheduledAt),
+      time: new Date(schedule.scheduledAt).toLocaleTimeString(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+      type: 'Interview',
+      candidate: schedule.candidate,
+      role: schedule.position,
+      location: schedule.location,
+      tone: tones[index % tones.length],
+    }));
+  }, [dashboard]);
+
+  const interviewMilestones = useMemo(
+    () =>
+      (dashboard?.upcomingInterviewMilestones ?? []).map((milestone) => ({
+        ...milestone,
+        date: formatDate(milestone.scheduledAt),
+      })),
+    [dashboard],
+  );
 
   const pipelineBars = useMemo(() => {
-    const counts = {
-      Applied: requests.filter((item) => ['PENDING_REVIEW', 'APPROVED'].includes(item.status))
-        .length,
-      Screened: requests.filter((item) =>
-        ['PLANNING', 'PLAN_APPROVED', 'SCREENING'].includes(item.status),
-      ).length,
-      Interview: requests.filter((item) => item.status === 'INTERVIEWING').length,
-      Final: requests.filter((item) => item.status === 'INTERVIEW_COMPLETED').length,
-      Offer: requests.filter((item) => ['OFFER_EXTENDED', 'OFFER_ACCEPTED'].includes(item.status))
-        .length,
-    };
-    const max = Math.max(1, ...Object.values(counts));
-    return Object.entries(counts).map(([label, value]) => ({
+    const pipeline = dashboard?.pipeline ?? [];
+    const max = Math.max(1, ...pipeline.map((item) => item.value));
+    return pipeline.map(({ label, value }) => ({
       label,
       value,
-      height: `${Math.max(8, Math.round((value / max) * 100))}%`,
-      fill: `${Math.max(8, Math.round((value / max) * 90))}%`,
+      height: value === 0 ? '0%' : `${Math.max(8, Math.round((value / max) * 100))}%`,
+      fill: value === 0 ? '0%' : `${Math.max(8, Math.round((value / max) * 90))}%`,
     }));
-  }, [requests]);
+  }, [dashboard]);
 
   return (
     <HRDashboardPage>
@@ -460,11 +411,13 @@ export const HRDashBoard: React.FC = () => {
                           </span>
                         </div>
                       </td>
-                      <td className="px-5 py-4 text-slate-ink">{formatDate(plan.deadline)}</td>
+                      <td className="px-5 py-4 text-slate-ink">
+                        {plan.deadline ? formatDate(plan.deadline) : 'Not scheduled'}
+                      </td>
                       <td className="px-5 py-4 text-right">
                         <button
                           className="font-semibold text-teal-command transition hover:underline active:scale-[0.98]"
-                          onClick={() => navigate('/hr/requests')}
+                          onClick={() => navigate(`/hr/campaigns/${plan.id}`)}
                           type="button"
                         >
                           Review
@@ -492,16 +445,20 @@ export const HRDashBoard: React.FC = () => {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
                 <span className="inline-flex items-center gap-2 text-sm font-semibold">
-                  <Icon className="h-5 w-5 text-revision" name="warning" />2 actions require
-                  immediate attention
+                  <Icon className="h-5 w-5 text-revision" name="warning" />
+                  {dashboard?.attentionItems.length ?? 0} actions require immediate attention
                 </span>
-                <span className="hidden h-4 w-px bg-tertiary lg:block" />
-                <span className="text-sm text-surface-container">
-                  Offer letter for Accountant is pending approval.
-                </span>
-                <span className="text-sm text-surface-container">
-                  Interview feedback missing for Junior Developer.
-                </span>
+                {(dashboard?.attentionItems ?? []).map((item) => (
+                  <React.Fragment key={item.id}>
+                    <span className="hidden h-4 w-px bg-tertiary lg:block" />
+                    <span className="text-sm text-surface-container">{item.message}</span>
+                  </React.Fragment>
+                ))}
+                {dashboard && dashboard.attentionItems.length === 0 ? (
+                  <span className="text-sm text-surface-container">
+                    No urgent recruitment actions.
+                  </span>
+                ) : null}
               </div>
               <button
                 className="w-fit rounded-md bg-clean-surface px-4 py-2 text-sm font-semibold text-deep-charcoal transition hover:bg-surface-variant active:scale-[0.98]"
@@ -533,13 +490,13 @@ export const HRDashBoard: React.FC = () => {
               {interviews.map((interview) => (
                 <div
                   className={`rounded-r-lg border-l-4 bg-workflow-ivory p-3 transition hover:bg-surface-container-low ${toneClasses[interview.tone].split(' ')[2]}`}
-                  key={`${interview.time}-${interview.candidate}`}
+                  key={interview.id}
                 >
                   <div className="mb-1 flex items-start justify-between gap-3">
                     <span
                       className={`font-mono text-xs ${toneClasses[interview.tone].split(' ')[1]}`}
                     >
-                      {interview.time}
+                      {interview.date} - {interview.time}
                     </span>
                     <span className="text-xs font-semibold text-slate-ink">{interview.type}</span>
                   </div>
@@ -555,6 +512,33 @@ export const HRDashBoard: React.FC = () => {
                 <p className="text-sm text-slate-ink">No upcoming interviews scheduled.</p>
               )}
             </div>
+            {interviewMilestones.length > 0 ? (
+              <div className="mt-5 border-t border-border-warm pt-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                  Planned Interview Stages
+                </p>
+                <div className="space-y-3">
+                  {interviewMilestones.map((milestone) => (
+                    <div
+                      className="rounded-lg border border-teal-command/20 bg-teal-command/5 p-3"
+                      key={milestone.id}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-sm font-semibold text-deep-charcoal">
+                          {milestone.position}
+                        </p>
+                        <span className="shrink-0 font-mono text-xs font-semibold text-teal-command">
+                          {milestone.date}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-ink">
+                        Coordination owner: {milestone.owner}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </DashboardCard>
 
           <DashboardCard>
@@ -587,13 +571,19 @@ export const HRDashBoard: React.FC = () => {
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
                   Hiring Velocity
                 </p>
-                <p className="mt-1 font-mono text-xl font-semibold text-deep-charcoal">18 days</p>
+                <p className="mt-1 font-mono text-xl font-semibold text-deep-charcoal">
+                  {dashboard?.metrics.hiringVelocityDays == null
+                    ? 'N/A'
+                    : `${dashboard.metrics.hiringVelocityDays} days`}
+                </p>
               </div>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
                   Pass Rate
                 </p>
-                <p className="mt-1 font-mono text-xl font-semibold text-deep-charcoal">24%</p>
+                <p className="mt-1 font-mono text-xl font-semibold text-deep-charcoal">
+                  {dashboard?.metrics.passRate == null ? 'N/A' : `${dashboard.metrics.passRate}%`}
+                </p>
               </div>
             </div>
           </DashboardCard>

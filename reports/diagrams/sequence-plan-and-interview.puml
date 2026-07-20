@@ -1,0 +1,55 @@
+@startuml
+title FR-04..13 - Plan-Locked Campaign and Interview Scheduling
+autonumber
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+actor "HR Leader" as HR
+actor Admin as ADM
+participant "React Web" as WEB
+participant "API Gateway" as GW
+participant "OverallPlanService" as PLAN
+participant "TaskPlanService" as TASK
+participant "SchedulesService" as INT
+database PostgreSQL as DB
+participant "Notification Service" as NOT
+
+HR -> GW : POST /api/v1/overall-plan
+GW -> PLAN : create(approved request, timeline)
+PLAN -> DB : INSERT OverallPlan + status PLANNING
+HR -> GW : POST /api/v1/task-plan
+GW -> TASK : create(activity, assignee, dates)
+TASK -> DB : validate dates within plan; INSERT TaskPlan
+HR -> GW : PATCH /api/v1/overall-plan/{id}/submit
+GW -> PLAN : submit(id)
+PLAN -> DB : verify task coverage; status=PENDING_APPROVAL
+PLAN -> NOT : notify Admin
+
+ADM -> GW : PATCH /api/v1/overall-plan/{id}/approve
+GW -> PLAN : approve(id, adminId)
+PLAN -> DB : status=APPROVED; request=PLAN_APPROVED; log
+
+HR -> GW : PATCH /api/v1/overall-plan/{id}/start-campaign
+GW -> PLAN : startCampaign(id, hrId)
+PLAN -> DB : require APPROVED plan and active HR/date on every task
+PLAN -> DB : transaction: request=ACTIVE + CAMPAIGN_STARTED log
+PLAN -> NOT : email each task assignee
+
+HR -> GW : POST /api/v1/interviews/schedules
+GW -> INT : create(requestId, candidateId, time, panel)
+INT -> DB : assertPlanLocked()
+note right
+1. Request status is schedulable
+2. OverallPlan is APPROVED
+3. INTERVIEW_COORDINATION task exists
+end note
+INT -> DB : validate >=2 distinct active internal panel members
+INT -> DB : detect candidate/interviewer time conflicts
+INT -> DB : require Application(requestId,candidateId)
+INT -> DB : transaction: create schedule; update application/request; logs
+INT -> NOT : candidate + panel in-app notifications
+INT -> NOT : templated interview invitation emails
+INT --> GW : schedule + resolved panel names
+GW --> WEB : show schedule and delivery state
+@enduml
+

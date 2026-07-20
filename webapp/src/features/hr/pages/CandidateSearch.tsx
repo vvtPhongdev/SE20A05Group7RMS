@@ -1304,20 +1304,6 @@ export const CandidateSearch: React.FC = () => {
                 ))}
               </div>
             </div>
-            <div className="border-t border-border-warm pt-4">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
-                  Embedding Index
-                </span>
-                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-approved">
-                  Active
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Icon className="h-4 w-4 text-teal-command" name="database" />
-                <span className="font-mono text-sm">v4.2-STABLE</span>
-              </div>
-            </div>
           </div>
         </section>
 

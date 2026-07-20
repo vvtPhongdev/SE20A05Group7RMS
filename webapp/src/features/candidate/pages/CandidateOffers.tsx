@@ -35,6 +35,14 @@ const offerStatusLabel: Record<OfferStatus, string> = {
   DECLINED: 'Declined',
 };
 
+const formatOfferDate = (value: string) =>
+  new Date(value).toLocaleDateString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+
 export const CandidateOffers: React.FC = () => {
   const { token } = useAuth();
   const navigate = useNavigate();
@@ -104,7 +112,7 @@ export const CandidateOffers: React.FC = () => {
               <div>
                 <p className="text-xs text-slate-ink">Start date</p>
                 <p className="mt-1 font-semibold text-deep-charcoal">
-                  {new Date(offer.startDate).toLocaleDateString()}
+                  {formatOfferDate(offer.startDate)}
                 </p>
               </div>
             </div>

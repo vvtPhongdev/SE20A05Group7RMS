@@ -129,6 +129,8 @@ export const CreateDepartmentSchema = z.object({
     .min(2)
     .max(20)
     .regex(/^[A-Z0-9_]+$/, 'Code must be uppercase letters, numbers, and underscores'),
+  skills: z.array(z.string().trim().min(1).max(100)).max(50).optional(),
+  bachelorRequirements: z.array(z.string().trim().min(1).max(255)).max(50).optional(),
   headUserId: z.string().uuid().optional().nullable(),
   parentId: z.string().uuid().optional().nullable(),
 });

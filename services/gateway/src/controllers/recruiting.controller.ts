@@ -393,6 +393,12 @@ export class UpdateTaskPlanDto {
   @IsOptional()
   @IsDateString()
   endDate?: string;
+
+  @ApiProperty({ example: 7, minimum: 1, required: false })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  durationDays?: number;
 }
 
 export class AssignTaskPlanRecruiterDto {
@@ -1282,6 +1288,21 @@ export class RecruitingController {
   getPipelineOverview() {
     return firstValueFrom(this.recruitingClient.send('recruiting.pipeline_overview', {}));
   }
+
+  @Get('reports/hr-request-queue-summary')
+  @Roles(UserRole.HR_LEADER)
+  @ApiOperation({ summary: 'Get HR recruitment-request review queue summary' })
+  getHrRequestQueueSummary() {
+    return firstValueFrom(this.recruitingClient.send('recruiting.hr_request_queue_summary', {}));
+  }
+
+  @Get('reports/hr-dashboard')
+  @Roles(UserRole.HR_LEADER)
+  @ApiOperation({ summary: 'Get HR recruitment dashboard data' })
+  getHrDashboard() {
+    return firstValueFrom(this.recruitingClient.send('recruiting.hr_dashboard', {}));
+  }
+
   @Get('reports/annual/export')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Export annual recruitment report to CSV or PDF' })

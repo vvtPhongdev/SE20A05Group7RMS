@@ -10,11 +10,6 @@ import {
   DeptHeadPageHeader,
   DeptHeadSearchInput,
 } from '../components';
-import {
-  getRequestTemplateByKey,
-  getTemplateFieldsForDisplay,
-  resolveDepartmentRequestTemplate,
-} from '../requestTemplates';
 
 type RequestStatus =
   | 'Draft'
@@ -62,10 +57,19 @@ interface RecruitmentRequestDetails {
   headcount: number;
   status: string;
   urgency: string;
+  rejectionReason?: string | null;
   department?: {
     name?: string;
     code?: string | null;
   } | null;
+  createdBy?: {
+    displayName?: string;
+  } | null;
+  reviewedBy?: {
+    displayName?: string;
+  } | null;
+  createdAt?: string;
+  updatedAt?: string;
   jobDescription?: string | null;
   justification?: string | null;
   skillRequirements?: {
@@ -80,6 +84,19 @@ interface RecruitmentRequestDetails {
     templateKey?: string;
     templateName?: string;
     templateFields?: Record<string, unknown>;
+  } | null;
+  hrRevisionSuggestion?: {
+    feedback?: string;
+    proposedRequest?: {
+      positionTitle?: string;
+      headcount?: number;
+      jobDescription?: string;
+      justification?: string;
+      urgency?: string;
+      skillRequirements?: {
+        skills?: string[];
+      };
+    } | null;
   } | null;
 }
 
@@ -204,9 +221,6 @@ const priorityStyles: Record<Priority, string> = {
   Low: 'rounded-full border border-slate-ink/25 bg-slate-ink/10 px-2.5 py-1 text-slate-ink',
 };
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-
 const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: string }) => {
   const paths: Record<string, React.ReactNode> = {
     add: <path d="M12 5v14M5 12h14" />,
@@ -259,6 +273,8 @@ export const DeptHeadRequests: React.FC = () => {
   const [selectedRequestDetails, setSelectedRequestDetails] =
     useState<RecruitmentRequestDetails | null>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [revisionResponse, setRevisionResponse] = useState('');
+  const [respondingToSuggestion, setRespondingToSuggestion] = useState(false);
   const [deletingRequestId, setDeletingRequestId] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<DeptRequest | null>(null);
 
@@ -271,16 +287,14 @@ export const DeptHeadRequests: React.FC = () => {
         // Keep the request visible to its Department Head, but mark campaign-owned
         // work explicitly. Deduplicate the tracking payload by request ID.
         const latestById = new Map<string, RealtimeTrackingItem>();
-        data
-          .forEach((item) => {
-            const current = latestById.get(item.id);
-            if (!current || new Date(item.updatedAt) > new Date(current.updatedAt)) {
-              latestById.set(item.id, item);
-            }
-          });
+        data.forEach((item) => {
+          const current = latestById.get(item.id);
+          if (!current || new Date(item.updatedAt) > new Date(current.updatedAt)) {
+            latestById.set(item.id, item);
+          }
+        });
         const mapped = [...latestById.values()].map(mapRequest);
         setRequests(mapped);
-        setSelectedRequestId((current) => current || mapped[0]?.id || '');
       } catch (loadError) {
         setApiError(loadError instanceof Error ? loadError.message : 'Unable to load requests');
       } finally {
@@ -383,32 +397,110 @@ export const DeptHeadRequests: React.FC = () => {
     try {
       await apiRequest(`/recruitment-requests/${request.id}`, token, { method: 'DELETE' });
 
-      let nextSelectedId = '';
       setRequests((current) => {
-        const next = current.filter((item) => item.id !== request.id);
-        nextSelectedId = next[0]?.id ?? '';
-        return next;
+        return current.filter((item) => item.id !== request.id);
       });
 
       if (selectedRequestId === request.id) {
-        setSelectedRequestId(nextSelectedId);
+        setSelectedRequestId('');
         setSelectedRequestDetails(null);
       }
       setIsViewModalOpen(false);
       setDeleteTarget(null);
     } catch (deleteError) {
       setApiError(
-        deleteError instanceof ApiError
-          ? deleteError.message
-          : 'Unable to delete pending request',
+        deleteError instanceof ApiError ? deleteError.message : 'Unable to delete pending request',
       );
     } finally {
       setDeletingRequestId('');
     }
   };
 
-  const selectedRequest =
-    requests.find((request) => request.id === selectedRequestId) ?? visibleRequests[0];
+  const respondToHrSuggestion = async (accepted: boolean) => {
+    if (!selectedRequest || !selectedRequestDetails) return;
+    const suggestion = selectedRequestDetails.hrRevisionSuggestion?.proposedRequest;
+    if (accepted && !suggestion) return;
+    if (!accepted && !revisionResponse.trim()) {
+      setApiError('Please provide a reason before rejecting the HR suggested changes.');
+      return;
+    }
+
+    const requestData = accepted && suggestion
+      ? {
+          positionTitle: suggestion.positionTitle ?? selectedRequestDetails.position,
+          headcount: suggestion.headcount ?? selectedRequestDetails.headcount,
+          jobDescription: suggestion.jobDescription ?? selectedRequestDetails.jobDescription ?? '',
+          justification: suggestion.justification ?? selectedRequestDetails.justification ?? '',
+          urgency: suggestion.urgency ?? selectedRequestDetails.urgency,
+          skillRequirements: suggestion.skillRequirements ?? selectedRequestDetails.skillRequirements ?? {},
+        }
+      : {
+          positionTitle: selectedRequestDetails.position,
+          headcount: selectedRequestDetails.headcount,
+          jobDescription: selectedRequestDetails.jobDescription ?? '',
+          justification: selectedRequestDetails.justification ?? '',
+          urgency: selectedRequestDetails.urgency,
+          skillRequirements: selectedRequestDetails.skillRequirements ?? {},
+        };
+
+    setRespondingToSuggestion(true);
+    setApiError('');
+    try {
+      await apiRequest(`/recruitment-requests/${selectedRequest.id}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          ...requestData,
+          acceptedHrSuggestion: accepted,
+          revisionResponse: accepted ? undefined : revisionResponse.trim(),
+        }),
+      });
+      await apiRequest(`/recruitment-requests/${selectedRequest.id}/submit`, token, {
+        method: 'PATCH',
+      });
+
+      setRequests((current) =>
+        current.map((request) =>
+          request.id === selectedRequest.id
+            ? {
+                ...request,
+                position: requestData.positionTitle,
+                quantity: requestData.headcount,
+                priority: priorityFromUrgency(requestData.urgency),
+                status: 'Pending' as RequestStatus,
+                workflowStatus: 'PENDING_HR_REVIEW',
+                rejectionReason: null,
+              }
+            : request,
+        ),
+      );
+      setSelectedRequestDetails((current) =>
+        current
+          ? {
+              ...current,
+              position: requestData.positionTitle,
+              headcount: requestData.headcount,
+              jobDescription: requestData.jobDescription,
+              justification: requestData.justification,
+              urgency: requestData.urgency,
+              skillRequirements: requestData.skillRequirements,
+              status: 'PENDING_HR_REVIEW',
+              rejectionReason: null,
+              hrRevisionSuggestion: null,
+            }
+          : current,
+      );
+      setRevisionResponse('');
+      setIsViewModalOpen(false);
+    } catch (error) {
+      setApiError(
+        error instanceof ApiError ? error.message : 'Unable to respond to the HR suggested changes.',
+      );
+    } finally {
+      setRespondingToSuggestion(false);
+    }
+  };
+
+  const selectedRequest = requests.find((request) => request.id === selectedRequestId);
 
   const totalRequests = requests.length;
   const pendingCount = requests.filter((request) => request.status === 'Pending').length;
@@ -419,19 +511,10 @@ export const DeptHeadRequests: React.FC = () => {
     targetHeadcountSum > 0 ? Math.round((filledCount / targetHeadcountSum) * 100) : 0;
   const circumference = 2 * Math.PI * 24;
   const strokeOffset = circumference - (completionPercent / 100) * circumference;
-  const selectedSkillRequirements = selectedRequestDetails?.skillRequirements ?? null;
-  const selectedTemplate = selectedSkillRequirements?.templateKey
-    ? getRequestTemplateByKey(selectedSkillRequirements.templateKey)
-    : resolveDepartmentRequestTemplate(
-        selectedRequestDetails?.department?.name,
-        selectedRequestDetails?.department?.code,
-      );
-  const selectedTemplateFieldValues = getTemplateFieldsForDisplay(
-    selectedTemplate,
-    isRecord(selectedSkillRequirements?.templateFields)
-      ? selectedSkillRequirements?.templateFields
-      : selectedSkillRequirements,
-  );
+  const hrSuggestion = selectedRequestDetails?.hrRevisionSuggestion?.proposedRequest;
+  const hrFeedback = selectedRequestDetails?.hrRevisionSuggestion?.feedback ??
+    selectedRequestDetails?.rejectionReason ??
+    selectedRequest?.rejectionReason;
 
   return (
     <DeptHeadDashboardPage>
@@ -570,7 +653,7 @@ export const DeptHeadRequests: React.FC = () => {
             <table className="w-full min-w-[1020px] text-left">
               <thead>
                 <tr className="border-b border-border-warm bg-parchment-lift text-sm text-on-surface-variant">
-                  <th className="px-6 py-4 font-semibold">ID</th>
+                  {/* <th className="px-6 py-4 font-semibold">ID</th> */}
                   <th className="px-6 py-4 font-semibold">Position</th>
                   <th className="px-6 py-4 font-semibold">Qty</th>
                   <th className="px-6 py-4 font-semibold">Priority</th>
@@ -592,7 +675,7 @@ export const DeptHeadRequests: React.FC = () => {
                       setIsViewModalOpen(true);
                     }}
                   >
-                    <td className="px-6 py-4 font-mono text-sm text-teal-command">{request.id}</td>
+                    {/* <td className="px-6 py-4 font-mono text-sm text-teal-command">{request.id}</td> */}
                     <td className="px-6 py-4 text-sm font-semibold text-deep-charcoal">
                       {request.position}
                     </td>
@@ -628,34 +711,19 @@ export const DeptHeadRequests: React.FC = () => {
                           </p>
                         </div>
                       ) : (
-                        <span className="inline-flex rounded-full border border-teal-command/20 bg-teal-command/5 px-2.5 py-1 text-xs font-bold text-teal-command">
-                          Request
-                        </span>
+                        <div>
+                          <span className="inline-flex rounded-full border border-teal-command/20 bg-teal-command/5 px-2.5 py-1 text-xs font-bold text-teal-command">
+                            Request
+                          </span>
+                          <p className="mt-1 text-[11px] font-medium text-on-surface-variant">
+                            {formatWorkflowStatus(request.workflowStatus)}
+                          </p>
+                        </div>
                       )}
                     </td>
                     <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end gap-3">
-                        {request.status === 'Draft' && (
-                          <>
-                            <button
-                              className="text-xs font-semibold text-teal-command transition hover:underline active:scale-[0.98]"
-                              onClick={() =>
-                                navigate(`/dept-head/create-request?requestId=${request.id}`)
-                              }
-                              type="button"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              className="rounded bg-teal-command px-3 py-1 text-[11px] font-bold uppercase text-white shadow-sm transition hover:bg-primary active:scale-[0.98]"
-                              onClick={() => submitDraft(request.id)}
-                              type="button"
-                            >
-                              Submit
-                            </button>
-                          </>
-                        )}
-                        {request.status === 'Revision Required' && (
+                        {request.status === 'Pending' && (
                           <button
                             className="text-xs font-semibold text-teal-command transition hover:underline active:scale-[0.98]"
                             onClick={() =>
@@ -664,6 +732,15 @@ export const DeptHeadRequests: React.FC = () => {
                             type="button"
                           >
                             Edit
+                          </button>
+                        )}
+                        {request.status === 'Draft' && (
+                          <button
+                            className="rounded bg-teal-command px-3 py-1 text-[11px] font-bold uppercase text-white shadow-sm transition hover:bg-primary active:scale-[0.98]"
+                            onClick={() => submitDraft(request.id)}
+                            type="button"
+                          >
+                            Submit
                           </button>
                         )}
                         <button
@@ -676,17 +753,18 @@ export const DeptHeadRequests: React.FC = () => {
                         >
                           View
                         </button>
-                        {request.status === 'Pending' && request.workflowWorkspace === 'Request' && (
-                          <button
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 transition hover:underline active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                            disabled={deletingRequestId === request.id}
-                            onClick={() => requestDelete(request)}
-                            type="button"
-                          >
-                            <Icon className="h-3.5 w-3.5" name="trash" />
-                            {deletingRequestId === request.id ? 'Deleting...' : 'Delete Request'}
-                          </button>
-                        )}
+                        {request.status === 'Pending' &&
+                          request.workflowWorkspace === 'Request' && (
+                            <button
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-red-600 transition hover:underline active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                              disabled={deletingRequestId === request.id}
+                              onClick={() => requestDelete(request)}
+                              type="button"
+                            >
+                              <Icon className="h-3.5 w-3.5" name="trash" />
+                              {deletingRequestId === request.id ? 'Deleting...' : 'Delete Request'}
+                            </button>
+                          )}
                       </div>
                     </td>
                   </tr>
@@ -739,145 +817,6 @@ export const DeptHeadRequests: React.FC = () => {
           </div>
         </div>
 
-        {selectedRequest && (
-          <div className="mt-5 rounded-xl border border-border-warm bg-clean-surface p-5 shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)]">
-            <div className="flex flex-col gap-3 border-b border-border-warm pb-4 md:flex-row md:items-start md:justify-between">
-              <div>
-                <p className="font-mono text-xs font-semibold text-teal-command">
-                  {selectedRequest.id}
-                </p>
-                <h2 className="mt-1 text-lg font-semibold text-deep-charcoal">
-                  {selectedRequest.position}
-                </h2>
-                <p className="mt-1 text-sm text-slate-ink">
-                  Request detail preview for department tracking and approval follow-up.
-                </p>
-              </div>
-              <span
-                className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-xs font-bold ${statusStyles[selectedRequest.status]}`}
-              >
-                {selectedRequest.status}
-              </span>
-            </div>
-
-            <div className="mt-5 grid gap-4 md:grid-cols-4">
-              {[
-                ['Quantity', selectedRequest.quantity],
-                ['Priority', selectedRequest.priority],
-                ['Submitted', selectedRequest.submitted],
-                [
-                  'Next action',
-                  selectedRequest.workflowWorkspace === 'Campaign Plan'
-                    ? 'Track campaign progress'
-                    : selectedRequest.status === 'Draft'
-                      ? 'Submit request'
-                      : 'Monitor request',
-                ],
-                ['Workspace', selectedRequest.workflowWorkspace],
-              ].map(([label, value]) => (
-                <div
-                  className="rounded-lg border border-border-warm bg-workflow-ivory/70 p-4"
-                  key={label}
-                >
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                    {label}
-                  </p>
-                  {label === 'Priority' ? (
-                    <span
-                      className={`mt-2 inline-flex items-center gap-1.5 text-xs font-bold uppercase ${priorityStyles[value as Priority]}`}
-                    >
-                      <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                      {value}
-                    </span>
-                  ) : (
-                    <p className="mt-2 text-sm font-semibold text-deep-charcoal">{value}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-5 grid gap-4 lg:grid-cols-2">
-              {selectedRequest.status === 'Revision Required' &&
-                selectedRequest.rejectionReason && (
-                  <div className="lg:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-900 mb-1">
-                      Feedback / Revision Instructions
-                    </p>
-                    <p className="leading-relaxed font-semibold">
-                      {selectedRequest.rejectionReason}
-                    </p>
-                  </div>
-                )}
-              <div className="rounded-lg border border-border-warm p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                  Status summary
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-ink">
-                  {selectedRequest.status === 'Revision Required'
-                    ? 'HR returned this request for edits. Update the justification before resubmitting.'
-                    : selectedRequest.status === 'Completed'
-                      ? 'Hiring has been completed and the request can be used for reporting.'
-                    : selectedRequest.workflowWorkspace === 'Campaign Plan'
-                        ? `This request is now managed as a Campaign Plan (${formatWorkflowStatus(selectedRequest.workflowStatus)}). It cannot be deleted.`
-                        : selectedRequest.status === 'Approved'
-                          ? 'The request is approved and ready for HR planning.'
-                        : selectedRequest.status === 'Pending'
-                          ? 'The request is waiting for review from the approval workflow.'
-                          : 'The request is still a draft and has not entered approval yet.'}
-                </p>
-              </div>
-              <div className="rounded-lg border border-border-warm p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                  Available actions
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {(selectedRequest.status === 'Draft' ||
-                    selectedRequest.status === 'Revision Required') && (
-                    <button
-                      className="inline-flex h-9 items-center justify-center rounded-lg border border-border-warm px-3 text-xs font-semibold text-teal-command transition hover:border-teal-command active:scale-[0.98]"
-                      onClick={() =>
-                        navigate(`/dept-head/create-request?requestId=${selectedRequest.id}`)
-                      }
-                      type="button"
-                    >
-                      Edit Request
-                    </button>
-                  )}
-                  {selectedRequest.status === 'Draft' && (
-                    <button
-                      className="inline-flex h-9 items-center justify-center rounded-lg bg-teal-command px-3 text-xs font-semibold text-white transition hover:bg-primary active:scale-[0.98]"
-                      onClick={() => submitDraft(selectedRequest.id)}
-                      type="button"
-                    >
-                      Submit Draft
-                    </button>
-                  )}
-                  {selectedRequest.status === 'Pending' &&
-                    selectedRequest.workflowWorkspace === 'Request' && (
-                    <button
-                      className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 text-xs font-semibold text-red-600 transition hover:bg-red-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                      disabled={deletingRequestId === selectedRequest.id}
-                      onClick={() => requestDelete(selectedRequest)}
-                      type="button"
-                    >
-                      <Icon className="h-4 w-4" name="trash" />
-                      {deletingRequestId === selectedRequest.id
-                        ? 'Deleting...'
-                        : 'Delete Request'}
-                    </button>
-                  )}
-                  <button
-                    className="inline-flex h-9 items-center justify-center rounded-lg border border-border-warm px-3 text-xs font-semibold text-slate-ink transition hover:border-teal-command hover:text-teal-command active:scale-[0.98]"
-                    onClick={() => setSelectedRequestId('')}
-                    type="button"
-                  >
-                    Close Detail
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </section>
 
       {isViewModalOpen && selectedRequest && (
@@ -907,21 +846,74 @@ export const DeptHeadRequests: React.FC = () => {
 
             {/* Body */}
             <div className="flex-grow p-6 overflow-y-auto custom-scrollbar space-y-6">
-              {/* Revision feedback banner if status is Revision Required */}
-              {selectedRequest.status === 'Revision Required' &&
-                selectedRequest.rejectionReason && (
-                  <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-900 mb-1">
-                      Feedback / Revision Instructions
-                    </p>
-                    <p className="leading-relaxed font-semibold">
-                      {selectedRequest.rejectionReason}
-                    </p>
+              {selectedRequest.status === 'Revision Required' && hrFeedback ? (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-900 mb-1">
+                    Feedback from HR
+                  </p>
+                  <p className="leading-relaxed font-semibold">{hrFeedback}</p>
+                </div>
+              ) : null}
+
+              {selectedRequest.status === 'Revision Required' && hrSuggestion ? (
+                <section className="rounded-lg border border-amber-300 bg-amber-50/60 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-900">
+                        HR Suggested Changes
+                      </p>
+                      <p className="mt-1 text-sm text-amber-900">
+                        Review the highlighted proposal before sending your decision back to HR.
+                      </p>
+                    </div>
+                    <span className="inline-flex w-fit rounded-full border border-amber-300 bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-900">
+                      Revision Required
+                    </span>
                   </div>
-                )}
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    {[
+                      ['Position', selectedRequest.position, hrSuggestion.positionTitle],
+                      ['Headcount', String(selectedRequest.quantity), hrSuggestion.headcount?.toString()],
+                      ['Priority', selectedRequest.priority, hrSuggestion.urgency],
+                    ].map(([label, currentValue, suggestedValue]) => {
+                      const changed = Boolean(suggestedValue && suggestedValue !== currentValue);
+                      return (
+                        <div
+                          className={`rounded-lg border p-3 ${
+                            changed ? 'border-amber-400 bg-amber-100/80' : 'border-border-warm bg-clean-surface'
+                          }`}
+                          key={label}
+                        >
+                          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                            {label}
+                          </p>
+                          <p className="mt-1 text-xs text-on-surface-variant">Current: {currentValue}</p>
+                          <p className="mt-1 text-sm font-semibold text-deep-charcoal">
+                            Suggested: {suggestedValue || 'No change'}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <label className="mt-4 block">
+                    <span className="mb-2 block text-sm font-semibold text-on-surface">
+                      Reason for rejecting the suggestion
+                    </span>
+                    <textarea
+                      className="w-full resize-none rounded-lg border border-border-warm bg-clean-surface p-3 text-sm outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                      onChange={(event) => setRevisionResponse(event.target.value)}
+                      placeholder="Required only if you reject the HR suggestion..."
+                      rows={3}
+                      value={revisionResponse}
+                    />
+                  </label>
+                </section>
+              ) : null}
 
               {/* Status and urgency section */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
                 <div className="p-4 bg-workflow-ivory rounded-lg border border-border-warm shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant mb-1">
                     Request Status
@@ -931,6 +923,9 @@ export const DeptHeadRequests: React.FC = () => {
                   >
                     {selectedRequest.status}
                   </span>
+                  <p className="mt-2 text-xs font-medium text-on-surface-variant">
+                    {formatWorkflowStatus(selectedRequest.workflowStatus)}
+                  </p>
                 </div>
                 <div className="p-4 bg-workflow-ivory rounded-lg border border-border-warm shadow-sm">
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant mb-1">
@@ -962,132 +957,82 @@ export const DeptHeadRequests: React.FC = () => {
                     </p>
                   ) : null}
                 </div>
+                <div className="p-4 bg-workflow-ivory rounded-lg border border-border-warm shadow-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant mb-1">
+                    HR Reviewer
+                  </p>
+                  <p className="text-sm font-semibold text-deep-charcoal">
+                    {selectedRequestDetails?.reviewedBy?.displayName || 'Not assigned'}
+                  </p>
+                  <p className="mt-2 text-xs text-on-surface-variant">
+                    Department: {selectedRequestDetails?.department?.name || 'Not specified'}
+                  </p>
+                </div>
               </div>
 
-              {/* Headcount, Salary & Start Date */}
+              {/* Request fields */}
               {loadingDetails ? (
                 <div className="py-12 text-center text-sm text-on-surface-variant">
                   Loading detailed request specifications...
                 </div>
               ) : (
                 <>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="rounded-lg border border-border-warm p-4">
                       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                        Target Quantity
+                        Position Title
                       </p>
                       <p className="mt-2 text-sm font-semibold text-deep-charcoal">
-                        {selectedRequestDetails?.headcount || selectedRequest.quantity} Persons
+                        {selectedRequestDetails?.position || selectedRequest.position}
                       </p>
                     </div>
                     <div className="rounded-lg border border-border-warm p-4">
                       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                        Job Level
+                        Department
                       </p>
                       <p className="mt-2 text-sm font-semibold text-deep-charcoal">
-                        {selectedRequestDetails?.skillRequirements?.jobLevel || 'Not specified'}
+                        {selectedRequestDetails?.department?.name || 'Not specified'}
                       </p>
                     </div>
                     <div className="rounded-lg border border-border-warm p-4">
                       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                        Employment Type
+                        Number of Positions
                       </p>
                       <p className="mt-2 text-sm font-semibold text-deep-charcoal">
-                        {selectedRequestDetails?.skillRequirements?.employmentType ||
-                          'Not specified'}
+                        {selectedRequestDetails?.headcount ?? selectedRequest.quantity}
                       </p>
                     </div>
                     <div className="rounded-lg border border-border-warm p-4">
                       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                        Request Template
-                      </p>
-                      <p className="mt-2 text-sm font-semibold text-teal-command">
-                        {selectedSkillRequirements?.templateName || selectedTemplate.name}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-border-warm p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                        Experience
+                        Priority
                       </p>
                       <p className="mt-2 text-sm font-semibold text-deep-charcoal">
-                        {selectedSkillRequirements?.experience || 'Not specified'}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-border-warm p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                        Education
-                      </p>
-                      <p className="mt-2 text-sm font-semibold text-deep-charcoal">
-                        {selectedSkillRequirements?.education || 'Not specified'}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-border-warm p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                        Salary Range
-                      </p>
-                      <p className="mt-2 text-sm font-semibold text-teal-command">
-                        {selectedRequestDetails?.skillRequirements?.salaryMin &&
-                        selectedRequestDetails?.skillRequirements?.salaryMax
-                          ? `${Number(selectedRequestDetails.skillRequirements.salaryMin).toLocaleString()} - ${Number(selectedRequestDetails.skillRequirements.salaryMax).toLocaleString()} VND`
-                          : 'Not specified'}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-border-warm p-4 col-span-2">
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                        Expected Start Date
-                      </p>
-                      <p className="mt-2 text-sm font-semibold text-deep-charcoal">
-                        {selectedRequestDetails?.skillRequirements?.startDate
-                          ? new Date(
-                              selectedRequestDetails.skillRequirements.startDate,
-                            ).toLocaleDateString()
-                          : 'Not specified'}
+                        {priorityFromUrgency(
+                          selectedRequestDetails?.urgency ?? selectedRequest.priority,
+                        )}
                       </p>
                     </div>
                   </div>
 
-                  {selectedTemplateFieldValues.length > 0 && (
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant mb-2">
-                        Template Details
-                      </p>
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        {selectedTemplateFieldValues.map((field) => (
-                          <div
-                            className="rounded-lg border border-border-warm bg-workflow-ivory/40 p-3"
-                            key={field.key}
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant mb-2">
+                      Required Skills
+                    </p>
+                    {selectedRequestDetails?.skillRequirements?.skills?.length ? (
+                      <div className="flex flex-wrap gap-2">
+                        {selectedRequestDetails.skillRequirements.skills.map((skill: string) => (
+                          <span
+                            key={skill}
+                            className="inline-flex items-center rounded-full bg-secondary-container px-3 py-1 text-xs font-semibold text-on-secondary-container"
                           >
-                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                              {field.label}
-                            </p>
-                            <p className="mt-2 whitespace-pre-wrap text-sm font-semibold leading-6 text-deep-charcoal">
-                              {field.value}
-                            </p>
-                          </div>
+                            {skill}
+                          </span>
                         ))}
                       </div>
-                    </div>
-                  )}
-
-                  {/* Skills tags */}
-                  {selectedRequestDetails?.skillRequirements?.skills &&
-                    selectedRequestDetails.skillRequirements.skills.length > 0 && (
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant mb-2">
-                          Required Skills
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {selectedRequestDetails.skillRequirements.skills.map((skill: string) => (
-                            <span
-                              key={skill}
-                              className="inline-flex items-center rounded-full bg-secondary-container px-3 py-1 text-xs font-semibold text-on-secondary-container"
-                            >
-                              {skill}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
+                    ) : (
+                      <p className="text-sm text-on-surface-variant">No skills added.</p>
                     )}
+                  </div>
 
                   {/* Job Description */}
                   <div>
@@ -1099,13 +1044,13 @@ export const DeptHeadRequests: React.FC = () => {
                     </p>
                   </div>
 
-                  {/* Business Justification */}
+                  {/* Additional Notes */}
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                      Business Justification
+                      Additional Notes
                     </p>
                     <p className="mt-2 text-sm leading-6 text-slate-ink whitespace-pre-wrap border border-border-warm rounded-lg p-3 bg-workflow-ivory/40">
-                      {selectedRequestDetails?.justification || 'No justification available.'}
+                      {selectedRequestDetails?.justification || 'No additional notes provided.'}
                     </p>
                   </div>
                 </>
@@ -1121,8 +1066,7 @@ export const DeptHeadRequests: React.FC = () => {
               >
                 Close
               </button>
-              {(selectedRequest.status === 'Draft' ||
-                selectedRequest.status === 'Revision Required') && (
+              {selectedRequest.status === 'Pending' && (
                 <button
                   className="rounded-lg bg-teal-command hover:bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition active:scale-[0.98]"
                   onClick={() => {
@@ -1134,6 +1078,27 @@ export const DeptHeadRequests: React.FC = () => {
                   Edit Request
                 </button>
               )}
+              {selectedRequest.status === 'Revision Required' && hrSuggestion ? (
+                <>
+                  <button
+                    className="rounded-lg border border-rejected/30 bg-clean-surface px-5 py-2.5 text-sm font-semibold text-rejected transition hover:bg-rejected/5 disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={respondingToSuggestion || !revisionResponse.trim()}
+                    onClick={() => void respondToHrSuggestion(false)}
+                    type="button"
+                  >
+                    {respondingToSuggestion ? 'Sending...' : 'Reject Suggestion'}
+                  </button>
+                  <button
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-teal-command px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={respondingToSuggestion}
+                    onClick={() => void respondToHrSuggestion(true)}
+                    type="button"
+                  >
+                    <Icon className="h-4 w-4" name="check" />
+                    {respondingToSuggestion ? 'Sending...' : 'Accept Changes'}
+                  </button>
+                </>
+              ) : null}
               {selectedRequest.status === 'Draft' && (
                 <button
                   className="rounded-lg bg-teal-command hover:bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition active:scale-[0.98]"
@@ -1148,16 +1113,16 @@ export const DeptHeadRequests: React.FC = () => {
               )}
               {selectedRequest.status === 'Pending' &&
                 selectedRequest.workflowWorkspace === 'Request' && (
-                <button
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-5 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={deletingRequestId === selectedRequest.id}
-                  onClick={() => requestDelete(selectedRequest)}
-                  type="button"
-                >
-                  <Icon className="h-4 w-4" name="trash" />
-                  {deletingRequestId === selectedRequest.id ? 'Deleting...' : 'Delete Request'}
-                </button>
-              )}
+                  <button
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-5 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={deletingRequestId === selectedRequest.id}
+                    onClick={() => requestDelete(selectedRequest)}
+                    type="button"
+                  >
+                    <Icon className="h-4 w-4" name="trash" />
+                    {deletingRequestId === selectedRequest.id ? 'Deleting...' : 'Delete Request'}
+                  </button>
+                )}
             </div>
           </div>
         </div>
@@ -1183,8 +1148,8 @@ export const DeptHeadRequests: React.FC = () => {
               Delete this pending request?
             </h2>
             <p className="mt-3 text-sm leading-6 text-slate-ink">
-              <span className="font-semibold text-deep-charcoal">{deleteTarget.position}</span>{' '}
-              will be permanently removed. This action cannot be undone.
+              <span className="font-semibold text-deep-charcoal">{deleteTarget.position}</span> will
+              be permanently removed. This action cannot be undone.
             </p>
             <div className="mt-6 flex justify-end gap-3">
               <button

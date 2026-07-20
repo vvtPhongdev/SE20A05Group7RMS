@@ -4,13 +4,7 @@ import { isHrRole } from '@wr/contracts';
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest, ApiError } from '../../../lib/api';
 import { mapPlanStatus, type OverallPlanSummary, type PlanStatus } from '../../../lib/planStatus';
-import {
-  HRActionButton,
-  HRCard,
-  HRInlineAlert,
-  HRLoadingState,
-  HRPageHeader,
-} from '../components';
+import { HRActionButton, HRCard, HRInlineAlert, HRLoadingState, HRPageHeader } from '../components';
 
 type Campaign = {
   id: string;
@@ -27,6 +21,11 @@ type Campaign = {
   planId: string | null;
   approverName: string;
   updatedAt: string | null;
+  urgency: string;
+  skills: string[];
+  bachelorRequirements: string[];
+  jobDescription: string;
+  justification: string;
 };
 
 interface RecruitmentRequestApiItem {
@@ -36,8 +35,16 @@ interface RecruitmentRequestApiItem {
   reviewedBy: { id: string; displayName: string } | null;
   status: string;
   headcount: number;
+  urgency: string;
+  jobDescription: string;
+  justification: string;
   skillRequirements: Record<string, unknown> | null;
   overallPlan: OverallPlanSummary | null;
+}
+
+interface DepartmentRequirementsApiItem {
+  id: string;
+  bachelorRequirements?: unknown;
 }
 
 interface RecruitmentRequestListResponse {
@@ -46,6 +53,8 @@ interface RecruitmentRequestListResponse {
 
 const EXCLUDED_CAMPAIGN_STATUSES = new Set([
   'DRAFT',
+  'PENDING_HR_REVIEW',
+  'PENDING_BOSS_APPROVAL',
   'PENDING_REVIEW',
   'REJECTED',
   'REVISION_NEEDED',
@@ -54,6 +63,12 @@ const EXCLUDED_CAMPAIGN_STATUSES = new Set([
 
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(value));
+
+const todayDateInput = () => {
+  const date = new Date();
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 10);
+};
 
 // Best-effort placeholder, computed from plan status only (no N+1 task fetch here).
 // See Campaign Detail page for the accurate task-completion-based progress.
@@ -65,7 +80,10 @@ const PROGRESS_BY_STATUS: Record<PlanStatus, number> = {
   COMPLETED: 100,
 };
 
-const mapCampaign = (item: RecruitmentRequestApiItem): Campaign => {
+const mapCampaign = (
+  item: RecruitmentRequestApiItem,
+  bachelorRequirements: string[] = [],
+): Campaign => {
   const plan = item.overallPlan;
   const status = item.status === 'COMPLETED' ? 'COMPLETED' : mapPlanStatus(plan);
   const skills = (item.skillRequirements ?? {}) as Record<string, unknown>;
@@ -91,6 +109,11 @@ const mapCampaign = (item: RecruitmentRequestApiItem): Campaign => {
     planId: plan?.id ?? null,
     approverName: plan?.approvedBy?.displayName ?? 'Pending review',
     updatedAt: plan?.updatedAt ?? null,
+    urgency: item.urgency,
+    skills: Array.isArray(skills.skills) ? skills.skills.map(String) : [],
+    bachelorRequirements,
+    jobDescription: item.jobDescription,
+    justification: item.justification,
   };
 };
 
@@ -146,6 +169,7 @@ const iconPaths: Record<string, React.ReactNode> = {
   person: <path d="M20 21a8 8 0 0 0-16 0m12-13a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" />,
   checklist: <path d="m4 7 1.5 1.5L8 6m4 1h8M4 13l1.5 1.5L8 12m4 1h8M4 19l1.5 1.5L8 18m4 1h8" />,
   send: <path d="m22 2-7 20-4-9-9-4 20-7Z" />,
+  edit: <path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Zm12-14 3 3" />,
   arrow: <path d="M5 12h14m-6-6 6 6-6 6" />,
 };
 
@@ -201,13 +225,26 @@ export const HRCampaigns: React.FC = () => {
     setLoading(true);
     setApiError('');
     try {
-      const response = await apiRequest<RecruitmentRequestListResponse>(
-        '/recruitment-requests?limit=100',
-        token,
+      const [response, departments] = await Promise.all([
+        apiRequest<RecruitmentRequestListResponse>('/recruitment-requests?limit=100', token),
+        apiRequest<DepartmentRequirementsApiItem[]>('/departments', token),
+      ]);
+      const bachelorRequirementsByDepartment = new Map(
+        departments.map((department) => [
+          department.id,
+          Array.isArray(department.bachelorRequirements)
+            ? department.bachelorRequirements.map(String)
+            : [],
+        ]),
       );
       const mapped = response.data
         .filter((item) => !EXCLUDED_CAMPAIGN_STATUSES.has(item.status))
-        .map(mapCampaign);
+        .map((item) =>
+          mapCampaign(
+            item,
+            bachelorRequirementsByDepartment.get(item.department?.id ?? '') ?? [],
+          ),
+        );
       setCampaigns(mapped);
       setSelectedId((current) =>
         current && mapped.some((campaign) => campaign.id === current)
@@ -226,6 +263,17 @@ export const HRCampaigns: React.FC = () => {
   }, [token, user?.id, user?.role]);
 
   const canCreatePlans = isHrRole(user?.role);
+  const canEditCampaign = (campaign: Campaign) => canCreatePlans && Boolean(campaign.planId);
+  const openCampaignEditor = (campaign: Campaign) => {
+    if (!canCreatePlans) return;
+    if (!campaign.planId) {
+      setCreateRequestId(campaign.id);
+      setCreateError('');
+      setShowCreateModal(true);
+      return;
+    }
+    navigate(`/hr/campaigns/${campaign.id}`);
+  };
 
   useEffect(() => {
     const createRequestIdParam = searchParams.get('createRequestId');
@@ -283,9 +331,24 @@ export const HRCampaigns: React.FC = () => {
     () => campaigns.filter((campaign) => campaign.status === 'DRAFT' && !campaign.planId),
     [campaigns],
   );
+  const createRequest =
+    draftCampaigns.find((campaign) => campaign.id === createRequestId) ?? null;
+  const createDateError = useMemo(() => {
+    if (!createStart || !createEnd) return '';
+    const start = new Date(`${createStart}T00:00:00`);
+    const end = new Date(`${createEnd}T00:00:00`);
+
+    if (createStart < todayDateInput()) return 'Start date cannot be in the past.';
+    if (end <= start) return 'End date must be after the start date.';
+    return '';
+  }, [createEnd, createStart]);
 
   const createOverallPlan = async () => {
     if (!createRequestId || !createStart || !createEnd) return;
+    if (createDateError) {
+      setCreateError(createDateError);
+      return;
+    }
 
     setCreateSubmitting(true);
     setCreateError('');
@@ -335,7 +398,7 @@ export const HRCampaigns: React.FC = () => {
   };
 
   return (
-    <div className="mx-auto grid max-w-[1440px] gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
+    <div className="mx-auto max-w-[1440px]">
       <main className="min-w-0 space-y-6">
         <HRPageHeader
           eyebrow="HR Manager"
@@ -363,7 +426,7 @@ export const HRCampaigns: React.FC = () => {
         {loading && <HRLoadingState label="Loading campaigns..." />}
 
         <section
-          className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4"
+          className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-5"
           aria-label="Campaign metrics"
         >
           {metricCards.map((card) => {
@@ -429,17 +492,17 @@ export const HRCampaigns: React.FC = () => {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[920px] border-collapse text-left">
+            <table className="w-full min-w-[1040px] border-collapse text-left">
               <thead className="bg-workflow-ivory text-xs uppercase tracking-[0.14em] text-on-surface-variant">
                 <tr>
                   {[
-                    'Request ID',
                     'Position',
                     'Department',
                     'HC',
                     'Plan Status',
                     'Campaign Window',
                     'Progress',
+                    'Actions',
                   ].map((column) => (
                     <th className="px-5 py-4 font-semibold" key={column}>
                       {column}
@@ -460,11 +523,6 @@ export const HRCampaigns: React.FC = () => {
                         setActionError('');
                       }}
                     >
-                      <td
-                        className={`px-5 py-4 font-mono text-sm ${selectedRow ? 'text-teal-command' : 'text-slate-ink'}`}
-                      >
-                        #{campaign.id.slice(0, 8)}
-                      </td>
                       <td className="px-5 py-4 text-sm font-semibold text-deep-charcoal">
                         {campaign.position}
                       </td>
@@ -493,6 +551,27 @@ export const HRCampaigns: React.FC = () => {
                           </span>
                         </div>
                       </td>
+                      <td className="px-5 py-4">
+                        <button
+                          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-teal-command/30 px-3 text-xs font-semibold text-teal-command transition hover:bg-teal-command hover:text-white disabled:cursor-not-allowed disabled:border-border-warm disabled:text-on-surface-variant disabled:hover:bg-transparent"
+                          disabled={!canCreatePlans}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openCampaignEditor(campaign);
+                          }}
+                          title={
+                            !canCreatePlans
+                              ? 'Only HR users can edit campaigns'
+                              : campaign.planId
+                                ? 'Edit plan tasks and schedule'
+                                : 'Create an overall plan'
+                          }
+                          type="button"
+                        >
+                          <Icon className="h-3.5 w-3.5" name="edit" />
+                          {campaign.planId ? 'Edit' : 'Add Plan'}
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -513,7 +592,7 @@ export const HRCampaigns: React.FC = () => {
         </section>
       </main>
 
-      <aside className="min-w-0 rounded-lg border border-border-warm bg-clean-surface shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)] xl:sticky xl:top-6 xl:self-start">
+      <aside className="hidden min-w-0 rounded-lg border border-border-warm bg-clean-surface shadow-[0_18px_50px_-44px_rgba(28,25,23,0.55)] xl:sticky xl:top-6 xl:self-start">
         {selected ? (
           <>
             <div className="flex items-start justify-between gap-4 border-b border-border-warm bg-workflow-ivory/50 p-5">
@@ -629,11 +708,17 @@ export const HRCampaigns: React.FC = () => {
               ) : null}
               <div className="grid grid-cols-2 gap-3">
                 <button
-                  className="h-10 rounded-lg border border-border-warm text-sm font-semibold text-on-surface-variant transition disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled
-                  title="Editing an existing plan is not yet supported"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-teal-command px-3 text-sm font-semibold text-teal-command transition hover:bg-teal-command hover:text-white active:scale-[0.98] disabled:cursor-not-allowed disabled:border-border-warm disabled:text-on-surface-variant disabled:hover:bg-transparent"
+                  disabled={!canEditCampaign(selected)}
+                  onClick={() => navigate(`/hr/campaigns/${selected.id}`)}
+                  title={
+                    canEditCampaign(selected)
+                      ? 'Edit plan tasks and schedule'
+                      : 'Create an overall plan before editing this campaign'
+                  }
                   type="button"
                 >
+                  <Icon className="h-4 w-4" name="edit" />
                   Edit Plan
                 </button>
                 <button
@@ -686,11 +771,92 @@ export const HRCampaigns: React.FC = () => {
                 >
                   {draftCampaigns.map((campaign) => (
                     <option key={campaign.id} value={campaign.id}>
-                      #{campaign.id.slice(0, 8)} - {campaign.position}
+                    {campaign.position} — {campaign.department}
                     </option>
                   ))}
                 </select>
               </label>
+              {createRequest ? (
+                <section className="space-y-4 rounded-lg border border-border-warm bg-workflow-ivory/60 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-teal-command">
+                      Request Summary
+                    </p>
+                    <span className="rounded-full border border-border-warm bg-clean-surface px-2.5 py-1 text-[10px] font-bold uppercase text-on-surface-variant">
+                      {createRequest.urgency} Priority
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      ['Position Title', createRequest.position],
+                      ['Department', createRequest.department],
+                      ['Number of Positions', String(createRequest.headcount)],
+                      ['Priority', createRequest.urgency],
+                    ].map(([label, value]) => (
+                      <div key={label}>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-on-surface-variant">
+                          {label}
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-deep-charcoal">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-on-surface-variant">
+                      Required Skills
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {createRequest.skills.length > 0 ? (
+                        createRequest.skills.map((skill) => (
+                          <span
+                            className="rounded-full border border-teal-command/20 bg-teal-command/5 px-2.5 py-1 text-xs font-semibold text-teal-command"
+                            key={skill}
+                          >
+                            {skill}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-sm italic text-on-surface-variant">None specified</span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-on-surface-variant">
+                      Bachelor Requirements
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {createRequest.bachelorRequirements.length > 0 ? (
+                        createRequest.bachelorRequirements.map((requirement) => (
+                          <span
+                            className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700"
+                            key={requirement}
+                          >
+                            {requirement}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-sm italic text-on-surface-variant">None specified</span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-on-surface-variant">
+                      Job Description
+                    </p>
+                    <p className="mt-1.5 whitespace-pre-wrap text-sm leading-5 text-slate-ink">
+                      {createRequest.jobDescription || 'No job description provided.'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-on-surface-variant">
+                      Additional Notes
+                    </p>
+                    <p className="mt-1.5 whitespace-pre-wrap text-sm leading-5 text-slate-ink">
+                      {createRequest.justification || 'No additional notes provided.'}
+                    </p>
+                  </div>
+                </section>
+              ) : null}
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
                   <span className="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">
@@ -698,6 +864,7 @@ export const HRCampaigns: React.FC = () => {
                   </span>
                   <input
                     className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                    min={todayDateInput()}
                     onChange={(event) => setCreateStart(event.target.value)}
                     type="date"
                     value={createStart}
@@ -709,12 +876,16 @@ export const HRCampaigns: React.FC = () => {
                   </span>
                   <input
                     className="h-10 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                    min={createStart || todayDateInput()}
                     onChange={(event) => setCreateEnd(event.target.value)}
                     type="date"
                     value={createEnd}
                   />
                 </label>
               </div>
+              {createDateError && (
+                <p className="text-sm font-semibold text-rejected">{createDateError}</p>
+              )}
             </div>
             <footer className="flex justify-end gap-3 border-t border-border-warm bg-workflow-ivory/60 px-6 py-4">
               <button
@@ -726,7 +897,13 @@ export const HRCampaigns: React.FC = () => {
               </button>
               <button
                 className="h-10 rounded-lg bg-teal-command px-5 text-sm font-bold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!createRequestId || !createStart || !createEnd || createSubmitting}
+                disabled={
+                  !createRequestId ||
+                  !createStart ||
+                  !createEnd ||
+                  Boolean(createDateError) ||
+                  createSubmitting
+                }
                 onClick={() => void createOverallPlan()}
                 type="button"
               >

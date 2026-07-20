@@ -17,10 +17,19 @@ export type JobDetailsModalJob = {
   title: string;
   description: string;
   requirements?: Record<string, unknown> | null;
+  startDate?: string | null;
   expireDate?: string | null;
   request?: {
     headcount?: number;
-    department?: { name: string } | null;
+    position?: string;
+    urgency?: string;
+    jobDescription?: string;
+    skillRequirements?: unknown;
+    justification?: string;
+    department?: {
+      name: string;
+      bachelorRequirements?: unknown;
+    } | null;
   } | null;
 };
 
@@ -47,6 +56,14 @@ const formatDate = (value?: string | null) =>
         year: 'numeric',
       }).format(new Date(value))
     : 'Open until filled';
+
+const formatUrgency = (value?: string) =>
+  value
+    ? value
+        .split('_')
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+        .join(' ')
+    : '';
 
 const getMedia = (job: JobDetailsModalJob): RecruitmentMediaAsset[] => {
   const media = asRecord(job.requirements).recruitmentMedia;
@@ -99,7 +116,17 @@ export const JobDetailsModal = ({
   const banner = media.find((item) => item.kind === 'BANNER') ?? null;
   const noticeImages = media.filter((item) => item.kind === 'NOTICE');
   const notices = getNotices(job);
-  const skills = asStringList(requirements.skills);
+  const requestRequirements = asRecord(job.request?.skillRequirements);
+  const skills = Array.from(
+    new Set([
+      ...asStringList(requestRequirements.skills),
+      ...asStringList(requirements.skills),
+    ]),
+  );
+  const bachelorRequirements = asStringList(job.request?.department?.bachelorRequirements);
+  const requestDescription = job.request?.jobDescription?.trim();
+  const justification = job.request?.justification?.trim();
+  const urgency = formatUrgency(job.request?.urgency);
   const experience = String(requirements.experience ?? requirements.experienceYears ?? '').trim();
   const education = String(requirements.education ?? '').trim();
   const jobLevel = String(requirements.jobLevel ?? '').trim();
@@ -150,9 +177,18 @@ export const JobDetailsModal = ({
               <section>
                 <h3 className="text-lg font-semibold text-deep-charcoal">Job Description</h3>
                 <p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-ink">
-                  {job.description}
+                  {job.description || requestDescription || 'No job description provided.'}
                 </p>
               </section>
+
+              {requestDescription && requestDescription !== job.description.trim() ? (
+                <section>
+                  <h3 className="text-lg font-semibold text-deep-charcoal">Request Description</h3>
+                  <p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-ink">
+                    {requestDescription}
+                  </p>
+                </section>
+              ) : null}
 
               {skills.length ? (
                 <section>
@@ -167,6 +203,31 @@ export const JobDetailsModal = ({
                       </span>
                     ))}
                   </div>
+                </section>
+              ) : null}
+
+              {bachelorRequirements.length ? (
+                <section>
+                  <h3 className="text-lg font-semibold text-deep-charcoal">Bachelor Requirements</h3>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {bachelorRequirements.map((requirement) => (
+                      <span
+                        className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
+                        key={requirement}
+                      >
+                        {requirement}
+                      </span>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
+              {justification ? (
+                <section>
+                  <h3 className="text-lg font-semibold text-deep-charcoal">Recruitment Notes</h3>
+                  <p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-ink">
+                    {justification}
+                  </p>
                 </section>
               ) : null}
 
@@ -214,6 +275,34 @@ export const JobDetailsModal = ({
                   Summary
                 </p>
                 <dl className="mt-4 space-y-3 text-sm">
+                  {job.request?.position ? (
+                    <div>
+                      <dt className="text-slate-ink">Requested position</dt>
+                      <dd className="mt-1 font-semibold text-deep-charcoal">
+                        {job.request.position}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {job.request?.department?.name ? (
+                    <div>
+                      <dt className="text-slate-ink">Department</dt>
+                      <dd className="mt-1 font-semibold text-deep-charcoal">
+                        {job.request.department.name}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {urgency ? (
+                    <div>
+                      <dt className="text-slate-ink">Priority</dt>
+                      <dd className="mt-1 font-semibold text-deep-charcoal">{urgency}</dd>
+                    </div>
+                  ) : null}
+                  {job.startDate ? (
+                    <div>
+                      <dt className="text-slate-ink">Opens</dt>
+                      <dd className="mt-1 font-semibold text-deep-charcoal">{formatDate(job.startDate)}</dd>
+                    </div>
+                  ) : null}
                   <div>
                     <dt className="text-slate-ink">Closes</dt>
                     <dd className="mt-1 font-semibold text-deep-charcoal">{formatDate(job.expireDate)}</dd>

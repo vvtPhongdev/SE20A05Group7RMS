@@ -1,0 +1,93 @@
+@startuml
+title RMS Core Use Cases - FR/UC Traceability View
+left to right direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+
+actor "Department Head" as DH
+actor "HR Leader" as HR
+actor "Admin / Boss" as ADM
+actor Candidate as CAN
+actor "System / Worker" as SYS
+
+rectangle "Recruitment Workflow Management System" {
+  package "Identity and Organization" {
+    usecase "UC-01..09\nAuthenticate and manage profile" as AUTH
+    usecase "UC-10..15\nManage users, organization\nand departments" as ORG
+  }
+
+  package "Request and Plan Governance" {
+    usecase "UC-16..18\nCreate and submit request" as REQ_CREATE
+    usecase "UC-19..24\nReview, approve and track request" as REQ_REVIEW
+    usecase "UC-25..31\nPlan, approve and execute campaign" as PLAN
+  }
+
+  package "Candidate and CV Pipeline" {
+    usecase "UC-33..40\nJob posting, application, profile and CV" as CV_INTAKE
+    usecase "UC-41..44\nParse, embed, search and screen CV" as CV_AI
+  }
+
+  package "Interview and Decision" {
+    usecase "UC-46..50\nSchedule, confirm and invite panel" as INTERVIEW
+    usecase "UC-51..54\nFeedback, recommendation and decision" as DECISION
+    usecase "UC-55..56\nGenerate, send and answer offer" as OFFER
+  }
+
+  package "Operations" {
+    usecase "UC-57\nNotifications" as NOTIFY
+    usecase "UC-58..59\nDashboards and reports" as REPORT
+    usecase "UC-60..61\nAuthorization and health" as OPS
+  }
+}
+
+DH --> AUTH
+DH --> REQ_CREATE
+DH --> REQ_REVIEW
+DH --> INTERVIEW : panel member
+DH --> DECISION : submit feedback
+DH --> REPORT
+
+HR --> AUTH
+HR --> REQ_REVIEW
+HR --> PLAN
+HR --> CV_INTAKE
+HR --> CV_AI
+HR --> INTERVIEW
+HR --> DECISION
+HR --> OFFER
+HR --> REPORT
+
+ADM --> AUTH
+ADM --> ORG
+ADM --> REQ_REVIEW
+ADM --> PLAN : approve/reject
+ADM --> DECISION : final authority
+ADM --> REPORT
+
+CAN --> AUTH
+CAN --> CV_INTAKE
+CAN --> INTERVIEW : confirm/reschedule/cancel
+CAN --> OFFER : accept/decline
+CAN --> NOTIFY
+
+SYS --> CV_AI
+SYS --> NOTIFY
+SYS --> OPS
+
+REQ_CREATE ..> REQ_REVIEW : <<include>> submit
+REQ_REVIEW ..> PLAN : <<include>> approved request
+PLAN ..> CV_AI : <<include>> plan-lock
+PLAN ..> INTERVIEW : <<include>> approved plan + task
+INTERVIEW ..> DECISION : <<include>> completed interview
+DECISION ..> OFFER : <<extend>> HIRE
+OFFER ..> NOTIFY : <<include>>
+REQ_REVIEW ..> NOTIFY : <<include>>
+REPORT ..> REQ_REVIEW : RequestLog timeline
+
+note bottom of PLAN
+FR-07: downstream recruitment activity is blocked
+until request, OverallPlan and activity TaskPlan are valid.
+end note
+@enduml
+

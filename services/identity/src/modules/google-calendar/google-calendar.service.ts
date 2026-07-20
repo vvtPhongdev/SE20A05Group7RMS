@@ -15,6 +15,7 @@ const GOOGLE_CALENDAR_SCOPES = [
 interface GoogleCalendarState {
   sub: string;
   purpose: 'google_calendar_oauth';
+  returnTo: string;
 }
 
 export interface CreateGoogleMeetInput {
@@ -71,16 +72,34 @@ export class GoogleCalendarService {
     return Math.min(Math.max(Math.trunc(minutes), 1), 40_320);
   }
 
+  private normalizeReturnTo(returnTo?: string) {
+    const fallback = '/hr/interviews';
+    if (!returnTo || returnTo.length > 1_024 || !returnTo.startsWith('/')) return fallback;
+
+    try {
+      const base = new URL('http://webapp.local');
+      const target = new URL(returnTo, base);
+      if (target.origin !== base.origin) return fallback;
+      return `${target.pathname}${target.search}${target.hash}`;
+    } catch {
+      return fallback;
+    }
+  }
+
   /**
    * Bước 1: Tạo URL OAuth để người dùng cấp quyền Google Calendar.
    * - Scope gồm profile, email và calendar.events để đủ quyền tạo event.
    * - access_type=offline + prompt=consent buộc Google trả refresh_token.
    * - state là JWT ngắn hạn để callback biết refresh_token thuộc user nào.
    */
-  createAuthorizationUrl(userId: string) {
+  createAuthorizationUrl(userId: string, returnTo?: string) {
     const oauth2Client = this.createOAuthClient();
     const state = this.jwtService.sign(
-      { sub: userId, purpose: 'google_calendar_oauth' } satisfies GoogleCalendarState,
+      {
+        sub: userId,
+        purpose: 'google_calendar_oauth',
+        returnTo: this.normalizeReturnTo(returnTo),
+      } satisfies GoogleCalendarState,
       { expiresIn: '10m' },
     );
 
@@ -146,6 +165,7 @@ export class GoogleCalendarService {
       userId: user.id,
       email: user.email,
       displayName: user.displayName,
+      returnTo: this.normalizeReturnTo(state.returnTo),
     };
   }
 
@@ -283,7 +303,10 @@ export class GoogleCalendarService {
   private toGoogleCalendarRpcException(error: unknown) {
     const maybeError = error as {
       code?: number;
-      response?: { status?: number; data?: { error?: string; error_description?: string; message?: string } };
+      response?: {
+        status?: number;
+        data?: { error?: string; error_description?: string; message?: string };
+      };
       message?: string;
     };
     const status = Number(maybeError.response?.status ?? maybeError.code) || HttpStatus.BAD_GATEWAY;

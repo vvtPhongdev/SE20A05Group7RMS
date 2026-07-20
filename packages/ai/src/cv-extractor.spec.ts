@@ -345,6 +345,86 @@ describe('Gemini CV extractor', () => {
     );
   });
 
+  it('falls back when the configured Gemini model is unavailable', async () => {
+    process.env.GEMINI_API_KEY = 'test-gemini-key';
+    process.env.GEMINI_CV_MODEL = 'retired-model';
+    process.env.GEMINI_CV_MODELS = 'healthy-model';
+    const output = {
+      documentText: 'Jane Doe\nSenior Engineer',
+      confidence: 0.9,
+      warnings: [],
+      resume: {
+        personalInfo: { links: [] },
+        currentRole: 'Senior Engineer',
+        skills: { technical: [], softSkills: [], languages: [] },
+        workExperience: [],
+        education: [],
+      },
+    };
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: async () => ({ error: { message: 'Model is unavailable' } }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          candidates: [{ content: { parts: [{ text: JSON.stringify(output) }] } }],
+        }),
+      });
+    global.fetch = fetchMock as typeof fetch;
+
+    const result = await extractCvWithAi({
+      fileName: 'text-cv.docx',
+      fileType: 'DOCX',
+      fileUrl: 'https://storage.example/text-cv.docx',
+      rawText: 'Jane Doe Senior Engineer TypeScript',
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/models/retired-model:generateContent');
+    expect(String(fetchMock.mock.calls[1][0])).toContain('/models/healthy-model:generateContent');
+    expect(result.model).toBe('healthy-model');
+  });
+
+  it('migrates the retired Gemini 2.5 Flash configuration to Gemini 3.5 Flash', async () => {
+    process.env.GEMINI_API_KEY = 'test-gemini-key';
+    process.env.GEMINI_CV_MODEL = 'gemini-2.5-flash';
+    const output = {
+      documentText: 'Jane Doe\nSenior Engineer',
+      confidence: 0.9,
+      warnings: [],
+      resume: {
+        personalInfo: { links: [] },
+        currentRole: 'Senior Engineer',
+        skills: { technical: [], softSkills: [], languages: [] },
+        workExperience: [],
+        education: [],
+      },
+    };
+    const fetchMock = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: JSON.stringify(output) }] } }],
+      }),
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    const result = await extractCvWithAi({
+      fileName: 'text-cv.docx',
+      fileType: 'DOCX',
+      fileUrl: 'https://storage.example/text-cv.docx',
+      rawText: 'Jane Doe Senior Engineer',
+    });
+
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/models/gemini-3.5-flash:generateContent');
+    expect(result.model).toBe('gemini-3.5-flash');
+  });
+
   it('parses Gemini JSON output wrapped in a markdown code fence', async () => {
     process.env.GEMINI_API_KEY = 'test-gemini-key';
     process.env.GEMINI_CV_MODEL = 'gemini-test-model';
@@ -391,6 +471,53 @@ describe('Gemini CV extractor', () => {
         resume: expect.objectContaining({
           currentRole: 'Senior Engineer',
         }),
+      }),
+    );
+  });
+
+  it('defaults omitted Gemini metadata and extracts JSON embedded in prose', async () => {
+    process.env.GEMINI_API_KEY = 'test-gemini-key';
+    process.env.GEMINI_CV_MODEL = 'gemini-test-model';
+    const output = {
+      documentText: 'Jane Doe\nSenior Engineer\nTypeScript',
+      personalInfo: {
+        fullName: 'Jane Doe',
+        email: 'jane@example.com',
+        links: [],
+      },
+      currentRole: 'Senior Engineer',
+      skills: {
+        technical: ['TypeScript'],
+        softSkills: [],
+        languages: [],
+      },
+      workExperience: [],
+      education: [],
+    };
+    const fetchMock = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: `Extracted CV:\n\`\`\`json\n${JSON.stringify(output)}\n\`\`\`` }] } }],
+      }),
+    });
+    global.fetch = fetchMock as typeof fetch;
+
+    const result = await extractCvWithAi({
+      fileName: 'text-cv.docx',
+      fileType: 'DOCX',
+      fileUrl: 'https://storage.example/text-cv.docx',
+      rawText: 'Jane Doe Senior Engineer TypeScript',
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        confidence: 0,
+        warnings: expect.arrayContaining([
+          'Gemini response omitted a valid confidence value; defaulted to 0.',
+          'Gemini response omitted warnings; defaulted to an empty list.',
+        ]),
+        resume: expect.objectContaining({ currentRole: 'Senior Engineer' }),
       }),
     );
   });

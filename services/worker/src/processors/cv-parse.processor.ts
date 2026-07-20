@@ -9,6 +9,24 @@ const prisma = new PrismaClient({
 });
 
 const auditLog = new AuditLogService(prisma);
+const INTERRUPTED_PROCESSING_ERROR =
+  'CV processing was interrupted before completion. Please upload or replace the CV to retry.';
+
+export async function failStaleCvProcessingJobs(staleAfterMs = 5 * 60 * 1000): Promise<number> {
+  const result = await prisma.candidateCV.updateMany({
+    where: {
+      processingStatus: 'PROCESSING',
+      parsedAt: null,
+      updatedAt: { lt: new Date(Date.now() - staleAfterMs) },
+    },
+    data: {
+      processingStatus: 'FAILED',
+      processingError: INTERRUPTED_PROCESSING_ERROR,
+    },
+  });
+
+  return result.count;
+}
 
 export async function processCvParseJob(
   payload: CvParseJobPayload,

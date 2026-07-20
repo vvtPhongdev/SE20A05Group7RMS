@@ -10,7 +10,7 @@ import {
 
 type ApprovalStatus = 'Pending';
 type Priority = 'High' | 'Medium' | 'Low';
-type ReviewAction = 'APPROVED' | 'REJECTED' | 'REQUEST_CHANGES';
+type ReviewAction = 'APPROVED' | 'REJECTED';
 type ApprovalQueueType = 'REQUEST' | 'PLAN';
 
 interface ApprovalRequest {
@@ -32,30 +32,34 @@ interface ApprovalRequest {
   justification: string;
   skillRequirements: Record<string, unknown>;
   rejectionReason?: string | null;
+  requestStatus: string;
+  skills: string[];
+  bachelorRequirements: string[];
   planTasks?: Array<{
     id: string;
     taskType: string;
     status: string;
-    startDate: string;
-    endDate: string;
+    startDate: string | null;
+    endDate: string | null;
     assignedTo?: { id: string; displayName: string; email?: string; role?: string } | null;
   }>;
   planWindow?: string;
+  planStatus?: string;
+  planCreatedBy?: string;
+  planUpdatedAt?: string;
+  planRevisionNotes?: string | null;
 }
 const approvalQueueTabs: Array<{ key: ApprovalQueueType; label: string }> = [
   { key: 'REQUEST', label: 'Request Approval' },
   { key: 'PLAN', label: 'Campaign Plan Approval' },
 ];
 const PENDING_PLAN_APPROVAL_STATUSES = new Set(['PENDING_APPROVAL']);
-const PENDING_REQUEST_APPROVAL_STATUSES = new Set([
-  'PENDING_BOSS_APPROVAL',
-  'PENDING_REVIEW',
-]);
+const PENDING_REQUEST_APPROVAL_STATUSES = new Set(['PENDING_BOSS_APPROVAL', 'PENDING_REVIEW']);
 
 interface RecruitmentRequestApi {
   id: string;
   position: string;
-  department: { name: string };
+  department: { id: string; name: string };
   requester: { displayName: string };
   status: string;
   urgency: string;
@@ -69,18 +73,25 @@ interface RecruitmentRequestApi {
   overallPlan?: {
     id: string;
     status: string;
-    revisionNotes?: string | null;
     startDate?: string;
     endDate?: string;
     tasks?: Array<{
       id: string;
       taskType: string;
       status: string;
-      startDate: string;
-      endDate: string;
+      startDate: string | null;
+      endDate: string | null;
       assignedTo?: { id: string; displayName: string; email?: string; role?: string } | null;
     }>;
+    createdBy?: { id: string; displayName: string } | null;
+    updatedAt?: string;
+    revisionNotes?: string | null;
   } | null;
+}
+
+interface DepartmentRequirementsApi {
+  id: string;
+  bachelorRequirements?: unknown;
 }
 
 const TASK_TYPE_LABELS: Record<string, string> = {
@@ -124,14 +135,6 @@ export const AdminApprovalQueue: React.FC = () => {
   const [reviewNotes, setReviewNotes] = useState('');
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const notificationRef = useRef<HTMLDivElement | null>(null);
-  const [reviewForm, setReviewForm] = useState({
-    positionTitle: '',
-    headcount: 1,
-    jobDescription: '',
-    justification: '',
-    urgency: 'MEDIUM',
-    skills: '',
-  });
 
   useEffect(() => {
     let cancelled = false;
@@ -139,11 +142,19 @@ export const AdminApprovalQueue: React.FC = () => {
       setLoading(true);
       setApiError('');
       try {
-        const response = await apiRequest<{ data: RecruitmentRequestApi[] }>(
-          '/recruitment-requests?limit=100',
-          token,
-        );
+        const [response, departments] = await Promise.all([
+          apiRequest<{ data: RecruitmentRequestApi[] }>('/recruitment-requests?limit=100', token),
+          apiRequest<DepartmentRequirementsApi[]>('/departments', token).catch(() => []),
+        ]);
         if (cancelled) return;
+        const bachelorRequirementsByDepartment = new Map(
+          departments.map((department) => [
+            department.id,
+            Array.isArray(department.bachelorRequirements)
+              ? department.bachelorRequirements.map(String)
+              : [],
+          ]),
+        );
         setRequests(
           response.data
             .filter((request) => {
@@ -159,6 +170,7 @@ export const AdminApprovalQueue: React.FC = () => {
               return isPlanApproval || isForwardedRequest;
             })
             .map((request) => {
+              const requirements = request.skillRequirements ?? {};
               const planStatus = request.overallPlan?.status;
               const isPlanApproval = PENDING_PLAN_APPROVAL_STATUSES.has(planStatus ?? '');
               return {
@@ -183,8 +195,12 @@ export const AdminApprovalQueue: React.FC = () => {
                 urgency: request.urgency,
                 jobDescription: request.jobDescription,
                 justification: request.justification,
-                skillRequirements: request.skillRequirements ?? {},
+                skillRequirements: requirements,
                 rejectionReason: request.rejectionReason,
+                requestStatus: request.status,
+                skills: Array.isArray(requirements.skills) ? requirements.skills.map(String) : [],
+                bachelorRequirements:
+                  bachelorRequirementsByDepartment.get(request.department.id) ?? [],
                 planTasks: request.overallPlan?.tasks ?? [],
                 planWindow:
                   request.overallPlan?.startDate && request.overallPlan?.endDate
@@ -192,6 +208,10 @@ export const AdminApprovalQueue: React.FC = () => {
                         request.overallPlan.endDate,
                       ).toLocaleDateString()}`
                     : undefined,
+                planStatus,
+                planCreatedBy: request.overallPlan?.createdBy?.displayName,
+                planUpdatedAt: request.overallPlan?.updatedAt,
+                planRevisionNotes: request.overallPlan?.revisionNotes,
               };
             }),
         );
@@ -227,10 +247,7 @@ export const AdminApprovalQueue: React.FC = () => {
   );
 
   const notificationItems = useMemo(
-    () =>
-      requests
-        .filter((request) => request.status === 'Pending')
-        .slice(0, 6),
+    () => requests.filter((request) => request.status === 'Pending').slice(0, 6),
     [requests],
   );
 
@@ -297,17 +314,8 @@ export const AdminApprovalQueue: React.FC = () => {
 
   const openReviewModal = (action: ReviewAction) => {
     if (!selectedRequest) return;
-    const skills = selectedRequest.skillRequirements?.skills;
     setReviewAction(action);
     setReviewNotes('');
-    setReviewForm({
-      positionTitle: selectedRequest.position,
-      headcount: selectedRequest.headcount,
-      jobDescription: selectedRequest.jobDescription,
-      justification: selectedRequest.justification,
-      urgency: selectedRequest.urgency,
-      skills: Array.isArray(skills) ? skills.map(String).join(', ') : '',
-    });
   };
 
   const closeReviewModal = () => {
@@ -327,27 +335,7 @@ export const AdminApprovalQueue: React.FC = () => {
     setSubmittingId(id);
     setApiError('');
     try {
-      if (reviewAction === 'REQUEST_CHANGES') {
-        const currentRequirements = selectedRequest.skillRequirements;
-        await apiRequest(`/recruitment-requests/${id}/request-changes`, token, {
-          method: 'PATCH',
-          body: JSON.stringify({
-            feedback: reviewNotes.trim(),
-            positionTitle: reviewForm.positionTitle.trim(),
-            headcount: reviewForm.headcount,
-            jobDescription: reviewForm.jobDescription.trim(),
-            justification: reviewForm.justification.trim(),
-            urgency: reviewForm.urgency,
-            skillRequirements: {
-              ...currentRequirements,
-              skills: reviewForm.skills
-                .split(',')
-                .map((skill) => skill.trim())
-                .filter(Boolean),
-            },
-          }),
-        });
-      } else if (selectedRequest.approvalType === 'PLAN' && selectedRequest.planId) {
+      if (selectedRequest.approvalType === 'PLAN' && selectedRequest.planId) {
         await apiRequest(
           `/overall-plan/${selectedRequest.planId}/${
             reviewAction === 'APPROVED' ? 'approve' : 'reject'
@@ -554,9 +542,9 @@ export const AdminApprovalQueue: React.FC = () => {
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm border-b border-border-warm">
-                <th className="px-6 py-4 font-semibold uppercase tracking-wider">
+                {/* <th className="px-6 py-4 font-semibold uppercase tracking-wider">
                   {activeQueue === 'PLAN' ? 'Campaign Request ID' : 'Request ID'}
-                </th>
+                </th> */}
                 <th className="px-6 py-4 font-semibold uppercase tracking-wider">Department</th>
                 <th className="px-6 py-4 font-semibold uppercase tracking-wider">Position</th>
                 <th className="px-6 py-4 font-semibold uppercase tracking-wider">Quantity</th>
@@ -574,9 +562,9 @@ export const AdminApprovalQueue: React.FC = () => {
                   className="hover:shadow-[inset_4px_0_0_0_#0D9488] hover:bg-surface-container-low/40 transition-all cursor-pointer group"
                   onClick={() => handleOpenDrawer(request)}
                 >
-                  <td className="px-6 py-4 font-data-mono text-data-mono text-teal-command font-semibold">
+                  {/* <td className="px-6 py-4 font-data-mono text-data-mono text-teal-command font-semibold">
                     #{request.id}
-                  </td>
+                  </td> */}
                   <td className="px-6 py-4">{request.department}</td>
                   <td className="px-6 py-4 font-medium text-deep-charcoal">{request.position}</td>
                   <td className="px-6 py-4 font-semibold">
@@ -668,7 +656,7 @@ export const AdminApprovalQueue: React.FC = () => {
 
       {/* NavigationDrawer (Right Detail View) */}
       <div
-        className={`fixed right-0 top-0 h-screen w-full sm:w-[400px] bg-clean-surface border-l border-border-warm shadow-2xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${
+        className={`fixed right-0 top-0 h-screen w-[90vw] sm:w-1/2 lg:w-1/3 bg-clean-surface border-l border-border-warm shadow-2xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${
           isDrawerOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
         id="detailDrawer"
@@ -772,6 +760,22 @@ export const AdminApprovalQueue: React.FC = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-4 rounded-lg border border-border-warm bg-workflow-ivory/50 p-4">
+                {[
+                  ['Requested By', selectedRequest.requestedBy],
+                  ['Submitted On', selectedRequest.submitted],
+                  ['Request Status', selectedRequest.requestStatus.replace(/_/g, ' ')],
+                  ['Approval Queue', selectedRequest.approvalType === 'PLAN' ? 'Campaign Plan' : 'Request'],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-on-surface-variant">
+                      {label}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-deep-charcoal">{value}</p>
+                  </div>
+                ))}
+              </div>
+
               {/* Salary Range */}
               <div>
                 <label className="font-label-sm text-label-sm text-on-surface-variant block mb-1 font-semibold uppercase">
@@ -782,15 +786,74 @@ export const AdminApprovalQueue: React.FC = () => {
                 </p>
               </div>
 
-              {/* Description */}
               <div>
                 <label className="font-label-sm text-label-sm text-on-surface-variant block mb-1 font-semibold uppercase">
-                  Job Description Overview
+                  Required Skills
                 </label>
-                <p className="font-body-sm text-body-sm text-slate-ink leading-relaxed">
-                  {selectedRequest.description}
+                {selectedRequest.skills.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedRequest.skills.map((skill) => (
+                      <span
+                        className="rounded-full border border-teal-command/20 bg-teal-command/5 px-3 py-1 text-xs font-semibold text-teal-command"
+                        key={skill}
+                      >
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm italic text-on-surface-variant">No skills specified.</p>
+                )}
+              </div>
+
+              <div>
+                <label className="font-label-sm text-label-sm text-on-surface-variant block mb-1 font-semibold uppercase">
+                  Bachelor Requirements
+                </label>
+                {selectedRequest.bachelorRequirements.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedRequest.bachelorRequirements.map((requirement) => (
+                      <span
+                        className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700"
+                        key={requirement}
+                      >
+                        {requirement}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm italic text-on-surface-variant">No bachelor requirements specified.</p>
+                )}
+              </div>
+
+              <div>
+                <label className="font-label-sm text-label-sm text-on-surface-variant block mb-1 font-semibold uppercase">
+                  Job Description
+                </label>
+                <p className="whitespace-pre-wrap font-body-sm text-body-sm leading-relaxed text-slate-ink">
+                  {selectedRequest.jobDescription || 'No job description provided.'}
                 </p>
               </div>
+
+              <div>
+                <label className="font-label-sm text-label-sm text-on-surface-variant block mb-1 font-semibold uppercase">
+                  Additional Notes
+                </label>
+                <p className="whitespace-pre-wrap font-body-sm text-body-sm leading-relaxed text-slate-ink">
+                  {selectedRequest.justification || 'No additional notes provided.'}
+                </p>
+              </div>
+
+              {selectedRequest.rejectionReason ? (
+                <div className="rounded-lg border border-revision/20 bg-revision/5 p-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-revision">
+                    Existing Revision Feedback
+                  </p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-ink">
+                    {selectedRequest.rejectionReason}
+                  </p>
+                </div>
+              ) : null}
 
               {selectedRequest.approvalType === 'PLAN' ? (
                 <div className="rounded-lg border border-border-warm bg-workflow-ivory p-4">
@@ -807,6 +870,34 @@ export const AdminApprovalQueue: React.FC = () => {
                       {selectedRequest.planTasks?.length ?? 0} tasks
                     </span>
                   </div>
+                  <div className="mb-4 grid grid-cols-2 gap-3 rounded border border-border-warm bg-clean-surface p-3">
+                    {[
+                      ['Plan Status', selectedRequest.planStatus?.replace(/_/g, ' ') ?? 'Pending approval'],
+                      ['Prepared By', selectedRequest.planCreatedBy ?? 'Not available'],
+                      ['Plan Window', selectedRequest.planWindow ?? 'Not available'],
+                      [
+                        'Last Updated',
+                        selectedRequest.planUpdatedAt
+                          ? new Date(selectedRequest.planUpdatedAt).toLocaleString()
+                          : 'Not available',
+                      ],
+                    ].map(([label, value]) => (
+                      <div key={label}>
+                        <p className="text-[11px] font-semibold uppercase text-on-surface-variant">
+                          {label}
+                        </p>
+                        <p className="mt-1 text-xs font-semibold leading-5 text-deep-charcoal">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {selectedRequest.planRevisionNotes ? (
+                    <div className="mb-4 rounded border border-revision/20 bg-revision/5 p-3">
+                      <p className="text-[11px] font-semibold uppercase text-revision">Previous revision notes</p>
+                      <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-slate-ink">
+                        {selectedRequest.planRevisionNotes}
+                      </p>
+                    </div>
+                  ) : null}
                   <div className="space-y-2">
                     {(selectedRequest.planTasks ?? []).map((task) => (
                       <div
@@ -818,18 +909,18 @@ export const AdminApprovalQueue: React.FC = () => {
                             {TASK_TYPE_LABELS[task.taskType] ?? task.taskType}
                           </p>
                           <p className="mt-0.5 text-xs text-on-surface-variant">
-                            {task.assignedTo?.role === 'HR_LEADER'
-                              ? task.assignedTo.displayName
-                              : 'HR member will be assigned after approval'}
+                            {task.assignedTo?.displayName ?? 'HR member will be assigned after approval'}
                           </p>
                         </div>
-                        <div className="mt-3 grid grid-cols-2 gap-3 border-t border-border-warm pt-3">
+                        <div className="mt-3 grid grid-cols-3 gap-3 border-t border-border-warm pt-3">
                           <div className="min-w-0">
                             <p className="text-[11px] font-semibold uppercase text-on-surface-variant">
                               Start
                             </p>
                             <p className="font-mono text-xs text-slate-ink">
-                              {new Date(task.startDate).toLocaleDateString()}
+                              {task.startDate
+                                ? new Date(task.startDate).toLocaleDateString()
+                                : 'Not scheduled'}
                             </p>
                           </div>
                           <div className="min-w-0">
@@ -837,7 +928,17 @@ export const AdminApprovalQueue: React.FC = () => {
                               Due Date
                             </p>
                             <p className="font-mono text-xs font-semibold text-teal-command">
-                              {new Date(task.endDate).toLocaleDateString()}
+                              {task.endDate
+                                ? new Date(task.endDate).toLocaleDateString()
+                                : 'Not scheduled'}
+                            </p>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-semibold uppercase text-on-surface-variant">
+                              Task Status
+                            </p>
+                            <p className="mt-1 inline-flex rounded-full border border-border-warm bg-workflow-ivory px-2 py-0.5 text-[10px] font-bold uppercase text-secondary">
+                              {task.status.replace(/_/g, ' ')}
                             </p>
                           </div>
                         </div>
@@ -889,17 +990,6 @@ export const AdminApprovalQueue: React.FC = () => {
                     <span className="material-symbols-outlined">check</span>
                     Approve {selectedRequest.approvalType === 'PLAN' ? 'Plan' : 'Request'}
                   </button>
-                  {selectedRequest.approvalType === 'REQUEST' && (
-                    <button
-                      className="w-full border border-revision bg-revision/5 hover:bg-revision/10 text-revision py-3 rounded-lg font-label-md font-semibold transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
-                      type="button"
-                      disabled={submittingId === selectedRequest.id}
-                      onClick={() => openReviewModal('REQUEST_CHANGES')}
-                    >
-                      <span className="material-symbols-outlined">edit_note</span>
-                      Request Changes
-                    </button>
-                  )}
                   <button
                     className="w-full border border-rejected hover:bg-error-container text-rejected py-3 rounded-lg font-label-md font-semibold transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
                     type="button"
@@ -940,11 +1030,7 @@ export const AdminApprovalQueue: React.FC = () => {
                   {selectedRequest.approvalType === 'PLAN' ? 'Plan Review' : 'Request Review'}
                 </p>
                 <h3 className="mt-1 text-xl font-semibold text-deep-charcoal">
-                  {reviewAction === 'APPROVED'
-                    ? 'Approve'
-                    : reviewAction === 'REJECTED'
-                      ? 'Reject'
-                      : 'Edit and Return for Changes'}
+                  {reviewAction === 'APPROVED' ? 'Approve' : 'Reject'}
                 </h3>
                 <p className="mt-1 text-sm text-on-surface-variant">{selectedRequest.position}</p>
               </div>
@@ -972,124 +1058,15 @@ export const AdminApprovalQueue: React.FC = () => {
                 </span>
               </div>
 
-              {reviewAction === 'REQUEST_CHANGES' && (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="md:col-span-2">
-                    <span className="mb-1.5 block text-sm font-semibold text-deep-charcoal">
-                      Position Title
-                    </span>
-                    <input
-                      className="w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 py-2.5 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                      value={reviewForm.positionTitle}
-                      onChange={(event) =>
-                        setReviewForm((current) => ({
-                          ...current,
-                          positionTitle: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span className="mb-1.5 block text-sm font-semibold text-deep-charcoal">
-                      Headcount
-                    </span>
-                    <input
-                      className="w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 py-2.5 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                      min={1}
-                      type="number"
-                      value={reviewForm.headcount}
-                      onChange={(event) =>
-                        setReviewForm((current) => ({
-                          ...current,
-                          headcount: Math.max(1, Number(event.target.value) || 1),
-                        }))
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span className="mb-1.5 block text-sm font-semibold text-deep-charcoal">
-                      Priority
-                    </span>
-                    <select
-                      className="w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 py-2.5 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                      value={reviewForm.urgency}
-                      onChange={(event) =>
-                        setReviewForm((current) => ({
-                          ...current,
-                          urgency: event.target.value,
-                        }))
-                      }
-                    >
-                      <option value="LOW">Low</option>
-                      <option value="MEDIUM">Medium</option>
-                      <option value="HIGH">High</option>
-                      <option value="CRITICAL">Critical</option>
-                    </select>
-                  </label>
-                  <label className="md:col-span-2">
-                    <span className="mb-1.5 block text-sm font-semibold text-deep-charcoal">
-                      Required Skills
-                    </span>
-                    <input
-                      className="w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 py-2.5 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                      placeholder="TypeScript, NestJS, PostgreSQL"
-                      value={reviewForm.skills}
-                      onChange={(event) =>
-                        setReviewForm((current) => ({
-                          ...current,
-                          skills: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
-                  <label className="md:col-span-2">
-                    <span className="mb-1.5 block text-sm font-semibold text-deep-charcoal">
-                      Job Description
-                    </span>
-                    <textarea
-                      className="min-h-28 w-full resize-y rounded-lg border border-border-warm bg-workflow-ivory px-3 py-2.5 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                      value={reviewForm.jobDescription}
-                      onChange={(event) =>
-                        setReviewForm((current) => ({
-                          ...current,
-                          jobDescription: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
-                  <label className="md:col-span-2">
-                    <span className="mb-1.5 block text-sm font-semibold text-deep-charcoal">
-                      Business Justification
-                    </span>
-                    <textarea
-                      className="min-h-24 w-full resize-y rounded-lg border border-border-warm bg-workflow-ivory px-3 py-2.5 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                      value={reviewForm.justification}
-                      onChange={(event) =>
-                        setReviewForm((current) => ({
-                          ...current,
-                          justification: event.target.value,
-                        }))
-                      }
-                    />
-                  </label>
-                </div>
-              )}
-
               <label>
                 <span className="mb-1.5 block text-sm font-semibold text-deep-charcoal">
                   {reviewAction === 'APPROVED'
                     ? 'Approval Notes (optional)'
-                    : reviewAction === 'REJECTED'
-                      ? 'Rejection Reason'
-                      : 'Instructions for Department Head'}
+                    : 'Rejection Reason'}
                 </span>
                 <textarea
                   className="min-h-28 w-full resize-y rounded-lg border border-border-warm bg-workflow-ivory px-3 py-2.5 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                  placeholder={
-                    reviewAction === 'REQUEST_CHANGES'
-                      ? 'Explain what was changed and what the Department Head still needs to review.'
-                      : 'Add review notes...'
-                  }
+                  placeholder="Add review notes..."
                   value={reviewNotes}
                   onChange={(event) => setReviewNotes(event.target.value)}
                 />
@@ -1108,17 +1085,11 @@ export const AdminApprovalQueue: React.FC = () => {
                 className={`rounded-lg px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 ${
                   reviewAction === 'APPROVED'
                     ? 'bg-teal-command hover:bg-primary'
-                    : reviewAction === 'REJECTED'
-                      ? 'bg-rejected hover:bg-rejected/90'
-                      : 'bg-revision hover:bg-revision/90'
+                    : 'bg-rejected hover:bg-rejected/90'
                 }`}
                 disabled={
                   submittingId === selectedRequest.id ||
-                  (reviewAction !== 'APPROVED' && !reviewNotes.trim()) ||
-                  (reviewAction === 'REQUEST_CHANGES' &&
-                    (!reviewForm.positionTitle.trim() ||
-                      !reviewForm.jobDescription.trim() ||
-                      !reviewForm.justification.trim()))
+                  (reviewAction !== 'APPROVED' && !reviewNotes.trim())
                 }
                 onClick={() => void submitReview()}
                 type="button"
@@ -1127,9 +1098,7 @@ export const AdminApprovalQueue: React.FC = () => {
                   ? 'Submitting...'
                   : reviewAction === 'APPROVED'
                     ? 'Confirm Approval'
-                    : reviewAction === 'REJECTED'
-                      ? 'Confirm Rejection'
-                      : 'Send Changes to Dept Head'}
+                    : 'Confirm Rejection'}
               </button>
             </div>
           </div>

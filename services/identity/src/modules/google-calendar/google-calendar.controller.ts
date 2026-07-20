@@ -7,8 +7,8 @@ export class GoogleCalendarController {
   constructor(private readonly service: GoogleCalendarService) {}
 
   @MessagePattern('google-calendar.auth-url')
-  createAuthorizationUrl(@Payload() payload: { userId: string }) {
-    return this.service.createAuthorizationUrl(payload.userId);
+  createAuthorizationUrl(@Payload() payload: { userId: string; returnTo?: string }) {
+    return this.service.createAuthorizationUrl(payload.userId, payload.returnTo);
   }
 
   @MessagePattern('google-calendar.oauth-callback')

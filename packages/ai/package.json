@@ -11,7 +11,7 @@
     }
   },
   "scripts": {
-    "build": "tsc --build",
+    "build": "node scripts/build.cjs",
     "clean": "rm -rf dist .turbo",
     "typecheck": "tsc --noEmit",
     "lint": "echo 'lint ok'",

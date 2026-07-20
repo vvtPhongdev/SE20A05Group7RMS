@@ -4,7 +4,16 @@ import { useAuth } from '../../../context/AuthContext';
 import { apiRequest, ApiError } from '../../../lib/api';
 
 type RequestUrgency = 'Critical' | 'High' | 'Normal' | 'Low';
-type QueueStatus = 'PENDING' | 'FORWARDED' | 'RETURNED';
+type QueueStatus = 'PENDING' | 'FORWARDED' | 'RETURNED' | 'APPROVED';
+
+type RequestHistoryEntry = {
+  action: string;
+  fromStatus?: string | null;
+  toStatus?: string | null;
+  createdAt: string;
+  actor?: string | null;
+  metadata?: Record<string, unknown> | null;
+};
 
 type RecruitmentRequest = {
   id: string;
@@ -21,8 +30,10 @@ type RecruitmentRequest = {
   justification: string;
   jobDescription: string;
   skillsRequired: string[];
+  bachelorRequirements: string[];
   ownerId?: string | null;
   ownerName?: string | null;
+  history: RequestHistoryEntry[];
 };
 
 interface RecruitmentRequestApiItem {
@@ -48,14 +59,36 @@ interface RecruitmentRequestApiItem {
     skillRequirements?: Record<string, unknown> | null;
   } | null;
   forwardedToAdmin?: boolean;
+  history?: RequestHistoryEntry[];
   createdAt: string;
   updatedAt: string;
+}
+
+interface DepartmentRequirementsApiItem {
+  id: string;
+  bachelorRequirements?: unknown;
 }
 
 interface RecruitmentRequestListResponse {
   data: RecruitmentRequestApiItem[];
   meta: { total: number; page: number; limit: number; totalPages: number };
 }
+
+interface QueueSummaryResponse {
+  averageReviewTimeDays: number;
+  oldestPendingDays: number;
+  reviewedThisWeek: number;
+  forwardedThisWeek: number;
+  distribution: Array<{ department: string; count: number; percentage: number }>;
+}
+
+const EMPTY_QUEUE_SUMMARY: QueueSummaryResponse = {
+  averageReviewTimeDays: 0,
+  oldestPendingDays: 0,
+  reviewedThisWeek: 0,
+  forwardedThisWeek: 0,
+  distribution: [],
+};
 
 const URGENCY_MAP: Record<string, RequestUrgency> = {
   CRITICAL: 'Critical',
@@ -67,7 +100,42 @@ const URGENCY_MAP: Record<string, RequestUrgency> = {
 const formatDate = (value: string) =>
   new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(new Date(value));
 
-const mapRequest = (item: RecruitmentRequestApiItem): RecruitmentRequest => {
+const historyActionLabels: Record<string, string> = {
+  CREATED: 'Request created',
+  SUBMITTED_FOR_REVIEW: 'Submitted for HR review',
+  RESUBMITTED_FOR_REVIEW: 'Resubmitted for HR review',
+  ASSIGNED_TO_HR: 'Assigned to HR',
+  HR_PROPOSED_CHANGES: 'HR proposed changes',
+  HR_RETURNED_FOR_REVISION: 'Returned to Department Head',
+  HR_FORWARDED_TO_ADMIN: 'Forwarded to Admin',
+  UPDATED: 'Request details updated',
+  DEPT_HEAD_APPROVED_REVISION: 'Department Head approved HR revision',
+  DEPT_HEAD_REJECTED_REVISION: 'Department Head rejected HR revision',
+  ADMIN_REQUEST_DECISION: 'Admin decision',
+  HR_REQUEST_DECISION: 'HR decision',
+  ADMIN_REQUESTED_CHANGES: 'Admin requested changes',
+};
+
+const historyComment = (metadata?: Record<string, unknown> | null) => {
+  if (!metadata) return null;
+  const value = metadata.comments ?? metadata.feedback ?? metadata.revisionResponse;
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+};
+
+const historyActionLabel = (entry: RequestHistoryEntry) => {
+  if (entry.action === 'UPDATED' && entry.metadata?.acceptedHrSuggestion === true) {
+    return 'Department Head approved HR revision';
+  }
+  if (entry.action === 'UPDATED' && entry.metadata?.acceptedHrSuggestion === false) {
+    return 'Department Head rejected HR revision';
+  }
+  return historyActionLabels[entry.action] ?? entry.action.replace(/_/g, ' ');
+};
+
+const mapRequest = (
+  item: RecruitmentRequestApiItem,
+  bachelorRequirements: string[] = [],
+): RecruitmentRequest => {
   const suggested = item.hrSuggestedChanges ?? null;
   const skills = ((suggested?.skillRequirements ?? item.skillRequirements ?? {}) || {}) as Record<
     string,
@@ -95,6 +163,8 @@ const mapRequest = (item: RecruitmentRequestApiItem): RecruitmentRequest => {
     status = item.forwardedToAdmin ? 'FORWARDED' : 'PENDING';
   } else if (item.status === 'REVISION_NEEDED') {
     status = 'RETURNED';
+  } else if (item.status === 'APPROVED') {
+    status = 'APPROVED';
   }
 
   return {
@@ -112,8 +182,10 @@ const mapRequest = (item: RecruitmentRequestApiItem): RecruitmentRequest => {
     justification: suggested?.justification ?? item.justification,
     jobDescription: suggested?.jobDescription ?? item.jobDescription,
     skillsRequired: Array.isArray(skills.skills) ? (skills.skills as string[]) : [],
+    bachelorRequirements,
     ownerId,
     ownerName,
+    history: item.history ?? [],
   };
 };
 
@@ -121,6 +193,7 @@ const statusTabs: Array<{ key: QueueStatus; label: string }> = [
   { key: 'PENDING', label: 'Pending Review' },
   { key: 'FORWARDED', label: 'Forwarded to Admin' },
   { key: 'RETURNED', label: 'Returned' },
+  { key: 'APPROVED', label: 'Approved' },
 ];
 
 const QUEUE_REQUEST_STATUSES = new Set([
@@ -128,6 +201,7 @@ const QUEUE_REQUEST_STATUSES = new Set([
   'PENDING_REVIEW',
   'PENDING_BOSS_APPROVAL',
   'REVISION_NEEDED',
+  'APPROVED',
 ]);
 
 const urgencyConfig: Record<RequestUrgency, { label: string; badge: string; rail: string }> = {
@@ -193,12 +267,10 @@ export const HRRequestQueue: React.FC = () => {
   const [activeTab, setActiveTab] = useState<QueueStatus>('PENDING');
   const [query, setQuery] = useState('');
   const [selectedRequest, setSelectedRequest] = useState<RecruitmentRequest | null>(null);
-  const [revisionTarget, setRevisionTarget] = useState<RecruitmentRequest | null>(null);
   const [revisionFeedback, setRevisionFeedback] = useState('');
-  const [revisionError, setRevisionError] = useState('');
-  const [revisionSubmitting, setRevisionSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
+  const [queueSummary, setQueueSummary] = useState<QueueSummaryResponse>(EMPTY_QUEUE_SUMMARY);
 
   // Claim, Edit and Reject State variables
   const [isEditing, setIsEditing] = useState(false);
@@ -219,15 +291,32 @@ export const HRRequestQueue: React.FC = () => {
     setLoading(true);
     setApiError('');
     try {
-      const response = await apiRequest<RecruitmentRequestListResponse>(
-        '/recruitment-requests?limit=100',
-        token,
+      const [response, summary, departments] = await Promise.all([
+        apiRequest<RecruitmentRequestListResponse>('/recruitment-requests?limit=100', token),
+        apiRequest<QueueSummaryResponse>('/reports/hr-request-queue-summary', token),
+        apiRequest<DepartmentRequirementsApiItem[]>('/departments', token),
+      ]);
+      const bachelorRequirementsByDepartment = new Map(
+        departments.map((department) => [
+          department.id,
+          Array.isArray(department.bachelorRequirements)
+            ? department.bachelorRequirements.map(String)
+            : [],
+        ]),
       );
       // The queue is limited to request-review work. Once a request has moved into
       // planning, its plan lifecycle is owned by the Campaigns workspace.
       setRequests(
-        response.data.filter((item) => QUEUE_REQUEST_STATUSES.has(item.status)).map(mapRequest),
+        response.data
+          .filter((item) => QUEUE_REQUEST_STATUSES.has(item.status))
+          .map((item) =>
+            mapRequest(
+              item,
+              bachelorRequirementsByDepartment.get(item.department?.id ?? '') ?? [],
+            ),
+          ),
       );
+      setQueueSummary(summary);
     } catch (loadError) {
       setApiError(loadError instanceof Error ? loadError.message : 'Unable to load requests');
     } finally {
@@ -285,6 +374,7 @@ export const HRRequestQueue: React.FC = () => {
       );
       setSelectedRequest(null);
       setActiveTab('FORWARDED');
+      void loadRequests();
     } catch (forwardError) {
       setApiError(
         forwardError instanceof ApiError
@@ -329,6 +419,7 @@ export const HRRequestQueue: React.FC = () => {
       if (requestToRefresh) {
         setSelectedRequest(markClaimed(requestToRefresh));
       }
+      void loadRequests();
     } catch (err) {
       setApiError(err instanceof ApiError ? err.message : 'Unable to claim request');
     } finally {
@@ -356,84 +447,57 @@ export const HRRequestQueue: React.FC = () => {
     setIsEditing(true);
   };
 
-  const saveEdit = async () => {
+  const buildEditPayload = () => {
+    const skills = editForm.skills
+      .split(',')
+      .map((skill) => skill.trim())
+      .filter(Boolean);
+
+    return {
+      positionTitle: editForm.positionTitle,
+      headcount: editForm.headcount,
+      justification: editForm.justification,
+      jobDescription: editForm.jobDescription,
+      urgency: editForm.urgency,
+      skillRequirements: { skills },
+    };
+  };
+
+  const sendRevisionRequest = async () => {
     if (!selectedRequest) return;
+    const feedback =
+      revisionFeedback.trim() ||
+      'HR has suggested changes to this recruitment request. Please review and respond.';
+
     setEditSubmitting(true);
     setEditError('');
     try {
-      const skillsArray = editForm.skills
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
-
+      const payload = buildEditPayload();
       await apiRequest(`/recruitment-requests/${selectedRequest.id}`, token, {
         method: 'PATCH',
-        body: JSON.stringify({
-          positionTitle: editForm.positionTitle,
-          headcount: editForm.headcount,
-          justification: editForm.justification,
-          jobDescription: editForm.jobDescription,
-          urgency: editForm.urgency,
-          skillRequirements: {
-            skills: skillsArray,
-          },
-        }),
+        body: JSON.stringify(payload),
       });
-
-      const mapped: RecruitmentRequest = {
-        ...selectedRequest,
-        position: editForm.positionTitle,
-        headcount: editForm.headcount,
-        justification: editForm.justification,
-        jobDescription: editForm.jobDescription,
-        urgency: URGENCY_MAP[editForm.urgency] ?? selectedRequest.urgency,
-        skillsRequired: skillsArray,
-        status: 'PENDING',
-      };
-      setRequests((current) =>
-        current.map((item) => (item.id === selectedRequest.id ? mapped : item)),
-      );
-      setSelectedRequest(mapped);
-      setIsEditing(false);
-    } catch (err) {
-      setEditError(err instanceof ApiError ? err.message : 'Unable to save request changes');
-    } finally {
-      setEditSubmitting(false);
-    }
-  };
-
-  const returnForRevision = async () => {
-    if (!revisionTarget || !revisionFeedback.trim()) return;
-
-    setRevisionSubmitting(true);
-    setRevisionError('');
-    try {
-      await apiRequest(`/recruitment-requests/${revisionTarget.id}/return-for-revision`, token, {
+      await apiRequest(`/recruitment-requests/${selectedRequest.id}/return-for-revision`, token, {
         method: 'PATCH',
-        body: JSON.stringify({ feedback: revisionFeedback.trim() }),
+        body: JSON.stringify({ feedback }),
       });
 
       setRequests((current) =>
         current.map((item) =>
-          item.id === revisionTarget.id
-            ? {
-                ...item,
-                status: 'RETURNED',
-                justification: `${item.justification} HR feedback: ${revisionFeedback.trim()}`,
-              }
-            : item,
+          item.id === selectedRequest.id ? { ...item, status: 'RETURNED' } : item,
         ),
       );
-      setRevisionTarget(null);
       setSelectedRequest(null);
+      setIsEditing(false);
       setRevisionFeedback('');
       setActiveTab('RETURNED');
-    } catch (returnError) {
-      setRevisionError(
-        returnError instanceof ApiError ? returnError.message : 'Unable to return request',
+      void loadRequests();
+    } catch (error) {
+      setEditError(
+        error instanceof ApiError ? error.message : 'Unable to send the revision request.',
       );
     } finally {
-      setRevisionSubmitting(false);
+      setEditSubmitting(false);
     }
   };
 
@@ -584,6 +648,9 @@ export const HRRequestQueue: React.FC = () => {
                       <span className="rounded border border-border-warm bg-workflow-ivory px-3 py-1 text-xs font-semibold">
                         {request.type}
                       </span>
+                      <span className="rounded border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
+                        Bachelor: {request.bachelorRequirements.join(', ') || 'None'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -598,7 +665,7 @@ export const HRRequestQueue: React.FC = () => {
                     <span className="text-xs text-secondary">{request.budgetLabel}</span>
                   </div>
                   <div className="flex flex-col gap-3 sm:flex-row">
-                    {!request.ownerId ? (
+                    {!request.ownerId && request.status !== 'APPROVED' ? (
                       <>
                         <button
                           className="h-10 rounded-lg border border-teal-command px-4 text-sm font-semibold text-teal-command transition hover:bg-teal-command hover:text-white active:scale-[0.98] disabled:opacity-50"
@@ -616,17 +683,8 @@ export const HRRequestQueue: React.FC = () => {
                           Review
                         </button>
                       </>
-                    ) : request.ownerId === user?.id ? (
+                    ) : request.ownerId === user?.id && request.status !== 'APPROVED' ? (
                       <>
-                        {request.status === 'PENDING' ? (
-                          <button
-                            className="h-10 rounded-lg border border-teal-command px-4 text-sm font-semibold text-teal-command transition hover:bg-teal-command hover:text-white active:scale-[0.98]"
-                            onClick={() => setRevisionTarget(request)}
-                            type="button"
-                          >
-                            Return for Revision
-                          </button>
-                        ) : null}
                         <button
                           className="h-10 rounded-lg bg-teal-command px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-primary active:scale-[0.98]"
                           onClick={() => openReview(request)}
@@ -687,22 +745,34 @@ export const HRRequestQueue: React.FC = () => {
             <div>
               <p className="text-xs font-semibold text-secondary">Average Review Time</p>
               <div className="mt-1 flex items-baseline gap-1">
-                <span className="font-mono text-3xl font-bold text-on-surface">2.3</span>
+                <span className="font-mono text-3xl font-bold text-on-surface">
+                  {queueSummary.averageReviewTimeDays.toFixed(1)}
+                </span>
                 <span className="text-sm text-secondary">days</span>
               </div>
               <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-workflow-ivory">
-                <div className="h-full w-[65%] bg-teal-command" />
+                <div
+                  aria-label={`${queueSummary.averageReviewTimeDays.toFixed(1)} day average review time`}
+                  className="h-full bg-teal-command"
+                  style={{
+                    width: `${Math.min(100, (queueSummary.averageReviewTimeDays / 5) * 100)}%`,
+                  }}
+                />
               </div>
             </div>
 
             <div className="rounded-lg border border-revision/10 bg-revision/5 p-4">
               <p className="text-xs font-semibold text-secondary">Oldest Pending Request</p>
               <div className="mt-1 flex items-center justify-between">
-                <span className="text-xl font-bold text-revision">5 days</span>
+                <span className="text-xl font-bold text-revision">
+                  {queueSummary.oldestPendingDays} days
+                </span>
                 <Icon className="h-5 w-5 text-revision" name="alert" />
               </div>
               <p className="mt-1 text-[11px] font-medium text-revision/80">
-                Action recommended for SLAs
+                {queueSummary.oldestPendingDays > 0
+                  ? 'Action recommended for SLAs'
+                  : 'No request is waiting for HR review'}
               </p>
             </div>
 
@@ -711,8 +781,8 @@ export const HRRequestQueue: React.FC = () => {
                 This Week Performance
               </h3>
               {[
-                ['Reviewed', 3, 'bg-approved'],
-                ['Forwarded', 2, 'bg-pending'],
+                ['Reviewed', queueSummary.reviewedThisWeek, 'bg-approved'],
+                ['Forwarded', queueSummary.forwardedThisWeek, 'bg-pending'],
               ].map(([label, value, dot]) => (
                 <div className="flex items-center justify-between text-sm" key={label as string}>
                   <div className="flex items-center gap-2">
@@ -729,25 +799,33 @@ export const HRRequestQueue: React.FC = () => {
         <section className="rounded-lg border border-border-warm bg-clean-surface p-6 shadow-sm">
           <h2 className="mb-4 text-sm font-bold text-deep-charcoal">Request Distribution</h2>
           <div className="space-y-4">
-            {[
-              { label: 'IT & Eng', value: 42, icon: 'monitor' },
-              { label: 'Design', value: 28, icon: 'palette' },
-            ].map((item) => (
-              <div className="flex items-center gap-3" key={item.label}>
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-workflow-ivory text-teal-command">
-                  <Icon className="h-5 w-5" name={item.icon} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="mb-1 flex justify-between">
-                    <span className="text-xs font-semibold text-deep-charcoal">{item.label}</span>
-                    <span className="text-xs font-semibold text-secondary">{item.value}%</span>
+            {queueSummary.distribution.length === 0 ? (
+              <p className="text-sm text-secondary">No requests in the review queue.</p>
+            ) : (
+              queueSummary.distribution.map((item, index) => (
+                <div className="flex items-center gap-3" key={item.department}>
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-workflow-ivory text-teal-command">
+                    <Icon className="h-5 w-5" name={index % 2 === 0 ? 'monitor' : 'palette'} />
                   </div>
-                  <div className="h-1 overflow-hidden rounded-full bg-surface-container">
-                    <div className="h-full bg-teal-command" style={{ width: `${item.value}%` }} />
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex justify-between">
+                      <span className="text-xs font-semibold text-deep-charcoal">
+                        {item.department}
+                      </span>
+                      <span className="text-xs font-semibold text-secondary">
+                        {item.percentage}%
+                      </span>
+                    </div>
+                    <div className="h-1 overflow-hidden rounded-full bg-surface-container">
+                      <div
+                        className="h-full bg-teal-command"
+                        style={{ width: `${item.percentage}%` }}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </section>
 
@@ -841,7 +919,7 @@ export const HRRequestQueue: React.FC = () => {
                   className="space-y-4"
                   onSubmit={(e) => {
                     e.preventDefault();
-                    void saveEdit();
+                    void sendRevisionRequest();
                   }}
                 >
                   {editError && (
@@ -927,32 +1005,46 @@ export const HRRequestQueue: React.FC = () => {
                       className="w-full rounded-lg border border-border-warm bg-clean-surface p-3 text-sm outline-none transition focus:border-teal-command"
                     />
                   </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal mb-2">
+                      Revision Feedback{' '}
+                      <span className="normal-case text-secondary">(optional)</span>
+                    </label>
+                    <textarea
+                      className="h-24 w-full resize-none rounded-lg border border-border-warm bg-clean-surface p-3 text-sm outline-none transition placeholder:text-on-surface-variant focus:border-teal-command"
+                      onChange={(event) => setRevisionFeedback(event.target.value)}
+                      placeholder="Explain the requested changes for the Department Head..."
+                      value={revisionFeedback}
+                    />
+                  </div>
                 </form>
               ) : (
                 <>
                   <div>
-                    <span
-                      className={`rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em] ${urgencyConfig[selectedRequest.urgency]?.badge || ''}`}
-                    >
-                      {selectedRequest.urgency} Priority
-                    </span>
-                    <h3 className="mt-2 text-xl font-bold text-deep-charcoal">
-                      {selectedRequest.position}
-                    </h3>
-                    <p className="mt-1 text-xs text-secondary">
-                      Department:{' '}
-                      <span className="font-semibold text-on-surface">
-                        {selectedRequest.department}
-                      </span>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-teal-command">
+                      Request Details
                     </p>
+                    <div className="mt-3 grid grid-cols-1 gap-4 rounded-lg border border-border-warm bg-workflow-ivory p-4 sm:grid-cols-2">
+                      {[
+                        ['Position Title', selectedRequest.position],
+                        ['Department', selectedRequest.department],
+                        ['Number of Positions', String(selectedRequest.headcount)],
+                        ['Priority', selectedRequest.urgency],
+                      ].map(([label, value]) => (
+                        <div key={label}>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-secondary">
+                            {label}
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-deep-charcoal">{value}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 rounded-lg border border-border-warm bg-workflow-ivory p-4">
                     {[
                       ['Requested By', selectedRequest.requestedBy],
-                      ['Headcount Plan', `${selectedRequest.headcount} candidates`],
-                      ['Job Category', selectedRequest.type],
-                      ['Monthly Allocation', selectedRequest.budget],
+                      ['Request Status', selectedRequest.status],
                     ].map(([label, value]) => (
                       <div key={label}>
                         <p className="text-[11px] font-semibold text-secondary">{label}</p>
@@ -963,10 +1055,10 @@ export const HRRequestQueue: React.FC = () => {
 
                   <div>
                     <h4 className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">
-                      Justification & Sourcing Brief
+                      Additional Notes
                     </h4>
                     <p className="rounded-lg border border-border-warm/60 bg-workflow-ivory/50 p-4 text-sm leading-6 text-slate-ink">
-                      {selectedRequest.justification}
+                      {selectedRequest.justification || 'No additional notes provided.'}
                     </p>
                   </div>
 
@@ -975,13 +1067,13 @@ export const HRRequestQueue: React.FC = () => {
                       Job Description
                     </h4>
                     <p className="rounded-lg border border-border-warm/60 bg-workflow-ivory/50 p-4 text-sm leading-6 text-slate-ink whitespace-pre-wrap">
-                      {selectedRequest.jobDescription}
+                      {selectedRequest.jobDescription || 'No job description provided.'}
                     </p>
                   </div>
 
                   <div>
                     <h4 className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">
-                      Key Technical Competencies
+                      Required Skills
                     </h4>
                     <div className="flex flex-wrap gap-2">
                       {selectedRequest.skillsRequired.length > 0 ? (
@@ -998,6 +1090,81 @@ export const HRRequestQueue: React.FC = () => {
                       )}
                     </div>
                   </div>
+
+                  <div>
+                    <h4 className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">
+                      Bachelor Requirements
+                    </h4>
+                    {selectedRequest.bachelorRequirements.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {selectedRequest.bachelorRequirements.map((requirement) => (
+                          <span
+                            className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700"
+                            key={requirement}
+                          >
+                            {requirement}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-secondary italic">None specified</span>
+                    )}
+                  </div>
+
+                  <div>
+                    <h4 className="mb-3 text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">
+                      Change History
+                    </h4>
+                    {selectedRequest.history.length > 0 ? (
+                      <div className="space-y-3 border-l-2 border-border-warm pl-4">
+                        {selectedRequest.history.map((entry, index) => {
+                          const comment = historyComment(entry.metadata);
+                          const actionLabel = historyActionLabel(entry);
+                          const badgeLabel = entry.toStatus?.replace(/_/g, ' ') ?? actionLabel;
+                          const outcomeTone =
+                            entry.toStatus === 'APPROVED' ||
+                            entry.action === 'DEPT_HEAD_APPROVED_REVISION'
+                              ? 'border-approved/20 bg-approved/5 text-approved'
+                              : entry.toStatus === 'REJECTED' ||
+                                  entry.action === 'DEPT_HEAD_REJECTED_REVISION'
+                                ? 'border-rejected/20 bg-rejected/5 text-rejected'
+                                : 'border-border-warm bg-clean-surface text-on-surface-variant';
+
+                          return (
+                            <div className="relative rounded-lg border border-border-warm bg-workflow-ivory/50 p-3" key={`${entry.action}-${entry.createdAt}-${index}`}>
+                              <span className="absolute -left-[22px] top-4 h-2.5 w-2.5 rounded-full border-2 border-clean-surface bg-teal-command" />
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <p className="text-sm font-semibold text-deep-charcoal">
+                                  {actionLabel}
+                                </p>
+                                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${outcomeTone}`}>
+                                  {badgeLabel}
+                                </span>
+                              </div>
+                              {entry.fromStatus || entry.toStatus ? (
+                                <p className="mt-1 text-xs text-secondary">
+                                  {(entry.fromStatus ?? 'Initial').replace(/_/g, ' ')} →{' '}
+                                  {(entry.toStatus ?? 'Updated').replace(/_/g, ' ')}
+                                </p>
+                              ) : null}
+                              {comment ? (
+                                <p className="mt-2 rounded bg-clean-surface px-2 py-1.5 text-xs leading-5 text-slate-ink">
+                                  {comment}
+                                </p>
+                              ) : null}
+                              <p className="mt-2 text-[11px] text-secondary">
+                                {entry.actor || 'System'} · {new Date(entry.createdAt).toLocaleString()}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="rounded-lg border border-border-warm bg-workflow-ivory/50 p-3 text-sm text-secondary">
+                        No change history is available for this request.
+                      </p>
+                    )}
+                  </div>
                 </>
               )}
             </div>
@@ -1013,17 +1180,22 @@ export const HRRequestQueue: React.FC = () => {
                     Cancel
                   </button>
                   <button
-                    className="h-10 rounded-lg bg-teal-command text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:opacity-50"
-                    onClick={() => void saveEdit()}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-command px-3 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:opacity-50"
                     disabled={editSubmitting}
+                    onClick={() => void sendRevisionRequest()}
                     type="button"
                   >
-                    {editSubmitting ? 'Saving...' : 'Save Changes'}
+                    <Icon className="h-4 w-4" name="send" />
+                    {editSubmitting ? 'Sending...' : 'Send to Dept Head'}
                   </button>
                 </div>
               ) : (
                 <>
-                  {selectedRequest.ownerId === user?.id ? (
+                  {selectedRequest.status === 'APPROVED' ? (
+                    <div className="rounded-lg border border-approved/20 bg-approved/5 p-3 text-center text-sm font-medium text-approved">
+                      This request was approved by Admin and is ready for campaign planning.
+                    </div>
+                  ) : selectedRequest.ownerId === user?.id ? (
                     <>
                       {selectedRequest.status === 'FORWARDED' ? (
                         <div className="rounded-lg border border-border-warm bg-clean-surface p-3 text-center text-sm font-medium text-secondary">
@@ -1044,23 +1216,14 @@ export const HRRequestQueue: React.FC = () => {
                               Edit Details
                             </button>
                           </div>
-                          <div className="grid grid-cols-2 gap-3">
-                            <button
-                              className="h-10 rounded-lg border border-border-warm bg-clean-surface text-sm font-semibold text-slate-ink transition hover:border-teal-command hover:text-teal-command active:scale-[0.98]"
-                              onClick={() => setRevisionTarget(selectedRequest)}
-                              type="button"
-                            >
-                              Return for Revision
-                            </button>
-                            <button
-                              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-deep-charcoal text-sm font-semibold text-white transition hover:bg-slate-ink active:scale-[0.98]"
-                              onClick={() => forwardToAdmin(selectedRequest.id)}
-                              type="button"
-                            >
-                              <Icon className="h-4 w-4" name="send" />
-                              Forward to Admin
-                            </button>
-                          </div>
+                          <button
+                            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-deep-charcoal text-sm font-semibold text-white transition hover:bg-slate-ink active:scale-[0.98]"
+                            onClick={() => forwardToAdmin(selectedRequest.id)}
+                            type="button"
+                          >
+                            <Icon className="h-4 w-4" name="send" />
+                            Forward to Admin
+                          </button>
                         </>
                       )}
                     </>
@@ -1075,81 +1238,6 @@ export const HRRequestQueue: React.FC = () => {
                   )}
                 </>
               )}
-            </footer>
-          </section>
-        </div>
-      ) : null}
-
-      {revisionTarget ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-deep-charcoal/40 p-4 backdrop-blur-sm"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              setRevisionTarget(null);
-              setRevisionFeedback('');
-              setRevisionError('');
-            }
-          }}
-        >
-          <section className="w-full max-w-[480px] overflow-hidden rounded-xl border border-border-warm bg-clean-surface shadow-2xl">
-            <header className="flex items-center justify-between border-b border-border-warm bg-workflow-ivory/60 px-6 py-4">
-              <h2 className="font-semibold text-deep-charcoal">Return Requisition for Revision</h2>
-              <button
-                className="rounded-full p-1.5 text-on-surface-variant transition hover:bg-surface-variant hover:text-deep-charcoal"
-                onClick={() => {
-                  setRevisionTarget(null);
-                  setRevisionFeedback('');
-                  setRevisionError('');
-                }}
-                type="button"
-              >
-                <span className="sr-only">Close revision modal</span>
-                <Icon className="h-4 w-4" name="close" />
-              </button>
-            </header>
-            <div className="space-y-4 p-6">
-              <p className="text-sm leading-6 text-secondary">
-                Provide clear instructions for the Department Head before HR planning continues for
-                #{revisionTarget.id.slice(0, 8)}.
-              </p>
-              {revisionError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-rejected">
-                  {revisionError}
-                </div>
-              )}
-              <label className="block">
-                <span className="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-deep-charcoal">
-                  Revision Feedback Notes
-                </span>
-                <textarea
-                  className="w-full resize-none rounded-lg border border-border-warm bg-clean-surface p-3 text-sm outline-none transition placeholder:text-on-surface-variant focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                  onChange={(event) => setRevisionFeedback(event.target.value)}
-                  placeholder="Budget range is higher than the department benchmark. Please realign..."
-                  rows={4}
-                  value={revisionFeedback}
-                />
-              </label>
-            </div>
-            <footer className="flex justify-end gap-3 border-t border-border-warm bg-workflow-ivory/60 px-6 py-4">
-              <button
-                className="h-10 rounded-lg border border-border-warm px-4 text-sm font-semibold text-secondary transition hover:bg-surface-variant/40 active:scale-[0.98]"
-                onClick={() => {
-                  setRevisionTarget(null);
-                  setRevisionFeedback('');
-                  setRevisionError('');
-                }}
-                type="button"
-              >
-                Cancel
-              </button>
-              <button
-                className="h-10 rounded-lg bg-rejected px-5 text-sm font-bold text-white transition hover:bg-red-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-                disabled={!revisionFeedback.trim() || revisionSubmitting}
-                onClick={() => void returnForRevision()}
-                type="button"
-              >
-                {revisionSubmitting ? 'Returning...' : 'Return to Dept Head'}
-              </button>
             </footer>
           </section>
         </div>

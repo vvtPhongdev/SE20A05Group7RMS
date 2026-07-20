@@ -876,9 +876,16 @@ export const CandidateUploadCv: React.FC = () => {
               message: 'CV uploaded and parsed successfully.',
             });
           } else if (updatedUploadedDoc?.parsingStatus === 'Failed') {
+            const message =
+              updatedUploadedDoc.processingError || 'CV OCR and AI extraction failed.';
             setUploadedCvId(null);
-            setApiError(updatedUploadedDoc.processingError || 'CV OCR and AI extraction failed.');
-            setUploadProgress(initialUploadProgress);
+            setApiError(message);
+            setUploadProgress({
+              phase: 'error',
+              fileName: updatedUploadedDoc.name,
+              percent: 100,
+              message,
+            });
           }
         }
 
@@ -1041,6 +1048,16 @@ export const CandidateUploadCv: React.FC = () => {
           percent: 70,
           message: 'Parsing CV content...',
         });
+      } else if (newDoc.parsingStatus === 'Failed') {
+        const message = newDoc.processingError || 'CV OCR and AI extraction failed.';
+        setUploadedCvId(null);
+        setApiError(message);
+        setUploadProgress({
+          phase: 'error',
+          fileName: newDoc.name,
+          percent: 100,
+          message,
+        });
       } else {
         setSuccessParsedCv(newDoc);
         setShowSuccessModal(true);
@@ -1108,13 +1125,35 @@ export const CandidateUploadCv: React.FC = () => {
       }>(`/candidate/cvs/${doc.id}/file`, token, { method: 'PATCH', body: formData });
       const updatedDoc = mapDocument(updated);
       setDocuments([updatedDoc]);
-      setUploadedCvId(updatedDoc.id);
-      setUploadProgress({
-        phase: 'parsing',
-        fileName: updatedDoc.name,
-        percent: 70,
-        message: 'Replacement CV uploaded. Parsing new content...',
-      });
+      if (updatedDoc.parsingStatus === 'Failed') {
+        const message = updatedDoc.processingError || 'CV OCR and AI extraction failed.';
+        setUploadedCvId(null);
+        setApiError(message);
+        setUploadProgress({
+          phase: 'error',
+          fileName: updatedDoc.name,
+          percent: 100,
+          message,
+        });
+      } else if (updatedDoc.parsingStatus === 'Ready') {
+        setUploadedCvId(null);
+        setSuccessParsedCv(updatedDoc);
+        setShowSuccessModal(true);
+        setUploadProgress({
+          phase: 'completed',
+          fileName: updatedDoc.name,
+          percent: 100,
+          message: 'Replacement CV uploaded and parsed successfully.',
+        });
+      } else {
+        setUploadedCvId(updatedDoc.id);
+        setUploadProgress({
+          phase: 'parsing',
+          fileName: updatedDoc.name,
+          percent: 70,
+          message: 'Replacement CV uploaded. Parsing new content...',
+        });
+      }
     } catch (updateError) {
       const message = updateError instanceof Error ? updateError.message : 'Unable to update CV';
       setApiError(message);

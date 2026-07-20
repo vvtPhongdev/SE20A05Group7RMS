@@ -1,0 +1,63 @@
+@startuml
+title RMS Development Deployment - 1.0-RC1
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+node "Developer / Browser" as CLIENT {
+  artifact "React SPA\nhttp://localhost:3000" as SPA
+}
+
+node "Node.js 22 Host" as HOST {
+  component "Gateway :3001" as GW
+  component "Identity TCP :3010" as ID
+  component "Recruiting TCP :3011" as REC
+  component "Profiles TCP :3012" as PRO
+  component "Notification TCP :3013" as NOT
+  component "CV TCP :3014" as CV
+  component "Interview TCP :3015" as INT
+  component "BullMQ Worker" as WORKER
+}
+
+node "Docker Compose Infrastructure" as DOCKER {
+  database "PostgreSQL 16\npgvector extension" as PG
+  database "Redis 7" as REDIS
+}
+
+cloud "Supabase" as SUPA {
+  storage "Storage buckets\nCVs, avatars, job media" as STORAGE
+  component "Optional auth session" as SAUTH
+}
+
+cloud "External providers" as EXT {
+  component "Google OAuth / Calendar / Meet" as GOOGLE
+  component "SMTP / email transport" as EMAIL
+  component "Gemini API (optional CV extraction)" as GEMINI
+}
+
+SPA --> GW : HTTP /api/v1 + JWT\nSSE notifications
+GW --> ID : TCP
+GW --> REC : TCP
+GW --> PRO : TCP
+GW --> NOT : TCP
+GW --> CV : TCP
+GW --> INT : TCP
+
+ID --> PG
+REC --> PG
+PRO --> PG
+NOT --> PG
+CV --> PG
+INT --> PG
+WORKER --> PG
+ID --> REDIS : refresh token state
+REC --> REDIS : jobs/reminders
+NOT --> REDIS : email queue
+WORKER --> REDIS : queue consumer
+
+GW --> STORAGE : signed upload/download
+SPA --> SAUTH : optional Google/Supabase session
+ID --> GOOGLE
+NOT --> EMAIL
+WORKER --> GEMINI : optional; CV extraction only
+@enduml
+

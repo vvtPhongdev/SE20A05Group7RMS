@@ -21,6 +21,23 @@ const DEFAULT_CAMPAIGN_TASK_TYPES = [
   TaskType.HIRING,
 ];
 
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+const startOfUtcDay = (value: Date) => {
+  const date = new Date(value);
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+};
+
+const endOfUtcDay = (value: Date) => {
+  const date = startOfUtcDay(value);
+  date.setUTCHours(23, 59, 59, 999);
+  return date;
+};
+
+const addUtcDays = (value: Date, days: number) =>
+  new Date(value.getTime() + days * DAY_IN_MS);
+
 @Injectable()
 export class OverallPlanService {
   constructor(
@@ -76,6 +93,33 @@ export class OverallPlanService {
       this.rpc(HttpStatus.BAD_REQUEST, 'endDate must be after startDate');
     }
 
+    const planStart = startOfUtcDay(start);
+    const planEnd = endOfUtcDay(end);
+    const totalDays = Math.floor((planEnd.getTime() - planStart.getTime()) / DAY_IN_MS) + 1;
+    if (totalDays < DEFAULT_CAMPAIGN_TASK_TYPES.length) {
+      this.rpc(
+        HttpStatus.BAD_REQUEST,
+        `Plan duration must be at least ${DEFAULT_CAMPAIGN_TASK_TYPES.length} days to schedule all campaign tasks`,
+      );
+    }
+
+    const baseDuration = Math.floor(totalDays / DEFAULT_CAMPAIGN_TASK_TYPES.length);
+    const extraDays = totalDays % DEFAULT_CAMPAIGN_TASK_TYPES.length;
+    let taskStart = planStart;
+    const scheduledTasks = DEFAULT_CAMPAIGN_TASK_TYPES.map((taskType, index) => {
+      const durationDays = baseDuration + (index < extraDays ? 1 : 0);
+      const taskEnd = endOfUtcDay(addUtcDays(taskStart, durationDays - 1));
+      const scheduledTask = {
+        taskType,
+        assignedToId: createdById,
+        startDate: taskStart,
+        endDate: taskEnd,
+        status: TaskStatus.PENDING,
+      };
+      taskStart = startOfUtcDay(addUtcDays(taskEnd, 1));
+      return scheduledTask;
+    });
+
     const request = await this.prisma.recruitmentRequest.findUnique({
       where: { id: hiringRequestId },
     });
@@ -105,17 +149,11 @@ export class OverallPlanService {
         data: {
           requestId: hiringRequestId,
           createdById,
-          startDate: start,
-          endDate: end,
+          startDate: planStart,
+          endDate: planEnd,
           status: PlanStatus.DRAFT,
           tasks: {
-            create: DEFAULT_CAMPAIGN_TASK_TYPES.map((taskType) => ({
-              taskType,
-              assignedToId: createdById,
-              startDate: null,
-              endDate: null,
-              status: TaskStatus.PENDING,
-            })) as any,
+            create: scheduledTasks as any,
           },
         },
         include: {

@@ -1,0 +1,59 @@
+@startuml
+title UC-16..23 - Recruitment Request Approval Sequence
+autonumber
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+actor "Department Head" as DH
+actor "HR Leader" as HR
+actor Admin as ADM
+participant "React Web" as WEB
+participant "API Gateway" as GW
+participant "RecruitmentRequestsService" as SVC
+database PostgreSQL as DB
+participant "Notification Service" as NOT
+
+DH -> WEB : Create request form
+WEB -> GW : POST /api/v1/recruitment-requests
+GW -> SVC : createForDepartmentHead(payload, userId)
+SVC -> DB : INSERT RecruitmentRequest(status=DRAFT)
+SVC -> DB : INSERT RequestLog(CREATED)
+SVC --> GW : draft request
+GW --> WEB : 201 Created
+
+DH -> WEB : Submit request
+WEB -> GW : PATCH /api/v1/recruitment-requests/{id}/submit
+GW -> SVC : submitDraft(id, userId)
+SVC -> DB : verify owner + DRAFT/REVISION_NEEDED
+SVC -> DB : transaction: status=PENDING_HR_REVIEW + RequestLog
+SVC -> NOT : notify HR role
+
+HR -> WEB : Open HR request queue
+WEB -> GW : GET /api/v1/recruitment-requests
+GW -> SVC : list visible requests
+SVC --> WEB : role-scoped queue
+
+alt needs revision
+  HR -> GW : PATCH .../{id}/return-for-revision
+  GW -> SVC : returnForRevision(reason)
+  SVC -> DB : status=REVISION_NEEDED + RequestLog
+  SVC -> NOT : notify Department Head
+else ready for Admin
+  HR -> GW : PATCH .../{id}/forward-to-admin
+  GW -> SVC : forwardToAdmin(id, hrUserId)
+  SVC -> DB : status=PENDING_BOSS_APPROVAL + RequestLog
+  SVC -> NOT : notify Admin
+end
+
+ADM -> WEB : Review request
+ADM -> GW : PATCH .../{id}/decision
+GW -> SVC : decide(APPROVE|REJECT, reason)
+alt approve
+  SVC -> DB : transaction: status=APPROVED + ApprovalRecord + RequestLog
+  SVC -> NOT : notify HR + Department Head
+else reject
+  SVC -> DB : require reason; status=REJECTED + records
+  SVC -> NOT : notify HR + Department Head
+end
+@enduml
+

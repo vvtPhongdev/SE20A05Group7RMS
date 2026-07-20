@@ -222,7 +222,9 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const isActivePath = (path?: string) => {
     if (!path) return false;
     return (
-      location.pathname === path || (path !== '/hr' && location.pathname.startsWith(`${path}/`))
+      location.pathname === path ||
+      (path.split('/').filter(Boolean).length > 1 &&
+        location.pathname.startsWith(`${path}/`))
     );
   };
 

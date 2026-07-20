@@ -24,6 +24,7 @@ type Interview = {
   initials: string;
   color: string;
   status: string;
+  scheduledAt: string;
   date: string;
   time: string;
   location: string;
@@ -156,6 +157,15 @@ const formatDate = (value: string) =>
 
 const toDateInputValue = (value: string) => new Date(value).toISOString().slice(0, 10);
 
+const toLocalDateInputValue = (value: Date) =>
+  `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+
+const durationInDays = (startDate: string, endDate: string) => {
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  return Math.floor((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+};
+
 const getInitials = (name: string) =>
   name
     .split(' ')
@@ -164,15 +174,18 @@ const getInitials = (name: string) =>
     .map((word) => word[0]?.toUpperCase() ?? '')
     .join('') || '??';
 
-const getCurrentWeekDays = () => {
-  const today = new Date();
-  const dayOfWeek = today.getDay();
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+const getWeekStart = (value: Date) => {
+  const weekStart = new Date(value);
+  const dayOfWeek = weekStart.getDay();
+  weekStart.setDate(weekStart.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+  weekStart.setHours(0, 0, 0, 0);
+  return weekStart;
+};
 
+const getWeekDays = (weekStart: Date) => {
   return Array.from({ length: 5 }, (_, index) => {
-    const date = new Date(monday);
-    date.setDate(monday.getDate() + index);
+    const date = new Date(weekStart);
+    date.setDate(weekStart.getDate() + index);
     return {
       label: `${date.toLocaleDateString('en-US', { weekday: 'short' })} ${date.getDate()}`,
       date,
@@ -191,17 +204,6 @@ const kanbanColumns: Array<{ key: KanbanStage; label: string; accent: string; bg
   { key: 'interview', label: 'Interview', accent: 'border-revision', bg: 'bg-amber-50' },
   { key: 'final_review', label: 'Final Review', accent: 'border-pending', bg: 'bg-cyan-50' },
   { key: 'offer', label: 'Offer', accent: 'border-approved', bg: 'bg-green-50' },
-];
-
-const timeSlots = [
-  '09:00 AM',
-  '10:00 AM',
-  '11:00 AM',
-  '12:00 PM',
-  '01:00 PM',
-  '02:00 PM',
-  '03:00 PM',
-  '04:00 PM',
 ];
 
 const statusConfig: Record<PlanStatus, { label: string; dot: string; badge: string }> = {
@@ -308,6 +310,7 @@ export const HRCampaignDetail: React.FC = () => {
   const isHr = isHrRole(user?.role);
 
   const [activeTab, setActiveTab] = useState<DetailTab>('kanban');
+  const [calendarWeekStart, setCalendarWeekStart] = useState(() => getWeekStart(new Date()));
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState('');
   const [request, setRequest] = useState<RecruitmentRequestApiItem | null>(null);
@@ -322,8 +325,7 @@ export const HRCampaignDetail: React.FC = () => {
   const [taskActionError, setTaskActionError] = useState('');
   const [taskBusyId, setTaskBusyId] = useState<string | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [editTaskStart, setEditTaskStart] = useState('');
-  const [editTaskDue, setEditTaskDue] = useState('');
+  const [editTaskDuration, setEditTaskDuration] = useState('');
   const [hrMembers, setHrMembers] = useState<HrMemberOption[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
 
@@ -414,16 +416,7 @@ export const HRCampaignDetail: React.FC = () => {
   const tasks: TaskItem[] = useMemo(
     () =>
       (plan?.tasks ?? []).map((task) => {
-        const usesPlanWindowDefaults = Boolean(
-          task.startDate &&
-          task.endDate &&
-          plan &&
-          toDateInputValue(task.startDate) === toDateInputValue(plan.startDate) &&
-          toDateInputValue(task.endDate) === toDateInputValue(plan.endDate),
-        );
-        const hasScheduledDates = Boolean(
-          task.startDate && task.endDate && !usesPlanWindowDefaults,
-        );
+        const hasScheduledDates = Boolean(task.startDate && task.endDate);
 
         return {
           id: task.id,
@@ -450,6 +443,16 @@ export const HRCampaignDetail: React.FC = () => {
   const completedTasks = tasks.filter((task) => task.done).length;
   const taskProgress = tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0;
   const visibleTasks = tasks;
+  const editingTask = tasks.find((task) => task.id === editingTaskId);
+  const parsedEditDuration = Number(editTaskDuration);
+  const durationChange =
+    editingTask &&
+    Number.isInteger(parsedEditDuration) &&
+    parsedEditDuration > 0 &&
+    editingTask.startDateInput &&
+    editingTask.dueDateInput
+      ? parsedEditDuration - durationInDays(editingTask.startDateInput, editingTask.dueDateInput)
+      : 0;
   const canUseTaskPermission = () => isHr;
   const collectionCountsByRecruiter = useMemo(() => {
     const counts = new Map<string, number>();
@@ -588,7 +591,24 @@ export const HRCampaignDetail: React.FC = () => {
     [applications],
   );
 
-  const weekDays = useMemo(() => getCurrentWeekDays(), []);
+  const weekDays = useMemo(() => getWeekDays(calendarWeekStart), [calendarWeekStart]);
+  const calendarTasksByDay = useMemo(
+    () =>
+      new Map(
+        weekDays.map((day) => {
+          const dayValue = toLocalDateInputValue(day.date);
+          const dayTasks = tasks.filter(
+            (task) =>
+              task.startDateInput &&
+              task.dueDateInput &&
+              task.startDateInput <= dayValue &&
+              task.dueDateInput >= dayValue,
+          );
+          return [day.label, dayTasks];
+        }),
+      ),
+    [tasks, weekDays],
+  );
 
   const interviews: Interview[] = useMemo(() => {
     const sorted = [...schedules].sort(
@@ -610,6 +630,7 @@ export const HRCampaignDetail: React.FC = () => {
         initials: getInitials(candidateName),
         color: CANDIDATE_COLOR_PALETTE[index % CANDIDATE_COLOR_PALETTE.length],
         status: schedule.status,
+        scheduledAt: schedule.scheduledAt,
         date: weekDay?.label ?? '',
         time: scheduledDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
         location: schedule.location,
@@ -617,6 +638,18 @@ export const HRCampaignDetail: React.FC = () => {
       };
     });
   }, [schedules, applications, weekDays]);
+
+  useEffect(() => {
+    const scheduledTasks = tasks
+      .filter((task) => task.startDateInput && task.dueDateInput)
+      .sort((first, second) => first.startDateInput.localeCompare(second.startDateInput));
+    const today = toLocalDateInputValue(new Date());
+    const nextTask = scheduledTasks.find((task) => task.dueDateInput >= today) ?? scheduledTasks[0];
+
+    if (nextTask?.startDateInput) {
+      setCalendarWeekStart(getWeekStart(new Date(`${nextTask.startDateInput}T00:00:00`)));
+    }
+  }, [tasks]);
 
   const canManagePlan = isHr;
   const canEditDraftTasks =
@@ -732,30 +765,27 @@ export const HRCampaignDetail: React.FC = () => {
 
   const openEditTask = (task: TaskItem) => {
     setEditingTaskId(task.id);
-    setEditTaskStart(task.startDateInput);
-    setEditTaskDue(task.dueDateInput);
+    setEditTaskDuration(
+      task.startDateInput && task.dueDateInput
+        ? String(durationInDays(task.startDateInput, task.dueDateInput))
+        : '1',
+    );
     setTaskActionError('');
   };
 
   const updateTask = async () => {
-    if (!editingTaskId || !editTaskStart || !editTaskDue) return;
+    if (!editingTaskId || !Number.isInteger(parsedEditDuration) || parsedEditDuration < 1) {
+      setTaskActionError('Task duration must be at least one day.');
+      return;
+    }
 
     setTaskBusyId(editingTaskId);
     setTaskActionError('');
     try {
-      const taskStart = new Date(`${editTaskStart}T00:00:00`);
-      const taskEnd = new Date(`${editTaskDue}T23:59:59`);
-
-      if (taskEnd <= taskStart) {
-        setTaskActionError('Task due date must be after the task start date');
-        return;
-      }
-
       await apiRequest(`/task-plan/${editingTaskId}`, token, {
         method: 'PATCH',
         body: JSON.stringify({
-          startDate: taskStart.toISOString(),
-          endDate: taskEnd.toISOString(),
+          durationDays: parsedEditDuration,
         }),
       });
       setEditingTaskId(null);
@@ -930,7 +960,7 @@ export const HRCampaignDetail: React.FC = () => {
           <div className="flex w-fit rounded-lg border border-border-warm bg-clean-surface p-1">
             {[
               { key: 'kanban', label: 'Pipeline Kanban', icon: 'kanban' },
-              { key: 'calendar', label: 'Interview Calendar', icon: 'calendar' },
+              { key: 'calendar', label: 'HR Job Calendar', icon: 'calendar' },
             ].map((tab) => (
               <button
                 className={`inline-flex h-10 items-center gap-2 rounded-md px-4 text-sm font-semibold transition active:scale-[0.98] ${
@@ -970,7 +1000,8 @@ export const HRCampaignDetail: React.FC = () => {
                         {cards.map((candidate) => (
                           <CandidateCard candidate={candidate} key={candidate.id} />
                         ))}
-                        {cards.length === 0 ? (
+                        {cards.length === 0 &&
+                        !['DRAFT', 'REVISION_REQUIRED'].includes(campaign.status) ? (
                           <div className="flex h-24 items-center justify-center rounded-lg border-2 border-dashed border-border-warm text-xs text-on-surface-variant">
                             No candidates
                           </div>
@@ -985,84 +1016,114 @@ export const HRCampaignDetail: React.FC = () => {
 
           {activeTab === 'calendar' ? (
             <section className="overflow-hidden rounded-lg border border-border-warm bg-clean-surface">
-              <div
-                className="grid border-b border-border-warm"
-                style={{ gridTemplateColumns: '72px repeat(5, minmax(120px, 1fr))' }}
-              >
-                <div className="bg-workflow-ivory/50 p-3" />
-                {weekDays.map((day) => (
-                  <div
-                    className="border-l border-border-warm bg-workflow-ivory/50 p-3 text-center"
-                    key={day.label}
+              <div className="flex items-center justify-between gap-3 border-b border-border-warm bg-workflow-ivory/50 px-4 py-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-deep-charcoal">HR job schedule</h2>
+                  <p className="mt-0.5 text-xs text-on-surface-variant">
+                    {weekDays[0]?.date.toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                    })}{' '}
+                    -{' '}
+                    {weekDays[weekDays.length - 1]?.date.toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    className="h-8 rounded-md border border-border-warm px-2.5 text-xs font-semibold text-secondary transition hover:bg-clean-surface"
+                    onClick={() =>
+                      setCalendarWeekStart((current) =>
+                        getWeekStart(new Date(current.getTime() - 7 * 24 * 60 * 60 * 1000)),
+                      )
+                    }
+                    type="button"
                   >
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                      {day.label.split(' ')[0]}
-                    </p>
-                    <p
-                      className={`mt-0.5 text-lg font-bold ${day.date.toDateString() === new Date().toDateString() ? 'text-teal-command' : 'text-deep-charcoal'}`}
-                    >
-                      {day.label.split(' ')[1]}
-                    </p>
-                  </div>
-                ))}
+                    Previous
+                  </button>
+                  <button
+                    className="h-8 rounded-md border border-border-warm px-2.5 text-xs font-semibold text-secondary transition hover:bg-clean-surface"
+                    onClick={() => setCalendarWeekStart(getWeekStart(new Date()))}
+                    type="button"
+                  >
+                    Today
+                  </button>
+                  <button
+                    className="h-8 rounded-md border border-border-warm px-2.5 text-xs font-semibold text-secondary transition hover:bg-clean-surface"
+                    onClick={() =>
+                      setCalendarWeekStart((current) =>
+                        getWeekStart(new Date(current.getTime() + 7 * 24 * 60 * 60 * 1000)),
+                      )
+                    }
+                    type="button"
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
               <div className="overflow-x-auto">
-                {timeSlots.map((slot) => (
-                  <div
-                    className="grid border-b border-border-warm last:border-b-0"
-                    key={slot}
-                    style={{ gridTemplateColumns: '72px repeat(5, minmax(120px, 1fr))' }}
-                  >
-                    <div className="flex justify-center border-r border-border-warm p-2 pt-3 font-mono text-[11px] text-on-surface-variant">
-                      {slot}
-                    </div>
-                    {weekDays.map((day) => {
-                      const items = interviews.filter(
-                        (interview) =>
-                          interview.date === day.label &&
-                          interview.time.startsWith(slot.split(':')[0]),
-                      );
+                <div className="grid min-w-[760px] grid-cols-5 divide-x divide-border-warm">
+                  {weekDays.map((day) => {
+                    const dayTasks = calendarTasksByDay.get(day.label) ?? [];
+                    const dayValue = toLocalDateInputValue(day.date);
 
-                      return (
-                        <div
-                          className="min-h-[74px] border-l border-border-warm p-1.5"
-                          key={day.label}
-                        >
-                          {items.map((interview) => (
-                            <div
-                              className={`mb-1 rounded-md border-l-2 p-2 transition hover:shadow-sm ${
-                                interview.status === 'COMPLETED'
-                                  ? 'border-approved bg-green-50'
-                                  : interview.status === 'CANCELLED'
-                                    ? 'border-red-400 bg-red-50'
-                                    : 'border-teal-command bg-teal-command/5'
-                              }`}
-                              key={interview.id}
-                            >
-                              <div className="mb-1 flex items-center gap-1.5">
-                                <span
-                                  className={`flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold text-white ${interview.color}`}
-                                >
-                                  {interview.initials}
-                                </span>
-                                <p className="truncate text-[11px] font-semibold text-deep-charcoal">
-                                  {interview.candidateName}
-                                </p>
-                              </div>
-                              <p className="text-[10px] text-on-surface-variant">
-                                {interview.status} / {interview.time}
-                              </p>
-                              <p className="text-[10px] text-on-surface-variant">
-                                {interview.location}
-                              </p>
-                            </div>
-                          ))}
+                    return (
+                      <section className="min-h-[300px] bg-clean-surface" key={day.label}>
+                        <div className="border-b border-border-warm bg-workflow-ivory/50 px-3 py-3 text-center">
+                          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                            {day.label.split(' ')[0]}
+                          </p>
+                          <p
+                            className={`mt-0.5 text-lg font-bold ${day.date.toDateString() === new Date().toDateString() ? 'text-teal-command' : 'text-deep-charcoal'}`}
+                          >
+                            {day.label.split(' ')[1]}
+                          </p>
                         </div>
-                      );
-                    })}
-                  </div>
-                ))}
+                        <div className="space-y-2 p-2">
+                          {dayTasks.map((task) => (
+                            <article
+                              className={`rounded-md border-l-2 p-2.5 ${
+                                task.done
+                                  ? 'border-approved bg-approved/10'
+                                  : 'border-teal-command bg-teal-command/5'
+                              }`}
+                              key={task.id}
+                            >
+                              <p className="text-xs font-semibold leading-5 text-deep-charcoal">
+                                {task.title}
+                              </p>
+                              <p className="mt-1 truncate text-[11px] text-on-surface-variant">
+                                {task.assigneeName ?? 'Unassigned'}
+                              </p>
+                              <p className="mt-1 text-[10px] font-semibold text-secondary">
+                                {task.startDateInput === dayValue
+                                  ? 'Starts today'
+                                  : task.dueDateInput === dayValue
+                                    ? 'Ends today'
+                                    : task.done
+                                      ? 'Completed'
+                                      : 'In progress'}
+                              </p>
+                            </article>
+                          ))}
+                          {dayTasks.length === 0 ? (
+                            <p className="pt-2 text-center text-[11px] text-on-surface-variant">
+                              No HR jobs
+                            </p>
+                          ) : null}
+                        </div>
+                      </section>
+                    );
+                  })}
+                </div>
               </div>
+              {tasks.every((task) => !task.startDateInput || !task.dueDateInput) ? (
+                <p className="border-t border-border-warm px-4 py-3 text-center text-xs text-on-surface-variant">
+                  No HR jobs have been scheduled yet.
+                </p>
+              ) : null}
             </section>
           ) : null}
 
@@ -1143,7 +1204,7 @@ export const HRCampaignDetail: React.FC = () => {
                     {task.done ? <Icon className="h-3 w-3" name="check" /> : null}
                   </span>
                   {editingTaskId === task.id ? (
-                    <div className="grid flex-1 gap-3 md:grid-cols-[minmax(180px,1fr)_150px_150px_auto] md:items-end">
+                    <div className="grid flex-1 gap-3 md:grid-cols-[minmax(180px,1fr)_170px_auto] md:items-end">
                       <div className="min-w-0">
                         <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
                           Task
@@ -1151,37 +1212,30 @@ export const HRCampaignDetail: React.FC = () => {
                         <p className="truncate text-sm font-semibold text-deep-charcoal">
                           {task.title}
                         </p>
+                        <p className="mt-1 text-xs text-on-surface-variant">
+                          Starts after the previous task. All following tasks reschedule automatically.
+                        </p>
                       </div>
                       <label className="block">
                         <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                          Start Date
+                          Set duration (days)
                         </span>
                         <input
                           className="h-9 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-xs text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                          max={plan?.endDate.slice(0, 10)}
-                          min={plan?.startDate.slice(0, 10)}
-                          onChange={(event) => setEditTaskStart(event.target.value)}
-                          type="date"
-                          value={editTaskStart}
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                          Due Date
-                        </span>
-                        <input
-                          className="h-9 w-full rounded-lg border border-border-warm bg-clean-surface px-3 text-xs text-deep-charcoal outline-none transition focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
-                          max={plan?.endDate.slice(0, 10)}
-                          min={plan?.startDate.slice(0, 10)}
-                          onChange={(event) => setEditTaskDue(event.target.value)}
-                          type="date"
-                          value={editTaskDue}
+                          min="1"
+                          onChange={(event) => setEditTaskDuration(event.target.value)}
+                          type="number"
+                          value={editTaskDuration}
                         />
                       </label>
                       <div className="flex gap-2">
                         <button
                           className="h-9 rounded-lg bg-teal-command px-3 text-xs font-bold text-white transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
-                          disabled={!editTaskStart || !editTaskDue || taskBusyId === task.id}
+                          disabled={
+                            !Number.isInteger(parsedEditDuration) ||
+                            parsedEditDuration < 1 ||
+                            taskBusyId === task.id
+                          }
                           onClick={() => void updateTask()}
                           type="button"
                         >
@@ -1195,6 +1249,12 @@ export const HRCampaignDetail: React.FC = () => {
                           Cancel
                         </button>
                       </div>
+                      {durationChange !== 0 ? (
+                        <p className="md:col-span-3 rounded-lg border border-pending/30 bg-pending/10 px-3 py-2 text-xs font-medium text-secondary">
+                          Warning: this changes the campaign timeline by {Math.abs(durationChange)} day
+                          {Math.abs(durationChange) === 1 ? '' : 's'} and reschedules every following task.
+                        </p>
+                      ) : null}
                     </div>
                   ) : (
                     <p
@@ -1244,18 +1304,20 @@ export const HRCampaignDetail: React.FC = () => {
                     >
                       {task.startDate && task.dueDate
                         ? `${task.startDate} - ${task.dueDate}`
-                        : 'Set dates'}
+                        : 'Not scheduled'}
                       {task.reminderStatus ? ` / ${task.reminderStatus}` : ''}
                     </span>
                   ) : null}
                   {editingTaskId !== task.id && canEditDraftTasks ? (
                     <button
-                      className="text-xs font-semibold text-teal-command transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label="Set task dates"
+                      className="inline-flex items-center text-teal-command transition hover:underline disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={taskBusyId === task.id}
                       onClick={() => openEditTask(task)}
+                      title="Set task dates"
                       type="button"
                     >
-                      Edit
+                      <Icon className="h-4 w-4" name="calendar" />
                     </button>
                   ) : null}
                   {editingTaskId !== task.id &&

@@ -1,0 +1,144 @@
+@startuml
+title RMS - Use Case Diagram - Ứng viên (CANDIDATE)
+
+left to right direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam ArrowColor #52606D
+skinparam ActorBorderColor #2563EB
+skinparam ActorFontColor #1E3A8A
+skinparam UsecaseBorderColor #64748B
+skinparam UsecaseBackgroundColor #FFFFFF
+skinparam PackageBorderColor #60A5FA
+skinparam PackageBackgroundColor #EFF6FF
+
+actor "Ứng viên\n(CANDIDATE)" as Candidate
+
+rectangle "RMS - Candidate Portal" {
+  package "Tài khoản" {
+    usecase "Đăng ký bằng email" as CAN_RegisterEmail
+    usecase "Xác thực email bằng OTP" as CAN_VerifyOtp
+    usecase "Gửi lại OTP" as CAN_ResendOtp
+    usecase "Đăng ký bằng Google" as CAN_RegisterGoogle
+    usecase "Đăng nhập bằng\nemail/mật khẩu" as CAN_LoginEmail
+    usecase "Đăng nhập bằng Google" as CAN_LoginGoogle
+    usecase "Khôi phục mật khẩu" as CAN_RecoverPassword
+    usecase "Yêu cầu liên kết đặt lại" as CAN_RequestReset
+    usecase "Đặt mật khẩu mới" as CAN_ResetPassword
+    usecase "Đăng xuất" as CAN_Logout
+  }
+
+  package "Việc làm và ứng tuyển" {
+    usecase "Xem các tin tuyển dụng\nPUBLIC đã xuất bản" as CAN_ViewJobs
+    usecase "Xem chi tiết tin tuyển dụng" as CAN_ViewJobDetails
+    usecase "Nộp hồ sơ ứng tuyển" as CAN_Apply
+    usecase "Theo dõi trạng thái và\npipeline hồ sơ" as CAN_TrackApplications
+  }
+
+  package "Hồ sơ ứng viên" {
+    usecase "Xem và cập nhật\nthông tin hồ sơ" as CAN_Profile
+    usecase "Quản lý ảnh đại diện" as CAN_Avatar
+    usecase "Quản lý kinh nghiệm, học vấn\nvà kỹ năng" as CAN_ProfileDetails
+  }
+
+  package "CV" {
+    usecase "Quản lý CV" as CAN_ManageCv
+    usecase "Tải CV lên" as CAN_UploadCv
+    usecase "Tự động OCR / trích xuất AI\nvà theo dõi xử lý" as CAN_ParseCv
+    usecase "Nhập dữ liệu đã trích xuất\nvào CV Builder" as CAN_ImportCv
+    usecase "Kiểm tra, chỉnh sửa và lưu\ndữ liệu CV có cấu trúc" as CAN_EditCv
+    usecase "Thay thế file CV" as CAN_ReplaceCv
+    usecase "Tải mẫu CV" as CAN_DownloadTemplate
+    usecase "Tạo PDF từ CV Builder" as CAN_GenerateCv
+    usecase "Xóa CV xử lý thất bại" as CAN_DeleteCv
+  }
+
+  package "Thông báo" {
+    usecase "Xem và lọc thông báo" as CAN_Notifications
+    usecase "Đánh dấu đã đọc / chưa đọc" as CAN_ToggleRead
+    usecase "Lưu trữ thông báo" as CAN_Archive
+    usecase "Mở nhanh phỏng vấn hoặc\nxác nhận tham dự" as CAN_NotificationAction
+  }
+
+  package "Phỏng vấn" {
+    usecase "Xem lịch và chi tiết\nphỏng vấn" as CAN_Interviews
+    usecase "Xác nhận tham dự" as CAN_ConfirmInterview
+    usecase "Đề nghị thời gian mới" as CAN_RescheduleInterview
+    usecase "Hủy tham gia phỏng vấn" as CAN_CancelInterview
+  }
+
+  package "Offer Letter" {
+    usecase "Xem danh sách và chi tiết\nOffer Letter" as CAN_Offers
+    usecase "Chấp nhận Offer" as CAN_AcceptOffer
+    usecase "Từ chối Offer kèm lý do" as CAN_DeclineOffer
+  }
+}
+
+Candidate --> CAN_RegisterEmail
+Candidate --> CAN_RegisterGoogle
+Candidate --> CAN_LoginEmail
+Candidate --> CAN_LoginGoogle
+Candidate --> CAN_RecoverPassword
+Candidate --> CAN_Logout
+Candidate --> CAN_ViewJobs
+Candidate --> CAN_TrackApplications
+Candidate --> CAN_Profile
+Candidate --> CAN_ManageCv
+Candidate --> CAN_Notifications
+Candidate --> CAN_Interviews
+Candidate --> CAN_Offers
+
+CAN_RegisterEmail ..> CAN_VerifyOtp : <<include>>
+CAN_ResendOtp ..> CAN_VerifyOtp : <<extend>>
+CAN_RecoverPassword ..> CAN_RequestReset : <<include>>
+CAN_RecoverPassword ..> CAN_ResetPassword : <<include>>
+
+CAN_ViewJobDetails ..> CAN_ViewJobs : <<extend>>
+CAN_Apply ..> CAN_ViewJobDetails : <<extend>>
+
+CAN_Avatar ..> CAN_Profile : <<extend>>
+CAN_ProfileDetails ..> CAN_Profile : <<extend>>
+
+CAN_UploadCv ..> CAN_ManageCv : <<extend>>
+CAN_UploadCv ..> CAN_ParseCv : <<include>>
+CAN_ImportCv ..> CAN_ManageCv : <<extend>>
+CAN_EditCv ..> CAN_ManageCv : <<extend>>
+CAN_ReplaceCv ..> CAN_ManageCv : <<extend>>
+CAN_ReplaceCv ..> CAN_ParseCv : <<include>>
+CAN_DownloadTemplate ..> CAN_ManageCv : <<extend>>
+CAN_GenerateCv ..> CAN_ManageCv : <<extend>>
+CAN_DeleteCv ..> CAN_ManageCv : <<extend>>
+
+CAN_ToggleRead ..> CAN_Notifications : <<extend>>
+CAN_Archive ..> CAN_Notifications : <<extend>>
+CAN_NotificationAction ..> CAN_Notifications : <<extend>>
+
+CAN_ConfirmInterview ..> CAN_Interviews : <<extend>>
+CAN_RescheduleInterview ..> CAN_Interviews : <<extend>>
+CAN_CancelInterview ..> CAN_Interviews : <<extend>>
+
+CAN_AcceptOffer ..> CAN_Offers : <<extend>>
+CAN_DeclineOffer ..> CAN_Offers : <<extend>>
+
+note right of CAN_Apply
+  Tiền điều kiện được UI kiểm tra:
+  ứng viên đã tải ít nhất một CV.
+end note
+
+note right of CAN_ViewJobs
+  Danh sách việc làm công khai có thể xem
+  trước khi đăng nhập; ứng tuyển cần tài khoản Candidate.
+end note
+
+note right of CAN_DeleteCv
+  UI khóa xóa CV đang xử lý hoặc đã xử lý thành công;
+  thao tác xóa chỉ mở cho tài liệu xử lý thất bại.
+end note
+
+note right of CAN_RescheduleInterview
+  Thời gian và lý do mới được gửi cho HR/panel;
+  hủy phỏng vấn cũng thông báo cho các bên liên quan.
+end note
+
+@enduml

@@ -50,11 +50,7 @@ export class CvService {
       },
       {
         jobId: `cv-parse-${cvRecord.id}-${Date.now()}`,
-        attempts: 3,
-        backoff: {
-          type: 'exponential',
-          delay: 1000,
-        },
+        attempts: 1,
         removeOnFail: true,
       },
     );

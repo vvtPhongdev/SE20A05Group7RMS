@@ -1,0 +1,119 @@
+@startuml
+title RMS - Use Case Diagram - Quản trị viên (ADMIN)
+
+left to right direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam ArrowColor #52606D
+skinparam ActorBorderColor #7C3AED
+skinparam ActorFontColor #5B21B6
+skinparam UsecaseBorderColor #64748B
+skinparam UsecaseBackgroundColor #FFFFFF
+skinparam PackageBorderColor #A78BFA
+skinparam PackageBackgroundColor #FAF5FF
+
+actor "Quản trị viên\n(ADMIN)" as Admin
+
+rectangle "RMS - Admin Portal" {
+  package "Tài khoản" {
+    usecase "Đăng nhập bằng\nemail/mật khẩu" as ADM_LoginEmail
+    usecase "Đăng nhập bằng Google" as ADM_LoginGoogle
+    usecase "Khôi phục mật khẩu" as ADM_RecoverPassword
+    usecase "Yêu cầu liên kết đặt lại" as ADM_RequestReset
+    usecase "Đặt mật khẩu mới" as ADM_ResetPassword
+    usecase "Đăng xuất" as ADM_Logout
+  }
+
+  package "Điều hành và phê duyệt" {
+    usecase "Xem dashboard điều hành" as ADM_Dashboard
+    usecase "Xem hàng đợi phê duyệt" as ADM_ApprovalQueue
+    usecase "Mở thông báo liên quan\nđến phê duyệt" as ADM_ApprovalNotification
+    usecase "Duyệt / từ chối\nyêu cầu tuyển dụng" as ADM_RequestDecision
+    usecase "Duyệt / từ chối\nkế hoạch Campaign" as ADM_PlanDecision
+  }
+
+  package "Giám sát yêu cầu tuyển dụng" {
+    usecase "Xem, tìm kiếm, lọc và\nxem chi tiết mọi yêu cầu" as ADM_AllRequests
+    usecase "Phân công yêu cầu cho HR" as ADM_AssignHR
+    usecase "Xuất các yêu cầu đã chọn\nra CSV" as ADM_ExportRequests
+  }
+
+  package "Kết quả phỏng vấn và quyết định cuối" {
+    usecase "Xem kết quả, đánh giá,\nhồ sơ và CV ứng viên" as ADM_InterviewResults
+    usecase "Yêu cầu bổ sung thông tin" as ADM_RequestInfo
+    usecase "Quyết định tuyển" as ADM_Hire
+    usecase "Tạo Offer Letter, thông báo\nvà xếp email gửi ứng viên" as ADM_CreateOffer
+    usecase "Quyết định không tuyển" as ADM_Reject
+    usecase "Tạo thông báo và xếp email\ntừ chối ứng viên" as ADM_SendRejection
+  }
+
+  package "Quản lý người dùng" {
+    usecase "Xem, tìm kiếm và lọc\nngười dùng" as ADM_ViewUsers
+    usecase "Tạo tài khoản người dùng" as ADM_CreateUser
+    usecase "Cập nhật tên, phòng ban\nvà vai trò" as ADM_EditUser
+    usecase "Kích hoạt / vô hiệu hóa\ntài khoản" as ADM_ToggleUser
+  }
+
+  package "Cấu hình tổ chức" {
+    usecase "Cập nhật hồ sơ cá nhân" as ADM_Profile
+    usecase "Cấu hình thông tin tổ chức và\nquy trình phê duyệt" as ADM_Organization
+    usecase "Quản lý phòng ban, trưởng phòng,\nkỹ năng và yêu cầu bằng cấp" as ADM_Departments
+    usecase "Cấu hình các giai đoạn pipeline" as ADM_PipelineStages
+  }
+
+  package "Báo cáo" {
+    usecase "Xem báo cáo tuyển dụng năm" as ADM_AnnualReport
+    usecase "Xuất báo cáo năm dạng PDF" as ADM_ExportAnnualPdf
+    usecase "Xem thống kê phòng ban\nvà Campaign" as ADM_DepartmentStats
+  }
+}
+
+Admin --> ADM_LoginEmail
+Admin --> ADM_LoginGoogle
+Admin --> ADM_RecoverPassword
+Admin --> ADM_Logout
+Admin --> ADM_Dashboard
+Admin --> ADM_ApprovalQueue
+Admin --> ADM_AllRequests
+Admin --> ADM_InterviewResults
+Admin --> ADM_ViewUsers
+Admin --> ADM_Profile
+Admin --> ADM_Organization
+Admin --> ADM_Departments
+Admin --> ADM_PipelineStages
+Admin --> ADM_AnnualReport
+Admin --> ADM_DepartmentStats
+
+ADM_RecoverPassword ..> ADM_RequestReset : <<include>>
+ADM_RecoverPassword ..> ADM_ResetPassword : <<include>>
+
+ADM_ApprovalNotification ..> ADM_ApprovalQueue : <<extend>>
+ADM_RequestDecision ..> ADM_ApprovalQueue : <<extend>>
+ADM_PlanDecision ..> ADM_ApprovalQueue : <<extend>>
+
+ADM_AssignHR ..> ADM_AllRequests : <<extend>>
+ADM_ExportRequests ..> ADM_AllRequests : <<extend>>
+
+ADM_RequestInfo ..> ADM_InterviewResults : <<extend>>
+ADM_Hire ..> ADM_InterviewResults : <<extend>>
+ADM_Hire ..> ADM_CreateOffer : <<include>>
+ADM_Reject ..> ADM_InterviewResults : <<extend>>
+ADM_Reject ..> ADM_SendRejection : <<include>>
+
+ADM_CreateUser ..> ADM_ViewUsers : <<extend>>
+ADM_EditUser ..> ADM_ViewUsers : <<extend>>
+ADM_ToggleUser ..> ADM_ViewUsers : <<extend>>
+ADM_ExportAnnualPdf ..> ADM_AnnualReport : <<extend>>
+
+note right of ADM_Hire
+  Chỉ thực hiện sau khi phỏng vấn hoàn tất,
+  có kết quả và ứng viên đạt điều kiện.
+end note
+
+note bottom of ADM_LoginEmail
+  Admin không có luồng tự đăng ký trên UI;
+  tài khoản Admin phải được cấp sẵn.
+end note
+
+@enduml

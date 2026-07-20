@@ -9,6 +9,20 @@ import {
   UserRole,
 } from '@wr/contracts';
 
+const stringMapFromSettings = (settings: unknown, key: string): Record<string, string[]> => {
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return {};
+  const value = (settings as Record<string, unknown>)[key];
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).flatMap(([departmentId, items]) =>
+      Array.isArray(items) && items.every((item) => typeof item === 'string')
+        ? [[departmentId, items]]
+        : [],
+    ),
+  );
+};
+
 @Injectable()
 export class DepartmentsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -22,6 +36,7 @@ export class DepartmentsService {
         organizationId: parsed.organizationId,
         name: { equals: parsed.name, mode: 'insensitive' },
       },
+      select: { id: true },
     });
     if (existingName) {
       throw new RpcException({
@@ -38,6 +53,7 @@ export class DepartmentsService {
           code: parsed.code,
         },
       },
+      select: { id: true },
     });
     if (existingCode) {
       throw new RpcException({
@@ -69,6 +85,7 @@ export class DepartmentsService {
     if (parsed.parentId) {
       const parentDept = await this.prisma.department.findUnique({
         where: { id: parsed.parentId },
+        select: { id: true, organizationId: true },
       });
       if (!parentDept) {
         throw new RpcException({
@@ -89,6 +106,8 @@ export class DepartmentsService {
         organizationId: parsed.organizationId,
         name: parsed.name,
         code: parsed.code,
+        skills: parsed.skills ?? [],
+        bachelorRequirements: parsed.bachelorRequirements ?? [],
         headUserId: parsed.headUserId || null,
         parentId: parsed.parentId || null,
       },
@@ -109,32 +128,76 @@ export class DepartmentsService {
       where.organizationId = query.organizationId;
     }
 
-    return this.prisma.department.findMany({
-      where,
-      orderBy: { name: 'asc' },
-      include: {
-        headUser: {
-          select: {
-            id: true,
-            email: true,
-            displayName: true,
-            role: true,
-          },
+    const include = {
+      headUser: {
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          role: true,
         },
-        _count: {
-          select: {
-            users: true,
-            requests: {
-              where: {
-                status: {
-                  notIn: ['CLOSED', 'CANCELLED', 'REJECTED'],
-                },
+      },
+      _count: {
+        select: {
+          users: true,
+          requests: {
+            where: {
+              status: {
+                notIn: ['CLOSED', 'CANCELLED', 'REJECTED'],
               },
             },
           },
         },
       },
-    });
+    };
+
+    try {
+      return await this.prisma.department.findMany({
+        where,
+        orderBy: { name: 'asc' },
+        include,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      if (!message.includes('skills') && !message.includes('bachelor_requirements')) {
+        throw error;
+      }
+
+      const legacyDepartments = await this.prisma.department.findMany({
+        where,
+        orderBy: { name: 'asc' },
+        select: {
+          id: true,
+          organizationId: true,
+          name: true,
+          code: true,
+          headUserId: true,
+          parentId: true,
+          createdAt: true,
+          updatedAt: true,
+          ...include,
+        },
+      });
+
+      const organizationId = legacyDepartments[0]?.organizationId;
+      if (!organizationId) return legacyDepartments;
+
+      const organization = await this.prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { settings: true },
+      });
+      const skillsByDepartment = stringMapFromSettings(organization?.settings, 'departmentSkills');
+      const bachelorsByDepartment = stringMapFromSettings(
+        organization?.settings,
+        'departmentBachelorRequirements',
+      );
+
+      return legacyDepartments.map((department) => ({
+        ...department,
+        skills: skillsByDepartment[department.id] ?? [],
+        bachelorRequirements: bachelorsByDepartment[department.id] ?? [],
+      }));
+    }
   }
 
   async get(payload: { id: string }) {
@@ -170,6 +233,7 @@ export class DepartmentsService {
     // 1. Verify department exists
     const existing = await this.prisma.department.findUnique({
       where: { id },
+      select: { id: true, organizationId: true },
     });
     if (!existing) {
       throw new RpcException({
@@ -189,6 +253,7 @@ export class DepartmentsService {
           name: { equals: parsed.name, mode: 'insensitive' },
           id: { not: id },
         },
+        select: { id: true },
       });
       if (existingName) {
         throw new RpcException({
@@ -207,6 +272,7 @@ export class DepartmentsService {
             code: parsed.code,
           },
         },
+        select: { id: true },
       });
       if (existingCode && existingCode.id !== id) {
         throw new RpcException({
@@ -245,6 +311,7 @@ export class DepartmentsService {
       }
       const parentDept = await this.prisma.department.findUnique({
         where: { id: parsed.parentId },
+        select: { id: true, organizationId: true },
       });
       if (!parentDept) {
         throw new RpcException({
@@ -260,15 +327,71 @@ export class DepartmentsService {
       }
     }
 
-    return this.prisma.department.update({
-      where: { id },
-      data: {
-        name: parsed.name !== undefined ? parsed.name : undefined,
-        code: parsed.code !== undefined ? parsed.code : undefined,
-        headUserId: parsed.headUserId !== undefined ? parsed.headUserId : undefined,
-        parentId: parsed.parentId !== undefined ? parsed.parentId : undefined,
-      },
-    });
+    const data = {
+      name: parsed.name !== undefined ? parsed.name : undefined,
+      code: parsed.code !== undefined ? parsed.code : undefined,
+      skills: parsed.skills !== undefined ? parsed.skills : undefined,
+      bachelorRequirements:
+        parsed.bachelorRequirements !== undefined ? parsed.bachelorRequirements : undefined,
+      headUserId: parsed.headUserId !== undefined ? parsed.headUserId : undefined,
+      parentId: parsed.parentId !== undefined ? parsed.parentId : undefined,
+    };
+
+    try {
+      return await this.prisma.department.update({ where: { id }, data });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      if (!message.includes('skills') && !message.includes('bachelor_requirements')) {
+        throw error;
+      }
+
+      const organization = await this.prisma.organization.findUnique({
+        where: { id: existing.organizationId },
+        select: { settings: true },
+      });
+      const settings =
+        organization?.settings && typeof organization.settings === 'object' && !Array.isArray(organization.settings)
+          ? { ...(organization.settings as Record<string, unknown>) }
+          : {};
+      const skillsByDepartment = stringMapFromSettings(settings, 'departmentSkills');
+      const bachelorsByDepartment = stringMapFromSettings(settings, 'departmentBachelorRequirements');
+
+      if (parsed.skills !== undefined) skillsByDepartment[id] = parsed.skills;
+      if (parsed.bachelorRequirements !== undefined) {
+        bachelorsByDepartment[id] = parsed.bachelorRequirements;
+      }
+
+      await this.prisma.organization.update({
+        where: { id: existing.organizationId },
+        data: {
+          settings: {
+            ...settings,
+            departmentSkills: skillsByDepartment,
+            departmentBachelorRequirements: bachelorsByDepartment,
+          },
+        },
+      });
+
+      return this.prisma.department.update({
+        where: { id },
+        data: {
+          name: data.name,
+          code: data.code,
+          headUserId: data.headUserId,
+          parentId: data.parentId,
+        },
+        select: {
+          id: true,
+          organizationId: true,
+          name: true,
+          code: true,
+          headUserId: true,
+          parentId: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+    }
   }
 
   async delete(payload: { id: string }) {

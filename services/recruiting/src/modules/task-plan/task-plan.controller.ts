@@ -67,6 +67,7 @@ export class TaskPlanController {
       taskType?: string;
       startDate?: string;
       endDate?: string;
+      durationDays?: number;
       performedById: string;
     },
   ) {

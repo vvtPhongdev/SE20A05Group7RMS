@@ -223,13 +223,23 @@ export class RecruitmentRequestsService {
                   'HR_FORWARDED_TO_ADMIN',
                   'HR_PROPOSED_CHANGES',
                   'HR_RETURNED_FOR_REVISION',
+                  'UPDATED',
+                  'ASSIGNED_TO_HR',
+                  'ADMIN_REQUEST_DECISION',
+                  'HR_REQUEST_DECISION',
+                  'ADMIN_REQUESTED_CHANGES',
+                  'DEPT_HEAD_APPROVED_REVISION',
+                  'DEPT_HEAD_REJECTED_REVISION',
                 ],
               },
             },
             select: {
               action: true,
+              fromStatus: true,
+              toStatus: true,
               createdAt: true,
               metadata: true,
+              performedBy: { select: { displayName: true } },
             },
             orderBy: { createdAt: 'desc' },
           },
@@ -271,6 +281,14 @@ export class RecruitmentRequestsService {
           forwardedToAdmin,
           hrSuggestedChanges: latestHrSuggestedChanges(request.logs),
           hrRevisionSuggestion: latestHrRevisionSuggestion(request.logs),
+          history: request.logs.map((log) => ({
+            action: log.action,
+            fromStatus: log.fromStatus,
+            toStatus: log.toStatus,
+            createdAt: log.createdAt,
+            metadata: log.metadata,
+            actor: log.performedBy.displayName,
+          })),
           createdAt: request.createdAt,
           updatedAt: request.updatedAt,
         };
@@ -514,7 +532,12 @@ export class RecruitmentRequestsService {
     await this.prisma.requestLog.create({
       data: {
         requestId: payload.id,
-        action: 'UPDATED',
+        action:
+          payload.acceptedHrSuggestion === true
+            ? 'DEPT_HEAD_APPROVED_REVISION'
+            : payload.acceptedHrSuggestion === false
+              ? 'DEPT_HEAD_REJECTED_REVISION'
+              : 'UPDATED',
         performedById: payload.userId,
         metadata:
           payload.acceptedHrSuggestion !== undefined || payload.revisionResponse?.trim()

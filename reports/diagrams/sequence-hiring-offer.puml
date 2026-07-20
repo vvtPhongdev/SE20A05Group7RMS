@@ -1,0 +1,56 @@
+@startuml
+title FR-14..19 - Panel Feedback, Hiring Decision and Offer Response
+autonumber
+skinparam shadowing false
+skinparam defaultFontName Arial
+
+actor "Panel Member" as PANEL
+actor "HR Leader" as HR
+actor Admin as ADM
+actor Candidate as CAN
+participant "API Gateway" as GW
+participant "InterviewResultService" as RESULT
+participant "HiringDecisionService" as DECIDE
+participant "OfferLetterService" as OFFER
+database PostgreSQL as DB
+queue BullMQ as Q
+participant "Notification Service" as NOT
+
+PANEL -> GW : POST /api/v1/.../{interviewId}/my-feedback
+GW -> RESULT : recordMyFeedback(scores, PASS|FAIL, notes)
+RESULT -> DB : verify invited/attending evaluator and ownership
+RESULT -> DB : UPSERT InterviewResult(evaluatorId)
+
+HR -> GW : POST /api/v1/hr-interview-results/{id}/final-recommendation
+GW -> RESULT : recordResult(finalRecommendation, summaryNotes)
+RESULT -> DB : finalize interview and request=INTERVIEW_COMPLETED
+RESULT -> DB : RequestLog + AuditLog
+RESULT -> NOT : notify Admin
+
+ADM -> GW : POST /api/v1/admin-interview-results/{requestId}/decision
+GW -> DECIDE : decide(HIRE|REJECT, candidate, offer details)
+DECIDE -> DB : require completed interview and valid candidate result
+alt HIRE
+  DECIDE -> DB : atomic request/application transition + SENT OfferLetter + logs
+  DECIDE -> DB : create EmailLog(PENDING) + Notification
+  DECIDE -> Q : enqueue idempotent email-log-{id}
+else REJECT
+  DECIDE -> DB : atomic NOT_HIRED application/request + reason + logs
+  DECIDE -> DB : create rejection EmailLog + Notification
+  DECIDE -> Q : enqueue rejection email
+end
+
+CAN -> GW : POST /api/v1/offers/{offerId}/respond
+GW -> OFFER : respond(ACCEPT|DECLINE, candidateUserId, note)
+OFFER -> DB : verify owner and status=SENT
+alt ACCEPT and headcount reached
+  OFFER -> DB : transaction: offer ACCEPTED; application HIRED; request COMPLETED
+  OFFER -> DB : close JobPosting; complete HIRING task and OverallPlan
+else ACCEPT and target remains
+  OFFER -> DB : offer ACCEPTED; application HIRED; request OFFER_ACCEPTED
+else DECLINE
+  OFFER -> DB : offer DECLINED; application/request OFFER_DECLINED
+end
+OFFER -> NOT : notify Department Head, HR and Admin
+@enduml
+

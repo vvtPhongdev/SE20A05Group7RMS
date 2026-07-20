@@ -1,7 +1,15 @@
-﻿import { Injectable, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpStatus } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { PrismaService } from '../../common/database/prisma.service';
-import { isHrRole, RecruitmentRequestStatus, UserRole } from '@wr/contracts';
+import {
+  InterviewStatus,
+  isHrRole,
+  PlanStatus,
+  RecruitmentRequestStatus,
+  TaskStatus,
+  TaskType,
+  UserRole,
+} from '@wr/contracts';
 
 type DepartmentRequestSummary = {
   status: string;
@@ -20,9 +28,427 @@ type RequestLogEntry = {
   createdAt: Date;
 };
 
+const QUEUE_STATUSES = [
+  RecruitmentRequestStatus.PENDING_HR_REVIEW,
+  RecruitmentRequestStatus.PENDING_REVIEW,
+  RecruitmentRequestStatus.PENDING_BOSS_APPROVAL,
+  RecruitmentRequestStatus.REVISION_NEEDED,
+];
+
+const SUBMISSION_ACTIONS = new Set(['CREATED', 'SUBMITTED_FOR_REVIEW', 'RESUBMITTED_FOR_REVIEW']);
+const HR_REVIEW_ACTIONS = new Set(['HR_FORWARDED_TO_ADMIN', 'HR_RETURNED_FOR_REVISION']);
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
 @Injectable()
 export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async getHrRequestQueueSummary() {
+    const requests = await this.prisma.recruitmentRequest.findMany({
+      where: { status: { in: QUEUE_STATUSES } },
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+        department: { select: { name: true } },
+        logs: {
+          select: { action: true, createdAt: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setHours(0, 0, 0, 0);
+    startOfWeek.setDate(startOfWeek.getDate() - ((startOfWeek.getDay() + 6) % 7));
+
+    const reviewDurations: number[] = [];
+    const reviewedThisWeek = new Set<string>();
+    const forwardedThisWeek = new Set<string>();
+    const distribution = new Map<string, number>();
+    let oldestPendingDays = 0;
+
+    for (const request of requests) {
+      const department = request.department?.name ?? 'Unassigned';
+      distribution.set(department, (distribution.get(department) ?? 0) + 1);
+
+      let latestSubmission = request.createdAt;
+      let latestForward: Date | null = null;
+      for (const log of request.logs) {
+        if (SUBMISSION_ACTIONS.has(log.action)) {
+          latestSubmission = log.createdAt;
+        }
+
+        if (log.action === 'HR_FORWARDED_TO_ADMIN') {
+          latestForward = log.createdAt;
+          if (log.createdAt >= latestSubmission) {
+            reviewDurations.push(
+              (log.createdAt.getTime() - latestSubmission.getTime()) / MS_PER_DAY,
+            );
+          }
+        }
+
+        if (log.createdAt >= startOfWeek && HR_REVIEW_ACTIONS.has(log.action)) {
+          reviewedThisWeek.add(request.id);
+        }
+        if (log.createdAt >= startOfWeek && log.action === 'HR_FORWARDED_TO_ADMIN') {
+          forwardedThisWeek.add(request.id);
+        }
+      }
+
+      const isAwaitingHrReview =
+        request.status === RecruitmentRequestStatus.PENDING_HR_REVIEW ||
+        (request.status === RecruitmentRequestStatus.PENDING_REVIEW &&
+          (!latestForward || latestForward < latestSubmission));
+      if (isAwaitingHrReview) {
+        oldestPendingDays = Math.max(
+          oldestPendingDays,
+          Math.max(0, (now.getTime() - latestSubmission.getTime()) / MS_PER_DAY),
+        );
+      }
+    }
+
+    const total = requests.length;
+    return {
+      averageReviewTimeDays:
+        reviewDurations.length > 0
+          ? Number(
+              (
+                reviewDurations.reduce((sum, duration) => sum + duration, 0) /
+                reviewDurations.length
+              ).toFixed(1),
+            )
+          : 0,
+      oldestPendingDays: Math.floor(oldestPendingDays),
+      reviewedThisWeek: reviewedThisWeek.size,
+      forwardedThisWeek: forwardedThisWeek.size,
+      distribution: [...distribution.entries()]
+        .map(([department, count]) => ({
+          department,
+          count,
+          percentage: total > 0 ? Math.round((count / total) * 100) : 0,
+        }))
+        .sort(
+          (left, right) =>
+            right.count - left.count || left.department.localeCompare(right.department),
+        ),
+    };
+  }
+
+  async getHrDashboard() {
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setHours(0, 0, 0, 0);
+    startOfWeek.setDate(startOfWeek.getDate() - ((startOfWeek.getDay() + 6) % 7));
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(endOfWeek.getDate() + 7);
+
+    const approvedStatuses = new Set<string>([
+      RecruitmentRequestStatus.APPROVED,
+      RecruitmentRequestStatus.PLANNING,
+      RecruitmentRequestStatus.PLAN_PENDING_APPROVAL,
+      RecruitmentRequestStatus.PLAN_APPROVED,
+      RecruitmentRequestStatus.ACTIVE,
+      RecruitmentRequestStatus.SCREENING,
+      RecruitmentRequestStatus.INTERVIEWING,
+      RecruitmentRequestStatus.INTERVIEW_COMPLETED,
+      RecruitmentRequestStatus.DECISION_PENDING,
+      RecruitmentRequestStatus.OFFER_EXTENDED,
+      RecruitmentRequestStatus.OFFER_ACCEPTED,
+      RecruitmentRequestStatus.OFFER_DECLINED,
+      RecruitmentRequestStatus.HIRED,
+      RecruitmentRequestStatus.NOT_HIRED,
+      RecruitmentRequestStatus.COMPLETED,
+      RecruitmentRequestStatus.CLOSED,
+    ]);
+    const terminalRequestStatuses = new Set<string>([
+      RecruitmentRequestStatus.COMPLETED,
+      RecruitmentRequestStatus.CLOSED,
+      RecruitmentRequestStatus.CANCELLED,
+      RecruitmentRequestStatus.REJECTED,
+    ]);
+    const terminalApplicationStatuses = new Set<string>([
+      RecruitmentRequestStatus.REJECTED,
+      RecruitmentRequestStatus.NOT_HIRED,
+      RecruitmentRequestStatus.OFFER_DECLINED,
+      RecruitmentRequestStatus.OFFER_ACCEPTED,
+      RecruitmentRequestStatus.HIRED,
+    ]);
+    const attentionByStatus: Record<string, string> = {
+      PENDING_HR_REVIEW: 'needs HR review',
+      APPROVED: 'needs a recruitment plan',
+      PLAN_PENDING_APPROVAL: 'has a plan awaiting approval',
+      INTERVIEW_COMPLETED: 'needs a hiring decision',
+      DECISION_PENDING: 'needs a hiring decision',
+    };
+
+    const [requests, upcomingSchedules, weekInterviews] = await Promise.all([
+      this.prisma.recruitmentRequest.findMany({
+        where: { status: { not: RecruitmentRequestStatus.DRAFT } },
+        include: {
+          department: { select: { name: true } },
+          reviewedBy: { select: { displayName: true } },
+          overallPlan: {
+            select: {
+              status: true,
+              startDate: true,
+              endDate: true,
+              createdBy: { select: { displayName: true } },
+              tasks: {
+                orderBy: { startDate: 'asc' },
+                select: {
+                  id: true,
+                  taskType: true,
+                  status: true,
+                  startDate: true,
+                  endDate: true,
+                  assignedTo: { select: { displayName: true } },
+                },
+              },
+            },
+          },
+          applications: { select: { candidateId: true, status: true, updatedAt: true } },
+        },
+        orderBy: { updatedAt: 'desc' },
+      }),
+      this.prisma.interviewSchedule.findMany({
+        where: {
+          scheduledAt: { gte: now },
+          status: { not: InterviewStatus.CANCELLED },
+        },
+        select: {
+          id: true,
+          scheduledAt: true,
+          location: true,
+          status: true,
+          candidate: { select: { fullName: true } },
+          request: { select: { position: true } },
+        },
+        orderBy: { scheduledAt: 'asc' },
+        take: 3,
+      }),
+      this.prisma.interviewSchedule.count({
+        where: {
+          scheduledAt: { gte: startOfWeek, lt: endOfWeek },
+          status: { not: InterviewStatus.CANCELLED },
+        },
+      }),
+    ]);
+
+    const activeRequests = requests.filter(
+      (request) =>
+        request.overallPlan?.status === PlanStatus.APPROVED &&
+        !terminalRequestStatuses.has(request.status),
+    );
+    const approvedRequests = requests.filter((request) => approvedStatuses.has(request.status));
+    const candidateIds = new Set(
+      activeRequests.flatMap((request) =>
+        request.applications
+          .filter((application) => !terminalApplicationStatuses.has(application.status))
+          .map((application) => application.candidateId),
+      ),
+    );
+    const interviewMilestones = activeRequests
+      .flatMap((request) =>
+        (request.overallPlan?.tasks ?? [])
+          .filter(
+            (task) =>
+              task.taskType === TaskType.INTERVIEW_COORDINATION &&
+              task.status !== TaskStatus.COMPLETED &&
+              !!task.endDate &&
+              task.endDate >= now,
+          )
+          .map((task) => ({
+            id: task.id,
+            position: request.position,
+            startDate: task.startDate,
+            endDate: task.endDate,
+            status: task.status,
+            owner: task.assignedTo.displayName,
+          })),
+      )
+      .sort(
+        (left, right) =>
+          (left.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER) -
+          (right.startDate?.getTime() ?? Number.MAX_SAFE_INTEGER),
+      );
+    const interviewStagesThisWeek = interviewMilestones.filter(
+      (milestone) =>
+        !!milestone.startDate &&
+        !!milestone.endDate &&
+        milestone.startDate < endOfWeek &&
+        milestone.endDate >= startOfWeek,
+    ).length;
+    const pipelineCounts = {
+      Applied: 0,
+      Screened: 0,
+      Interview: 0,
+      Final: 0,
+      Offer: 0,
+    };
+    const successfulOutcomes: Date[] = [];
+    let resolvedOutcomes = 0;
+    let totalHiringDays = 0;
+
+    for (const request of requests) {
+      for (const application of request.applications) {
+        if (application.status === 'SUBMITTED') pipelineCounts.Applied += 1;
+        else if (['SCREENING', 'SHORTLISTED'].includes(application.status)) {
+          pipelineCounts.Screened += 1;
+        } else if (application.status === RecruitmentRequestStatus.INTERVIEWING) {
+          pipelineCounts.Interview += 1;
+        } else if (
+          [
+            RecruitmentRequestStatus.INTERVIEW_COMPLETED,
+            RecruitmentRequestStatus.DECISION_PENDING,
+          ].includes(application.status as RecruitmentRequestStatus)
+        ) {
+          pipelineCounts.Final += 1;
+        } else if (
+          [
+            RecruitmentRequestStatus.OFFER_EXTENDED,
+            RecruitmentRequestStatus.OFFER_ACCEPTED,
+            RecruitmentRequestStatus.OFFER_DECLINED,
+            RecruitmentRequestStatus.HIRED,
+          ].includes(application.status as RecruitmentRequestStatus)
+        ) {
+          pipelineCounts.Offer += 1;
+        }
+
+        if (
+          [
+            RecruitmentRequestStatus.OFFER_ACCEPTED,
+            RecruitmentRequestStatus.HIRED,
+            RecruitmentRequestStatus.REJECTED,
+            RecruitmentRequestStatus.NOT_HIRED,
+            RecruitmentRequestStatus.OFFER_DECLINED,
+          ].includes(application.status as RecruitmentRequestStatus)
+        ) {
+          resolvedOutcomes += 1;
+          if (
+            [RecruitmentRequestStatus.OFFER_ACCEPTED, RecruitmentRequestStatus.HIRED].includes(
+              application.status as RecruitmentRequestStatus,
+            )
+          ) {
+            successfulOutcomes.push(application.updatedAt);
+            totalHiringDays +=
+              (application.updatedAt.getTime() - request.createdAt.getTime()) / MS_PER_DAY;
+          }
+        }
+      }
+    }
+
+    return {
+      kpis: {
+        approvedRequests: approvedRequests.length,
+        activePlans: activeRequests.length,
+        activeDepartments: new Set(
+          activeRequests.map((request) => request.department?.name ?? 'Unassigned'),
+        ).size,
+        interviewsThisWeek: weekInterviews,
+        interviewStagesThisWeek,
+        nextInterviewStageAt: interviewMilestones[0]?.startDate?.toISOString() ?? null,
+        candidatesInPipeline: candidateIds.size,
+        candidatesInFinalReview: pipelineCounts.Final,
+      },
+      plans: activeRequests.map((request) => {
+        const tasks = request.overallPlan?.tasks ?? [];
+        const currentTask =
+          tasks.find((task) => task.status === TaskStatus.IN_PROGRESS) ??
+          tasks.find(
+            (task) =>
+              task.status !== TaskStatus.COMPLETED &&
+              !!task.startDate &&
+              !!task.endDate &&
+              task.startDate <= now &&
+              task.endDate >= now,
+          ) ??
+          tasks.find((task) => task.status !== TaskStatus.COMPLETED);
+        const phase = [
+          RecruitmentRequestStatus.OFFER_EXTENDED,
+          RecruitmentRequestStatus.OFFER_ACCEPTED,
+          RecruitmentRequestStatus.OFFER_DECLINED,
+          RecruitmentRequestStatus.HIRED,
+        ].includes(request.status as RecruitmentRequestStatus)
+          ? 'Offer Prep'
+          : [
+                RecruitmentRequestStatus.INTERVIEW_COMPLETED,
+                RecruitmentRequestStatus.DECISION_PENDING,
+                RecruitmentRequestStatus.NOT_HIRED,
+              ].includes(request.status as RecruitmentRequestStatus) ||
+              currentTask?.taskType === TaskType.HIRING
+            ? 'Final Review'
+            : request.status === RecruitmentRequestStatus.INTERVIEWING ||
+                currentTask?.taskType === TaskType.INTERVIEW_COORDINATION
+              ? 'Interview'
+              : 'CV Screening';
+
+        return {
+          id: request.id,
+          position: request.position,
+          department: request.department?.name ?? 'Unassigned',
+          status: request.status,
+          phase,
+          progress:
+            tasks.length > 0
+              ? Math.round(
+                  (tasks.filter((task) => task.status === 'COMPLETED').length / tasks.length) * 100,
+                )
+              : 0,
+          deadline: request.overallPlan?.endDate?.toISOString() ?? null,
+          owner:
+            request.overallPlan?.createdBy.displayName ??
+            request.reviewedBy?.displayName ??
+            'Unassigned',
+        };
+      }),
+      upcomingInterviews: upcomingSchedules.map((schedule) => ({
+        id: schedule.id,
+        scheduledAt: schedule.scheduledAt.toISOString(),
+        candidate: schedule.candidate.fullName,
+        position: schedule.request.position,
+        location: schedule.location,
+      })),
+      upcomingInterviewMilestones: interviewMilestones.slice(0, 3).map((milestone) => ({
+        id: milestone.id,
+        scheduledAt: milestone.startDate?.toISOString() ?? milestone.endDate!.toISOString(),
+        position: milestone.position,
+        owner: milestone.owner,
+        status: milestone.status,
+      })),
+      pipeline: Object.entries(pipelineCounts).map(([label, value]) => ({ label, value })),
+      metrics: {
+        hiringVelocityDays:
+          successfulOutcomes.length > 0
+            ? Number((totalHiringDays / successfulOutcomes.length).toFixed(1))
+            : null,
+        passRate:
+          resolvedOutcomes > 0
+            ? Math.round((successfulOutcomes.length / resolvedOutcomes) * 100)
+            : null,
+      },
+      attentionItems: [
+        ...requests
+          .filter((request) => attentionByStatus[request.status])
+          .map((request) => ({
+            id: request.id,
+            message: `${request.position} ${attentionByStatus[request.status]}`,
+          })),
+        ...activeRequests.flatMap((request) =>
+          (request.overallPlan?.tasks ?? [])
+            .filter(
+              (task) =>
+                task.status !== TaskStatus.COMPLETED && !!task.endDate && task.endDate < now,
+            )
+            .map((task) => ({
+              id: task.id,
+              message: `${request.position} has an overdue ${task.taskType.toLowerCase().replaceAll('_', ' ')} task`,
+            })),
+        ),
+      ].slice(0, 3),
+    };
+  }
 
   async getAnnualReport(payload: { year: number }) {
     const { year } = payload;

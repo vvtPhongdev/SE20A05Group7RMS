@@ -17,6 +17,8 @@ interface Department {
   headUserId?: string;
   headcount: number;
   activeRequests: number;
+  skills: string[];
+  bachelorRequirements: string[];
 }
 
 interface PipelineStage {
@@ -45,6 +47,94 @@ const createDepartmentCode = (name: string) => {
   return (normalized || 'DEPT').slice(0, 20);
 };
 
+const stringArray = (value: unknown) =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+
+const splitRequirementValues = (value: string) =>
+  value
+    .split(/[,;|•\n\r]+|\.(?=\s|$)|\s[-–—]\s/g)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const RequirementEditor = ({
+  id,
+  label,
+  placeholder,
+  values,
+  options,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  placeholder: string;
+  values: string[];
+  options: string[];
+  onChange: (values: string[]) => void;
+}) => {
+  const [input, setInput] = useState('');
+
+  const addValues = () => {
+    const additions = splitRequirementValues(input);
+    if (additions.length === 0) return;
+    const existing = new Set(values.map((item) => item.toLowerCase()));
+    const nextValues = [...values];
+    additions.forEach((item) => {
+      if (existing.has(item.toLowerCase())) return;
+      existing.add(item.toLowerCase());
+      nextValues.push(item);
+    });
+    onChange(nextValues);
+    setInput('');
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <span className="text-sm font-semibold text-deep-charcoal">{label}</span>
+      <div className="flex gap-2">
+        <input
+          className="min-w-0 flex-1 rounded-lg border border-border-warm bg-workflow-ivory px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-teal-command/20"
+          list={`${id}-options`}
+          placeholder={placeholder}
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              addValues();
+            }
+          }}
+        />
+        <button
+          className="rounded-lg border border-teal-command px-4 py-2 text-sm font-semibold text-teal-command hover:bg-teal-command/10"
+          type="button"
+          onClick={addValues}
+        >
+          Add
+        </button>
+      </div>
+      <datalist id={`${id}-options`}>
+        {options.map((option) => (
+          <option key={option} value={option} />
+        ))}
+      </datalist>
+      {values.length > 0 && (
+        <div className="flex flex-wrap gap-2 pt-1">
+          {values.map((value) => (
+            <button
+              className="rounded-full bg-teal-command/10 px-3 py-1 text-xs font-semibold text-teal-command hover:bg-rejected/10 hover:text-rejected"
+              key={value}
+              type="button"
+              onClick={() => onChange(values.filter((item) => item !== value))}
+            >
+              {value} ×
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 
 
 export const AdminSettings: React.FC = () => {
@@ -62,13 +152,9 @@ export const AdminSettings: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [apiError, setApiError] = useState('');
   const [bachelorDepartmentId, setBachelorDepartmentId] = useState('');
-  const [departmentBachelorRequirements, setDepartmentBachelorRequirements] = useState<
-    Record<string, string[]>
-  >({});
+  const [requirementView, setRequirementView] = useState<'skills' | 'bachelor'>('skills');
   const [savingBachelorRequirements, setSavingBachelorRequirements] = useState(false);
-  const [bachelorModalOpen, setBachelorModalOpen] = useState(false);
-  const [newBachelor, setNewBachelor] = useState('');
-  const [customBachelorOptions, setCustomBachelorOptions] = useState<string[]>([]);
+  const [requirementsModalOpen, setRequirementsModalOpen] = useState(false);
 
   // Department Management
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -80,6 +166,8 @@ export const AdminSettings: React.FC = () => {
     head: '',
     headcount: 0,
     activeRequests: 0,
+    skills: [],
+    bachelorRequirements: [],
   });
 
   // Workflow Configuration
@@ -111,8 +199,6 @@ export const AdminSettings: React.FC = () => {
         enableMultiLevel?: boolean;
       };
       pipelineStages?: PipelineStage[];
-      departmentBachelorRequirements?: Record<string, string[]>;
-      customBachelorOptions?: string[];
     };
   };
 
@@ -123,6 +209,8 @@ export const AdminSettings: React.FC = () => {
     headUserId?: string | null;
     headUser?: { displayName: string } | null;
     _count?: { users: number; requests: number };
+    skills?: unknown;
+    bachelorRequirements?: unknown;
   };
 
   const loadDepartments = async (orgId: string) => {
@@ -130,8 +218,7 @@ export const AdminSettings: React.FC = () => {
       `/departments?organizationId=${encodeURIComponent(orgId)}`,
       token,
     );
-    setDepartments(
-      response.map((department) => ({
+    setDepartments(response.map((department) => ({
         id: department.id,
         name: department.name,
         code: department.code,
@@ -139,8 +226,9 @@ export const AdminSettings: React.FC = () => {
         headUserId: department.headUserId ?? undefined,
         headcount: department._count?.users ?? 0,
         activeRequests: department._count?.requests ?? 0,
-      })),
-    );
+        skills: stringArray(department.skills),
+        bachelorRequirements: stringArray(department.bachelorRequirements),
+      })));
   };
 
   const loadSettings = async () => {
@@ -163,11 +251,6 @@ export const AdminSettings: React.FC = () => {
       const workflow = organization.settings?.approvalWorkflow ?? {};
       setOrganizationId(organization.id);
       setStoredSettings(organization.settings ?? {});
-      const savedBachelorRequirements = organization.settings?.departmentBachelorRequirements;
-      if (savedBachelorRequirements && typeof savedBachelorRequirements === 'object') {
-        setDepartmentBachelorRequirements(savedBachelorRequirements as Record<string, string[]>);
-      }
-      setCustomBachelorOptions(organization.settings?.customBachelorOptions ?? []);
       setOrgName(organization.name);
       setOrgCode(organization.slug);
       setIndustry(organization.settings?.industry ?? '');
@@ -265,6 +348,8 @@ export const AdminSettings: React.FC = () => {
       headUserId: undefined,
       headcount: 0,
       activeRequests: 0,
+      skills: [],
+      bachelorRequirements: [],
     });
     setDeptModalOpen(true);
   };
@@ -289,6 +374,8 @@ export const AdminSettings: React.FC = () => {
           body: JSON.stringify({
             name: deptForm.name,
             code: departmentCode,
+            skills: deptForm.skills,
+            bachelorRequirements: deptForm.bachelorRequirements,
             headUserId: deptForm.headUserId ?? null,
           }),
         });
@@ -300,6 +387,8 @@ export const AdminSettings: React.FC = () => {
             organizationId,
             name: deptForm.name,
             code: departmentCode,
+            skills: deptForm.skills,
+            bachelorRequirements: deptForm.bachelorRequirements,
             headUserId: deptForm.headUserId,
           }),
         });
@@ -328,54 +417,36 @@ export const AdminSettings: React.FC = () => {
     }
   };
 
-  const toggleBachelorRequirement = (degree: string) => {
-    if (!bachelorDepartmentId) return;
-    setDepartmentBachelorRequirements((current) => {
-      const selected = current[bachelorDepartmentId] ?? [];
-      const nextSelected = selected.includes(degree)
-        ? selected.filter((item) => item !== degree)
-        : [...selected, degree];
-      return { ...current, [bachelorDepartmentId]: nextSelected };
-    });
-  };
+  const allBachelorOptions = [
+    ...new Set([
+      ...bachelorOptions,
+      ...departments.flatMap((department) => department.bachelorRequirements),
+      ...deptForm.bachelorRequirements,
+    ]),
+  ];
 
-  const allBachelorOptions = [...new Set([...bachelorOptions, ...customBachelorOptions])];
-
-  const openBachelorModal = (departmentId: string) => {
+  const openRequirementsModal = (departmentId: string, view: 'skills' | 'bachelor') => {
     setBachelorDepartmentId(departmentId);
-    setNewBachelor('');
-    setBachelorModalOpen(true);
+    setRequirementView(view);
+    setRequirementsModalOpen(true);
   };
 
-  const addBachelorOption = () => {
-    const degree = newBachelor.trim();
-    if (!degree) return;
-    if (!allBachelorOptions.some((item) => item.toLowerCase() === degree.toLowerCase())) {
-      setCustomBachelorOptions((current) => [...current, degree]);
-    }
-    setDepartmentBachelorRequirements((current) => ({
-      ...current,
-      [bachelorDepartmentId]: [...new Set([...(current[bachelorDepartmentId] ?? []), degree])],
-    }));
-    setNewBachelor('');
-  };
-
-  const saveBachelorRequirements = async () => {
+  const saveDepartmentRequirements = async () => {
     if (!organizationId || !bachelorDepartmentId) return;
     setSavingBachelorRequirements(true);
     setApiError('');
     try {
-      const nextSettings = {
-        ...storedSettings,
-        departmentBachelorRequirements,
-        customBachelorOptions,
-      };
-      await apiRequest(`/organizations/${organizationId}`, token, {
+      const department = departments.find((item) => item.id === bachelorDepartmentId);
+      if (!department) return;
+      await apiRequest(`/departments/${bachelorDepartmentId}`, token, {
         method: 'PATCH',
-        body: JSON.stringify({ settings: nextSettings }),
+        body: JSON.stringify({
+          skills: department.skills,
+          bachelorRequirements: department.bachelorRequirements,
+        }),
       });
-      setStoredSettings(nextSettings);
-      triggerToast('Bachelor requirements saved for this department.');
+      await loadDepartments(organizationId);
+      triggerToast('Department skills and bachelor requirements saved.');
     } catch (error) {
       setApiError(error instanceof Error ? error.message : 'Unable to save bachelor requirements');
     } finally {
@@ -571,6 +642,7 @@ export const AdminSettings: React.FC = () => {
                     Department Name
                   </th>
                   <th className="px-4 py-3 font-label-md text-label-md text-secondary">Head</th>
+                  <th className="px-4 py-3 font-label-md text-label-md text-secondary">Skills</th>
                   <th className="px-4 py-3 font-label-md text-label-md text-secondary">Bachelor</th>
                   <th className="px-4 py-3 font-label-md text-label-md text-secondary text-center">
                     Headcount
@@ -595,12 +667,21 @@ export const AdminSettings: React.FC = () => {
                       {dept.name}
                     </td>
                     <td className="px-4 py-3.5 font-body-md text-body-md">{dept.head}</td>
+                    <td className="px-4 py-3.5 text-xs text-secondary">
+                      <button
+                        className="rounded-md border border-teal-command/30 px-2 py-1 text-[11px] font-semibold text-teal-command hover:bg-teal-command/10"
+                        type="button"
+                        onClick={() => dept.id && openRequirementsModal(dept.id, 'skills')}
+                      >
+                        View {dept.skills.length > 0 ? `(${dept.skills.length})` : ''}
+                      </button>
+                    </td>
                     <td className="px-4 py-3.5">
                       <div className="min-w-[70px]">
                         <button
                           className="rounded-md border border-teal-command/30 px-2 py-1 text-[11px] font-semibold text-teal-command hover:bg-teal-command/10"
                           type="button"
-                          onClick={() => dept.id && openBachelorModal(dept.id)}
+                          onClick={() => dept.id && openRequirementsModal(dept.id, 'bachelor')}
                         >
                           View
                         </button>
@@ -831,6 +912,28 @@ export const AdminSettings: React.FC = () => {
                   onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })}
                 />
               </label>
+              <RequirementEditor
+                id="department-skills"
+                label="Department Skills"
+                options={[...new Set(departments.flatMap((department) => department.skills))]}
+                placeholder="Add skills, separated by commas or semicolons"
+                values={deptForm.skills}
+                onChange={(skills) => setDeptForm((current) => ({ ...current, skills }))}
+              />
+              <RequirementEditor
+                id="department-bachelor-requirements"
+                label="Bachelor Requirements"
+                options={allBachelorOptions}
+                placeholder={
+                  requirementView === 'skills'
+                    ? 'Add skills, separated by commas or semicolons'
+                    : 'Add degrees, separated by commas or semicolons'
+                }
+                values={deptForm.bachelorRequirements}
+                onChange={(bachelorRequirements) =>
+                  setDeptForm((current) => ({ ...current, bachelorRequirements }))
+                }
+              />
               <label className="block space-y-1.5">
                 <span className="text-sm font-semibold text-deep-charcoal">Department Head</span>
                 <select
@@ -891,67 +994,68 @@ export const AdminSettings: React.FC = () => {
         </div>
       )}
 
-      {bachelorModalOpen && (
+      {requirementsModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(28,25,23,0.42)] px-4 py-6 text-on-surface"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setBachelorModalOpen(false);
+            if (event.target === event.currentTarget) setRequirementsModalOpen(false);
           }}
         >
           <div className="w-full max-w-[620px] rounded-xl border border-border-warm bg-clean-surface shadow-xl">
             <div className="flex items-start justify-between gap-4 border-b border-border-warm p-6">
               <div>
-                <h2 className="text-lg font-bold text-deep-charcoal">Bachelor Requirements</h2>
+                <h2 className="text-lg font-bold text-deep-charcoal">
+                  {requirementView === 'skills' ? 'Department Skills' : 'Bachelor Requirements'}
+                </h2>
                 <p className="mt-1 text-sm text-secondary">
                   {departments.find((department) => department.id === bachelorDepartmentId)?.name ?? 'Department'}
                 </p>
               </div>
-              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-warm bg-white text-slate-ink hover:text-rejected" type="button" onClick={() => setBachelorModalOpen(false)}>
+              <button className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-warm bg-white text-slate-ink hover:text-rejected" type="button" onClick={() => setRequirementsModalOpen(false)}>
                 <span className="material-symbols-outlined text-lg">close</span>
               </button>
             </div>
             <div className="space-y-5 p-6">
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
-                <input
-                  className="rounded-lg border border-border-warm bg-workflow-ivory px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-teal-command/20"
-                  placeholder="Add another Bachelor / Degree"
-                  value={newBachelor}
-                  onChange={(event) => setNewBachelor(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      addBachelorOption();
-                    }
-                  }}
-                />
-                <button className="rounded-lg border border-teal-command px-4 py-2 text-sm font-semibold text-teal-command hover:bg-teal-command/10" type="button" onClick={addBachelorOption}>
-                  Add Bachelor
-                </button>
-              </div>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {allBachelorOptions.map((degree) => {
-                  const selected = (departmentBachelorRequirements[bachelorDepartmentId] ?? []).includes(degree);
-                  return (
-                    <label className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${selected ? 'border-teal-command bg-teal-command/10 text-deep-charcoal' : 'border-border-warm bg-workflow-ivory hover:bg-teal-command/5'}`} key={degree}>
-                      <input checked={selected} className="h-4 w-4 rounded border-border-warm text-teal-command focus:ring-teal-command" type="checkbox" onChange={() => toggleBachelorRequirement(degree)} />
-                      {degree}
-                    </label>
-                  );
-                })}
-              </div>
+              <RequirementEditor
+                id={`department-${requirementView}-modal`}
+                label={requirementView === 'skills' ? 'Department Skills' : 'Bachelor Requirements'}
+                options={
+                  requirementView === 'skills'
+                    ? [...new Set(departments.flatMap((department) => department.skills))]
+                    : allBachelorOptions
+                }
+                placeholder="Add degrees, separated by commas or semicolons"
+                values={
+                  requirementView === 'skills'
+                    ? departments.find((department) => department.id === bachelorDepartmentId)?.skills ?? []
+                    : departments.find((department) => department.id === bachelorDepartmentId)
+                        ?.bachelorRequirements ?? []
+                }
+                onChange={(values) =>
+                  setDepartments((current) =>
+                    current.map((department) =>
+                      department.id === bachelorDepartmentId
+                        ? requirementView === 'skills'
+                          ? { ...department, skills: values }
+                          : { ...department, bachelorRequirements: values }
+                        : department,
+                    ),
+                  )
+                }
+              />
             </div>
             <div className="flex justify-end gap-3 border-t border-border-warm p-5">
-              <button className="rounded-lg px-4 py-2 text-sm font-semibold text-secondary hover:bg-workflow-ivory" type="button" onClick={() => setBachelorModalOpen(false)}>Cancel</button>
+              <button className="rounded-lg px-4 py-2 text-sm font-semibold text-secondary hover:bg-workflow-ivory" type="button" onClick={() => setRequirementsModalOpen(false)}>Cancel</button>
               <button
                 className="rounded-lg bg-teal-command px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
                 disabled={savingBachelorRequirements}
                 type="button"
                 onClick={async () => {
-                  await saveBachelorRequirements();
-                  setBachelorModalOpen(false);
+                  await saveDepartmentRequirements();
+                  setRequirementsModalOpen(false);
                 }}
               >
-                {savingBachelorRequirements ? 'Saving...' : 'Save Bachelor Requirements'}
+                {savingBachelorRequirements ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>

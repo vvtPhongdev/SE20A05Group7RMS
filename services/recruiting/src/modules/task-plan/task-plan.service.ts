@@ -12,6 +12,27 @@ import {
 import { PrismaService } from '../../common/database/prisma.service';
 import type { Prisma, TaskPlan } from '@prisma/client';
 
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+const startOfUtcDay = (value: Date) => {
+  const date = new Date(value);
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+};
+
+const endOfUtcDay = (value: Date) => {
+  const date = startOfUtcDay(value);
+  date.setUTCHours(23, 59, 59, 999);
+  return date;
+};
+
+const addUtcDays = (value: Date, days: number) =>
+  new Date(value.getTime() + days * DAY_IN_MS);
+
+const durationInDays = (startDate: Date, endDate: Date) =>
+  Math.floor((startOfUtcDay(endDate).getTime() - startOfUtcDay(startDate).getTime()) / DAY_IN_MS) +
+  1;
+
 @Injectable()
 export class TaskPlanService {
   constructor(
@@ -200,6 +221,7 @@ export class TaskPlanService {
     taskType?: string;
     startDate?: string;
     endDate?: string;
+    durationDays?: number;
     performedById: string;
   }) {
     const task = await this.prisma.taskPlan.findUnique({
@@ -216,6 +238,88 @@ export class TaskPlanService {
         HttpStatus.BAD_REQUEST,
         `taskType must be one of: ${Object.values(TaskType).join(', ')}`,
       );
+    }
+
+    if (payload.durationDays !== undefined) {
+      if (!Number.isInteger(payload.durationDays) || payload.durationDays < 1) {
+        this.rpc(HttpStatus.BAD_REQUEST, 'durationDays must be a whole number of at least 1');
+      }
+      const requestedDuration = payload.durationDays;
+
+      const updated = await this.prisma.$transaction(async (tx) => {
+        const planTasks = await tx.taskPlan.findMany({
+          where: { overallPlanId: task.overallPlanId },
+          orderBy: [{ startDate: 'asc' }, { createdAt: 'asc' }],
+        });
+        const taskIndex = planTasks.findIndex((planTask) => planTask.id === task.id);
+        if (taskIndex === -1) this.rpc(HttpStatus.NOT_FOUND, `TaskPlan ${payload.id} not found`);
+        const firstTask = planTasks[0];
+        if (!firstTask) this.rpc(HttpStatus.NOT_FOUND, `TaskPlan ${payload.id} not found`);
+
+        const precedingTask = planTasks[taskIndex - 1];
+        let nextStart = precedingTask?.endDate
+          ? startOfUtcDay(addUtcDays(precedingTask.endDate, 1))
+          : startOfUtcDay(task.overallPlan.startDate);
+        if (!nextStart) {
+          this.rpc(HttpStatus.BAD_REQUEST, 'Overall plan timeline is required before scheduling tasks');
+        }
+
+        const rescheduledTasks = [] as TaskPlan[];
+        for (const [index, planTask] of planTasks.slice(taskIndex).entries()) {
+          const days = index === 0
+            ? requestedDuration
+            : planTask.startDate && planTask.endDate
+              ? durationInDays(planTask.startDate, planTask.endDate)
+              : 1;
+          const nextEnd = endOfUtcDay(addUtcDays(nextStart, days - 1));
+          const next = await tx.taskPlan.update({
+            where: { id: planTask.id },
+            data: {
+              taskType: planTask.id === task.id ? nextTaskType : planTask.taskType,
+              startDate: nextStart,
+              endDate: nextEnd,
+            },
+            include: {
+              assignedTo: { select: { id: true, displayName: true, email: true, role: true } },
+            },
+          });
+          rescheduledTasks.push(next);
+          nextStart = startOfUtcDay(addUtcDays(nextEnd, 1));
+        }
+        const lastRescheduledTask = rescheduledTasks[rescheduledTasks.length - 1];
+        if (!lastRescheduledTask?.endDate) {
+          this.rpc(HttpStatus.BAD_REQUEST, 'Unable to calculate the updated overall plan timeline');
+        }
+
+        await tx.overallPlan.update({
+          where: { id: task.overallPlanId },
+          data: {
+            startDate: firstTask.startDate ?? task.overallPlan.startDate,
+            endDate: lastRescheduledTask.endDate,
+          },
+        });
+        await Promise.all(rescheduledTasks.map((planTask) => this.upsertTaskReminders(tx, planTask)));
+        return rescheduledTasks[0]!;
+      });
+
+      this.auditLog
+        .log({
+          entityType: AuditEntityType.TASK_PLAN,
+          entityId: payload.id,
+          action: AuditAction.TASK_PLAN_ASSIGNED,
+          performedById: payload.performedById,
+          metadata: {
+            previousTaskType: task.taskType,
+            taskType: nextTaskType,
+            previousStartDate: task.startDate?.toISOString() ?? null,
+            previousEndDate: task.endDate?.toISOString() ?? null,
+            durationDays: payload.durationDays,
+            rescheduledFollowingTasks: true,
+          },
+        })
+        .catch((err) => console.error('Failed to write audit log for TASK_PLAN_UPDATED:', err));
+
+      return updated;
     }
 
     const nextStartDate = payload.startDate ?? task.startDate?.toISOString();

@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "build": "tsc --build",
-    "dev": "ts-node --project tsconfig.json src/main.ts",
+    "predev": "npm --workspace=@wr/ai run build",
+    "dev": "node --watch --watch-path=src --watch-path=../../packages/ai/dist -r ts-node/register src/main.ts",
     "start": "node dist/main.js",
     "clean": "rm -rf dist .turbo",
     "typecheck": "tsc --noEmit",

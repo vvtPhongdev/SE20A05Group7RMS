@@ -1,0 +1,201 @@
+@startuml
+title RMS Domain Model - Current Prisma Schema
+hide methods
+hide stereotypes
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+
+package "Identity" {
+  class Organization {
+    id: UUID
+    name: String
+    slug: String
+    settings: JSON
+  }
+  class Department {
+    id: UUID
+    organizationId: UUID
+    headUserId: UUID?
+    parentId: UUID?
+    skills: JSON
+  }
+  class User {
+    id: UUID
+    email: String
+    role: UserRole
+    organizationId: UUID
+    departmentId: UUID?
+    isActive: Boolean
+  }
+}
+
+package "Request and Planning" {
+  class RecruitmentRequest {
+    id: UUID
+    departmentId: UUID
+    position: String
+    headcount: Int
+    status: RecruitmentRequestStatus
+    urgency: Urgency
+  }
+  class JobPosting {
+    id: UUID
+    requestId: UUID
+    status: DRAFT|PUBLISHED|CLOSED
+  }
+  class ApprovalRecord {
+    id: UUID
+    requestId: UUID
+    approverId: UUID
+    decision: String
+  }
+  class RequestLog {
+    id: UUID
+    requestId: UUID
+    action: String
+    fromStatus: String?
+    toStatus: String?
+  }
+  class AuditLog {
+    id: UUID
+    entityType: String
+    entityId: UUID
+    action: String
+  }
+  class OverallPlan {
+    id: UUID
+    requestId: UUID
+    status: PlanStatus
+    startDate: DateTime
+    endDate: DateTime
+  }
+  class TaskPlan {
+    id: UUID
+    overallPlanId: UUID
+    taskType: TaskType
+    status: TaskStatus
+  }
+  class TaskReminder {
+    id: UUID
+    taskPlanId: UUID
+    reminderKey: 24h-before|deadline
+    status: String
+  }
+}
+
+package "Candidate and Search" {
+  class CandidateProfile {
+    id: UUID
+    userId: UUID
+    fullName: String
+    structuredData: JSON?
+  }
+  class CandidateCV {
+    id: UUID
+    candidateId: UUID
+    processingStatus: String
+    screeningStatus: String
+    structuredData: JSON?
+  }
+  class CvEmbedding {
+    id: UUID
+    cvDocumentId: UUID
+    chunkIndex: Int
+    chunkText: Text
+    embedding: vector(384) [raw SQL]
+  }
+  class Application {
+    id: UUID
+    requestId: UUID
+    candidateId: UUID
+    status: String
+  }
+  class TalentSearchRun {
+    id: UUID
+    requestId: UUID?
+    query: Text
+    modelVersion: String
+  }
+  class TalentSearchFeedback {
+    id: UUID
+    searchRunId: UUID
+    candidateId: UUID
+    action: String
+  }
+}
+
+package "Interview and Communication" {
+  class InterviewSchedule {
+    id: UUID
+    requestId: UUID
+    candidateId: UUID
+    interviewers: UUID[]
+    status: InterviewStatus
+  }
+  class InterviewResult {
+    id: UUID
+    interviewId: UUID
+    evaluatorId: UUID?
+    result: PASS|FAIL
+    technical: Int?
+    communication: Int?
+    culture: Int?
+  }
+  class OfferLetter {
+    id: UUID
+    requestId: UUID
+    candidateId: UUID
+    status: OfferStatus
+    response: String?
+  }
+  class Notification {
+    id: UUID
+    userId: UUID
+    type: NotificationType
+    isRead: Boolean
+  }
+  class EmailLog {
+    id: UUID
+    userId: UUID?
+    status: EmailStatus
+  }
+}
+
+Organization "1" -- "*" Department
+Organization "1" -- "*" User
+Department "0..1" --> "0..1" User : head
+Department "1" -- "*" RecruitmentRequest
+User "1" -- "*" RecruitmentRequest : creates/reviews/approves
+
+RecruitmentRequest "1" -- "0..1" JobPosting
+RecruitmentRequest "1" -- "*" ApprovalRecord
+RecruitmentRequest "1" -- "*" RequestLog
+RecruitmentRequest "1" -- "0..1" OverallPlan
+OverallPlan "1" -- "*" TaskPlan
+TaskPlan "1" -- "*" TaskReminder
+
+User "1" -- "0..1" CandidateProfile
+CandidateProfile "1" -- "*" CandidateCV
+CandidateCV "1" -- "*" CvEmbedding
+RecruitmentRequest "1" -- "*" Application
+CandidateProfile "1" -- "*" Application
+RecruitmentRequest "0..1" -- "*" TalentSearchRun
+TalentSearchRun "1" -- "*" TalentSearchFeedback
+CandidateProfile "1" -- "*" TalentSearchFeedback
+
+RecruitmentRequest "1" -- "*" InterviewSchedule
+CandidateProfile "1" -- "*" InterviewSchedule
+InterviewSchedule "1" -- "*" InterviewResult
+User "0..1" -- "*" InterviewResult : evaluates
+RecruitmentRequest "1" -- "*" OfferLetter
+CandidateProfile "1" -- "*" OfferLetter
+User "1" -- "*" Notification
+User "0..1" -- "*" EmailLog
+
+note bottom of AuditLog
+Generic audit trail intentionally has no FK to entity/user.
+RequestLog is the authoritative request-status timeline.
+end note
+@enduml
+

@@ -452,6 +452,10 @@ export const AdminAllRequests: React.FC = () => {
       case 'Pending':
       case 'Pending Review':
         return 'bg-cyan-50 text-pending border-cyan-100';
+      case 'Draft':
+        return 'bg-stone-100 text-draft border-stone-200';
+      case 'Revision Needed':
+        return 'bg-amber-50 text-revision border-amber-200';
       case 'Approved':
         return 'bg-green-50 text-approved border-green-100';
       case 'Active':

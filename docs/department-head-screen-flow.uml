@@ -2,10 +2,10 @@
 title RMS - Screen Flow: Department Head
 
 left to right direction
-skinparam monochrome false
 skinparam shadowing false
 skinparam roundCorner 12
 skinparam defaultFontName Arial
+skinparam linetype ortho
 skinparam state {
   BackgroundColor<<Screen>> #E3F2FD
   BackgroundColor<<Popup>> #FFF3CD
@@ -14,46 +14,77 @@ skinparam state {
   FontColor #172033
 }
 
-state "Đăng nhập\n/login" as Login <<Screen>>
-state "Department Dashboard\n/dept-head" as Dashboard <<Screen>>
-state "Create / Edit Recruitment Request\n/dept-head/create-request" as CreateRequest <<Screen>>
-state "My Recruitment Requests\n/dept-head/requests" as Requests <<Screen>>
-state "Department Interviews\n/dept-head/interviews" as Interviews <<Screen>>
-state "Interview Feedback\n/dept-head/feedback" as Feedback <<Screen>>
-state "Department Settings\n/dept-head/settings" as Settings <<Screen>>
-state "Validation / workflow error" as Error <<Error>>
-
-state "Modal / Drawer" as DeptModal {
-  state "Request detail & audit trail\n<<drawer>>" as RequestDetail <<Popup>>
-  state "Submit / resubmit confirmation\n<<modal>>" as SubmitConfirm <<Popup>>
-  state "Interview detail & candidate CV\n<<drawer>>" as InterviewDrawer <<Popup>>
-  state "Score & feedback form\n<<modal>>" as FeedbackForm <<Popup>>
-  state "Add / edit team member\n<<modal>>" as TeamForm <<Popup>>
-  state "Google Calendar connect\n<<modal / external>>" as CalendarConnect <<Popup>>
-}
+state "Sign in\n/login" as Login <<Screen>>
+state "Department dashboard\n/dept-head" as Dashboard <<Screen>>
+state "Create / edit recruitment request\n/dept-head/create-request\n?requestId=:id when editing" as CreateRequest <<Screen>>
+state "My recruitment requests\n/dept-head/requests" as Requests <<Screen>>
+state "Request details + history\nmodal" as RequestDetail <<Popup>>
+state "Delete pending request\nconfirmation modal" as DeleteRequest <<Popup>>
+state "Department interview calendar\n/dept-head/interviews" as Interviews <<Screen>>
+state "Candidate CV preview\nmodal" as CvPreview <<Popup>>
+state "Interview evaluations\n/dept-head/feedback" as Feedback <<Screen>>
+state "Department settings\n/dept-head/settings" as Settings <<Screen>>
+state "Add HR team member\nmodal" as AddMember <<Popup>>
+state "Edit Department Head profile\nmodal" as EditProfile <<Popup>>
+state "Unauthorized / workflow validation error" as Error <<Error>>
 
 [*] --> Login
-Login --> Dashboard : Đăng nhập thành công (DEPARTMENT_HEAD)\n[POST /api/v1/auth/login]
-Dashboard --> CreateRequest : Sidebar / CTA: Create Request
+Login --> Dashboard : Login succeeds (DEPARTMENT_HEAD)\n[POST /api/v1/auth/login]
+Login --> Error : Wrong role opens a Department Head route
+
+Dashboard --> Dashboard : Load department requests and upcoming interviews\n[GET /api/v1/me/profile]\n[GET /api/v1/reports/realtime-tracking]\n[GET /api/v1/interviews/requests/:requestId/schedules]
+Dashboard --> CreateRequest : Sidebar / Create Request CTA
 Dashboard --> Requests : Sidebar: My Requests
 Dashboard --> Interviews : Sidebar: Interviews
 Dashboard --> Feedback : Sidebar: Interview Evaluations
-Dashboard --> Settings : Sidebar: Department Settings
-CreateRequest --> Requests : Save draft / update request\n[POST /api/v1/recruitment-requests]\n[PATCH /api/v1/recruitment-requests/:id]
-CreateRequest --> SubmitConfirm : Submit request
-SubmitConfirm --> Requests : Submit / resubmit successfully\n[PATCH /api/v1/recruitment-requests/:id/submit]
-SubmitConfirm --> Error : Required field missing / status not editable
-Requests --> RequestDetail : View status, owner and audit trail\n[GET /api/v1/recruitment-requests/:id]\n[GET /api/v1/audit-logs]
-RequestDetail --> CreateRequest : Edit draft or revision-needed request
-RequestDetail --> Error : Attempt to edit submitted / approved request
-Interviews --> InterviewDrawer : Open interview, panel and latest CV\n[GET /api/v1/interviews/:id/details]\n[GET /api/v1/candidate/cvs/candidate/:candidateId/latest/file]
-InterviewDrawer --> CalendarConnect : Connect Google Calendar if needed\n[GET /api/v1/google-calendar/auth-url]
-CalendarConnect --> Interviews : OAuth callback completed\n[GET /api/v1/oauth2callback]
-Interviews --> Feedback : Select completed interview
-Feedback --> FeedbackForm : Enter score, strengths, weaknesses and recommendation
-FeedbackForm --> Feedback : Submit panel feedback\n[POST /api/v1/dept-head-interview-feedback/:id/my-feedback]
-FeedbackForm --> Error : Not a panel member / result already final
-Settings --> TeamForm : Add or update team member
-TeamForm --> Settings : Save team member\n[POST /api/v1/dept-head/settings/team-members]
-Dashboard --> Login : Logout\n[POST /api/v1/auth/logout]
+Dashboard --> Settings : Sidebar: Dept Settings
+
+CreateRequest --> CreateRequest : Save new draft and attach ?requestId\n[POST /api/v1/recruitment-requests]
+CreateRequest --> CreateRequest : Update existing draft / revision\n[PATCH /api/v1/recruitment-requests/:id]
+CreateRequest --> Requests : Submit a new request\n[POST /api/v1/recruitment-requests with submit=true]
+CreateRequest --> Requests : Update and submit existing request\n[PATCH /api/v1/recruitment-requests/:id]\n[PATCH /api/v1/recruitment-requests/:id/submit]
+CreateRequest --> Error : Required data invalid or request is not editable
+
+Requests --> Requests : Load department-scoped workflow tracking\n[GET /api/v1/reports/realtime-tracking]
+Requests --> RequestDetail : View status, details, HR suggestion and history\n[GET /api/v1/recruitment-requests/:id]
+RequestDetail --> CreateRequest : Edit Draft / Revision Required request
+RequestDetail --> Requests : Accept or reject HR suggestion, then resubmit\n[PATCH /api/v1/recruitment-requests/:id]\n[PATCH /api/v1/recruitment-requests/:id/submit]
+RequestDetail --> DeleteRequest : Delete eligible pending request
+DeleteRequest --> Requests : Confirm delete\n[DELETE /api/v1/recruitment-requests/:id]
+DeleteRequest --> RequestDetail : Cancel
+RequestDetail --> Requests : Close modal
+
+Interviews --> Interviews : Build calendar from active requests, applications and schedules\n[GET /api/v1/reports/realtime-tracking]\n[GET /api/v1/interviews/requests/:requestId/schedules]
+Interviews --> CvPreview : View candidate's latest CV\n[GET /api/v1/candidate/cvs/candidate/:candidateId/latest/file]
+CvPreview --> Interviews : Close preview
+Interviews --> Interviews : Accept panel attendance or mark absent\n[PATCH /api/v1/interviews/schedules/:id/interviewer-attendance]
+
+Feedback --> Feedback : Load completed interviews and selected details\n[GET /api/v1/dept-head/interview-feedback]\n[GET /api/v1/dept-head/interview-feedback/:id]
+Feedback --> Feedback : Save own scores, notes and recommendation\n[POST /api/v1/dept-head/interview-feedback/:id/my-feedback]
+Feedback --> Error : Not a panel member or feedback is no longer editable
+
+Settings --> Settings : Load profile, department team and preferences\n[GET /api/v1/me/profile]\n[GET /api/v1/users?limit=100]\n[GET /api/v1/organizations/:organizationId]
+Settings --> AddMember : Add Member
+AddMember --> Settings : Create an HR team member\n[POST /api/v1/dept-head/settings/team-members]
+Settings --> EditProfile : Edit Profile
+EditProfile --> Settings : Save display name / contact data\n[PATCH /api/v1/me/profile]
+Settings --> Settings : Save notification and request preferences\n[PATCH /api/v1/organizations/:organizationId/settings]
+
+Dashboard --> Login : Sign out\n[POST /api/v1/auth/logout]
+
+note bottom of Dashboard
+  /dashboard redirects a Department Head session to /dept-head.
+end note
+
+note bottom of Interviews
+  Department Head does not start Google Calendar OAuth here.
+  This screen handles panel attendance and CV preview;
+  HR owns schedule creation and Google Meet integration.
+end note
+
+note bottom of Error
+  ProtectedRoute redirects unauthenticated access to /login
+  and wrong-role access to /unauthorized.
+end note
+
 @enduml

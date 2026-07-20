@@ -22,6 +22,15 @@ export class JobPostingsService {
     void payload;
   }
 
+  private assertDraftPosting(posting: { status: string }) {
+    if (posting.status !== JobPostingStatus.DRAFT) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'Job postings can only be edited while they are in DRAFT status',
+      });
+    }
+  }
+
   private getActivePostingWindowWhere(now = new Date()) {
     return [
       { OR: [{ startDate: null }, { startDate: { lte: now } }] },
@@ -298,6 +307,7 @@ export class JobPostingsService {
     }
 
     await this.assertCanManagePostingForTask(existing, data);
+    this.assertDraftPosting(existing);
 
     const updateData: any = {};
     if (data.title !== undefined) updateData.title = data.title;

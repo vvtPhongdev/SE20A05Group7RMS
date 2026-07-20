@@ -12,7 +12,9 @@
   HttpStatus,
   ForbiddenException,
   BadRequestException,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { config as appConfig } from '../config';
 import { ClientProxy } from '@nestjs/microservices';
@@ -40,6 +42,36 @@ import {
   ArrayMaxSize,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+
+const buildGoogleCalendarReturnUrl = (
+  returnTo: string | undefined,
+  status: 'connected' | 'error',
+) => {
+  const configuredOrigin = appConfig.API_CORS_ORIGIN.split(',')
+    .map((origin) => origin.trim())
+    .find(Boolean);
+
+  let webappOrigin: URL;
+  try {
+    webappOrigin = new URL(configuredOrigin || 'http://localhost:3000');
+  } catch {
+    webappOrigin = new URL('http://localhost:3000');
+  }
+
+  const fallbackPath = '/hr/interviews';
+  let target: URL;
+  try {
+    target = new URL(returnTo || fallbackPath, webappOrigin);
+    if (target.origin !== webappOrigin.origin) {
+      target = new URL(fallbackPath, webappOrigin);
+    }
+  } catch {
+    target = new URL(fallbackPath, webappOrigin);
+  }
+
+  target.searchParams.set('googleCalendar', status);
+  return target.toString();
+};
 
 export class LoginDto {
   @ApiProperty({ example: 'admin@acme.com', description: 'User email' })
@@ -191,6 +223,20 @@ export class CreateDepartmentDto {
   @IsNotEmpty()
   code!: string;
 
+  @ApiProperty({ required: false, type: [String], description: 'Department skill options' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  skills?: string[];
+
+  @ApiProperty({ required: false, type: [String], description: 'Accepted bachelor requirements' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  bachelorRequirements?: string[];
+
   @ApiProperty({
     example: 'uuid-of-head-user',
     required: false,
@@ -222,6 +268,20 @@ export class UpdateDepartmentDto {
   @IsString()
   @IsNotEmpty()
   code?: string;
+
+  @ApiProperty({ required: false, type: [String], description: 'Department skill options' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  skills?: string[];
+
+  @ApiProperty({ required: false, type: [String], description: 'Accepted bachelor requirements' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  bachelorRequirements?: string[];
 
   @ApiProperty({
     example: 'uuid-of-head-user',
@@ -542,17 +602,45 @@ export class IdentityController {
   @Roles(UserRole.ADMIN, UserRole.HR_LEADER, UserRole.DEPARTMENT_HEAD)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Generate Google OAuth URL for Calendar/Meet access' })
-  createGoogleCalendarAuthUrl(@CurrentUser('sub') userId: string) {
-    return firstValueFrom(this.identityClient.send('google-calendar.auth-url', { userId }));
+  createGoogleCalendarAuthUrl(
+    @CurrentUser('sub') userId: string,
+    @Query('returnTo') returnTo?: string,
+  ) {
+    return firstValueFrom(
+      this.identityClient.send('google-calendar.auth-url', { userId, returnTo }),
+    );
   }
 
   @Get('oauth2callback')
   @Public()
   @ApiOperation({ summary: 'Google OAuth callback for Calendar/Meet integration' })
-  handleGoogleOAuthCallback(@Query('code') code?: string, @Query('state') state?: string) {
-    return firstValueFrom(
-      this.identityClient.send('google-calendar.oauth-callback', { code, state }),
-    );
+  async handleGoogleOAuthCallback(
+    @Res() response: Response,
+    @Query('code') code?: string,
+    @Query('state') state?: string,
+    @Query('error') oauthError?: string,
+  ) {
+    if (oauthError) {
+      return response.redirect(
+        HttpStatus.FOUND,
+        buildGoogleCalendarReturnUrl('/hr/interviews', 'error'),
+      );
+    }
+
+    try {
+      const result = await firstValueFrom<{ connected: boolean; returnTo?: string }>(
+        this.identityClient.send('google-calendar.oauth-callback', { code, state }),
+      );
+      return response.redirect(
+        HttpStatus.FOUND,
+        buildGoogleCalendarReturnUrl(result.returnTo, 'connected'),
+      );
+    } catch {
+      return response.redirect(
+        HttpStatus.FOUND,
+        buildGoogleCalendarReturnUrl('/hr/interviews', 'error'),
+      );
+    }
   }
 
   @Post('google-calendar/meet')

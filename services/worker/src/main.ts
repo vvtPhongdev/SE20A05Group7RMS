@@ -5,7 +5,10 @@ config({ path: resolve(__dirname, '../../../.env') });
 import { Queue, Worker } from 'bullmq';
 import { JOB_NAMES, QUEUE_NAMES } from '@wr/queue';
 import Redis from 'ioredis';
-import { processCvParseJob as cvParseProcessor } from './processors/cv-parse.processor';
+import {
+  failStaleCvProcessingJobs,
+  processCvParseJob as cvParseProcessor,
+} from './processors/cv-parse.processor';
 import { processCvEmbeddingJob as embeddingProcessor } from './processors/cv-embedding.processor';
 import { processEmailSendJob as emailProcessor } from './processors/email-send.processor';
 import { config as appConfig } from './config';
@@ -58,6 +61,7 @@ async function bootstrap() {
   };
   const cvParseWorkerOptions = {
     ...workerOptions,
+    stalledInterval: 30_000,
     drainDelay: 1,
   };
   const embeddingQueue = new Queue(QUEUE_NAMES.EMBEDDING_GENERATE, {
@@ -65,6 +69,14 @@ async function bootstrap() {
   });
   const emailQueue = new Queue(QUEUE_NAMES.EMAIL_SEND, { connection: client });
   const taskReminderQueue = new Queue(QUEUE_NAMES.TASK_REMINDER, { connection: client });
+
+  const recoveredCvCount = await failStaleCvProcessingJobs().catch((error) => {
+    logger.error(`Failed to recover stale CV processing records: ${getErrorMessage(error)}`);
+    return 0;
+  });
+  if (recoveredCvCount > 0) {
+    logger.warn(`Marked ${recoveredCvCount} stale CV processing record(s) as FAILED`);
+  }
 
   await taskReminderQueue.add(
     JOB_NAMES.SCAN_TASK_REMINDERS,
