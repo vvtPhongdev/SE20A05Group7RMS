@@ -1,5 +1,11 @@
 import { Prisma, PrismaClient } from '@prisma/client';
-import { buildCvSearchText, extractCvWithAi, extractText, isCvAiConfigured } from '@wr/ai';
+import {
+  buildCvSearchText,
+  extractCvWithAi,
+  extractText,
+  isCvAiConfigured,
+  parseCandidateTemplateCv,
+} from '@wr/ai';
 import { AuditAction, AuditEntityType, CvParseJobPayload } from '@wr/contracts';
 import { AuditLogService } from '@wr/database';
 import { logger } from '../logger';
@@ -9,6 +15,24 @@ const prisma = new PrismaClient({
 });
 
 const auditLog = new AuditLogService(prisma);
+const INTERRUPTED_PROCESSING_ERROR =
+  'CV processing was interrupted before completion. Please upload or replace the CV to retry.';
+
+export async function failStaleCvProcessingJobs(staleAfterMs = 5 * 60 * 1000): Promise<number> {
+  const result = await prisma.candidateCV.updateMany({
+    where: {
+      processingStatus: 'PROCESSING',
+      parsedAt: null,
+      updatedAt: { lt: new Date(Date.now() - staleAfterMs) },
+    },
+    data: {
+      processingStatus: 'FAILED',
+      processingError: INTERRUPTED_PROCESSING_ERROR,
+    },
+  });
+
+  return result.count;
+}
 
 export async function processCvParseJob(
   payload: CvParseJobPayload,
@@ -69,16 +93,43 @@ export async function processCvParseJob(
     }
 
     const hasReliableLocalText = localText.replace(/\s/g, '').length >= 200;
-    const extraction = aiConfigured
-      ? await extractCvWithAi({
-          fileName: cvRecord.fileName,
-          fileType,
-          fileUrl: filePath,
-          rawText: localText,
-        })
-      : null;
+    let templateExtraction = null;
+    if (localText && payload.parserPreference !== 'GEMINI_API') {
+      try {
+        const templateResult = await parseCandidateTemplateCv({ fileType, rawText: localText });
+        if (templateResult.matched) {
+          templateExtraction = templateResult.extraction;
+          logger.log(
+            `CV ${cvDocumentId} matched RMS template (vector similarity=${templateResult.similarity.toFixed(3)}).`,
+          );
+        } else {
+          logger.log(`CV ${cvDocumentId} will use Gemini fallback: ${templateResult.reason}`);
+        }
+      } catch (templateError) {
+        logger.warn(
+          `RMS template parser failed for ${cvDocumentId}; using Gemini fallback: ${
+            templateError instanceof Error ? templateError.message : String(templateError)
+          }`,
+        );
+      }
+    }
 
-    if (!extraction && !hasReliableLocalText) {
+    const extraction =
+      templateExtraction ??
+      (payload.parserPreference !== 'MODEL_VECTOR' && aiConfigured
+        ? await extractCvWithAi({
+            fileName: cvRecord.fileName,
+            fileType,
+            fileUrl: filePath,
+            rawText: localText,
+          })
+        : null);
+
+    const hasUsableModelText = localText.trim().length > 0;
+    if (
+      !extraction &&
+      !(payload.parserPreference === 'MODEL_VECTOR' ? hasUsableModelText : hasReliableLocalText)
+    ) {
       throw new Error(
         'No readable text was found. Configure GEMINI_API_KEY or GEMINI_API_KEYS to OCR scanned or image-based CV files.',
       );
@@ -95,6 +146,8 @@ export async function processCvParseJob(
           warnings: extraction.warnings,
           method,
           model: extraction.model ?? null,
+          templateMatched: Boolean(templateExtraction),
+          parserPreference: payload.parserPreference ?? 'AUTO',
         } as Prisma.InputJsonValue)
       : Prisma.JsonNull;
 

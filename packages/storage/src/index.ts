@@ -19,7 +19,10 @@ export const storageBuckets = {
   banners: process.env.SUPABASE_BANNER_BUCKET || 'Banner',
   noticeImages: process.env.SUPABASE_NOTICE_IMAGE_BUCKET || 'NoticeImg',
   jobPostings: process.env.SUPABASE_JOB_POSTING_BUCKET || 'job-postings',
+  templates: process.env.SUPABASE_TEMPLATE_BUCKET || 'template',
 };
+
+export const candidateCvTemplateStoragePath = 'templates/candidate-cv-template-v1.doc';
 
 export const supportedCvExtensions = ['.pdf', '.docx', '.doc'] as const;
 

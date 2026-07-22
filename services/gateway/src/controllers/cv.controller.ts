@@ -1,5 +1,6 @@
 ﻿import {
   BadRequestException,
+  Body,
   Controller,
   Delete,
   Get,
@@ -20,6 +21,7 @@ import { extractTextFromBuffer } from '@wr/ai';
 import { UserRole } from '@wr/contracts';
 import {
   buildCvStoragePath,
+  candidateCvTemplateStoragePath,
   downloadFile,
   parseSupabasePublicUrl,
   removeFile,
@@ -29,6 +31,7 @@ import {
 } from '@wr/storage';
 import { firstValueFrom } from 'rxjs';
 import { CurrentUser, JwtPayload } from '../auth/decorators/current-user.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { SERVICE_TOKENS } from '../constants';
 import { Response } from 'express';
@@ -62,6 +65,28 @@ export class CvController {
     ).catch(() => null);
 
     return profile?.fullName || fallbackName || userId;
+  }
+
+  @Get('template')
+  @Public()
+  @Roles()
+  @ApiOperation({ summary: 'Download the official candidate CV template from storage' })
+  async downloadTemplate(@Res() res: Response) {
+    try {
+      const blob = await downloadFile(storageBuckets.templates, candidateCvTemplateStoragePath);
+      const buffer = Buffer.from(await blob.arrayBuffer());
+      res.type('application/msword');
+      res.setHeader('Cache-Control', 'no-store, max-age=0');
+      res.setHeader('Content-Disposition', 'attachment; filename="RMS-CV-Template.doc"');
+      return res.send(buffer);
+    } catch (error) {
+      this.logger.error(
+        `Unable to download CV template from ${storageBuckets.templates}/${candidateCvTemplateStoragePath}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      throw new NotFoundException('CV template is not available');
+    }
   }
 
   @Get('candidate/:candidateId/latest')
@@ -129,6 +154,7 @@ export class CvController {
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
   async uploadMine(
     @CurrentUser() user: JwtPayload,
+    @Body('parserPreference') parserPreference?: 'MODEL_VECTOR' | 'GEMINI_API',
     @UploadedFile()
     file?: { buffer: Buffer; originalname: string; mimetype: string; size: number },
   ) {
@@ -173,6 +199,7 @@ export class CvController {
           fileType,
           filePath: uploaded.publicUrl,
           rawText,
+          parserPreference,
         }),
       );
     } catch (error) {
@@ -188,6 +215,7 @@ export class CvController {
   async replaceMine(
     @Param('id') id: string,
     @CurrentUser() user: JwtPayload,
+    @Body('parserPreference') parserPreference?: 'MODEL_VECTOR' | 'GEMINI_API',
     @UploadedFile()
     file?: { buffer: Buffer; originalname: string; mimetype: string; size: number },
   ) {
@@ -233,6 +261,7 @@ export class CvController {
           fileType,
           filePath: uploaded.publicUrl,
           rawText,
+          parserPreference,
         }),
       );
     } catch (error) {

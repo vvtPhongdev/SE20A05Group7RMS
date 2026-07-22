@@ -41,6 +41,11 @@ export class AuthController {
     return this.service.resetPassword(data);
   }
 
+  @MessagePattern('identity.auth.update-account')
+  async updateAccount(@Payload() data: any) {
+    return this.service.updateAccount(data);
+  }
+
   @MessagePattern('identity.auth.verify-register')
   async verifyRegister(@Payload() data: any) {
     return this.service.verifyRegister(data);

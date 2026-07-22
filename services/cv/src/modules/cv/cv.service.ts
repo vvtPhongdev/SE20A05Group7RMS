@@ -41,20 +41,17 @@ export class CvService {
     });
   }
 
-  private async enqueueParse(cvRecord: { id: string; filePath: string }) {
+  private async enqueueParse(cvRecord: { id: string; filePath: string }, parserPreference?: 'MODEL_VECTOR' | 'GEMINI_API') {
     await this.cvParseQueue.add(
       JOB_NAMES.PARSE_CV,
       {
         cvDocumentId: cvRecord.id,
         filePath: cvRecord.filePath,
+        parserPreference,
       },
       {
         jobId: `cv-parse-${cvRecord.id}-${Date.now()}`,
-        attempts: 3,
-        backoff: {
-          type: 'exponential',
-          delay: 1000,
-        },
+        attempts: 1,
         removeOnFail: true,
       },
     );
@@ -66,6 +63,7 @@ export class CvService {
     fileType: 'PDF' | 'DOCX' | 'DOC';
     filePath: string;
     rawText?: string;
+    parserPreference?: 'MODEL_VECTOR' | 'GEMINI_API';
     requestId?: string;
   }) {
     const { candidateId, fileName, fileType, filePath } = payload;
@@ -116,7 +114,7 @@ export class CvService {
       })
       .catch((err) => console.error('Failed to write audit log for CV_UPLOADED:', err));
 
-    await this.enqueueParse(cvRecord);
+    await this.enqueueParse(cvRecord, payload.parserPreference);
 
     if (previousCvs.length > 0) {
       await this.prisma.candidateCV.deleteMany({
@@ -135,6 +133,7 @@ export class CvService {
     fileType: 'PDF' | 'DOCX' | 'DOC';
     filePath: string;
     rawText?: string;
+    parserPreference?: 'MODEL_VECTOR' | 'GEMINI_API';
   }) {
     const existing = await this.prisma.candidateCV.findFirst({
       where: {
@@ -190,7 +189,7 @@ export class CvService {
       })
       .catch((err) => console.error('Failed to write audit log for CV replacement:', err));
 
-    await this.enqueueParse(updated);
+    await this.enqueueParse(updated, payload.parserPreference);
 
     if (legacyCvs.length > 0) {
       await this.prisma.candidateCV.deleteMany({
