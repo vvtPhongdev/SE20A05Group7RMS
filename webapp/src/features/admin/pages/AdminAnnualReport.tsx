@@ -9,6 +9,8 @@ import {
   AdminLoadingState,
   AdminPageHeader,
   AdminSelectControl,
+  AdminStatusBadge,
+  type AdminTone,
 } from '../components';
 
 interface ManagerPerformance {
@@ -49,6 +51,27 @@ interface AnnualReport {
     fillRate: number;
   }>;
   timeToHireByStage: Array<{ stage: string; days: number }>;
+  campaignTracking: Array<{
+    requestId: string;
+    planId: string;
+    position: string;
+    department: string;
+    requestStatus: string;
+    planStatus: string;
+    startDate: string;
+    endDate: string;
+    completedTasks: number;
+    totalTasks: number;
+    progress: number;
+    currentTask: {
+      id: string;
+      taskType: string;
+      status: string;
+      startDate: string | null;
+      endDate: string | null;
+      assignee: string;
+    } | null;
+  }>;
 }
 
 const departmentPalette = [
@@ -80,6 +103,28 @@ const createPieSlicePath = (startAngle: number, endAngle: number) => {
   const end = toPiePoint(endAngle);
   const largeArc = endAngle - startAngle > 180 ? 1 : 0;
   return `M 50 50 L ${start.x} ${start.y} A 50 50 0 ${largeArc} 1 ${end.x} ${end.y} Z`;
+};
+
+const formatTaskType = (taskType: string) =>
+  taskType
+    .toLowerCase()
+    .split('_')
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(' ');
+
+const formatTrackingDate = (value: string | null) =>
+  value
+    ? new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(
+        new Date(value),
+      )
+    : 'Not scheduled';
+
+const getTrackingTone = (status: string): AdminTone => {
+  if (['COMPLETED', 'APPROVED'].includes(status)) return 'approved';
+  if (status === 'IN_PROGRESS') return 'teal';
+  if (['PENDING_APPROVAL', 'PENDING'].includes(status)) return 'pending';
+  if (['REJECTED', 'CANCELLED', 'OVERDUE'].includes(status)) return 'rejected';
+  return 'slate';
 };
 
 export const AdminAnnualReport: React.FC = () => {
@@ -175,6 +220,9 @@ export const AdminAnnualReport: React.FC = () => {
   const longestStage = stages.reduce<{ stage: string; days: number } | null>(
     (longest, stage) => (!longest || stage.days > longest.days ? stage : longest),
     null,
+  );
+  const campaignTracking = (report?.campaignTracking ?? []).filter(
+    (campaign) => campaign.planStatus !== 'REJECTED',
   );
 
   const chartPaths = useMemo(() => {
@@ -430,6 +478,126 @@ export const AdminAnnualReport: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Recruitment campaign plan tracking */}
+      <AdminCard className="overflow-hidden p-0">
+        <div className="flex flex-col gap-3 border-b border-border-warm p-6 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3 className="font-headline-md text-headline-md font-semibold text-deep-charcoal">
+              Recruitment Campaign Plan Tracking
+            </h3>
+            <p className="mt-1 font-body-sm text-body-sm text-secondary">
+              Follow each campaign plan and the task currently being implemented.
+            </p>
+          </div>
+          <div className="rounded-lg bg-teal-command/10 px-3 py-2 text-right">
+            <p className="font-data-mono text-lg font-semibold text-teal-command">
+              {campaignTracking.length}
+            </p>
+            <p className="font-label-sm text-[10px] uppercase text-outline">Campaign plans</p>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1120px] text-left">
+            <thead>
+              <tr className="bg-workflow-ivory font-label-sm text-label-sm uppercase tracking-wider text-secondary">
+                <th className="px-6 py-4">Campaign</th>
+                <th className="px-6 py-4">Plan Status</th>
+                <th className="px-6 py-4">Current Task</th>
+                <th className="px-6 py-4">Assignee</th>
+                <th className="px-6 py-4">Task Schedule</th>
+                <th className="px-6 py-4">Progress</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-warm text-on-surface">
+              {campaignTracking.map((campaign, index) => {
+                const task = campaign.currentTask;
+                const allTasksCompleted =
+                  campaign.totalTasks > 0 && campaign.completedTasks === campaign.totalTasks;
+
+                return (
+                  <tr
+                    className={`transition-colors hover:bg-teal-command/5 ${
+                      index % 2 === 1 ? 'bg-workflow-ivory/50' : ''
+                    }`}
+                    key={campaign.planId}
+                  >
+                    <td className="px-6 py-4">
+                      <p className="font-body-md font-semibold text-deep-charcoal">
+                        {campaign.position}
+                      </p>
+                      <p className="mt-1 text-xs text-outline">
+                        {campaign.department} · #{campaign.requestId.slice(0, 8)}
+                      </p>
+                    </td>
+                    <td className="px-6 py-4">
+                      <AdminStatusBadge tone={getTrackingTone(campaign.planStatus)}>
+                        {formatTaskType(campaign.planStatus)}
+                      </AdminStatusBadge>
+                    </td>
+                    <td className="px-6 py-4">
+                      {task ? (
+                        <div>
+                          <p className="font-body-sm font-semibold text-deep-charcoal">
+                            {formatTaskType(task.taskType)}
+                          </p>
+                          <AdminStatusBadge
+                            className="mt-1.5"
+                            tone={getTrackingTone(task.status)}
+                          >
+                            {formatTaskType(task.status)}
+                          </AdminStatusBadge>
+                        </div>
+                      ) : (
+                        <span className="font-body-sm text-outline">
+                          {allTasksCompleted ? 'All tasks completed' : 'No task configured'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 font-body-sm text-slate-ink">
+                      {task?.assignee ?? '—'}
+                    </td>
+                    <td className="px-6 py-4 font-body-sm text-slate-ink">
+                      {task ? (
+                        <>
+                          <p>{formatTrackingDate(task.startDate)}</p>
+                          <p className="mt-1 text-xs text-outline">
+                            to {formatTrackingDate(task.endDate)}
+                          </p>
+                        </>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="mb-1.5 flex items-center justify-between gap-4 font-data-mono text-xs text-slate-ink">
+                        <span>
+                          {campaign.completedTasks}/{campaign.totalTasks} tasks
+                        </span>
+                        <span>{campaign.progress}%</span>
+                      </div>
+                      <div className="h-2 w-full min-w-32 overflow-hidden rounded-full bg-surface-container">
+                        <div
+                          className="h-full rounded-full bg-teal-command"
+                          style={{ width: `${Math.min(100, campaign.progress)}%` }}
+                        ></div>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {campaignTracking.length === 0 && (
+                <tr>
+                  <td className="px-6 py-10 text-center font-body-sm text-outline" colSpan={6}>
+                    No campaign plan tracking data is available for {selectedYear}.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </AdminCard>
 
       {/* Bottom Section: Performance Table & Stacked Bar */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

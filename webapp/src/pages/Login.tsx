@@ -54,6 +54,17 @@ const EyeIcon = ({ hidden }: { hidden: boolean }) => (
   </svg>
 );
 
+const RecruiterLogo = () => (
+  <object
+    aria-label="RMS Recruiter"
+    className="pointer-events-none h-14 w-auto object-contain transition"
+    data="/logo-offical.svg"
+    type="image/svg+xml"
+  >
+    RMS Recruiter
+  </object>
+);
+
 export const Login: React.FC = () => {
   const { login, signInWithGoogle, completeSupabaseLogin } = useAuth();
   const navigate = useNavigate();
@@ -67,6 +78,7 @@ export const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const authMode = searchParams.get('auth');
+  const passwordResetSucceeded = searchParams.get('passwordReset') === 'success';
 
   useEffect(() => {
     if (authMode !== 'google') return;
@@ -144,9 +156,7 @@ export const Login: React.FC = () => {
           <div className="geometric-bg absolute inset-0 opacity-35" />
 
           <div className="relative flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-[var(--wr-radius-lg)] bg-[var(--wr-accent-primary)] text-sm font-bold text-white shadow-[var(--wr-shadow-md)]">
-              WR
-            </div>
+            <RecruiterLogo />
             <div>
               <p className="text-sm font-semibold">Works Recruiter</p>
               <p className="text-xs text-[var(--wr-text-secondary)]">
@@ -294,9 +304,7 @@ export const Login: React.FC = () => {
           <div className="w-full max-w-[460px]">
             <div className="mb-8 lg:hidden">
               <div className="mb-5 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-[var(--wr-radius-lg)] bg-[var(--wr-accent-primary)] text-sm font-bold text-white">
-                  WR
-                </div>
+                <RecruiterLogo />
                 <div>
                   <p className="text-sm font-semibold">Works Recruiter</p>
                   <p className="text-xs text-[var(--wr-text-secondary)]">
@@ -323,6 +331,12 @@ export const Login: React.FC = () => {
                   RMS
                 </span>
               </div>
+
+              {passwordResetSucceeded && (
+                <div className="mb-5 rounded-[var(--wr-radius-lg)] border border-[var(--wr-success-border)] bg-[var(--wr-success-bg)] px-4 py-3 text-sm font-medium text-[var(--wr-success-text)]">
+                  Password updated successfully. Sign in again with your new password.
+                </div>
+              )}
 
               {error && (
                 <div className="mb-5 rounded-[var(--wr-radius-lg)] border border-[var(--wr-error-border)] bg-[var(--wr-error-bg)] px-4 py-3 text-sm font-medium text-[var(--wr-error-text)]">

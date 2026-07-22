@@ -395,9 +395,15 @@ export const SignUp: React.FC = () => {
           <div className="geometric-bg absolute inset-0 opacity-30" />
 
           <Link className="relative flex items-center gap-3" to="/">
-            <div className="flex h-10 w-10 items-center justify-center rounded-[var(--wr-radius-lg)] bg-[var(--wr-accent-primary)] text-sm font-bold text-white shadow-[var(--wr-shadow-md)]">
-              RMS
-            </div>
+            <object
+              aria-label="RMS Recruiter"
+              className="pointer-events-none h-10 w-36 shrink-0 object-contain"
+              data="/logo-offical.svg"
+              tabIndex={-1}
+              type="image/svg+xml"
+            >
+              RMS Recruiter
+            </object>
             <div>
               <p className="text-sm font-semibold">Recruitment Management System</p>
               <p className="text-xs text-[var(--wr-text-secondary)]">
@@ -466,9 +472,15 @@ export const SignUp: React.FC = () => {
           <div className="w-full max-w-[560px]">
             <div className="mb-8 flex items-center justify-between gap-4">
               <Link className="flex items-center gap-3 lg:hidden" to="/">
-                <div className="flex h-10 w-10 items-center justify-center rounded-[var(--wr-radius-lg)] bg-[var(--wr-accent-primary)] text-sm font-bold text-white">
-                  RMS
-                </div>
+                <object
+                  aria-label="RMS Recruiter"
+                  className="pointer-events-none h-10 w-36 shrink-0 object-contain"
+                  data="/logo-offical.svg"
+                  tabIndex={-1}
+                  type="image/svg+xml"
+                >
+                  RMS Recruiter
+                </object>
                 <div>
                   <p className="text-sm font-semibold">RMS</p>
                   <p className="text-xs text-[var(--wr-text-secondary)]">Recruitment workspace</p>
