@@ -1,0 +1,16 @@
+$kind: http-request
+name: Respond To Offer
+method: POST
+url: '{{baseUrl}}/api/v1/offers/{{offerId}}/respond'
+order: 6000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "response": "ACCEPT",
+      "note": "I accept the offer."
+    }
+description: Candidate responds to a job offer (ACCEPT/DECLINE)

@@ -1,0 +1,6 @@
+$kind: http-request
+name: Get User
+method: GET
+url: '{{baseUrl}}/api/v1/users/{{userId}}'
+order: 3000
+description: Get user by ID

@@ -1,0 +1,15 @@
+$kind: http-request
+name: Assign Recruiter
+method: PATCH
+url: '{{baseUrl}}/api/v1/task-plan/{{taskPlanId}}/assign-recruiter'
+order: 5000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "recruiterId": "{{userId}}"
+    }
+description: Assign a recruiter to a task plan

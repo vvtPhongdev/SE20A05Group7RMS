@@ -1,0 +1,13 @@
+$kind: http-request
+name: Upload Document
+method: POST
+url: '{{baseUrl}}/api/v1/documents'
+order: 10000
+body:
+  type: formdata
+  content:
+    - key: file
+      type: file
+      src: ''
+      description: CV or JD document file
+description: Upload CV/JD document (multipart/form-data)

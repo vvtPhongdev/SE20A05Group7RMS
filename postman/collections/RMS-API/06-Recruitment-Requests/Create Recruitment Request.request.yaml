@@ -1,0 +1,19 @@
+$kind: http-request
+name: Create Recruitment Request
+method: POST
+url: '{{baseUrl}}/api/v1/recruitment-requests'
+order: 2000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "position": "Software Engineer",
+      "departmentId": "{{departmentId}}",
+      "headcount": 2,
+      "reason": "Business expansion",
+      "requirements": "3+ years experience"
+    }
+description: Create a new recruitment request

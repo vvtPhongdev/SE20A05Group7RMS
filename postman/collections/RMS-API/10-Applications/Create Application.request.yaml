@@ -1,0 +1,15 @@
+$kind: http-request
+name: Create Application
+method: POST
+url: '{{baseUrl}}/api/v1/applications'
+order: 2000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "jobPostingId": "{{jobPostingId}}"
+    }
+description: Submit a new job application

@@ -1,0 +1,17 @@
+$kind: http-request
+name: Submit Talent Feedback
+method: POST
+url: '{{baseUrl}}/api/v1/talent/feedback'
+order: 2000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "searchId": "{{searchId}}",
+      "candidateId": "{{candidateId}}",
+      "relevant": true
+    }
+description: Submit relevance feedback for a talent search result

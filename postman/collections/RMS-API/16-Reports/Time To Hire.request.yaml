@@ -1,0 +1,6 @@
+$kind: http-request
+name: Time To Hire
+method: GET
+url: '{{baseUrl}}/api/v1/reports/time-to-hire'
+order: 5000
+description: Get time-to-hire metrics

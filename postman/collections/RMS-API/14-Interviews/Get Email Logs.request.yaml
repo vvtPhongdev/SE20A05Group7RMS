@@ -1,0 +1,6 @@
+$kind: http-request
+name: Get Email Logs
+method: GET
+url: '{{baseUrl}}/api/v1/interviews/schedules/{{scheduleId}}/email-logs'
+order: 10000
+description: Get email logs for an interview schedule

@@ -1,0 +1,57 @@
+$kind: collection
+name: RMS API
+description: 'Recruitment Management System API - NestJS Gateway with microservices architecture. Base URL: {{baseUrl}}/api/v1'
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{accessToken}}'
+variables:
+  - key: baseUrl
+    value: 'http://localhost:3000'
+  - key: accessToken
+    value: ''
+  - key: refreshToken
+    value: ''
+  - key: userId
+    value: ''
+  - key: organizationId
+    value: ''
+  - key: departmentId
+    value: ''
+  - key: requestId
+    value: ''
+  - key: planId
+    value: ''
+  - key: taskPlanId
+    value: ''
+  - key: roleId
+    value: ''
+  - key: jobPostingId
+    value: ''
+  - key: applicationId
+    value: ''
+  - key: candidateId
+    value: ''
+  - key: candidateProfileId
+    value: ''
+  - key: searchId
+    value: ''
+  - key: cvId
+    value: ''
+  - key: scheduleId
+    value: ''
+  - key: interviewId
+    value: ''
+  - key: userId2
+    value: ''
+  - key: offerId
+    value: ''
+  - key: notificationId
+    value: ''
+  - key: evaluationId
+    value: ''
+  - key: evidenceId
+    value: ''
+  - key: documentId
+    value: ''

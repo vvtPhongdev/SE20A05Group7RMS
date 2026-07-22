@@ -1,0 +1,6 @@
+$kind: http-request
+name: Approve Overall Plan
+method: PATCH
+url: '{{baseUrl}}/api/v1/overall-plan/{{planId}}/approve'
+order: 3000
+description: Approve the overall recruitment plan

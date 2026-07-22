@@ -1,0 +1,6 @@
+$kind: http-request
+name: Get Application
+method: GET
+url: '{{baseUrl}}/api/v1/applications/{{applicationId}}'
+order: 3000
+description: Get application by ID

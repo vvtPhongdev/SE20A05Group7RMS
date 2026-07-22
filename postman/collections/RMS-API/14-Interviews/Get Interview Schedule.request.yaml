@@ -1,0 +1,6 @@
+$kind: http-request
+name: Get Interview Schedule
+method: GET
+url: '{{baseUrl}}/api/v1/interviews/schedules/{{scheduleId}}'
+order: 2000
+description: Get interview schedule by ID

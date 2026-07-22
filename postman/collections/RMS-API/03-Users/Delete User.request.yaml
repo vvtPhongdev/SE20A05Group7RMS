@@ -1,0 +1,6 @@
+$kind: http-request
+name: Delete User
+method: DELETE
+url: '{{baseUrl}}/api/v1/users/{{userId}}'
+order: 6000
+description: Delete user by ID

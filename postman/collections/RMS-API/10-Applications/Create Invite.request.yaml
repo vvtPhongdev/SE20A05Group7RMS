@@ -1,0 +1,16 @@
+$kind: http-request
+name: Create Invite
+method: POST
+url: '{{baseUrl}}/api/v1/invites'
+order: 5000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "candidateId": "{{candidateId}}",
+      "jobPostingId": "{{jobPostingId}}"
+    }
+description: Create an invite for a candidate

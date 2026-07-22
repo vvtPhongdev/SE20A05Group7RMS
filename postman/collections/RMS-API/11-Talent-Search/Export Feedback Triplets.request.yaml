@@ -1,0 +1,6 @@
+$kind: http-request
+name: Export Feedback Triplets
+method: GET
+url: '{{baseUrl}}/api/v1/talent/feedback/export-triplets'
+order: 3000
+description: Export feedback triplets for model training

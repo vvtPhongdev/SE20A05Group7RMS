@@ -1,0 +1,6 @@
+$kind: http-request
+name: Mark Notification Read
+method: PATCH
+url: '{{baseUrl}}/api/v1/notifications/{{notificationId}}/read'
+order: 3000
+description: Mark a specific notification as read

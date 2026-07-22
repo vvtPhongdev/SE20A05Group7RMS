@@ -1,0 +1,499 @@
+{
+  "marker": "SWT-20260720060659",
+  "counts": {
+    "PASS": 49,
+    "FAIL": 2,
+    "BLOCKED": 2
+  },
+  "results": [
+    {
+      "id": "RRP-001",
+      "title": "Tao yeu cau tuyen dung hop le",
+      "status": "PASS",
+      "actual": "Created live request cd49c527-702e-4d0e-8326-fb6529a8497e in DRAFT.",
+      "evidence": "api/RRP-001.log",
+      "startedAt": "2026-07-20T06:07:02.341Z",
+      "finishedAt": "2026-07-20T06:07:03.922Z"
+    },
+    {
+      "id": "RRP-002",
+      "title": "Tao yeu cau thieu truong bat buoc",
+      "status": "PASS",
+      "actual": "Missing positionTitle was rejected with HTTP 400.",
+      "evidence": "api/RRP-002.log",
+      "startedAt": "2026-07-20T06:07:03.924Z",
+      "finishedAt": "2026-07-20T06:07:03.930Z"
+    },
+    {
+      "id": "RRP-003",
+      "title": "Submit request chuyen DRAFT -> PENDING_HR_REVIEW",
+      "status": "PASS",
+      "actual": "Request cd49c527-702e-4d0e-8326-fb6529a8497e moved to PENDING_HR_REVIEW.",
+      "evidence": "api/RRP-003.log",
+      "startedAt": "2026-07-20T06:07:03.931Z",
+      "finishedAt": "2026-07-20T06:07:04.822Z"
+    },
+    {
+      "id": "RRP-004",
+      "title": "Forward request len Admin",
+      "status": "PASS",
+      "actual": "Request forwarded by live HR account vophongthank25@gmail.com.",
+      "evidence": "api/RRP-004.log",
+      "startedAt": "2026-07-20T06:07:04.822Z",
+      "finishedAt": "2026-07-20T06:07:08.157Z"
+    },
+    {
+      "id": "RRP-005",
+      "title": "Admin approve request",
+      "status": "PASS",
+      "actual": "Live Admin approved request cd49c527-702e-4d0e-8326-fb6529a8497e.",
+      "evidence": "api/RRP-005.log",
+      "startedAt": "2026-07-20T06:07:08.158Z",
+      "finishedAt": "2026-07-20T06:07:09.730Z"
+    },
+    {
+      "id": "RRP-006",
+      "title": "Admin reject request kem ly do",
+      "status": "PASS",
+      "actual": "Rejection reason and 5 audit log(s) persisted.",
+      "evidence": "api/RRP-006.log",
+      "startedAt": "2026-07-20T06:07:09.731Z",
+      "finishedAt": "2026-07-20T06:07:14.023Z"
+    },
+    {
+      "id": "RRP-007",
+      "title": "Role khac khong duoc submit request",
+      "status": "PASS",
+      "actual": "Live Candidate de190421vovanthanhphong@gmail.com received HTTP 403.",
+      "evidence": "api/RRP-007.log",
+      "startedAt": "2026-07-20T06:07:14.024Z",
+      "finishedAt": "2026-07-20T06:07:14.428Z"
+    },
+    {
+      "id": "RRP-008",
+      "title": "Xem audit trail cua request",
+      "status": "PASS",
+      "actual": "5 audit entries returned in chronological order.",
+      "evidence": "api/RRP-008.log",
+      "startedAt": "2026-07-20T06:07:14.429Z",
+      "finishedAt": "2026-07-20T06:07:14.644Z"
+    },
+    {
+      "id": "RRP-009",
+      "title": "Xem tracking request dang xu ly",
+      "status": "PASS",
+      "actual": "Current implementation exposes tracking through request detail; status=APPROVED.",
+      "evidence": "api/RRP-009.log",
+      "startedAt": "2026-07-20T06:07:14.646Z",
+      "finishedAt": "2026-07-20T06:07:15.683Z"
+    },
+    {
+      "id": "RRP-010",
+      "title": "HR tao Overall Plan",
+      "status": "PASS",
+      "actual": "Created plan 68b37c42-26f2-423c-a045-06d4c5806404 with status DRAFT.",
+      "evidence": "api/RRP-010.log",
+      "startedAt": "2026-07-20T06:07:15.684Z",
+      "finishedAt": "2026-07-20T06:07:17.744Z"
+    },
+    {
+      "id": "RRP-011",
+      "title": "Submit plan cho Admin duyet",
+      "status": "PASS",
+      "actual": "Live HR vophongthank25@gmail.com submitted plan 68b37c42-26f2-423c-a045-06d4c5806404; status=PENDING_APPROVAL.",
+      "evidence": "api/RRP-011.log",
+      "startedAt": "2026-07-20T06:19:27.785Z",
+      "finishedAt": "2026-07-20T06:19:29.540Z",
+      "rerunMarker": "SWT-RERUN-20260720061926"
+    },
+    {
+      "id": "RRP-012",
+      "title": "Admin approve plan",
+      "status": "FAIL",
+      "actual": "Plan is APPROVED but request is PLAN_APPROVED; workbook expects ACTIVE immediately after approval. Current implementation requires start-campaign.",
+      "evidence": "api/RRP-012.log",
+      "startedAt": "2026-07-20T06:19:29.541Z",
+      "finishedAt": "2026-07-20T06:19:31.978Z",
+      "rerunMarker": "SWT-RERUN-20260720061926"
+    },
+    {
+      "id": "RRP-013",
+      "title": "Admin yeu cau chinh sua plan",
+      "status": "PASS",
+      "actual": "Admin admin@demo.test requested revision and the notes were persisted.",
+      "evidence": "api/RRP-013.log",
+      "startedAt": "2026-07-20T06:19:31.979Z",
+      "finishedAt": "2026-07-20T06:19:35.021Z",
+      "rerunMarker": "SWT-RERUN-20260720061926"
+    },
+    {
+      "id": "RRP-014",
+      "title": "Them va cap nhat task trong plan",
+      "status": "PASS",
+      "actual": "Live HR updated task 3ec980bd-e45b-46f8-b2d7-258ccea72179; durationDays=3.",
+      "evidence": "api/RRP-014.log",
+      "startedAt": "2026-07-20T06:20:51.033Z",
+      "finishedAt": "2026-07-20T06:20:53.329Z",
+      "rerunMarker": "SWT-RERUN-20260720062049"
+    },
+    {
+      "id": "AUTH-001",
+      "title": "Dang ky tai khoan moi",
+      "status": "PASS",
+      "actual": "Account rms.verification.swt-20260720060659@demo.test created with HTTP 201.",
+      "evidence": "api/AUTH-001.log",
+      "startedAt": "2026-07-20T06:07:23.449Z",
+      "finishedAt": "2026-07-20T06:07:41.669Z"
+    },
+    {
+      "id": "AUTH-002",
+      "title": "Dang ky voi email da ton tai",
+      "status": "PASS",
+      "actual": "Existing system email admin@demo.test was rejected with HTTP 409.",
+      "evidence": "api/AUTH-002.log",
+      "startedAt": "2026-07-20T06:07:41.670Z",
+      "finishedAt": "2026-07-20T06:07:41.836Z"
+    },
+    {
+      "id": "AUTH-003",
+      "title": "Dang nhap voi thong tin hop le",
+      "status": "PASS",
+      "actual": "Logged in live account admin@demo.test and received access/refresh tokens.",
+      "evidence": "api/AUTH-003.log",
+      "startedAt": "2026-07-20T06:07:41.837Z",
+      "finishedAt": "2026-07-20T06:07:42.192Z"
+    },
+    {
+      "id": "AUTH-004",
+      "title": "Dang nhap sai mat khau",
+      "status": "PASS",
+      "actual": "Wrong password was rejected with HTTP 401.",
+      "evidence": "api/AUTH-004.log",
+      "startedAt": "2026-07-20T06:07:42.192Z",
+      "finishedAt": "2026-07-20T06:07:42.582Z"
+    },
+    {
+      "id": "AUTH-005",
+      "title": "Refresh token xoay vong",
+      "status": "PASS",
+      "actual": "A new token pair was issued and the old refresh token returned HTTP 401.",
+      "evidence": "api/AUTH-005.log",
+      "startedAt": "2026-07-20T06:07:42.582Z",
+      "finishedAt": "2026-07-20T06:07:43.153Z"
+    },
+    {
+      "id": "AUTH-006",
+      "title": "Dang xuat vo hieu hoa refresh token",
+      "status": "PASS",
+      "actual": "Logout returned HTTP 204 and revoked the refresh token for admin@demo.test.",
+      "evidence": "api/AUTH-006.log",
+      "startedAt": "2026-07-20T06:19:38.802Z",
+      "finishedAt": "2026-07-20T06:19:39.171Z",
+      "rerunMarker": "SWT-RERUN-20260720061926"
+    },
+    {
+      "id": "AUTH-007",
+      "title": "Quen mat khau gui lien ket reset",
+      "status": "PASS",
+      "actual": "Reset flow accepted live system account admin@demo.test.",
+      "evidence": "api/AUTH-007.log",
+      "startedAt": "2026-07-20T06:07:43.157Z",
+      "finishedAt": "2026-07-20T06:07:57.778Z"
+    },
+    {
+      "id": "AUTH-008",
+      "title": "Dat lai mat khau voi token hop le",
+      "status": "PASS",
+      "actual": "Valid reset token changed the password and the new password logged in successfully; original hash restored afterward.",
+      "evidence": "api/AUTH-008.log",
+      "startedAt": "2026-07-20T06:07:57.779Z",
+      "finishedAt": "2026-07-20T06:08:02.567Z"
+    },
+    {
+      "id": "AUTH-009",
+      "title": "Dat lai mat khau voi token sai/het han",
+      "status": "PASS",
+      "actual": "Invalid reset token returned HTTP 400 and password hash stayed unchanged.",
+      "evidence": "api/AUTH-009.log",
+      "startedAt": "2026-07-20T06:08:02.568Z",
+      "finishedAt": "2026-07-20T06:08:02.985Z"
+    },
+    {
+      "id": "AUTH-010",
+      "title": "Lay thong tin profile hien tai",
+      "status": "PASS",
+      "actual": "/me returned live Admin admin@demo.test.",
+      "evidence": "api/AUTH-010.log",
+      "startedAt": "2026-07-20T06:08:02.985Z",
+      "finishedAt": "2026-07-20T06:08:03.484Z"
+    },
+    {
+      "id": "AUTH-011",
+      "title": "Admin xem danh sach user",
+      "status": "PASS",
+      "actual": "Admin received a paginated/list response containing 6 visible user(s).",
+      "evidence": "api/AUTH-011.log",
+      "startedAt": "2026-07-20T06:08:03.485Z",
+      "finishedAt": "2026-07-20T06:08:04.529Z"
+    },
+    {
+      "id": "AUTH-012",
+      "title": "Cap nhat role user va kiem tra RBAC",
+      "status": "PASS",
+      "actual": "Candidate received 403; Admin changed the live user role; original role restored.",
+      "evidence": "api/AUTH-012.log",
+      "startedAt": "2026-07-20T06:08:04.530Z",
+      "finishedAt": "2026-07-20T06:08:08.506Z"
+    },
+    {
+      "id": "AUTH-013",
+      "title": "Health check gateway",
+      "status": "PASS",
+      "actual": "Gateway and 6 downstream services reported ok.",
+      "evidence": "api/AUTH-013.log",
+      "startedAt": "2026-07-20T06:08:08.507Z",
+      "finishedAt": "2026-07-20T06:08:08.757Z"
+    },
+    {
+      "id": "AUTH-014",
+      "title": "Microservice timeout / graceful error handling",
+      "status": "PASS",
+      "actual": "Gateway returned a controlled 5xx while Identity was unavailable, stayed healthy, and login succeeded after automatic recovery.",
+      "evidence": "api/AUTH-014.log",
+      "startedAt": "2026-07-20T06:26:36.0821671Z",
+      "finishedAt": "2026-07-20T06:26:43.1142698Z",
+      "marker": "SWT-AUTH014-20260720062636"
+    },
+    {
+      "id": "INT-001",
+      "title": "Len lich phong van",
+      "status": "PASS",
+      "actual": "Scheduled interview c555bf7d-272f-439f-9e97-8100cf85e2a1 for a live candidate/application.",
+      "evidence": "api/INT-001.log",
+      "startedAt": "2026-07-20T06:08:08.757Z",
+      "finishedAt": "2026-07-20T06:08:18.032Z"
+    },
+    {
+      "id": "INT-002",
+      "title": "Lay danh sach khung gio trong",
+      "status": "FAIL",
+      "actual": "GET /interviews/available-slots?start=2026-07-21T06%3A08%3A18.032Z&end=2026-07-27T06%3A08%3A18.032Z: expected 200, received 404",
+      "evidence": "api/INT-002.log",
+      "startedAt": "2026-07-20T06:08:18.032Z",
+      "finishedAt": "2026-07-20T06:08:18.068Z"
+    },
+    {
+      "id": "INT-003",
+      "title": "Doi lich phong van",
+      "status": "PASS",
+      "actual": "Interview 321c1ca4-d7bf-4cfc-907c-4e32b674c011 was rescheduled with the complete live panel.",
+      "evidence": "api/INT-003.log",
+      "startedAt": "2026-07-20T06:20:53.552Z",
+      "finishedAt": "2026-07-20T06:20:55.862Z",
+      "rerunMarker": "SWT-RERUN-20260720062049"
+    },
+    {
+      "id": "INT-004",
+      "title": "Huy phong van",
+      "status": "PASS",
+      "actual": "Interview 321c1ca4-d7bf-4cfc-907c-4e32b674c011 moved to CANCELLED; notifications were returned.",
+      "evidence": "api/INT-004.log",
+      "startedAt": "2026-07-20T06:20:55.863Z",
+      "finishedAt": "2026-07-20T06:20:56.364Z",
+      "rerunMarker": "SWT-RERUN-20260720062049"
+    },
+    {
+      "id": "INT-005",
+      "title": "Ghi nhan ket qua phong van",
+      "status": "PASS",
+      "actual": "Two live panel members recorded feedback; interview 3df6124a-47c8-4fc9-8958-9935b5b0554e is COMPLETED.",
+      "evidence": "api/INT-005.log",
+      "startedAt": "2026-07-20T06:20:56.365Z",
+      "finishedAt": "2026-07-20T06:20:59.746Z",
+      "rerunMarker": "SWT-RERUN-20260720062049"
+    },
+    {
+      "id": "INT-006",
+      "title": "Admin dua ra quyet dinh tuyen dung cuoi cung",
+      "status": "PASS",
+      "actual": "Admin decision, offer, and live candidate acceptance completed request be2796f7-4646-43bf-8cc7-1378c9705b96.",
+      "evidence": "api/INT-006.log",
+      "startedAt": "2026-07-20T06:20:59.747Z",
+      "finishedAt": "2026-07-20T06:21:02.353Z",
+      "rerunMarker": "SWT-RERUN-20260720062049"
+    },
+    {
+      "id": "CV-001",
+      "title": "Upload CV dinh dang PDF hop le",
+      "status": "PASS",
+      "actual": "PDF uploaded as CV bec9a25a-4ab3-4a4e-b54b-52febd371cc7.",
+      "evidence": "api/CV-001.log",
+      "startedAt": "2026-07-20T06:08:33.698Z",
+      "finishedAt": "2026-07-20T06:08:42.458Z"
+    },
+    {
+      "id": "CV-002",
+      "title": "Upload file khong dung dinh dang",
+      "status": "PASS",
+      "actual": "Executable upload was rejected with HTTP 400.",
+      "evidence": "api/CV-002.log",
+      "startedAt": "2026-07-20T06:08:42.459Z",
+      "finishedAt": "2026-07-20T06:08:42.463Z"
+    },
+    {
+      "id": "CV-003",
+      "title": "Kiem tra trich xuat text tu CV",
+      "status": "PASS",
+      "actual": "Worker extracted 1595 characters; parsedAt=2026-07-20T06:08:57.888Z.",
+      "evidence": "api/CV-003.log",
+      "startedAt": "2026-07-20T06:08:42.463Z",
+      "finishedAt": "2026-07-20T06:09:00.828Z"
+    },
+    {
+      "id": "CV-004",
+      "title": "Tim kiem ung vien theo vector search",
+      "status": "PASS",
+      "actual": "Current semantic endpoint /talent/search returned 2 ranked live candidate result(s); workbook route /candidates/search has drifted.",
+      "evidence": "api/CV-004.log",
+      "startedAt": "2026-07-20T06:19:47.524Z",
+      "finishedAt": "2026-07-20T06:19:50.890Z",
+      "rerunMarker": "SWT-RERUN-20260720061926"
+    },
+    {
+      "id": "CV-005",
+      "title": "Cap nhat ho so ung vien",
+      "status": "PASS",
+      "actual": "Live candidate profile 1a0ecd06-1dce-4e6b-a70b-5be3bed5aade updated; original summary restored.",
+      "evidence": "api/CV-005.log",
+      "startedAt": "2026-07-20T06:09:00.838Z",
+      "finishedAt": "2026-07-20T06:09:02.470Z"
+    },
+    {
+      "id": "CV-006",
+      "title": "HR xem CV cua ung vien",
+      "status": "PASS",
+      "actual": "Live HR downloaded 654801 bytes of the candidate CV.",
+      "evidence": "api/CV-006.log",
+      "startedAt": "2026-07-20T06:09:02.472Z",
+      "finishedAt": "2026-07-20T06:09:04.093Z"
+    },
+    {
+      "id": "CV-007",
+      "title": "Candidate khac khong duoc xem CV nguoi khac",
+      "status": "PASS",
+      "actual": "Candidate de190421vovanthanhphong@gmail.com received HTTP 403 for another candidate's CV.",
+      "evidence": "api/CV-007.log",
+      "startedAt": "2026-07-20T06:09:04.094Z",
+      "finishedAt": "2026-07-20T06:09:04.100Z"
+    },
+    {
+      "id": "NOTI-001",
+      "title": "Xem danh sach thong bao cua user",
+      "status": "PASS",
+      "actual": "Returned 24 notification(s) scoped to live HR vophongthank25@gmail.com.",
+      "evidence": "api/NOTI-001.log",
+      "startedAt": "2026-07-20T06:09:04.101Z",
+      "finishedAt": "2026-07-20T06:09:04.349Z"
+    },
+    {
+      "id": "NOTI-002",
+      "title": "Danh dau 1 thong bao da doc",
+      "status": "PASS",
+      "actual": "Notification 583cf713-b649-4ba1-a21d-d067328b8ee1 changed to read; restored to unread afterward.",
+      "evidence": "api/NOTI-002.log",
+      "startedAt": "2026-07-20T06:09:04.350Z",
+      "finishedAt": "2026-07-20T06:09:05.248Z"
+    },
+    {
+      "id": "NOTI-003",
+      "title": "Danh dau tat ca da doc",
+      "status": "PASS",
+      "actual": "24 notification(s) marked read; original unread set restored.",
+      "evidence": "api/NOTI-003.log",
+      "startedAt": "2026-07-20T06:09:05.249Z",
+      "finishedAt": "2026-07-20T06:09:06.210Z"
+    },
+    {
+      "id": "NOTI-004",
+      "title": "Lay so luong thong bao chua doc",
+      "status": "PASS",
+      "actual": "Current list endpoint reports 24 unread notification(s), matching the database.",
+      "evidence": "api/NOTI-004.log",
+      "startedAt": "2026-07-20T06:09:06.211Z",
+      "finishedAt": "2026-07-20T06:09:06.525Z"
+    },
+    {
+      "id": "NOTI-005",
+      "title": "Gui email khi co lich moi phong van",
+      "status": "PASS",
+      "actual": "3 interview email log(s) reached SENT.",
+      "evidence": "api/NOTI-005.log",
+      "startedAt": "2026-07-20T06:09:06.526Z",
+      "finishedAt": "2026-07-20T06:09:06.665Z"
+    },
+    {
+      "id": "REP-001",
+      "title": "Xem bao cao tuyen dung hang nam",
+      "status": "PASS",
+      "actual": "Annual report returned keys: year, summary, yoyComparison, departmentBreakdown, managerPerformance, timeToHireByStage.",
+      "evidence": "api/REP-001.log",
+      "startedAt": "2026-07-20T06:09:06.666Z",
+      "finishedAt": "2026-07-20T06:09:08.444Z"
+    },
+    {
+      "id": "REP-002",
+      "title": "Xem bao cao theo phong ban",
+      "status": "PASS",
+      "actual": "Department report returned for live department Engineer.",
+      "evidence": "api/REP-002.log",
+      "startedAt": "2026-07-20T06:09:08.445Z",
+      "finishedAt": "2026-07-20T06:09:08.715Z"
+    },
+    {
+      "id": "REP-003",
+      "title": "Xem chi so time-to-hire",
+      "status": "PASS",
+      "actual": "Time-to-hire report returned keys: averageTimeToHireDays, averageTimeInStageDays, totalCompletedHires.",
+      "evidence": "api/REP-003.log",
+      "startedAt": "2026-07-20T06:09:08.716Z",
+      "finishedAt": "2026-07-20T06:09:09.151Z"
+    },
+    {
+      "id": "REP-004",
+      "title": "Xem pipeline tong quan",
+      "status": "PASS",
+      "actual": "Pipeline returned keys: totalActiveCampaigns, totalCampaigns, breakdown.",
+      "evidence": "api/REP-004.log",
+      "startedAt": "2026-07-20T06:09:09.152Z",
+      "finishedAt": "2026-07-20T06:09:09.701Z"
+    },
+    {
+      "id": "REP-005",
+      "title": "Chan truy cap bao cao voi role khong hop le",
+      "status": "PASS",
+      "actual": "Live Candidate de190421vovanthanhphong@gmail.com received HTTP 403.",
+      "evidence": "api/REP-005.log",
+      "startedAt": "2026-07-20T06:09:09.702Z",
+      "finishedAt": "2026-07-20T06:09:09.707Z"
+    },
+    {
+      "id": "DEF-001",
+      "title": "Kiem tra quy trinh ghi nhan defect",
+      "status": "BLOCKED",
+      "actual": "No defect-management API/module or external issue tracker is present in the supplied system, so workflow New -> Assigned cannot be executed.",
+      "evidence": "api/DEF-001.log",
+      "startedAt": "2026-07-20T06:09:09.708Z",
+      "finishedAt": "2026-07-20T06:09:09.712Z"
+    },
+    {
+      "id": "DEF-002",
+      "title": "Retest defect da fix truoc khi dong",
+      "status": "BLOCKED",
+      "actual": "No persisted defect with status Fixed and no defect-management integration exists to retest/close/reopen.",
+      "evidence": "api/DEF-002.log",
+      "startedAt": "2026-07-20T06:09:09.713Z",
+      "finishedAt": "2026-07-20T06:09:09.713Z"
+    }
+  ],
+  "rerunMarker": "SWT-RERUN-20260720062049"
+}

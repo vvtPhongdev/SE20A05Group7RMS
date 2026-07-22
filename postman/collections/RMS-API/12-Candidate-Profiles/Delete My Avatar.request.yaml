@@ -1,0 +1,6 @@
+$kind: http-request
+name: Delete My Avatar
+method: DELETE
+url: '{{baseUrl}}/api/v1/candidate-profiles/me/avatar'
+order: 5000
+description: Delete the current candidate's avatar

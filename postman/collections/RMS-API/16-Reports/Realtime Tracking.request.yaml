@@ -1,0 +1,6 @@
+$kind: http-request
+name: Realtime Tracking
+method: GET
+url: '{{baseUrl}}/api/v1/reports/realtime-tracking'
+order: 8000
+description: Get realtime recruitment tracking data

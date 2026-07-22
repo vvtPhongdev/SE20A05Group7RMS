@@ -1,0 +1,18 @@
+$kind: http-request
+name: Create Task Plan
+method: POST
+url: '{{baseUrl}}/api/v1/task-plan'
+order: 1000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "overallPlanId": "{{planId}}",
+      "title": "Screen CVs",
+      "assigneeId": "{{userId}}",
+      "dueDate": "2026-08-01"
+    }
+description: Create a new task plan under an overall plan

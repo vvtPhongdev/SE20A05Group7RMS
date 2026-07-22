@@ -1,0 +1,15 @@
+$kind: http-request
+name: Update Job Posting
+method: PATCH
+url: '{{baseUrl}}/api/v1/job-postings/{{jobPostingId}}'
+order: 8000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "title": "Updated Title"
+    }
+description: Update job posting details

@@ -1,0 +1,6 @@
+$kind: http-request
+name: Get Job Posting
+method: GET
+url: '{{baseUrl}}/api/v1/job-postings/{{jobPostingId}}'
+order: 7000
+description: Get job posting by ID

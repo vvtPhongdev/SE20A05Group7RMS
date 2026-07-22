@@ -1,0 +1,17 @@
+$kind: http-request
+name: Create Department
+method: POST
+url: '{{baseUrl}}/api/v1/departments'
+order: 2000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Engineering",
+      "code": "ENG",
+      "organizationId": "{{organizationId}}"
+    }
+description: Create a new department

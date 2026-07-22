@@ -1,0 +1,19 @@
+$kind: http-request
+name: Schedule Interview
+method: POST
+url: '{{baseUrl}}/api/v1/interviews/schedules'
+order: 1000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "recruitmentRequestId": "{{requestId}}",
+      "applicationId": "{{applicationId}}",
+      "scheduledAt": "2026-08-15T10:00:00Z",
+      "location": "Meeting Room A",
+      "interviewers": ["{{userId}}", "{{userId2}}"]
+    }
+description: Schedule a new interview

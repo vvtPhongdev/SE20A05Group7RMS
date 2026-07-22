@@ -1,0 +1,6 @@
+$kind: http-request
+name: Get Candidate Avatar
+method: GET
+url: '{{baseUrl}}/api/v1/candidate-profiles/{{candidateProfileId}}/avatar'
+order: 8000
+description: Get avatar for a specific candidate profile

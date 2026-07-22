@@ -1,0 +1,6 @@
+$kind: http-request
+name: Expand Query
+method: GET
+url: '{{baseUrl}}/api/v1/talent/expand'
+order: 4000
+description: Expand query using knowledge graph

@@ -1,0 +1,16 @@
+$kind: http-request
+name: Create Role
+method: POST
+url: '{{baseUrl}}/api/v1/roles'
+order: 2000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "title": "Senior Software Engineer",
+      "description": "Backend development role"
+    }
+description: Create a new role
