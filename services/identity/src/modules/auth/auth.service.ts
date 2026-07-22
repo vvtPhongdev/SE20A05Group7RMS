@@ -15,8 +15,11 @@ import {
   SupabaseRegisterInput,
   RefreshTokenSchema,
   ForgotPasswordSchema,
+  ForgotPasswordInput,
   ResetPasswordSchema,
   ResetPasswordInput,
+  UpdateAccountSchema,
+  UpdateAccountInput,
   VerifyRegisterSchema,
   VerifyRegisterInput,
 } from '@wr/contracts';
@@ -29,7 +32,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 function getLogoPath(): string | null {
-  const logoPath = path.join(__dirname, '../../../../../assets/logo.png');
+  const logoPath = path.join(__dirname, '../../../../../webapp/public/logo-offical.svg');
   return fs.existsSync(logoPath) ? logoPath : null;
 }
 
@@ -196,9 +199,118 @@ export class AuthService implements OnModuleDestroy {
           : supabaseUser.email;
 
     return {
+      id: supabaseUser.id,
       email: supabaseUser.email.toLowerCase(),
       displayName,
     };
+  }
+
+  async updateAccount(payload: { userId: string } & UpdateAccountInput) {
+    const { userId, ...input } = payload;
+    const parsed = UpdateAccountSchema.parse(input);
+    const existing = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        passwordHash: true,
+      },
+    });
+
+    if (!existing) {
+      throw new RpcException({
+        status: HttpStatus.NOT_FOUND,
+        message: `User with ID ${userId} not found`,
+      });
+    }
+
+    const previousEmail = existing.email.toLowerCase();
+    const nextEmail = parsed.email ?? previousEmail;
+    const emailChanged = nextEmail !== previousEmail;
+
+    if (emailChanged) {
+      const conflictingUser = await this.prisma.user.findUnique({
+        where: { email: nextEmail },
+        select: { id: true },
+      });
+
+      if (conflictingUser && conflictingUser.id !== userId) {
+        throw new RpcException({
+          status: HttpStatus.CONFLICT,
+          message: 'Email is already used by another RMS account',
+        });
+      }
+
+      if (!existing.passwordHash && !parsed.supabaseAccessToken) {
+        throw new RpcException({
+          status: HttpStatus.BAD_REQUEST,
+          message: 'Sign in with Google again before changing your email',
+        });
+      }
+    }
+
+    let syncedSupabaseUserId: string | null = null;
+    if (emailChanged && parsed.supabaseAccessToken) {
+      const supabaseIdentity = await this.getVerifiedSupabaseIdentity(parsed.supabaseAccessToken);
+      if (supabaseIdentity.email !== previousEmail) {
+        throw new RpcException({
+          status: HttpStatus.UNAUTHORIZED,
+          message: 'Supabase session does not match the current RMS account',
+        });
+      }
+
+      const { error } = await this.supabase.auth.admin.updateUserById(supabaseIdentity.id, {
+        email: nextEmail,
+        email_confirm: true,
+      });
+      if (error) {
+        throw new RpcException({
+          status: HttpStatus.BAD_REQUEST,
+          message: 'Unable to update the linked sign-in email',
+        });
+      }
+      syncedSupabaseUserId = supabaseIdentity.id;
+    }
+
+    try {
+      return await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          displayName: parsed.displayName,
+          email: nextEmail,
+          phone: parsed.phone === '' ? null : parsed.phone,
+        },
+        select: {
+          id: true,
+          email: true,
+          displayName: true,
+          role: true,
+          organizationId: true,
+          departmentId: true,
+          phone: true,
+          avatar: true,
+          isActive: true,
+          department: {
+            select: { id: true, name: true, code: true },
+          },
+          departmentsHeaded: {
+            select: { id: true, name: true, code: true },
+          },
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+    } catch (error) {
+      if (syncedSupabaseUserId) {
+        await this.supabase.auth.admin
+          .updateUserById(syncedSupabaseUserId, {
+            email: previousEmail,
+            email_confirm: true,
+          })
+          .catch(() => undefined);
+      }
+      throw error;
+    }
   }
 
   private async getOrCreateDefaultOrganization() {
@@ -339,7 +451,8 @@ export class AuthService implements OnModuleDestroy {
       attachments: logoPath
         ? [
             {
-              filename: 'logo.png',
+              filename: 'logo-offical.svg',
+              contentType: 'image/svg+xml',
               path: logoPath,
               cid: 'logo',
             },
@@ -572,7 +685,7 @@ export class AuthService implements OnModuleDestroy {
    * Rates limits: max 5 requests per 15 min per email.
    * If email does not exist, returns success immediately (prevents email harvesting).
    */
-  async forgotPassword(dto: { email: string }): Promise<{ success: boolean }> {
+  async forgotPassword(dto: ForgotPasswordInput): Promise<{ success: boolean }> {
     // 1. Validate payload
     const parsed = ForgotPasswordSchema.parse(dto);
     const email = parsed.email.toLowerCase();
@@ -627,7 +740,8 @@ export class AuthService implements OnModuleDestroy {
     });
 
     const webappUrl = config.API_CORS_ORIGIN;
-    const resetLink = `${webappUrl}/reset-password?email=${encodeURIComponent(email)}&token=${token}`;
+    const resetPath = parsed.redirectPath ?? '/reset-password';
+    const resetLink = `${webappUrl}${resetPath}?email=${encodeURIComponent(email)}&token=${token}`;
 
     const logoPath = getLogoPath();
     const mailOptions = {
@@ -655,7 +769,8 @@ export class AuthService implements OnModuleDestroy {
       attachments: logoPath
         ? [
             {
-              filename: 'logo.png',
+              filename: 'logo-offical.svg',
+              contentType: 'image/svg+xml',
               path: logoPath,
               cid: 'logo',
             },
@@ -877,7 +992,8 @@ export class AuthService implements OnModuleDestroy {
       attachments: logoPath
         ? [
             {
-              filename: 'logo.png',
+              filename: 'logo-offical.svg',
+              contentType: 'image/svg+xml',
               path: logoPath,
               cid: 'logo',
             },
