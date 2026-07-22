@@ -1,0 +1,15 @@
+$kind: http-request
+name: Request Info
+method: POST
+url: '{{baseUrl}}/api/v1/hiring-decisions/{{requestId}}/request-info'
+order: 2000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "infoRequest": "Please provide interview summary"
+    }
+description: Request additional information before making a hiring decision

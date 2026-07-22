@@ -1,0 +1,6 @@
+$kind: http-request
+name: List Evidence
+method: GET
+url: '{{baseUrl}}/api/v1/evidence'
+order: 13000
+description: List all evidence records

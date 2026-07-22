@@ -1,0 +1,6 @@
+$kind: http-request
+name: List Invites
+method: GET
+url: '{{baseUrl}}/api/v1/invites'
+order: 6000
+description: List all invites

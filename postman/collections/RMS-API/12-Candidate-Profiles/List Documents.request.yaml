@@ -1,0 +1,6 @@
+$kind: http-request
+name: List Documents
+method: GET
+url: '{{baseUrl}}/api/v1/documents'
+order: 11000
+description: List all documents

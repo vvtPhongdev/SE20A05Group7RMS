@@ -1,0 +1,6 @@
+$kind: http-request
+name: Department Statistics
+method: GET
+url: '{{baseUrl}}/api/v1/reports/departments'
+order: 3000
+description: Get recruitment statistics by department

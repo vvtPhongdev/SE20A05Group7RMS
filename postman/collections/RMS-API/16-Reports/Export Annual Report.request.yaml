@@ -1,0 +1,6 @@
+$kind: http-request
+name: Export Annual Report
+method: GET
+url: '{{baseUrl}}/api/v1/reports/annual/export'
+order: 7000
+description: Export annual report as file

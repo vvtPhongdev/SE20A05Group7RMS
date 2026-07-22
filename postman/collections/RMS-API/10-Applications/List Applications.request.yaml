@@ -1,0 +1,6 @@
+$kind: http-request
+name: List Applications
+method: GET
+url: '{{baseUrl}}/api/v1/applications'
+order: 1000
+description: List all applications

@@ -1,0 +1,6 @@
+$kind: http-request
+name: Get Overall Plan By Request
+method: GET
+url: '{{baseUrl}}/api/v1/overall-plan/by-request/{{requestId}}'
+order: 2000
+description: Get overall plan by recruitment request ID

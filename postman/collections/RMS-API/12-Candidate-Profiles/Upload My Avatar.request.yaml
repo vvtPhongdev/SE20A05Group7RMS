@@ -1,0 +1,13 @@
+$kind: http-request
+name: Upload My Avatar
+method: POST
+url: '{{baseUrl}}/api/v1/candidate-profiles/me/avatar'
+order: 4000
+body:
+  type: formdata
+  content:
+    - key: file
+      type: file
+      src: ''
+      description: Avatar image file
+description: Upload avatar image (multipart/form-data)

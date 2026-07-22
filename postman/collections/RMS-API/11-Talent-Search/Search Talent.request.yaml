@@ -1,0 +1,16 @@
+$kind: http-request
+name: Search Talent
+method: POST
+url: '{{baseUrl}}/api/v1/talent/search'
+order: 1000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "query": "React developer with 3 years experience",
+      "limit": 10
+    }
+description: Search for talent using AI-powered semantic search

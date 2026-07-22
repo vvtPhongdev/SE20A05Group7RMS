@@ -1,0 +1,15 @@
+$kind: http-request
+name: Update User Status
+method: PATCH
+url: '{{baseUrl}}/api/v1/users/{{userId}}/status'
+order: 8000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "isActive": true
+    }
+description: Activate or deactivate a user

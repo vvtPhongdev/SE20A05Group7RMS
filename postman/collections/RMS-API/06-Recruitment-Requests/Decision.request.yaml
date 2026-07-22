@@ -1,0 +1,16 @@
+$kind: http-request
+name: Decision
+method: PATCH
+url: '{{baseUrl}}/api/v1/recruitment-requests/{{requestId}}/decision'
+order: 10000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "decision": "APPROVE",
+      "reason": "Approved"
+    }
+description: Make a decision on recruitment request (APPROVE/REJECT)

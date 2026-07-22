@@ -1,0 +1,131 @@
+{
+  "marker": "SWT-FE-20260720064416",
+  "browserBackendAvailable": false,
+  "counts": {
+    "PASS": 6,
+    "FAIL": 5,
+    "BLOCKED": 1
+  },
+  "results": [
+    {
+      "id": "FE-001",
+      "title": "Kiem tra validate form dang nhap",
+      "status": "PASS",
+      "actual": "Invalid email produced the inline validation message and the submit branch returns early.",
+      "evidence": "ui/FE-001.log",
+      "verificationMode": "console + live API + compiled source",
+      "startedAt": "2026-07-20T06:44:27.109Z",
+      "finishedAt": "2026-07-20T06:44:27.110Z"
+    },
+    {
+      "id": "FE-002",
+      "title": "Dashboard hien thi dung theo role",
+      "status": "PASS",
+      "actual": "All four live roles map to distinct protected dashboard components; webapp typecheck passed.",
+      "evidence": "ui/FE-002.log",
+      "verificationMode": "console + live API + compiled source",
+      "startedAt": "2026-07-20T06:44:27.111Z",
+      "finishedAt": "2026-07-20T06:44:27.112Z"
+    },
+    {
+      "id": "FE-003",
+      "title": "Dieu huong danh sach - chi tiet request",
+      "status": "FAIL",
+      "actual": "Correct request be2796f7-4646-43bf-8cc7-1378c9705b96 is loaded, but the UI opens an overlay modal; workbook expects navigation to a detail page.",
+      "evidence": "ui/FE-003.log",
+      "verificationMode": "console + live API + compiled source",
+      "startedAt": "2026-07-20T06:44:27.113Z",
+      "finishedAt": "2026-07-20T06:44:30.108Z"
+    },
+    {
+      "id": "FE-004",
+      "title": "Validate form tao/sua plan",
+      "status": "PASS",
+      "actual": "Missing dates are blocked in the plan form and the live API also rejected an empty plan with HTTP 400.",
+      "evidence": "ui/FE-004.log",
+      "verificationMode": "console + live API + compiled source",
+      "startedAt": "2026-07-20T06:44:30.110Z",
+      "finishedAt": "2026-07-20T06:44:30.118Z"
+    },
+    {
+      "id": "FE-005",
+      "title": "Giao dien len lich phong van",
+      "status": "FAIL",
+      "actual": "Manual date/time scheduling creates interviews, but the workbook step requires choosing an available slot; no slot UI exists and the available-slots API returns 404.",
+      "evidence": "ui/FE-005.log",
+      "verificationMode": "console + live API + compiled source",
+      "startedAt": "2026-07-20T06:44:30.118Z",
+      "finishedAt": "2026-07-20T06:44:30.119Z"
+    },
+    {
+      "id": "FE-006",
+      "title": "Giao dien tim kiem ung vien",
+      "status": "PASS",
+      "actual": "Live HR search returned 1 candidate(s), sorted by relevance score.",
+      "evidence": "ui/FE-006.log",
+      "verificationMode": "console + live API + compiled source",
+      "startedAt": "2026-07-20T06:44:30.121Z",
+      "finishedAt": "2026-07-20T06:44:32.698Z"
+    },
+    {
+      "id": "FE-007",
+      "title": "Kiem tra giao dien tren nhieu trinh duyet",
+      "status": "BLOCKED",
+      "actual": "Chrome/Edge/Firefox visual comparison could not run because the configured browser-control runtime exposed no browser backend.",
+      "evidence": "ui/FE-007.log",
+      "verificationMode": "browser compatibility attempt",
+      "startedAt": "2026-07-20T06:44:32.700Z",
+      "finishedAt": "2026-07-20T06:44:32.700Z"
+    },
+    {
+      "id": "FE-008",
+      "title": "Chuong thong bao va so luong chua doc",
+      "status": "FAIL",
+      "actual": "The live API reports 35 unread notification(s) and mark-read works, but the shared Layout has no bell with unread-count badge as required.",
+      "evidence": "ui/FE-008.log",
+      "verificationMode": "console + live API + compiled source",
+      "startedAt": "2026-07-20T06:44:32.700Z",
+      "finishedAt": "2026-07-20T06:44:33.173Z"
+    },
+    {
+      "id": "FE-009",
+      "title": "Sidebar hien thi dung menu theo role",
+      "status": "PASS",
+      "actual": "Sidebar metadata exposes only the expected protected menu entries for all four live roles.",
+      "evidence": "ui/FE-009.log",
+      "verificationMode": "console + live API + compiled source",
+      "startedAt": "2026-07-20T06:44:33.174Z",
+      "finishedAt": "2026-07-20T06:44:33.176Z"
+    },
+    {
+      "id": "FE-010",
+      "title": "Tu dong chuyen ve login khi het phien",
+      "status": "FAIL",
+      "actual": "The API rejects the expired token with 401, but AuthContext restores the saved user without checking exp and ProtectedRoute does not redirect on token expiry.",
+      "evidence": "ui/FE-010.log",
+      "verificationMode": "console + live API + compiled source",
+      "startedAt": "2026-07-20T06:44:33.177Z",
+      "finishedAt": "2026-07-20T06:44:33.182Z"
+    },
+    {
+      "id": "FE-011",
+      "title": "Hien thi thong bao loi khi API that bai",
+      "status": "FAIL",
+      "actual": "The UI does not crash because pages catch ApiError, but a 500 is surfaced as the raw “Internal server error”; no friendly global 5xx toast/message mapping exists.",
+      "evidence": "ui/FE-011.log",
+      "verificationMode": "console + live API + compiled source",
+      "startedAt": "2026-07-20T06:44:33.183Z",
+      "finishedAt": "2026-07-20T06:44:33.184Z"
+    },
+    {
+      "id": "FE-012",
+      "title": "Hien loading khi cho du lieu",
+      "status": "PASS",
+      "actual": "All four role loading components rendered successfully and the protected route contains an animated spinner branch.",
+      "evidence": "ui/FE-012.log",
+      "verificationMode": "console + live API + compiled source",
+      "startedAt": "2026-07-20T06:44:33.184Z",
+      "finishedAt": "2026-07-20T06:44:33.897Z"
+    }
+  ]
+}

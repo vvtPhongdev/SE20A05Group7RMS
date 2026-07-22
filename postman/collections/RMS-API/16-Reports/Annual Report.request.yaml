@@ -1,0 +1,9 @@
+$kind: http-request
+name: Annual Report
+method: GET
+url: '{{baseUrl}}/api/v1/reports/annual'
+order: 2000
+queryParams:
+  - key: year
+    value: '2026'
+description: Get annual recruitment report. Query param year (e.g. ?year=2026)

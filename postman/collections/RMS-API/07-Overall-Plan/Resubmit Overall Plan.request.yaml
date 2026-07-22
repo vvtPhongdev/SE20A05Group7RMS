@@ -1,0 +1,6 @@
+$kind: http-request
+name: Resubmit Overall Plan
+method: PATCH
+url: '{{baseUrl}}/api/v1/overall-plan/{{planId}}/resubmit'
+order: 7000
+description: Resubmit overall plan after revision

@@ -1,0 +1,15 @@
+$kind: http-request
+name: Update Recruitment Request
+method: PATCH
+url: '{{baseUrl}}/api/v1/recruitment-requests/{{requestId}}'
+order: 4000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "headcount": 3
+    }
+description: Update recruitment request details

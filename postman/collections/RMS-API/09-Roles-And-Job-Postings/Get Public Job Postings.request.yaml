@@ -1,0 +1,8 @@
+$kind: http-request
+name: Get Public Job Postings
+method: GET
+url: '{{baseUrl}}/api/v1/public/job-postings'
+order: 6000
+auth:
+  type: noauth
+description: Get all publicly available job postings (no auth required)

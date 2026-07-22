@@ -72,6 +72,49 @@ The UI suite checks role redirects, JavaScript errors, blank renders, page-level
 overflow, and button text overflow at `1440x900` and `390x844`. Screenshots are written to
 `/tmp/rms-<role>-<viewport>.png`.
 
+## Playwright UI Coverage
+
+The Playwright suite under `e2e/` covers every public route and every Admin, Department Head, HR,
+and Candidate route declared by the web application, including dynamic campaign, job-posting, and
+offer-detail pages. It also verifies login redirects, authorization boundaries, sign-out, public
+form validation, uncaught browser errors, blank renders, and horizontal page overflow.
+
+The stateful workflow tests under `e2e/use-cases/` exercise the user-visible normal, validation,
+alternative, and exception flows from the 61 project Use Cases. See
+[`use-case-e2e-coverage.md`](./use-case-e2e-coverage.md) for the complete traceability matrix and
+for Use Cases that are API/worker-only or still have a UI implementation gap.
+
+The default suite runs Chromium at desktop and mobile viewports. API responses are intercepted with
+deterministic browser-level fixtures, so the complete UI suite does not create or mutate development
+database records.
+
+```bash
+npm run test:ui:e2e
+```
+
+Run only the desktop Use Case workflows:
+
+```bash
+npm run test:ui:e2e:use-cases
+```
+
+Useful variants:
+
+```bash
+npm run test:ui:e2e:desktop
+npm run test:ui:e2e:cross-browser
+npm run test:ui:e2e:firefox
+npm run test:ui:e2e:headed
+npm run test:ui:e2e:report
+```
+
+The cross-browser command runs Chromium and WebKit serially for predictable resource usage.
+Firefox remains available as a separate command because some Windows headless environments cannot
+initialize its software compositor.
+
+Set `E2E_BASE_URL` to target another web URL. Set `E2E_SKIP_WEBSERVER=1` when that application is
+already managed outside Playwright.
+
 ## Quality Gates
 
 Run these before merging:

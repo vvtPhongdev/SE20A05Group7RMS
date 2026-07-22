@@ -1,0 +1,17 @@
+$kind: http-request
+name: Create Overall Plan
+method: POST
+url: '{{baseUrl}}/api/v1/overall-plan'
+order: 1000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "recruitmentRequestId": "{{requestId}}",
+      "title": "Q1 Hiring Plan",
+      "description": "Plan for Q1 hiring"
+    }
+description: Create an overall recruitment plan

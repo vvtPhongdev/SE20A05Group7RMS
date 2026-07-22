@@ -1,0 +1,6 @@
+$kind: http-request
+name: Confirm Interview
+method: POST
+url: '{{baseUrl}}/api/v1/interviews/schedules/{{scheduleId}}/confirm'
+order: 6000
+description: Confirm an interview schedule

@@ -1,0 +1,17 @@
+$kind: http-request
+name: Resend Register OTP
+method: POST
+url: '{{baseUrl}}/api/v1/auth/resend-register-otp'
+order: 3000
+auth:
+  type: noauth
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "email": "user@example.com"
+    }
+description: Resend registration OTP to email

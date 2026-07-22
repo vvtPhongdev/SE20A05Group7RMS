@@ -1,0 +1,6 @@
+$kind: http-request
+name: Send Invitations
+method: POST
+url: '{{baseUrl}}/api/v1/interviews/schedules/{{scheduleId}}/invitations'
+order: 9000
+description: Send interview invitations to all participants

@@ -1,0 +1,6 @@
+$kind: http-request
+name: Publish Job Posting
+method: POST
+url: '{{baseUrl}}/api/v1/job-postings/{{jobPostingId}}/publish'
+order: 9000
+description: Publish a job posting to make it public

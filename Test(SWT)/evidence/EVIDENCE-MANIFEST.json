@@ -1,0 +1,466 @@
+{
+  "generatedAt": "2026-07-20T06:47:37.484Z",
+  "total": 65,
+  "counts": {
+    "PASS": 55,
+    "FAIL": 7,
+    "BLOCKED": 3
+  },
+  "entries": [
+    {
+      "id": "RRP-001",
+      "status": "PASS",
+      "evidence": "api/RRP-001.log",
+      "size": 1516,
+      "sha256": "946741fd643485eef6daca926877ad1358135802f3f302294076533a14b66b57"
+    },
+    {
+      "id": "RRP-002",
+      "status": "PASS",
+      "evidence": "api/RRP-002.log",
+      "size": 892,
+      "sha256": "2c5f4e1fb9a91230514d29f83b28675cb1a8bb7a7a0fc562c9ce42eee807e34a"
+    },
+    {
+      "id": "RRP-003",
+      "status": "PASS",
+      "evidence": "api/RRP-003.log",
+      "size": 1097,
+      "sha256": "62a75d551bf94ad4c80fd001da33254484816c72c14316da97e108f0aaa2ea1e"
+    },
+    {
+      "id": "RRP-004",
+      "status": "PASS",
+      "evidence": "api/RRP-004.log",
+      "size": 2200,
+      "sha256": "ca5ce375aa933c00207af16392493db367888acae2ddce10fc48fdd05fd1ed97"
+    },
+    {
+      "id": "RRP-005",
+      "status": "PASS",
+      "evidence": "api/RRP-005.log",
+      "size": 1225,
+      "sha256": "3ac7d4a10b6dbe576419cfff9beda10f45b9e5d112d4bc91c956265d31fea56a"
+    },
+    {
+      "id": "RRP-006",
+      "status": "PASS",
+      "evidence": "api/RRP-006.log",
+      "size": 7512,
+      "sha256": "0b9fc17e544518cd0ce5b292abd04c2e33e67306f7510c0768b05c2ba2f5f7aa"
+    },
+    {
+      "id": "RRP-007",
+      "status": "PASS",
+      "evidence": "api/RRP-007.log",
+      "size": 1840,
+      "sha256": "6d8d9955faa6a2e9a65029dcfe0bd3099769998e01663ddd7508b7f66ecd235c"
+    },
+    {
+      "id": "RRP-008",
+      "status": "PASS",
+      "evidence": "api/RRP-008.log",
+      "size": 1162,
+      "sha256": "1cbe5bb25fb9ed1fa81600a78889a6df5f9a0d1b404e29394ee2fb4b2905959d"
+    },
+    {
+      "id": "RRP-009",
+      "status": "PASS",
+      "evidence": "api/RRP-009.log",
+      "size": 3682,
+      "sha256": "3a6c32b245ecba697bb4d375ef360f7df3d87687f4069396f16e0c418c8bf131"
+    },
+    {
+      "id": "RRP-010",
+      "status": "PASS",
+      "evidence": "api/RRP-010.log",
+      "size": 4569,
+      "sha256": "1f8c45097f7beabf857cef0fa83639f6ae1e4eabe044553f1f264fb0f8cee1ee"
+    },
+    {
+      "id": "RRP-011",
+      "status": "PASS",
+      "evidence": "api/RRP-011.log",
+      "size": 4518,
+      "sha256": "60daa2c9c36120b21b8544f025087426ec9e8ea251659a9deeb051f5bd56d427"
+    },
+    {
+      "id": "RRP-012",
+      "status": "FAIL",
+      "evidence": "api/RRP-012.log",
+      "size": 1060,
+      "sha256": "6ff75af25e2a20b2a13192200bec457da0b13555cee7cf63651eaf573944a45b"
+    },
+    {
+      "id": "RRP-013",
+      "status": "PASS",
+      "evidence": "api/RRP-013.log",
+      "size": 5319,
+      "sha256": "86f6de3ffbb4d553b3acbde8bfaca64a724c8899237bd7cc487e35a605097939"
+    },
+    {
+      "id": "RRP-014",
+      "status": "PASS",
+      "evidence": "api/RRP-014.log",
+      "size": 1241,
+      "sha256": "40ff4423e53f0e306040e5d6a5dbf779bbb5c94ed773f22d18600b28d5ec1c2d"
+    },
+    {
+      "id": "AUTH-001",
+      "status": "PASS",
+      "evidence": "api/AUTH-001.log",
+      "size": 719,
+      "sha256": "6a60f1190fb146419371611603f2fe95562f684e41697ad03088876b4064a808"
+    },
+    {
+      "id": "AUTH-002",
+      "status": "PASS",
+      "evidence": "api/AUTH-002.log",
+      "size": 617,
+      "sha256": "e34dc9a532829ebbb41d96b4d30c574ee9d0d485e2b264e0ad2817e0c63d7fef"
+    },
+    {
+      "id": "AUTH-003",
+      "status": "PASS",
+      "evidence": "api/AUTH-003.log",
+      "size": 647,
+      "sha256": "7db2e5bd6cd0ae5c064b76d61fdaa400d550cc9398705b48f8006e24cd3971a5"
+    },
+    {
+      "id": "AUTH-004",
+      "status": "PASS",
+      "evidence": "api/AUTH-004.log",
+      "size": 537,
+      "sha256": "acc04b12bdbbbb8d616bb5aa68128959e9b1d1acde80019d2c9c6e62c1c9a0aa"
+    },
+    {
+      "id": "AUTH-005",
+      "status": "PASS",
+      "evidence": "api/AUTH-005.log",
+      "size": 979,
+      "sha256": "38154995845ff29de917578598195fd07b2fa505d0765daefc6cf18527a2bdee"
+    },
+    {
+      "id": "AUTH-006",
+      "status": "PASS",
+      "evidence": "api/AUTH-006.log",
+      "size": 1285,
+      "sha256": "d713d271f32562bccba8bf55e87667bbf944e14f03aafa6782dcb6247c4b6191"
+    },
+    {
+      "id": "AUTH-007",
+      "status": "PASS",
+      "evidence": "api/AUTH-007.log",
+      "size": 410,
+      "sha256": "de08f4e23313c28b0a5b522b7583e1cfc9526b1c2ee1cf69998c9906d973204b"
+    },
+    {
+      "id": "AUTH-008",
+      "status": "PASS",
+      "evidence": "api/AUTH-008.log",
+      "size": 1011,
+      "sha256": "dfec72669b1177b61fe7143dc1479653cbdfa6269201ede1d2eb7b0daf4bef1c"
+    },
+    {
+      "id": "AUTH-009",
+      "status": "PASS",
+      "evidence": "api/AUTH-009.log",
+      "size": 639,
+      "sha256": "9a0ecf71a24489759ba89a291628f0ad5e42ae74774c5f5f06861163a0ad111e"
+    },
+    {
+      "id": "AUTH-010",
+      "status": "PASS",
+      "evidence": "api/AUTH-010.log",
+      "size": 697,
+      "sha256": "8ec72a16995979b61697491053d510f457b8dc603aabc49e1411e96025be125f"
+    },
+    {
+      "id": "AUTH-011",
+      "status": "PASS",
+      "evidence": "api/AUTH-011.log",
+      "size": 3817,
+      "sha256": "44f8d1215229c88b69a77dc77e459c23bb417f70e9b0ceafa9ffdb7a106ff42c"
+    },
+    {
+      "id": "AUTH-012",
+      "status": "PASS",
+      "evidence": "api/AUTH-012.log",
+      "size": 2260,
+      "sha256": "10358ce7f12dbe7d63ba880c7598b1b317c4c035c7de751f26b8fa1d0e259bed"
+    },
+    {
+      "id": "AUTH-013",
+      "status": "PASS",
+      "evidence": "api/AUTH-013.log",
+      "size": 4324,
+      "sha256": "3612467323d96cb1783a207aa5fe9a473ffe5c055d29c8bc1e02313dc1a65116"
+    },
+    {
+      "id": "AUTH-014",
+      "status": "PASS",
+      "evidence": "api/AUTH-014.log",
+      "size": 14483,
+      "sha256": "07a54794907de0d487e0d81d4b4f13dbcdc0f31107edde015ad8c97d96d8e081"
+    },
+    {
+      "id": "INT-001",
+      "status": "PASS",
+      "evidence": "api/INT-001.log",
+      "size": 7007,
+      "sha256": "84f9b63a9e3b6ebe9237ad1c4a146980f99effabe771f05188bc0d963a5f7eb4"
+    },
+    {
+      "id": "INT-002",
+      "status": "FAIL",
+      "evidence": "api/INT-002.log",
+      "size": 935,
+      "sha256": "6b441ab4544fe0cd4c4a56983cec9d84542963653400c19de24bc8bbadfc1630"
+    },
+    {
+      "id": "INT-003",
+      "status": "PASS",
+      "evidence": "api/INT-003.log",
+      "size": 3915,
+      "sha256": "924ff0a290638e67029486d7306f4687f853c9dd427a9d31b2c5d32d7cf92ef7"
+    },
+    {
+      "id": "INT-004",
+      "status": "PASS",
+      "evidence": "api/INT-004.log",
+      "size": 1688,
+      "sha256": "dd04186ce94212369ecf5ab78c57b996899abc57c5b25a5cb361b05074554ba3"
+    },
+    {
+      "id": "INT-005",
+      "status": "PASS",
+      "evidence": "api/INT-005.log",
+      "size": 2362,
+      "sha256": "04f99fcbc4b1919a303737b3ffe4cbdc71a08ff6f12b2d6fe0cd90ce355099f9"
+    },
+    {
+      "id": "INT-006",
+      "status": "PASS",
+      "evidence": "api/INT-006.log",
+      "size": 3597,
+      "sha256": "f5559254115bc8e5a4510acb5380da76ede52db205997e68aff58ac2a37ca434"
+    },
+    {
+      "id": "CV-001",
+      "status": "PASS",
+      "evidence": "api/CV-001.log",
+      "size": 2055,
+      "sha256": "251d5de880d27253d92f6085fbeba58b92a070ece18447082e171d2b53003542"
+    },
+    {
+      "id": "CV-002",
+      "status": "PASS",
+      "evidence": "api/CV-002.log",
+      "size": 528,
+      "sha256": "91a9fc4a11f6f84fb40d58b55d0adf6977753e28636ca182e4bcad898ae1ae32"
+    },
+    {
+      "id": "CV-003",
+      "status": "PASS",
+      "evidence": "api/CV-003.log",
+      "size": 1010,
+      "sha256": "4fbd0771a2a60e76743963170ca192dc352a6306091a8220fdfd5c2e56fd177c"
+    },
+    {
+      "id": "CV-004",
+      "status": "PASS",
+      "evidence": "api/CV-004.log",
+      "size": 37693,
+      "sha256": "41d93299a55ebf1ccf3b94f729cfebd6b08a670279e315a5d1b82ba2ccc5afbf"
+    },
+    {
+      "id": "CV-005",
+      "status": "PASS",
+      "evidence": "api/CV-005.log",
+      "size": 4303,
+      "sha256": "11117ebe0b4f2266db29a47dca12195afb17e1ef5094768a4eeb4523af493d04"
+    },
+    {
+      "id": "CV-006",
+      "status": "PASS",
+      "evidence": "api/CV-006.log",
+      "size": 459,
+      "sha256": "abf7604fdc22813ae98b9212e8bbf4b0242a3df7cc32cf51619ef7d610af8b24"
+    },
+    {
+      "id": "CV-007",
+      "status": "PASS",
+      "evidence": "api/CV-007.log",
+      "size": 635,
+      "sha256": "d09911326c495f75096c76d8cb5cbed1e758c98389cad6355f74c7c655ffc5a6"
+    },
+    {
+      "id": "NOTI-001",
+      "status": "PASS",
+      "evidence": "api/NOTI-001.log",
+      "size": 5812,
+      "sha256": "177b04bdb4748b985821fb853aedd097c9f51ce59057f4cf0e9fbd92f806cf65"
+    },
+    {
+      "id": "NOTI-002",
+      "status": "PASS",
+      "evidence": "api/NOTI-002.log",
+      "size": 862,
+      "sha256": "297bf4043cbc57bee17c882f7c93e0ce21a6592f1acd1c6e4c054607094d5bf3"
+    },
+    {
+      "id": "NOTI-003",
+      "status": "PASS",
+      "evidence": "api/NOTI-003.log",
+      "size": 329,
+      "sha256": "039ae296a53a641067ff7eeaf57631dce62351ce2e63682c9fe04971e4b9c71e"
+    },
+    {
+      "id": "NOTI-004",
+      "status": "PASS",
+      "evidence": "api/NOTI-004.log",
+      "size": 5885,
+      "sha256": "f8cf7ed7a17b14430760154edd347d36be3f3c6dbc8f27528dc19be843691a37"
+    },
+    {
+      "id": "NOTI-005",
+      "status": "PASS",
+      "evidence": "api/NOTI-005.log",
+      "size": 1428,
+      "sha256": "dfd5c6f2122a6e042975c276beef4480150ae88ea54dc1b2ba050c39c200e693"
+    },
+    {
+      "id": "REP-001",
+      "status": "PASS",
+      "evidence": "api/REP-001.log",
+      "size": 2213,
+      "sha256": "1ba607290cb5e52032dddee35fcf8339305843309c316e321a8c1667836fede6"
+    },
+    {
+      "id": "REP-002",
+      "status": "PASS",
+      "evidence": "api/REP-002.log",
+      "size": 770,
+      "sha256": "bb662fd0d0478bb91d7257c7751b84afd9dd61d8a6d857261390b010ae3a537f"
+    },
+    {
+      "id": "REP-003",
+      "status": "PASS",
+      "evidence": "api/REP-003.log",
+      "size": 704,
+      "sha256": "9187dfa72cb774a894dcfea072f0584c1e2c873e502961611f37d227ca69e0ac"
+    },
+    {
+      "id": "REP-004",
+      "status": "PASS",
+      "evidence": "api/REP-004.log",
+      "size": 691,
+      "sha256": "5ca3860ad4ca18dbb71f747e5b519d954b8a68022a8c4982d97e8d654acc1e82"
+    },
+    {
+      "id": "REP-005",
+      "status": "PASS",
+      "evidence": "api/REP-005.log",
+      "size": 498,
+      "sha256": "71ca78706a0f9e9f78eab3a8c5f75b7138d347700734da2cb16cdff166b3ab24"
+    },
+    {
+      "id": "DEF-001",
+      "status": "BLOCKED",
+      "evidence": "api/DEF-001.log",
+      "size": 325,
+      "sha256": "2dd406690489af36158eba3297421eeb99f8d07337666b3e8058562a5fe28088"
+    },
+    {
+      "id": "DEF-002",
+      "status": "BLOCKED",
+      "evidence": "api/DEF-002.log",
+      "size": 257,
+      "sha256": "6e460e477786c063f88fa71e63b143b8beaf02e6fa6beed028d2a9eaee5bb190"
+    },
+    {
+      "id": "FE-001",
+      "status": "PASS",
+      "evidence": "ui/FE-001.log",
+      "size": 671,
+      "sha256": "8e263534c530e941c7a28a0d7566d13cb7ccdb9099ae860c6fa8fd2b170dd5c6"
+    },
+    {
+      "id": "FE-002",
+      "status": "PASS",
+      "evidence": "ui/FE-002.log",
+      "size": 1098,
+      "sha256": "ae5726d68654ed2173e598d3fda4b654c7b1690f6bb2a6901db34123c9e4d99f"
+    },
+    {
+      "id": "FE-003",
+      "status": "FAIL",
+      "evidence": "ui/FE-003.log",
+      "size": 36349,
+      "sha256": "d78b9930dd07bc50a7eed95c129a8cf42704a85a5955f05f786c710665dae449"
+    },
+    {
+      "id": "FE-004",
+      "status": "PASS",
+      "evidence": "ui/FE-004.log",
+      "size": 973,
+      "sha256": "d9f67cb5c202c2ec5bad8057e01c9cfa850a609fc4cdfd4c6863a9db032f37e5"
+    },
+    {
+      "id": "FE-005",
+      "status": "FAIL",
+      "evidence": "ui/FE-005.log",
+      "size": 647,
+      "sha256": "d0fa1080e531fdb6203104b90785acb40f99b1d8aa08f64102fc7b07ee829ecb"
+    },
+    {
+      "id": "FE-006",
+      "status": "PASS",
+      "evidence": "ui/FE-006.log",
+      "size": 20204,
+      "sha256": "2eff0728df1cc9fb97f02a5d4bd6a67ef1a16f59b0370707eca81a7d54e5477a"
+    },
+    {
+      "id": "FE-007",
+      "status": "BLOCKED",
+      "evidence": "ui/FE-007.log",
+      "size": 463,
+      "sha256": "55d22bed88e63801848934ec9aba3a6fa34fe0c56771bcaf18a5642d2bface64"
+    },
+    {
+      "id": "FE-008",
+      "status": "FAIL",
+      "evidence": "ui/FE-008.log",
+      "size": 10875,
+      "sha256": "0aace41f57d435a32eeb4c02f9ed0541fc0a7658e2e8b3b0f353d85bdaca07d7"
+    },
+    {
+      "id": "FE-009",
+      "status": "PASS",
+      "evidence": "ui/FE-009.log",
+      "size": 1879,
+      "sha256": "68364b7b0043dd668b965e9093a3fa925206d6a77971d276551033b1a29a9635"
+    },
+    {
+      "id": "FE-010",
+      "status": "FAIL",
+      "evidence": "ui/FE-010.log",
+      "size": 874,
+      "sha256": "4c6e8f58f73a78be38c2c0abe7773aea18fb085d205636ce871e531d50aa8614"
+    },
+    {
+      "id": "FE-011",
+      "status": "FAIL",
+      "evidence": "ui/FE-011.log",
+      "size": 672,
+      "sha256": "2a26b32ea49c3e5d859899c62db50019afa888c77a3607854321abbcf39b06bd"
+    },
+    {
+      "id": "FE-012",
+      "status": "PASS",
+      "evidence": "ui/FE-012.log",
+      "size": 1123,
+      "sha256": "ec64ba50414dc98ef45f581ce63761199ae37c44e956665152e333a12fb212ea"
+    }
+  ]
+}

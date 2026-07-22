@@ -1,0 +1,6 @@
+$kind: http-request
+name: List My CVs
+method: GET
+url: '{{baseUrl}}/api/v1/candidate/cvs'
+order: 3000
+description: List all CVs for the current candidate

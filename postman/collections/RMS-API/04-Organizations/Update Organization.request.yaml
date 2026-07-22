@@ -1,0 +1,15 @@
+$kind: http-request
+name: Update Organization
+method: PATCH
+url: '{{baseUrl}}/api/v1/organizations/{{organizationId}}'
+order: 4000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "name": "Acme Corporation"
+    }
+description: Update organization details

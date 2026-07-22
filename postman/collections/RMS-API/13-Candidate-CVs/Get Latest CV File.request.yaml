@@ -1,0 +1,6 @@
+$kind: http-request
+name: Get Latest CV File
+method: GET
+url: '{{baseUrl}}/api/v1/candidate/cvs/candidate/{{candidateId}}/latest/file'
+order: 2000
+description: Download the latest CV file for a candidate

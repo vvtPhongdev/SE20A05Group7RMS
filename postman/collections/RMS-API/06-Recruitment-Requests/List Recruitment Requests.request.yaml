@@ -1,0 +1,6 @@
+$kind: http-request
+name: List Recruitment Requests
+method: GET
+url: '{{baseUrl}}/api/v1/recruitment-requests'
+order: 1000
+description: List all recruitment requests
