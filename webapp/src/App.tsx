@@ -8,6 +8,7 @@ import { SignUp } from './pages/SignUp';
 import { EmailOtpVerification } from './pages/EmailOtpVerification';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
+import { AccountSettings } from './pages/AccountSettings';
 import { Unauthorized } from './pages/Unauthorized';
 import { AdminDashboard } from './features/admin/pages/AdminDashboard';
 import { AdminApprovalQueue } from './features/admin/pages/AdminApprovalQueue';
@@ -96,6 +97,16 @@ export function App() {
               <ProtectedRoute>
                 <Layout>
                   <HomeRedirect />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/account-settings"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <AccountSettings />
                 </Layout>
               </ProtectedRoute>
             }
