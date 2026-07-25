@@ -98,3 +98,4 @@ archive/
 
 # Postman/Newman generated reports
 /Test(SWT)/Postman/reports/
+**/.codex-tmp/**
