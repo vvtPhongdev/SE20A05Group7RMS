@@ -20,6 +20,7 @@ describe('DepartmentsService', () => {
     },
     user: {
       findUnique: jest.fn(),
+      update: jest.fn(),
     },
   };
 
@@ -72,6 +73,10 @@ describe('DepartmentsService', () => {
       expect(prisma.department.findFirst).toHaveBeenCalled();
       expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { id: mockHeadUserId } });
       expect(prisma.department.create).toHaveBeenCalled();
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: mockHeadUserId },
+        data: { departmentId: mockDeptId },
+      });
       expect(result).toEqual(createdDept);
     });
 
@@ -232,6 +237,27 @@ describe('DepartmentsService', () => {
           message: 'A department cannot be its own parent',
         }),
       );
+    });
+
+    it('assigns the selected department head to the department', async () => {
+      mockPrismaService.department.findUnique.mockImplementation((params) => {
+        if (params.where.id === mockDeptId) {
+          return Promise.resolve({ id: mockDeptId, organizationId: mockOrgId });
+        }
+        return Promise.resolve(null);
+      });
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: mockHeadUserId,
+        role: UserRole.DEPARTMENT_HEAD,
+      });
+      mockPrismaService.department.update.mockResolvedValue({ id: mockDeptId });
+
+      await service.update({ id: mockDeptId, headUserId: mockHeadUserId });
+
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: mockHeadUserId },
+        data: { departmentId: mockDeptId },
+      });
     });
   });
 

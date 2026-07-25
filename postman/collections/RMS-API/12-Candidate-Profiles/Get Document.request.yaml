@@ -1,0 +1,6 @@
+$kind: http-request
+name: Get Document
+method: GET
+url: '{{baseUrl}}/api/v1/documents/{{documentId}}'
+order: 12000
+description: Get document by ID

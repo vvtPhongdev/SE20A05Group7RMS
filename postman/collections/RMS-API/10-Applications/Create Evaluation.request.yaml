@@ -1,0 +1,15 @@
+$kind: http-request
+name: Create Evaluation
+method: POST
+url: '{{baseUrl}}/api/v1/evaluations'
+order: 7000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "applicationId": "{{applicationId}}"
+    }
+description: Create an evaluation for an application

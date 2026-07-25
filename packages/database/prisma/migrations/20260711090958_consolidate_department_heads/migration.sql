@@ -10,7 +10,11 @@ BEGIN
   LIMIT 1;
 
   IF target_user_id IS NULL THEN
-    RAISE EXCEPTION 'Cannot consolidate department heads: nlbtboss1@gmail.com was not found';
+    -- This account belongs to the demo seed data and is not guaranteed to
+    -- exist in every environment. There is nothing to consolidate when it is
+    -- absent, so allow production migration deployment to continue.
+    RAISE NOTICE 'Skipping department-head consolidation: nlbtboss1@gmail.com was not found';
+    RETURN;
   END IF;
 
   UPDATE "users"

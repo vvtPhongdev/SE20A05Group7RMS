@@ -1,0 +1,6 @@
+$kind: http-request
+name: Submit Overall Plan
+method: PATCH
+url: '{{baseUrl}}/api/v1/overall-plan/{{planId}}/submit'
+order: 4000
+description: Submit overall plan for approval

@@ -1,0 +1,6 @@
+$kind: http-request
+name: Get Me ID
+method: GET
+url: '{{baseUrl}}/api/v1/me/id'
+order: 11000
+description: Get current authenticated user ID

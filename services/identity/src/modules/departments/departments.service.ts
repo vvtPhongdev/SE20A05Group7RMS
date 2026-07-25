@@ -101,7 +101,7 @@ export class DepartmentsService {
       }
     }
 
-    return this.prisma.department.create({
+    const department = await this.prisma.department.create({
       data: {
         organizationId: parsed.organizationId,
         name: parsed.name,
@@ -112,6 +112,15 @@ export class DepartmentsService {
         parentId: parsed.parentId || null,
       },
     });
+
+    if (parsed.headUserId) {
+      await this.prisma.user.update({
+        where: { id: parsed.headUserId },
+        data: { departmentId: department.id },
+      });
+    }
+
+    return department;
   }
 
   async list(query?: {

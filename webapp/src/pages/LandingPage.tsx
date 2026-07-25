@@ -18,7 +18,9 @@ type PublicJobPosting = {
 };
 
 const asRecord = (value: unknown): Record<string, unknown> =>
-  value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 
 const getJobBannerUrl = (job: PublicJobPosting) => {
   const media = asRecord(job.requirements).recruitmentMedia;
@@ -135,8 +137,19 @@ export const LandingPage: React.FC = () => {
       <header className="fixed top-0 z-30 w-full border-b border-border-warm bg-clean-surface/95 backdrop-blur">
         <nav className="mx-auto flex h-16 w-full max-w-[1440px] items-center justify-between px-5 sm:px-8">
           <div className="flex items-center gap-8">
-            <Link className="text-2xl font-bold tracking-tight text-deep-charcoal" to="/">
-              RMS
+            <Link
+              aria-label="RMS Recruiter home"
+              className="isolate inline-flex h-full items-center overflow-hidden bg-clean-surface transition-colors dark:bg-deep-charcoal"
+              to="/"
+            >
+              <object
+                aria-label="RMS Recruiter"
+                className="pointer-events-none h-14 w-auto object-contain transition"
+                data="/logo-offical.svg"
+                type="image/svg+xml"
+              >
+                RMS Recruiter
+              </object>
             </Link>
             <div className="hidden items-center gap-6 md:flex">
               <a
@@ -359,39 +372,45 @@ export const LandingPage: React.FC = () => {
                 {jobs.map((job) => {
                   const bannerUrl = getJobBannerUrl(job);
                   return (
-                  <article
-                    className="flex min-h-56 flex-col overflow-hidden rounded-xl border border-border-warm bg-clean-surface shadow-sm"
-                    key={job.id}
-                  >
-                    {bannerUrl ? (
-                      <img alt={`${job.title} banner`} className="h-36 w-full object-cover" src={bannerUrl} />
-                    ) : null}
-                    <div className="flex flex-1 flex-col p-5">
-                    <div className="mb-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-teal-command">
-                        {job.request?.department?.name ?? 'Hiring team'}
-                      </p>
-                      <h3 className="mt-2 text-xl font-semibold text-deep-charcoal">{job.title}</h3>
-                    </div>
-                    <p className="line-clamp-4 flex-1 text-sm leading-6 text-slate-ink">
-                      {job.description}
-                    </p>
-                    <div className="mt-5 flex items-center justify-between gap-3">
-                      <span className="text-xs font-semibold text-slate-ink">
-                        {job.expireDate
-                          ? `Closes ${new Date(job.expireDate).toLocaleDateString()}`
-                          : 'Open until filled'}
-                      </span>
-                      <button
-                        className="inline-flex h-9 items-center rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-[#0f766e] active:scale-[0.98]"
-                        onClick={() => setSelectedJob(job)}
-                        type="button"
-                      >
-                        View details
-                      </button>
-                    </div>
-                    </div>
-                  </article>
+                    <article
+                      className="flex min-h-56 flex-col overflow-hidden rounded-xl border border-border-warm bg-clean-surface shadow-sm"
+                      key={job.id}
+                    >
+                      {bannerUrl ? (
+                        <img
+                          alt={`${job.title} banner`}
+                          className="h-36 w-full object-cover"
+                          src={bannerUrl}
+                        />
+                      ) : null}
+                      <div className="flex flex-1 flex-col p-5">
+                        <div className="mb-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-teal-command">
+                            {job.request?.department?.name ?? 'Hiring team'}
+                          </p>
+                          <h3 className="mt-2 text-xl font-semibold text-deep-charcoal">
+                            {job.title}
+                          </h3>
+                        </div>
+                        <p className="line-clamp-4 flex-1 text-sm leading-6 text-slate-ink">
+                          {job.description}
+                        </p>
+                        <div className="mt-5 flex items-center justify-between gap-3">
+                          <span className="text-xs font-semibold text-slate-ink">
+                            {job.expireDate
+                              ? `Closes ${new Date(job.expireDate).toLocaleDateString()}`
+                              : 'Open until filled'}
+                          </span>
+                          <button
+                            className="inline-flex h-9 items-center rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-[#0f766e] active:scale-[0.98]"
+                            onClick={() => setSelectedJob(job)}
+                            type="button"
+                          >
+                            View details
+                          </button>
+                        </div>
+                      </div>
+                    </article>
                   );
                 })}
               </div>

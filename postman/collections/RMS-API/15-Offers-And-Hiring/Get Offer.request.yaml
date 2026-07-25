@@ -1,0 +1,6 @@
+$kind: http-request
+name: Get Offer
+method: GET
+url: '{{baseUrl}}/api/v1/offers/{{offerId}}'
+order: 4000
+description: Get offer by ID

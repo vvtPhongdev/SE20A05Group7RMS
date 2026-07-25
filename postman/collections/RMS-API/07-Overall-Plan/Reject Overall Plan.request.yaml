@@ -1,0 +1,15 @@
+$kind: http-request
+name: Reject Overall Plan
+method: PATCH
+url: '{{baseUrl}}/api/v1/overall-plan/{{planId}}/reject'
+order: 6000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "revisionNotes": "Needs more detail"
+    }
+description: Reject the overall plan with revision notes

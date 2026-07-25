@@ -1,0 +1,3319 @@
+{
+  "info": {
+    "_postman_id": "70f9d286-7eaf-40e4-8e0e-4db951e5cb91",
+    "name": "RMS Group 5 - SWT Full Test Suite (65 TC)",
+    "description": "Postman design for all 65 test cases from TestCases_RMS_Group5.xlsx (the supplied CSV is only the overview export).\n\nRun order: 00 Setup, then folders 01-05. API mappings follow the live Swagger document at http://localhost:3001/api/docs-json.\n\nImportant: Candidate-dependent cases require two existing Candidate accounts that already have profiles. UI, defect-process, reset-OTP, and outage cases are documented and skipped by default because they need manual preconditions outside Postman.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00 - Setup runner context (helpers, not source TC)",
+      "item": [
+        {
+          "name": "Setup 01 - Login seeded ADMIN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Setup | Admin login', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "const json = pm.response.json();\nconst now = new Date();\nconst runId = now.toISOString().replace(/\\D/g, '').slice(0, 14);\npm.collectionVariables.set('runId', runId);\npm.environment.set('runId', runId);\npm.environment.set('runSuffix', runId.slice(-6));\npm.environment.set('adminToken', json.accessToken);\npm.environment.set('adminRefreshToken', json.refreshToken);\npm.environment.set('adminUserId', json.user.id);\nif (json.user.organizationId) {\n  pm.environment.set('organizationId', json.user.organizationId);\n} else {\n  pm.sendRequest({\n    url: pm.variables.replaceIn('{{apiBase}}/organizations'),\n    method: 'GET',\n    header: { Authorization: 'Bearer ' + json.accessToken }\n  }, function (error, response) {\n    if (error) throw error;\n    pm.test('Setup | organization resolved', function () { pm.expect(response.code).to.eql(200); });\n    const payload = response.json();\n    const organizations = Array.isArray(payload) ? payload : (Array.isArray(payload.data) ? payload.data : [payload]);\n    pm.expect(organizations[0], 'At least one seeded organization is required').to.have.property('id');\n    pm.environment.set('organizationId', organizations[0].id);\n  });\n}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBase}}/auth/login",
+            "description": "Postman runner setup helper. This item is not one of the 65 source test cases.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"email\": \"{{adminEmail}}\", \"password\": \"{{adminPassword}}\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Setup 02 - Create disposable HR_LEADER",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Setup | HR user created', function () { pm.expect(pm.response.code).to.eql(201); });",
+                  "const json = pm.response.json(); pm.environment.set('hrUserId', json.id); pm.environment.set('hrEmail', json.email);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBase}}/users",
+            "description": "Postman runner setup helper. This item is not one of the 65 source test cases.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"postman.hr.{{runId}}@demo.test\",\n  \"displayName\": \"Postman HR {{runId}}\",\n  \"role\": \"HR_LEADER\",\n  \"organizationId\": \"{{organizationId}}\",\n  \"password\": \"{{roleAccountPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Setup 03 - Login HR_LEADER",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Setup | HR login', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (pm.response.code === 200) { const json = pm.response.json(); pm.environment.set('hrToken', json.accessToken); pm.environment.set('hrRefreshToken', json.refreshToken); pm.environment.set('hrUserId', json.user.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBase}}/auth/login",
+            "description": "Postman runner setup helper. This item is not one of the 65 source test cases.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"email\": \"{{hrEmail}}\", \"password\": \"{{roleAccountPassword}}\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Setup 04 - Create disposable DEPARTMENT_HEAD",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Setup | Department Head created', function () { pm.expect(pm.response.code).to.eql(201); });",
+                  "const json = pm.response.json(); pm.environment.set('deptHeadUserId', json.id); pm.environment.set('deptHeadEmail', json.email);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBase}}/users",
+            "description": "Postman runner setup helper. This item is not one of the 65 source test cases.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"postman.dept.{{runId}}@demo.test\",\n  \"displayName\": \"Postman Department Head {{runId}}\",\n  \"role\": \"DEPARTMENT_HEAD\",\n  \"organizationId\": \"{{organizationId}}\",\n  \"password\": \"{{roleAccountPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Setup 05 - Create disposable department",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Setup | Department created', function () { pm.expect(pm.response.code).to.eql(201); });",
+                  "const json = pm.response.json(); pm.environment.set('departmentId', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBase}}/departments",
+            "description": "Postman runner setup helper. This item is not one of the 65 source test cases.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Postman QA {{runSuffix}}\",\n  \"code\": \"PM{{runSuffix}}\",\n  \"headUserId\": \"{{deptHeadUserId}}\",\n  \"skills\": [\"TypeScript\", \"Postman\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Setup 06 - Assign department to DEPARTMENT_HEAD",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Setup | Department assigned', function () { pm.expect(pm.response.code).to.eql(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBase}}/users/{{deptHeadUserId}}",
+            "description": "Postman runner setup helper. This item is not one of the 65 source test cases.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"departmentId\": \"{{departmentId}}\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Setup 07 - Login DEPARTMENT_HEAD",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Setup | Department Head login', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (pm.response.code === 200) { const json = pm.response.json(); pm.environment.set('deptHeadToken', json.accessToken); pm.environment.set('deptHeadRefreshToken', json.refreshToken); pm.environment.set('deptHeadUserId', json.user.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBase}}/auth/login",
+            "description": "Postman runner setup helper. This item is not one of the 65 source test cases.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"email\": \"{{deptHeadEmail}}\", \"password\": \"{{roleAccountPassword}}\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Setup 08 - Login Candidate A (optional, existing profile)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('candidateAEmail') || !pm.environment.get('candidateAPassword')) { console.warn('Candidate A credentials not configured; candidate-dependent cases will skip.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Setup | Candidate A login', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "const json = pm.response.json(); pm.environment.set('candidateAToken', json.accessToken); pm.environment.set('candidateAUserId', json.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBase}}/auth/login",
+            "description": "Postman runner setup helper. This item is not one of the 65 source test cases.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"email\": \"{{candidateAEmail}}\", \"password\": \"{{candidateAPassword}}\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Setup 09 - Resolve Candidate A profile (optional)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"candidateAToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Candidate A login was skipped\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Setup | Candidate A profile', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "const json = pm.response.json(); pm.environment.set('candidateAProfileId', json.id); pm.environment.set('candidateAUserId', json.userId || pm.environment.get('candidateAUserId'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateAToken}}"
+              }
+            ],
+            "url": "{{apiBase}}/candidate-profiles/me",
+            "description": "Postman runner setup helper. This item is not one of the 65 source test cases."
+          }
+        },
+        {
+          "name": "Setup 10 - Login Candidate B (optional, existing profile)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('candidateBEmail') || !pm.environment.get('candidateBPassword')) { console.warn('Candidate B credentials not configured; candidate-dependent cases will skip.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Setup | Candidate B login', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "const json = pm.response.json(); pm.environment.set('candidateBToken', json.accessToken); pm.environment.set('candidateBUserId', json.user.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{apiBase}}/auth/login",
+            "description": "Postman runner setup helper. This item is not one of the 65 source test cases.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"email\": \"{{candidateBEmail}}\", \"password\": \"{{candidateBPassword}}\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Setup 11 - Resolve Candidate B profile (optional)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"candidateBToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Candidate B login was skipped\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Setup | Candidate B profile', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "const json = pm.response.json(); pm.environment.set('candidateBProfileId', json.id); pm.environment.set('candidateBUserId', json.userId || pm.environment.get('candidateBUserId'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateBToken}}"
+              }
+            ],
+            "url": "{{apiBase}}/candidate-profiles/me",
+            "description": "Postman runner setup helper. This item is not one of the 65 source test cases."
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 - Nam - Recruitment Request & Plan (14 TC)",
+      "item": [
+        {
+          "name": "RRP-001 - Tao yeu cau tuyen dung hop le",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"deptHeadToken\",\"departmentId\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Run folder 00 - Setup first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [201];",
+                  "pm.test(\"RRP-001 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"RRP-001 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('RRP-001 | status is DRAFT', function () { pm.expect(json).to.have.property('status', 'DRAFT'); });",
+                  "if (json && json.id) { pm.environment.set('requestId', json.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{deptHeadToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/recruitment-requests",
+            "description": "**Nguồn:** Nam - Request & Plan / RRP-001\n\n- Người thực hiện: Nam\n- Tuần / module / cấp độ: Tuan 2 / Recruitment Requests / Functional\n- Ưu tiên / approach: Cao / Black Box Testing\n- Tiền điều kiện: Dang nhap voi role DEPARTMENT_HEAD\n- Các bước gốc: 1. POST /recruitment-requests voi du lieu hop le\n- Dữ liệu: title, headcount, department hop le\n- Kết quả mong đợi: Request duoc tao trang thai DRAFT\n\n**Ánh xạ API hiện tại:** Giữ nguyên endpoint/mục tiêu kiểm thử.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"departmentId\": \"{{departmentId}}\",\n  \"positionTitle\": \"Postman {{runId}} Backend Developer\",\n  \"headcount\": 2,\n  \"jobDescription\": \"Build and maintain the RMS backend services.\",\n  \"justification\": \"SWT verification {{runId}}\",\n  \"urgency\": \"MEDIUM\",\n  \"skillRequirements\": { \"skills\": [\"TypeScript\", \"NestJS\", \"PostgreSQL\"] }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "RRP-002 - Tao yeu cau thieu truong bat buoc",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"deptHeadToken\",\"departmentId\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Run folder 00 - Setup first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [400];",
+                  "pm.test(\"RRP-002 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"RRP-002 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('RRP-002 | validation error returned', function () { pm.expect(json && (json.message || json.error)).to.exist; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{deptHeadToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/recruitment-requests",
+            "description": "**Nguồn:** Nam - Request & Plan / RRP-002\n\n- Người thực hiện: Nam\n- Tuần / module / cấp độ: Tuan 2 / Recruitment Requests / Boundary\n- Ưu tiên / approach: Cao / Black Box Testing\n- Tiền điều kiện: Dang nhap DEPARTMENT_HEAD\n- Các bước gốc: 1. POST /recruitment-requests thieu 'title'\n- Dữ liệu: title=null\n- Kết quả mong đợi: Tra ve 400, thong bao loi validation\n\n**Ánh xạ API hiện tại:** DTO hiện tại dùng `positionTitle` thay cho `title`; request cố ý bỏ trường này.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"departmentId\": \"{{departmentId}}\",\n  \"headcount\": 1,\n  \"jobDescription\": \"Missing required positionTitle.\",\n  \"justification\": \"Boundary validation {{runId}}\",\n  \"urgency\": \"LOW\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "RRP-003 - Submit request chuyen DRAFT->PENDING_HR_REVIEW",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"requestId\",\"deptHeadToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"RRP-001 must run first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"RRP-003 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"RRP-003 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('RRP-003 | DRAFT -> PENDING_HR_REVIEW', function () { pm.expect(json).to.have.property('status', 'PENDING_HR_REVIEW'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{deptHeadToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/recruitment-requests/{{requestId}}/submit",
+            "description": "**Nguồn:** Nam - Request & Plan / RRP-003\n\n- Người thực hiện: Nam\n- Tuần / module / cấp độ: Tuan 2 / Recruitment Requests / System\n- Ưu tiên / approach: Cao / Black Box Testing\n- Tiền điều kiện: Request o trang thai DRAFT\n- Các bước gốc: 1. POST /recruitment-requests/:id/submit\n- Dữ liệu: request DRAFT hop le\n- Kết quả mong đợi: Trang thai chuyen sang PENDING_HR_REVIEW\n\n**Ánh xạ API hiện tại:** HTTP method hiện tại là PATCH."
+          }
+        },
+        {
+          "name": "RRP-004 - Forward request len Boss",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"requestId\",\"hrToken\",\"hrUserId\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"RRP-003 and Setup must run first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }",
+                  "pm.sendRequest({ url: pm.environment.get('apiBase') + '/recruitment-requests/' + pm.environment.get('requestId') + '/assign', method: 'PATCH', header: { Authorization: 'Bearer ' + pm.environment.get('hrToken'), 'Content-Type': 'application/json' }, body: { mode: 'raw', raw: JSON.stringify({ hrManagerId: pm.environment.get('hrUserId') }) } }, function (error, response) { if (error || ![200, 409].includes(response.code)) { console.warn('RRP-004 assign setup failed', error || response.text()); } });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"RRP-004 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"RRP-004 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('RRP-004 | PENDING_HR_REVIEW -> PENDING_BOSS_APPROVAL', function () { pm.expect(json).to.have.property('status', 'PENDING_BOSS_APPROVAL'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hrToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/recruitment-requests/{{requestId}}/forward-to-admin",
+            "description": "**Nguồn:** Nam - Request & Plan / RRP-004\n\n- Người thực hiện: Nam\n- Tuần / module / cấp độ: Tuan 3 / Recruitment Requests / System\n- Ưu tiên / approach: Cao / Black Box Testing\n- Tiền điều kiện: Request o PENDING_HR_REVIEW, role HR_MANAGER\n- Các bước gốc: 1. POST /recruitment-requests/:id/forward-to-boss\n- Dữ liệu: request PENDING_HR_REVIEW\n- Kết quả mong đợi: Trang thai chuyen sang PENDING_BOSS_APPROVAL\n\n**Ánh xạ API hiện tại:** Role hiện tại là `HR_LEADER`; hệ thống yêu cầu assign HR rồi PATCH `forward-to-admin` (thay cho `forward-to-boss`)."
+          }
+        },
+        {
+          "name": "RRP-005 - Admin approve request",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"requestId\",\"adminToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"RRP-004 must run first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"RRP-005 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"RRP-005 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('RRP-005 | request is APPROVED', function () { pm.expect(json).to.have.property('status', 'APPROVED'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/recruitment-requests/{{requestId}}/decision",
+            "description": "**Nguồn:** Nam - Request & Plan / RRP-005\n\n- Người thực hiện: Nam\n- Tuần / module / cấp độ: Tuan 3 / Recruitment Requests / System\n- Ưu tiên / approach: Cao / Black Box Testing\n- Tiền điều kiện: Request PENDING_BOSS_APPROVAL, role ADMIN\n- Các bước gốc: 1. POST /recruitment-requests/:id/approve\n- Dữ liệu: request PENDING_BOSS_APPROVAL\n- Kết quả mong đợi: Trang thai chuyen sang APPROVED\n\n**Ánh xạ API hiện tại:** Endpoint hiện tại gộp approve/reject vào PATCH `/decision`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"decision\": \"APPROVED\", \"comments\": \"Approved by Postman {{runId}}\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "RRP-006 - Admin reject request kem ly do",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"deptHeadToken\",\"hrToken\",\"hrUserId\",\"adminToken\",\"departmentId\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Setup role tokens are required\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }",
+                  "const api = pm.environment.get('apiBase');",
+                  "const jsonHeaders = (token) => ({ Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' });",
+                  "const send = (options, next) => pm.sendRequest(options, function (error, response) { if (error || ![200, 201].includes(response.code)) { console.warn('RRP-006 setup failed', error || response.text()); pm.execution.skipRequest(); return; } next(response.json()); });",
+                  "send({ url: api + '/recruitment-requests', method: 'POST', header: jsonHeaders(pm.environment.get('deptHeadToken')), body: { mode: 'raw', raw: JSON.stringify({ departmentId: pm.environment.get('departmentId'), positionTitle: 'Postman ' + pm.environment.get('runId') + ' rejection flow', headcount: 1, jobDescription: 'Rejection flow', justification: 'Negative path', urgency: 'LOW' }) } }, (created) => send({ url: api + '/recruitment-requests/' + created.id + '/submit', method: 'PATCH', header: jsonHeaders(pm.environment.get('deptHeadToken')) }, () => send({ url: api + '/recruitment-requests/' + created.id + '/assign', method: 'PATCH', header: jsonHeaders(pm.environment.get('hrToken')), body: { mode: 'raw', raw: JSON.stringify({ hrManagerId: pm.environment.get('hrUserId') }) } }, () => send({ url: api + '/recruitment-requests/' + created.id + '/forward-to-admin', method: 'PATCH', header: jsonHeaders(pm.environment.get('hrToken')) }, () => pm.environment.set('rejectionRequestId', created.id)))));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"RRP-006 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"RRP-006 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('RRP-006 | request rejected', function () { pm.expect(json).to.have.property('status', 'REJECTED'); });",
+                  "pm.test('RRP-006 | rejection reason persisted in response', function () { pm.expect(json.rejectionReason || json.comments).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/recruitment-requests/{{rejectionRequestId}}/decision",
+            "description": "**Nguồn:** Nam - Request & Plan / RRP-006\n\n- Người thực hiện: Nam\n- Tuần / module / cấp độ: Tuan 3 / Recruitment Requests / Negative\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Request PENDING_BOSS_APPROVAL\n- Các bước gốc: 1. POST /recruitment-requests/:id/reject voi reason\n- Dữ liệu: reason bat buoc\n- Kết quả mong đợi: Request bi reject, luu reason, log audit\n\n**Ánh xạ API hiện tại:** Tạo riêng một request và đưa tới PENDING_BOSS_APPROVAL trong pre-request script trước khi reject.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"decision\": \"REJECTED\", \"comments\": \"Headcount justification required - {{runId}}\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "RRP-007 - Role khac khong duoc submit request",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"requestId\",\"candidateAToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"A live Candidate token is required\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [403];",
+                  "pm.test(\"RRP-007 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"RRP-007 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('RRP-007 | candidate is forbidden', function () { pm.expect(pm.response.code).to.eql(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateAToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/recruitment-requests/{{requestId}}/submit",
+            "description": "**Nguồn:** Nam - Request & Plan / RRP-007\n\n- Người thực hiện: Nam\n- Tuần / module / cấp độ: Tuan 4 / Recruitment Requests / Security\n- Ưu tiên / approach: Cao / Black Box Testing\n- Tiền điều kiện: Dang nhap role CANDIDATE\n- Các bước gốc: 1. POST /recruitment-requests/:id/submit\n- Dữ liệu: token CANDIDATE\n- Kết quả mong đợi: Tra ve 403 Forbidden\n\n**Ánh xạ API hiện tại:** Giữ nguyên endpoint/mục tiêu kiểm thử."
+          }
+        },
+        {
+          "name": "RRP-008 - Xem audit trail cua request",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"requestId\",\"adminToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"RRP workflow must run first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"RRP-008 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"RRP-008 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('RRP-008 | audit logs are present', function () { pm.expect(json.logs).to.be.an('array').and.not.empty; });",
+                  "pm.test('RRP-008 | audit logs are chronological', function () { const times = (json.logs || []).map((log) => new Date(log.createdAt).getTime()); pm.expect(times.every((value, index) => index === 0 || times[index - 1] <= value)).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/recruitment-requests/{{requestId}}",
+            "description": "**Nguồn:** Nam - Request & Plan / RRP-008\n\n- Người thực hiện: Nam\n- Tuần / module / cấp độ: Tuan 4 / Recruitment Requests / Integration\n- Ưu tiên / approach: TB / Black Box + White Box Testing\n- Tiền điều kiện: Request da qua nhieu buoc chuyen trang thai\n- Các bước gốc: 1. GET /recruitment-requests/:id/logs\n- Dữ liệu: request co lich su thay doi\n- Kết quả mong đợi: Tra ve day du log theo thu tu thoi gian\n\n**Ánh xạ API hiện tại:** Không có route `/logs`; API detail hiện tại trả `logs` nhúng trong payload."
+          }
+        },
+        {
+          "name": "RRP-009 - Xem tracking dashboard",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"requestId\",\"deptHeadToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"RRP workflow must run first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"RRP-009 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"RRP-009 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('RRP-009 | correct request returned', function () { pm.expect(json).to.have.property('id', pm.environment.get('requestId')); });",
+                  "pm.test('RRP-009 | tracking status exists', function () { pm.expect(json.status).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{deptHeadToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/recruitment-requests/{{requestId}}",
+            "description": "**Nguồn:** Nam - Request & Plan / RRP-009\n\n- Người thực hiện: Nam\n- Tuần / module / cấp độ: Tuan 4 / Recruitment Requests / Integration\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Role DEPARTMENT_HEAD, co request dang xu ly\n- Các bước gốc: 1. GET /recruitment-requests/:id/tracking\n- Dữ liệu: request active\n- Kết quả mong đợi: Tra ve du lieu tien do dung thuc te\n\n**Ánh xạ API hiện tại:** Không có route `/tracking`; request detail là nguồn tracking hiện tại."
+          }
+        },
+        {
+          "name": "RRP-010 - HR tao Overall Plan",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"requestId\",\"hrToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"RRP-005 must run first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }",
+                  "const start = new Date(Date.now() + 86400000); const end = new Date(Date.now() + 35 * 86400000); pm.environment.set('planStartDate', start.toISOString()); pm.environment.set('planEndDate', end.toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [201];",
+                  "pm.test(\"RRP-010 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"RRP-010 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('RRP-010 | plan created as DRAFT', function () { pm.expect(json).to.have.property('status', 'DRAFT'); });",
+                  "if (json && json.id) { pm.environment.set('planId', json.id); }",
+                  "if (json && Array.isArray(json.tasks) && json.tasks[0]) { pm.environment.set('taskId', json.tasks[0].id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hrToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/overall-plan",
+            "description": "**Nguồn:** Nam - Request & Plan / RRP-010\n\n- Người thực hiện: Nam\n- Tuần / module / cấp độ: Tuan 4 / Recruitment Plans / Functional\n- Ưu tiên / approach: Cao / Black Box Testing\n- Tiền điều kiện: Request o trang thai APPROVED, role HR_MANAGER\n- Các bước gốc: 1. POST /recruitment-requests/:id/plan\n- Dữ liệu: plan data hop le\n- Kết quả mong đợi: Plan duoc tao, request chuyen PLANNING\n\n**Ánh xạ API hiện tại:** Route hiện tại là POST `/overall-plan` và dùng `hiringRequestId`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hiringRequestId\": \"{{requestId}}\",\n  \"startDate\": \"{{planStartDate}}\",\n  \"endDate\": \"{{planEndDate}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "RRP-011 - Submit plan cho Admin duyet",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"planId\",\"hrToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"RRP-010 must run first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"RRP-011 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"RRP-011 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('RRP-011 | plan pending approval', function () { pm.expect(['PENDING_APPROVAL', 'PLAN_PENDING_APPROVAL']).to.include(json.status); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hrToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/overall-plan/{{planId}}/submit",
+            "description": "**Nguồn:** Nam - Request & Plan / RRP-011\n\n- Người thực hiện: Nam\n- Tuần / module / cấp độ: Tuan 5 / Recruitment Plans / Functional\n- Ưu tiên / approach: Cao / Black Box Testing\n- Tiền điều kiện: Plan o trang thai draft\n- Các bước gốc: 1. POST /recruitment-requests/:id/plan/submit\n- Dữ liệu: plan hop le\n- Kết quả mong đợi: Trang thai plan chuyen PLAN_PENDING_APPROVAL\n\n**Ánh xạ API hiện tại:** HTTP method hiện tại là PATCH; task mặc định đã được scaffold khi tạo plan."
+          }
+        },
+        {
+          "name": "RRP-012 - Admin approve plan",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"planId\",\"adminToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"RRP-011 must run first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"RRP-012 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"RRP-012 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('RRP-012 | plan approved', function () { pm.expect(json).to.have.property('status', 'APPROVED'); });",
+                  "pm.sendRequest({ url: pm.environment.get('apiBase') + '/recruitment-requests/' + pm.environment.get('requestId'), method: 'GET', header: { Authorization: 'Bearer ' + pm.environment.get('adminToken') } }, function (error, response) { pm.test('RRP-012 | workbook expected request ACTIVE immediately', function () { pm.expect(error).to.eql(null); pm.expect(response.json().status).to.eql('ACTIVE'); }); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/overall-plan/{{planId}}/approve",
+            "description": "**Nguồn:** Nam - Request & Plan / RRP-012\n\n- Người thực hiện: Nam\n- Tuần / module / cấp độ: Tuan 5 / Recruitment Plans / Functional\n- Ưu tiên / approach: Cao / Black Box Testing\n- Tiền điều kiện: Plan PLAN_PENDING_APPROVAL, role ADMIN\n- Các bước gốc: 1. POST /recruitment-requests/:id/plan/approve\n- Dữ liệu: plan hop le\n- Kết quả mong đợi: Request chuyen sang ACTIVE\n\n**Ánh xạ API hiện tại:** Test cố ý giữ expected gốc `request -> ACTIVE`; implementation hiện tại có thể chỉ ACTIVE sau `start-campaign`."
+          }
+        },
+        {
+          "name": "RRP-013 - Admin yeu cau chinh sua plan",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"deptHeadToken\",\"hrToken\",\"hrUserId\",\"adminToken\",\"departmentId\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Setup role tokens are required\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }",
+                  "const api = pm.environment.get('apiBase');",
+                  "const h = (token) => ({ Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' });",
+                  "const ok = (options) => new Promise((resolve, reject) => pm.sendRequest(options, function (error, response) { if (error || ![200, 201].includes(response.code)) { reject(error || new Error(response.text())); return; } resolve(response.json()); }));",
+                  "(async function () { const request = await ok({ url: api + '/recruitment-requests', method: 'POST', header: h(pm.environment.get('deptHeadToken')), body: { mode: 'raw', raw: JSON.stringify({ departmentId: pm.environment.get('departmentId'), positionTitle: 'Postman ' + pm.environment.get('runId') + ' revision flow', headcount: 1, jobDescription: 'Revision flow', justification: 'Plan revision', urgency: 'MEDIUM' }) } }); await ok({ url: api + '/recruitment-requests/' + request.id + '/submit', method: 'PATCH', header: h(pm.environment.get('deptHeadToken')) }); await ok({ url: api + '/recruitment-requests/' + request.id + '/assign', method: 'PATCH', header: h(pm.environment.get('hrToken')), body: { mode: 'raw', raw: JSON.stringify({ hrManagerId: pm.environment.get('hrUserId') }) } }); await ok({ url: api + '/recruitment-requests/' + request.id + '/forward-to-admin', method: 'PATCH', header: h(pm.environment.get('hrToken')) }); await ok({ url: api + '/recruitment-requests/' + request.id + '/decision', method: 'PATCH', header: h(pm.environment.get('adminToken')), body: { mode: 'raw', raw: JSON.stringify({ decision: 'APPROVED', comments: 'revision setup' }) } }); const plan = await ok({ url: api + '/overall-plan', method: 'POST', header: h(pm.environment.get('hrToken')), body: { mode: 'raw', raw: JSON.stringify({ hiringRequestId: request.id, startDate: new Date(Date.now() + 86400000).toISOString(), endDate: new Date(Date.now() + 30 * 86400000).toISOString() }) } }); await ok({ url: api + '/overall-plan/' + plan.id + '/submit', method: 'PATCH', header: h(pm.environment.get('hrToken')) }); pm.environment.set('revisionPlanId', plan.id); })().catch(function (error) { console.warn('RRP-013 setup failed', error.message || error); pm.execution.skipRequest(); });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"RRP-013 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"RRP-013 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('RRP-013 | revision status returned', function () { pm.expect(['REJECTED', 'REVISION_REQUIRED']).to.include(json.status); });",
+                  "pm.test('RRP-013 | revision notes persisted', function () { pm.expect(json.revisionNotes).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/overall-plan/{{revisionPlanId}}/reject",
+            "description": "**Nguồn:** Nam - Request & Plan / RRP-013\n\n- Người thực hiện: Nam\n- Tuần / module / cấp độ: Tuan 5 / Recruitment Plans / Negative\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Plan PLAN_PENDING_APPROVAL\n- Các bước gốc: 1. POST /recruitment-requests/:id/plan/request-revision voi notes\n- Dữ liệu: notes bat buoc\n- Kết quả mong đợi: Plan quay lai trang thai chinh sua, luu notes\n\n**Ánh xạ API hiện tại:** Route hiện tại dùng PATCH `/overall-plan/:id/reject` với `revisionNotes`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"revisionNotes\": \"Please revise the plan timeline - {{runId}}\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "RRP-014 - Them va cap nhat task trong plan",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"planId\",\"taskId\",\"hrToken\",\"requestId\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"RRP-010 through RRP-012 must run first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }",
+                  "pm.sendRequest({ url: pm.environment.get('apiBase') + '/overall-plan/' + pm.environment.get('planId') + '/start-campaign', method: 'PATCH', header: { Authorization: 'Bearer ' + pm.environment.get('hrToken') } }, function (error, response) { if (!error && [200, 409].includes(response.code)) { pm.environment.set('activeRequestId', pm.environment.get('requestId')); } else { console.warn('start-campaign setup failed', error || response.text()); } });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"RRP-014 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"RRP-014 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('RRP-014 | task status updated', function () { pm.expect(json).to.include({ id: pm.environment.get('taskId'), status: 'IN_PROGRESS' }); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hrToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/task-plan/{{taskId}}/status",
+            "description": "**Nguồn:** Nam - Request & Plan / RRP-014\n\n- Người thực hiện: Nam\n- Tuần / module / cấp độ: Tuan 5 / Task Plans / Functional\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Plan da duoc tao\n- Các bước gốc: 1. POST .../plan/tasks 2. PATCH /plan-tasks/:id/status\n- Dữ liệu: task data hop le\n- Kết quả mong đợi: Task duoc tao/cap nhat dung trang thai\n\n**Ánh xạ API hiện tại:** Task được auto-scaffold khi tạo Overall Plan; case kiểm tra cập nhật task và start campaign.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"status\": \"IN_PROGRESS\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Ly - Gateway & Auth (14 TC)",
+      "item": [
+        {
+          "name": "AUTH-001 - Dang ky tai khoan moi",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [201];",
+                  "pm.test(\"AUTH-001 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"AUTH-001 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('AUTH-001 | registration accepted', function () { pm.expect(json).to.have.property('success', true); });",
+                  "if (json && json.email) { pm.environment.set('registeredEmail', json.email); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/auth/register",
+            "description": "**Nguồn:** Ly - Gateway & Auth / AUTH-001\n\n- Người thực hiện: Ly\n- Tuần / module / cấp độ: Tuan 2 / Auth / Functional\n- Ưu tiên / approach: Cao / Black Box Testing\n- Tiền điều kiện: He thong san sang\n- Các bước gốc: 1. POST /auth/register voi email/password hop le\n- Dữ liệu: email chua ton tai\n- Kết quả mong đợi: Tai khoan duoc tao, tra ve 201\n\n**Ánh xạ API hiện tại:** Đăng ký tạo user inactive và gửi OTP; 201 là kết quả đúng của bước khởi tạo.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"postman.register.{{runId}}@demo.test\",\n  \"displayName\": \"Postman Candidate {{runId}}\",\n  \"password\": \"Password123!\",\n  \"role\": \"CANDIDATE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AUTH-002 - Dang ky voi email da ton tai",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [409];",
+                  "pm.test(\"AUTH-002 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"AUTH-002 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('AUTH-002 | duplicate active email rejected', function () { pm.expect(pm.response.code).to.eql(409); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/auth/register",
+            "description": "**Nguồn:** Ly - Gateway & Auth / AUTH-002\n\n- Người thực hiện: Ly\n- Tuần / module / cấp độ: Tuan 2 / Auth / Negative\n- Ưu tiên / approach: Cao / Black Box Testing\n- Tiền điều kiện: Email da duoc dang ky truoc do\n- Các bước gốc: 1. POST /auth/register voi email trung\n- Dữ liệu: email da ton tai\n- Kết quả mong đợi: Tra ve 409 Conflict\n\n**Ánh xạ API hiện tại:** Giữ nguyên endpoint/mục tiêu kiểm thử.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"displayName\": \"Duplicate Admin\",\n  \"password\": \"Password123!\",\n  \"role\": \"ADMIN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AUTH-003 - Dang nhap voi thong tin hop le",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"AUTH-003 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"AUTH-003 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('AUTH-003 | token pair returned', function () { pm.expect(json.accessToken).to.be.a('string').and.not.empty; pm.expect(json.refreshToken).to.be.a('string').and.not.empty; });",
+                  "if (json) { pm.environment.set('adminToken', json.accessToken); pm.environment.set('adminRefreshToken', json.refreshToken); if (json.user) { pm.environment.set('adminUserId', json.user.id); pm.environment.set('organizationId', json.user.organizationId); } }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/auth/login",
+            "description": "**Nguồn:** Ly - Gateway & Auth / AUTH-003\n\n- Người thực hiện: Ly\n- Tuần / module / cấp độ: Tuan 2 / Auth / Functional\n- Ưu tiên / approach: Cao / Black Box Testing\n- Tiền điều kiện: Tai khoan da ton tai va active\n- Các bước gốc: 1. POST /auth/login\n- Dữ liệu: email/password dung\n- Kết quả mong đợi: Tra ve JWT access + refresh token\n\n**Ánh xạ API hiện tại:** Giữ nguyên endpoint/mục tiêu kiểm thử.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"email\": \"{{adminEmail}}\", \"password\": \"{{adminPassword}}\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AUTH-004 - Dang nhap sai mat khau",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [401];",
+                  "pm.test(\"AUTH-004 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"AUTH-004 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('AUTH-004 | invalid credentials rejected', function () { pm.expect(pm.response.code).to.eql(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/auth/login",
+            "description": "**Nguồn:** Ly - Gateway & Auth / AUTH-004\n\n- Người thực hiện: Ly\n- Tuần / module / cấp độ: Tuan 3 / Auth / Negative\n- Ưu tiên / approach: Cao / Black Box Testing\n- Tiền điều kiện: Tai khoan ton tai\n- Các bước gốc: 1. POST /auth/login voi password sai\n- Dữ liệu: password sai\n- Kết quả mong đợi: Tra ve 401 Unauthorized\n\n**Ánh xạ API hiện tại:** Giữ nguyên endpoint/mục tiêu kiểm thử.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"email\": \"{{adminEmail}}\", \"password\": \"wrong-password\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AUTH-005 - Refresh token xoay vong",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"adminRefreshToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"AUTH-003 or Setup login must run first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"AUTH-005 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"AUTH-005 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('AUTH-005 | rotated token pair returned', function () { pm.expect(json.accessToken).to.be.a('string').and.not.empty; pm.expect(json.refreshToken).to.be.a('string').and.not.empty; });",
+                  "const oldRefresh = pm.environment.get('adminRefreshToken'); if (json) { pm.environment.set('adminToken', json.accessToken); pm.environment.set('adminRefreshToken', json.refreshToken); }",
+                  "pm.sendRequest({ url: pm.environment.get('apiBase') + '/auth/refresh', method: 'POST', header: { 'Content-Type': 'application/json' }, body: { mode: 'raw', raw: JSON.stringify({ refreshToken: oldRefresh }) } }, function (error, response) { pm.test('AUTH-005 | old refresh token revoked', function () { pm.expect(error).to.eql(null); pm.expect(response.code).to.eql(401); }); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/auth/refresh",
+            "description": "**Nguồn:** Ly - Gateway & Auth / AUTH-005\n\n- Người thực hiện: Ly\n- Tuần / module / cấp độ: Tuan 3 / Auth / Functional\n- Ưu tiên / approach: Cao / White Box Testing\n- Tiền điều kiện: Da dang nhap, co refresh token hop le\n- Các bước gốc: 1. POST /auth/refresh\n- Dữ liệu: refresh token hop le\n- Kết quả mong đợi: Tra ve access token moi, refresh token cu bi thu hoi\n\n**Ánh xạ API hiện tại:** Giữ nguyên endpoint/mục tiêu kiểm thử.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"refreshToken\": \"{{adminRefreshToken}}\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AUTH-006 - Dang xuat vo hieu hoa refresh token",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"adminRefreshToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"AUTH-005 must run first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [204];",
+                  "pm.test(\"AUTH-006 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"AUTH-006 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "const revoked = pm.environment.get('adminRefreshToken'); pm.sendRequest({ url: pm.environment.get('apiBase') + '/auth/refresh', method: 'POST', header: { 'Content-Type': 'application/json' }, body: { mode: 'raw', raw: JSON.stringify({ refreshToken: revoked }) } }, function (error, response) { pm.test('AUTH-006 | logged-out refresh token rejected', function () { pm.expect(error).to.eql(null); pm.expect(response.code).to.eql(401); }); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/auth/logout",
+            "description": "**Nguồn:** Ly - Gateway & Auth / AUTH-006\n\n- Người thực hiện: Ly\n- Tuần / module / cấp độ: Tuan 3 / Auth / Functional\n- Ưu tiên / approach: TB / White Box Testing\n- Tiền điều kiện: Da dang nhap\n- Các bước gốc: 1. POST /auth/logout\n- Dữ liệu: access token hop le\n- Kết quả mong đợi: Refresh token bi invalidate, khong the refresh lai\n\n**Ánh xạ API hiện tại:** Expected HTTP đúng theo controller hiện tại là 204 No Content.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"refreshToken\": \"{{adminRefreshToken}}\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AUTH-007 - Quen mat khau gui OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [201];",
+                  "pm.test(\"AUTH-007 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"AUTH-007 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('AUTH-007 | reset flow accepted', function () { pm.expect(json && json.success).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/auth/forgot-password",
+            "description": "**Nguồn:** Ly - Gateway & Auth / AUTH-007\n\n- Người thực hiện: Ly\n- Tuần / module / cấp độ: Tuan 4 / Auth / Functional\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Email da dang ky\n- Các bước gốc: 1. POST /auth/forgot-password\n- Dữ liệu: email hop le\n- Kết quả mong đợi: OTP duoc gui qua email/notification\n\n**Ánh xạ API hiện tại:** Giữ nguyên endpoint/mục tiêu kiểm thử.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"email\": \"{{adminEmail}}\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AUTH-008 - Dat lai mat khau voi OTP hop le",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('resetCode') || !pm.environment.get('resetTargetEmail')) { console.warn('AUTH-008 skipped: provide a valid OTP and a disposable reset target'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [201];",
+                  "pm.test(\"AUTH-008 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"AUTH-008 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('AUTH-008 | password reset succeeded', function () { pm.expect(json && json.success).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/auth/reset-password",
+            "description": "**Nguồn:** Ly - Gateway & Auth / AUTH-008\n\n- Người thực hiện: Ly\n- Tuần / module / cấp độ: Tuan 4 / Auth / Functional\n- Ưu tiên / approach: Cao / Black Box Testing\n- Tiền điều kiện: Da nhan OTP\n- Các bước gốc: 1. POST /auth/reset-password\n- Dữ liệu: OTP + mat khau moi hop le\n- Kết quả mong đợi: Mat khau duoc cap nhat, dang nhap thanh cong\n\n**Ánh xạ API hiện tại:** Mặc định skip để không đổi mật khẩu Admin; nhập OTP của một tài khoản test dùng một lần để chạy.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"email\": \"{{resetTargetEmail}}\", \"code\": \"{{resetCode}}\", \"newPassword\": \"{{resetNewPassword}}\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AUTH-009 - Dat lai mat khau voi OTP het han/sai",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [400];",
+                  "pm.test(\"AUTH-009 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"AUTH-009 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('AUTH-009 | invalid/expired code rejected', function () { pm.expect(pm.response.code).to.eql(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/auth/reset-password",
+            "description": "**Nguồn:** Ly - Gateway & Auth / AUTH-009\n\n- Người thực hiện: Ly\n- Tuần / module / cấp độ: Tuan 4 / Auth / Negative\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: OTP da het han\n- Các bước gốc: 1. POST /auth/reset-password voi OTP sai\n- Dữ liệu: OTP sai/het han\n- Kết quả mong đợi: Tra ve 400, mat khau khong doi\n\n**Ánh xạ API hiện tại:** Giữ nguyên endpoint/mục tiêu kiểm thử.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"email\": \"{{adminEmail}}\", \"code\": \"invalid-or-expired\", \"newPassword\": \"ShouldNotApply123!\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AUTH-010 - Lay thong tin profile hien tai",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"adminToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Login Admin first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"AUTH-010 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"AUTH-010 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('AUTH-010 | current user is Admin', function () { pm.expect(json.email).to.eql(pm.environment.get('adminEmail')); pm.expect(json.role).to.eql('ADMIN'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/me",
+            "description": "**Nguồn:** Ly - Gateway & Auth / AUTH-010\n\n- Người thực hiện: Ly\n- Tuần / module / cấp độ: Tuan 4 / Auth / Functional\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Da dang nhap\n- Các bước gốc: 1. GET /auth/me\n- Dữ liệu: access token hop le\n- Kết quả mong đợi: Tra ve dung thong tin user dang dang nhap\n\n**Ánh xạ API hiện tại:** Route hiện tại là GET `/me` (không phải `/auth/me`)."
+          }
+        },
+        {
+          "name": "AUTH-011 - Admin xem danh sach user",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"adminToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Login Admin first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"AUTH-011 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"AUTH-011 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('AUTH-011 | paginated user list returned', function () { const list = Array.isArray(json) ? json : (json.data || json.items || []); pm.expect(list).to.be.an('array').and.not.empty; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/users?page=1&limit=20",
+            "description": "**Nguồn:** Ly - Gateway & Auth / AUTH-011\n\n- Người thực hiện: Ly\n- Tuần / module / cấp độ: Tuan 5 / Users / Functional\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Role ADMIN\n- Các bước gốc: 1. GET /users\n- Dữ liệu: token ADMIN\n- Kết quả mong đợi: Tra ve danh sach user phan trang\n\n**Ánh xạ API hiện tại:** Giữ nguyên endpoint/mục tiêu kiểm thử."
+          }
+        },
+        {
+          "name": "AUTH-012 - Cap nhat role user (RBAC)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"candidateAToken\",\"candidateAUserId\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Provide Candidate A token/profile through Setup\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [403];",
+                  "pm.test(\"AUTH-012 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"AUTH-012 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('AUTH-012 | non-admin cannot update role', function () { pm.expect(pm.response.code).to.eql(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateAToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/users/{{candidateAUserId}}/role",
+            "description": "**Nguồn:** Ly - Gateway & Auth / AUTH-012\n\n- Người thực hiện: Ly\n- Tuần / module / cấp độ: Tuan 5 / Users / Security\n- Ưu tiên / approach: Cao / Black Box + White Box Testing\n- Tiền điều kiện: Role ADMIN\n- Các bước gốc: 1. PATCH /users/:id/role\n- Dữ liệu: role moi hop le\n- Kết quả mong đợi: Role duoc cap nhat, user khac khong the goi API nay\n\n**Ánh xạ API hiện tại:** Phần RBAC âm được tự động hóa an toàn; không thay role thật của user.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"role\": \"HR_LEADER\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "AUTH-013 - Health check gateway",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"AUTH-013 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"AUTH-013 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('AUTH-013 | gateway healthy', function () { pm.expect(json).to.have.property('status', 'ok'); });",
+                  "pm.test('AUTH-013 | downstream services healthy', function () { pm.expect(Object.values(json.services || {}).every((service) => service.status === 'ok')).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBase}}/health",
+            "description": "**Nguồn:** Ly - Gateway & Auth / AUTH-013\n\n- Người thực hiện: Ly\n- Tuần / module / cấp độ: Tuan 5 / Gateway / Functional\n- Ưu tiên / approach: Thap / Black Box Testing\n- Tiền điều kiện: Gateway dang chay\n- Các bước gốc: 1. GET /health\n- Dữ liệu: khong can auth\n- Kết quả mong đợi: Tra ve 200 va trang thai cac service\n\n**Ánh xạ API hiện tại:** Giữ nguyên endpoint/mục tiêu kiểm thử."
+          }
+        },
+        {
+          "name": "AUTH-014 - Gateway xu ly loi khi TCP microservice timeout",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('identityOutageReady') !== 'true') { console.warn('AUTH-014 skipped: stop Identity service, then set identityOutageReady=true'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200,500,503];",
+                  "pm.test(\"AUTH-014 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"AUTH-014 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('AUTH-014 | gateway remains responsive', function () { pm.expect(pm.response.code).to.be.oneOf([200, 500, 503]); });",
+                  "pm.test('AUTH-014 | Identity outage is reported', function () { pm.expect(json && json.services && json.services.identity && json.services.identity.status).to.eql('error'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{apiBase}}/health",
+            "description": "**Nguồn:** Ly - Gateway & Auth / AUTH-014\n\n- Người thực hiện: Ly\n- Tuần / module / cấp độ: Tuan 5 / Gateway / Integration\n- Ưu tiên / approach: Cao / White Box Testing\n- Tiền điều kiện: Microservice identity tam ngung\n- Các bước gốc: 1. Goi API qua gateway trong luc service down\n- Dữ liệu: service khong phan hoi\n- Kết quả mong đợi: Gateway tra ve loi 5xx co thong diep ro rang, khong crash\n\n**Ánh xạ API hiện tại:** Postman không tự dừng process; case chỉ chạy khi tester đã dừng Identity và bật cờ môi trường."
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Phong - Interview & Candidate-CV (13 TC)",
+      "item": [
+        {
+          "name": "INT-001 - Len lich phong van",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"activeRequestId\",\"candidateBProfileId\",\"candidateBToken\",\"hrToken\",\"deptHeadUserId\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Run RRP flow and Candidate B setup first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }",
+                  "pm.environment.set('interviewScheduledAt', new Date(Date.now() + 3 * 86400000).toISOString());",
+                  "pm.sendRequest({ url: pm.environment.get('apiBase') + '/applications', method: 'POST', header: { Authorization: 'Bearer ' + pm.environment.get('candidateBToken'), 'Content-Type': 'application/json' }, body: { mode: 'raw', raw: JSON.stringify({ requestId: pm.environment.get('activeRequestId') }) } }, function (error, response) { if (error || ![201, 409].includes(response.code)) { console.warn('INT-001 application setup failed', error || response.text()); } });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [201];",
+                  "pm.test(\"INT-001 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"INT-001 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('INT-001 | interview scheduled', function () { pm.expect(json).to.have.property('status', 'SCHEDULED'); });",
+                  "if (json && json.id) { pm.environment.set('interviewId', json.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hrToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/interviews/schedules",
+            "description": "**Nguồn:** Phong - Interview & CV / INT-001\n\n- Người thực hiện: Phong\n- Tuần / module / cấp độ: Tuan 3 / Interviews / Functional\n- Ưu tiên / approach: Cao / Black Box Testing\n- Tiền điều kiện: Request da co plan ACTIVE, role HR_MANAGER\n- Các bước gốc: 1. POST /interviews voi slot hop le\n- Dữ liệu: candidate, slot, panel hop le\n- Kết quả mong đợi: Interview duoc tao, trang thai SCHEDULED\n\n**Ánh xạ API hiện tại:** Route hiện tại là POST `/interviews/schedules`; candidate phải có Application trong request ACTIVE.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestId\": \"{{activeRequestId}}\",\n  \"candidateId\": \"{{candidateBProfileId}}\",\n  \"scheduledAt\": \"{{interviewScheduledAt}}\",\n  \"duration\": 45,\n  \"location\": \"Postman Room {{runId}}\",\n  \"interviewers\": [\"{{deptHeadUserId}}\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "INT-002 - Lay danh sach khung gio trong",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"hrToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Login HR first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }",
+                  "pm.environment.set('slotStart', encodeURIComponent(new Date(Date.now() + 86400000).toISOString())); pm.environment.set('slotEnd', encodeURIComponent(new Date(Date.now() + 7 * 86400000).toISOString()));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"INT-002 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"INT-002 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('INT-002 | available slot list returned', function () { pm.expect(json).to.be.an('array'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hrToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/interviews/available-slots?start={{slotStart}}&end={{slotEnd}}",
+            "description": "**Nguồn:** Phong - Interview & CV / INT-002\n\n- Người thực hiện: Phong\n- Tuần / module / cấp độ: Tuan 3 / Interviews / Functional\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: HR_MANAGER dang len lich\n- Các bước gốc: 1. GET /interviews/available-slots\n- Dữ liệu: khoang thoi gian hop le\n- Kết quả mong đợi: Tra ve danh sach slot chua bi trung lich\n\n**Ánh xạ API hiện tại:** Giữ expected/route gốc để phát hiện route `available-slots` hiện đang thiếu (404 là defect)."
+          }
+        },
+        {
+          "name": "INT-003 - Doi lich phong van",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"interviewId\",\"hrToken\",\"deptHeadUserId\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"INT-001 must run first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }",
+                  "pm.environment.set('interviewRescheduledAt', new Date(Date.now() + 4 * 86400000).toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"INT-003 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"INT-003 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('INT-003 | same interview returned', function () { pm.expect(json.id).to.eql(pm.environment.get('interviewId')); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hrToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/interviews/schedules/{{interviewId}}/reschedule",
+            "description": "**Nguồn:** Phong - Interview & CV / INT-003\n\n- Người thực hiện: Phong\n- Tuần / module / cấp độ: Tuan 4 / Interviews / Functional\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Interview da SCHEDULED\n- Các bước gốc: 1. POST /interviews/:id/reschedule\n- Dữ liệu: slot moi hop le\n- Kết quả mong đợi: Interview cap nhat slot moi, gui thong bao\n\n**Ánh xạ API hiện tại:** HTTP method hiện tại là PATCH.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scheduledAt\": \"{{interviewRescheduledAt}}\",\n  \"duration\": 60,\n  \"location\": \"Postman Rescheduled Room {{runId}}\",\n  \"interviewers\": [\"{{deptHeadUserId}}\"],\n  \"reason\": \"SWT reschedule {{runId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "INT-004 - Huy phong van",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"interviewId\",\"hrToken\",\"hrUserId\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"INT-001 must run first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"INT-004 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"INT-004 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('INT-004 | interview cancelled', function () { pm.expect(json).to.have.property('status', 'CANCELLED'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hrToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/interviews/schedules/{{interviewId}}/cancel",
+            "description": "**Nguồn:** Phong - Interview & CV / INT-004\n\n- Người thực hiện: Phong\n- Tuần / module / cấp độ: Tuan 4 / Interviews / Functional\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Interview da SCHEDULED\n- Các bước gốc: 1. POST /interviews/:id/cancel\n- Dữ liệu: ly do huy\n- Kết quả mong đợi: Interview chuyen trang thai CANCELLED\n\n**Ánh xạ API hiện tại:** HTTP method hiện tại là PATCH và body cần `cancelledBy`, `reason`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"cancelledBy\": \"{{hrUserId}}\", \"reason\": \"SWT cancellation {{runId}}\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "INT-005 - Ghi nhan ket qua phong van",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"resultInterviewId\",\"hrToken\",\"hrUserId\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Provide an elapsed SCHEDULED interview ID in resultInterviewId\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [201];",
+                  "pm.test(\"INT-005 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"INT-005 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('INT-005 | result recorded', function () { pm.expect(json && (json.status || json.finalRecommendation)).to.exist; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hrToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/interviews/{{resultInterviewId}}/results",
+            "description": "**Nguồn:** Phong - Interview & CV / INT-005\n\n- Người thực hiện: Phong\n- Tuần / module / cấp độ: Tuan 4 / Interviews / Functional\n- Ưu tiên / approach: Cao / Black Box Testing\n- Tiền điều kiện: Interview da hoan thanh\n- Các bước gốc: 1. POST /interviews/:id/result voi PASS/FAIL\n- Dữ liệu: ket qua hop le\n- Kết quả mong đợi: Ket qua duoc luu, request chuyen DECISION_PENDING\n\n**Ánh xạ API hiện tại:** Cần một interview SCHEDULED có thời điểm đã qua; nhập ID vào `resultInterviewId` để tránh làm sai dữ liệu lịch hiện có.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"feedbacks\": [{\n    \"evaluatorId\": \"{{hrUserId}}\",\n    \"decision\": \"PASS\",\n    \"technical\": 8,\n    \"communication\": 8,\n    \"culture\": 9,\n    \"notes\": \"Postman {{runId}}\"\n  }],\n  \"finalRecommendation\": \"Recommend Hire\",\n  \"summaryNotes\": \"Strong candidate - {{runId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "INT-006 - Admin dua ra quyet dinh tuyen dung cuoi cung",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"decisionRequestId\",\"decisionCandidateProfileId\",\"adminToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Provide a request with completed PASS interview\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }",
+                  "pm.environment.set('hireStartDate', new Date(Date.now() + 14 * 86400000).toISOString());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200,201];",
+                  "pm.test(\"INT-006 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"INT-006 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('INT-006 | hiring decision accepted', function () { pm.expect(json && (json.status || json.decision)).to.exist; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/admin/interview-results/{{decisionRequestId}}/decision",
+            "description": "**Nguồn:** Phong - Interview & CV / INT-006\n\n- Người thực hiện: Phong\n- Tuần / module / cấp độ: Tuan 5 / Interviews / Functional\n- Ưu tiên / approach: Cao / Black Box Testing\n- Tiền điều kiện: Interview co ket qua PASS, role ADMIN\n- Các bước gốc: 1. POST /interviews/:id/hiring-decision\n- Dữ liệu: quyet dinh HIRED/NOT_HIRED\n- Kết quả mong đợi: Request chuyen HIRED/NOT_HIRED -> COMPLETED\n\n**Ánh xạ API hiện tại:** Endpoint hiện tại thuộc `/admin/interview-results/:requestId/decision` và dùng decision `HIRE`/`NO_HIRE`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"decision\": \"HIRE\",\n  \"notes\": \"Final Postman decision {{runId}}\",\n  \"candidateId\": \"{{decisionCandidateProfileId}}\",\n  \"compensation\": \"45000000 VND gross per month\",\n  \"startDate\": \"{{hireStartDate}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CV-001 - Upload CV dinh dang PDF hop le",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"candidateBToken\",\"candidateBProfileId\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Provide Candidate B login/token first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [201];",
+                  "pm.test(\"CV-001 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"CV-001 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('CV-001 | CV queued for parsing', function () { pm.expect(json.id).to.be.a('string'); pm.expect(['PENDING', null]).to.include(json.processingStatus || null); });",
+                  "if (json && json.id) { pm.environment.set('uploadedCvId', json.id); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateBToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/candidate/cvs",
+            "description": "**Nguồn:** Phong - Interview & CV / CV-001\n\n- Người thực hiện: Phong\n- Tuần / module / cấp độ: Tuan 3 / CV Documents / Functional\n- Ưu tiên / approach: Cao / Black Box Testing\n- Tiền điều kiện: Role CANDIDATE\n- Các bước gốc: 1. POST /candidates/upload-cv voi file PDF\n- Dữ liệu: file PDF hop le, <5MB\n- Kết quả mong đợi: CV duoc luu, trang thai parse = PENDING\n\n**Ánh xạ API hiện tại:** Route hiện tại là multipart POST `/candidate/cvs`; file mẫu nằm trong workspace.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "D:\\SU26\\SWP\\RMS\\SE20A05Group7RMS\\cv-demo.pdf"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CV-002 - Upload file khong dung dinh dang",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"candidateBToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Provide Candidate B login/token first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [400];",
+                  "pm.test(\"CV-002 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"CV-002 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('CV-002 | invalid extension rejected', function () { pm.expect(pm.response.code).to.eql(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateBToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/candidate/cvs",
+            "description": "**Nguồn:** Phong - Interview & CV / CV-002\n\n- Người thực hiện: Phong\n- Tuần / module / cấp độ: Tuan 3 / CV Documents / Negative\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Role CANDIDATE\n- Các bước gốc: 1. POST /candidates/upload-cv voi file .exe\n- Dữ liệu: file khong hop le\n- Kết quả mong đợi: Tra ve 400, tu choi file\n\n**Ánh xạ API hiện tại:** Giữ nguyên endpoint/mục tiêu kiểm thử.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "D:\\SU26\\SWP\\RMS\\SE20A05Group7RMS\\Test(SWT)\\Postman\\data\\invalid.exe"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CV-003 - Kiem tra trich xuat text tu CV",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"candidateBToken\",\"uploadedCvId\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"CV-001 must run first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"CV-003 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"CV-003 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "const list = Array.isArray(json) ? json : (json.data || json.items || []); const cv = list.find((item) => item.id === pm.environment.get('uploadedCvId')); const attempt = Number(pm.environment.get('cvPollAttempt') || 0) + 1;",
+                  "pm.test('CV-003 | uploaded CV is visible', function () { pm.expect(cv).to.exist; });",
+                  "if (cv && cv.parsedAt && (cv.rawText || '').length > 20) { pm.environment.unset('cvPollAttempt'); pm.test('CV-003 | text parsed', function () { pm.expect(cv.rawText.length).to.be.above(20); }); } else if (attempt < 18) { pm.environment.set('cvPollAttempt', String(attempt)); pm.execution.setNextRequest('CV-003 - Kiem tra trich xuat text tu CV'); } else { pm.environment.unset('cvPollAttempt'); pm.test('CV-003 | parsing completed within poll limit', function () { pm.expect.fail('Worker did not finish parsing within 18 collection iterations'); }); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateBToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/candidate/cvs",
+            "description": "**Nguồn:** Phong - Interview & CV / CV-003\n\n- Người thực hiện: Phong\n- Tuần / module / cấp độ: Tuan 4 / CV Documents / Integration\n- Ưu tiên / approach: Cao / White Box Testing\n- Tiền điều kiện: CV da upload thanh cong\n- Các bước gốc: 1. Cho worker xu ly CV qua BullMQ\n- Dữ liệu: CV PDF/DOCX mau\n- Kết quả mong đợi: Text duoc trich xuat dung noi dung, trang thai PARSED\n\n**Ánh xạ API hiện tại:** Poll GET `/candidate/cvs` tối đa 18 vòng trong Collection Runner để chờ worker."
+          }
+        },
+        {
+          "name": "CV-004 - Tim kiem ung vien theo vector search",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"hrToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Login HR first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200,201];",
+                  "pm.test(\"CV-004 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"CV-004 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('CV-004 | ranked candidate list returned', function () { const list = Array.isArray(json) ? json : ((json && (json.data || json.items)) || []); pm.expect(list).to.be.an('array').and.not.empty; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hrToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/cv/search",
+            "description": "**Nguồn:** Phong - Interview & CV / CV-004\n\n- Người thực hiện: Phong\n- Tuần / module / cấp độ: Tuan 4 / CV Embeddings / Functional\n- Ưu tiên / approach: Cao / White Box Testing\n- Tiền điều kiện: Da co CV voi embedding\n- Các bước gốc: 1. POST /candidates/search voi query text\n- Dữ liệu: query lien quan ky nang ung vien\n- Kết quả mong đợi: Tra ve danh sach ung vien theo do tuong dong giam dan\n\n**Ánh xạ API hiện tại:** Giữ payload theo Swagger; test sẽ phát hiện DTO metadata hiện tại nếu API trả validation 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"q\": \"TypeScript React\", \"page\": 1, \"pageSize\": 20 }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CV-005 - Cap nhat ho so ung vien",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"candidateBToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Provide Candidate B token first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"CV-005 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"CV-005 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('CV-005 | profile updated', function () { pm.expect(json.summary).to.eql('Updated by Postman ' + pm.environment.get('runId')); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateBToken}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/candidate-profiles/me",
+            "description": "**Nguồn:** Phong - Interview & CV / CV-005\n\n- Người thực hiện: Phong\n- Tuần / module / cấp độ: Tuan 5 / Candidate Profiles / Functional\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Role CANDIDATE, da co profile\n- Các bước gốc: 1. PATCH /candidates/:id/profile\n- Dữ liệu: du lieu profile hop le\n- Kết quả mong đợi: Profile duoc cap nhat thanh cong\n\n**Ánh xạ API hiện tại:** Route hiện tại cập nhật profile của chính user; không nhận candidate ID trong URL.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"summary\": \"Updated by Postman {{runId}}\" }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CV-006 - HR xem CV cua ung vien",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"candidateBProfileId\",\"hrToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Candidate B profile and HR token are required\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"CV-006 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"CV-006 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "pm.test('CV-006 | CV file returned', function () { pm.expect(Number(pm.response.headers.get('content-length') || pm.response.text().length)).to.be.above(100); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hrToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/candidate/cvs/candidate/{{candidateBProfileId}}/latest/file",
+            "description": "**Nguồn:** Phong - Interview & CV / CV-006\n\n- Người thực hiện: Phong\n- Tuần / module / cấp độ: Tuan 5 / Candidate Profiles / Functional\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Role HR_MANAGER\n- Các bước gốc: 1. GET /candidates/:id/cv\n- Dữ liệu: candidate co CV\n- Kết quả mong đợi: Tra ve dung file/CV cua candidate\n\n**Ánh xạ API hiện tại:** Route download hiện tại nằm dưới `/candidate/cvs/candidate/:candidateId/latest/file`."
+          }
+        },
+        {
+          "name": "CV-007 - Candidate khac khong duoc xem CV nguoi khac",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"candidateAToken\",\"candidateBProfileId\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Two distinct candidate accounts are required\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [403];",
+                  "pm.test(\"CV-007 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"CV-007 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "pm.test('CV-007 | cross-candidate CV access forbidden', function () { pm.expect(pm.response.code).to.eql(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateAToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/candidate/cvs/candidate/{{candidateBProfileId}}/latest/file",
+            "description": "**Nguồn:** Phong - Interview & CV / CV-007\n\n- Người thực hiện: Phong\n- Tuần / module / cấp độ: Tuan 5 / Candidate Profiles / Security\n- Ưu tiên / approach: Cao / Black Box + White Box Testing\n- Tiền điều kiện: Role CANDIDATE\n- Các bước gốc: 1. GET /candidates/:id/cv voi id cua candidate khac\n- Dữ liệu: token CANDIDATE A, id cua candidate B\n- Kết quả mong đợi: Tra ve 403 Forbidden\n\n**Ánh xạ API hiện tại:** Giữ nguyên endpoint/mục tiêu kiểm thử."
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Dung - Frontend manual companions (12 TC)",
+      "item": [
+        {
+          "name": "FE-001 - Kiem tra validate form dang nhap",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('runManualUiCases') !== 'true') { console.warn('UI case skipped: Postman cannot validate browser interaction/visual state. Follow the checklist in the request description.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"FE-001 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"FE-001 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "pm.test('FE-001 | SPA shell reachable', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "pm.test('FE-001 | manual UI verification still required', function () { pm.expect(pm.environment.get('manualUiVerified_FE-001')).to.eql('true'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{webappBase}}/login",
+            "description": "**Nguồn:** Dung - Frontend / FE-001\n\n- Người thực hiện: Dung\n- Tuần / module / cấp độ: Tuan 3 / Login Screen / UI\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Mo trang login\n- Các bước gốc: 1. Nhap email sai dinh dang, submit\n- Dữ liệu: email khong hop le\n- Kết quả mong đợi: Hien thong bao loi ngay tren form\n\n**Ánh xạ API hiện tại:** Postman chỉ kiểm tra SPA shell. Thao tác/hiển thị/đa trình duyệt phải làm thủ công; đặt biến `manualUiVerified_FE-001=true` sau khi đối chiếu checklist."
+          }
+        },
+        {
+          "name": "FE-002 - Dashboard hien thi dung theo role",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('runManualUiCases') !== 'true') { console.warn('UI case skipped: Postman cannot validate browser interaction/visual state. Follow the checklist in the request description.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"FE-002 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"FE-002 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "pm.test('FE-002 | SPA shell reachable', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "pm.test('FE-002 | manual UI verification still required', function () { pm.expect(pm.environment.get('manualUiVerified_FE-002')).to.eql('true'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{webappBase}}/dashboard",
+            "description": "**Nguồn:** Dung - Frontend / FE-002\n\n- Người thực hiện: Dung\n- Tuần / module / cấp độ: Tuan 3 / Dashboard / UI\n- Ưu tiên / approach: Cao / Black Box Testing\n- Tiền điều kiện: Dang nhap voi tung role (4 roles)\n- Các bước gốc: 1. Dang nhap, quan sat dashboard\n- Dữ liệu: 4 tai khoan tuong ung 4 role\n- Kết quả mong đợi: Dashboard hien noi dung/widget dung voi tung role\n\n**Ánh xạ API hiện tại:** Postman chỉ kiểm tra SPA shell. Thao tác/hiển thị/đa trình duyệt phải làm thủ công; đặt biến `manualUiVerified_FE-002=true` sau khi đối chiếu checklist."
+          }
+        },
+        {
+          "name": "FE-003 - Dieu huong danh sach - chi tiet request",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('runManualUiCases') !== 'true') { console.warn('UI case skipped: Postman cannot validate browser interaction/visual state. Follow the checklist in the request description.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"FE-003 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"FE-003 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "pm.test('FE-003 | SPA shell reachable', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "pm.test('FE-003 | manual UI verification still required', function () { pm.expect(pm.environment.get('manualUiVerified_FE-003')).to.eql('true'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{webappBase}}/dept-head/requests",
+            "description": "**Nguồn:** Dung - Frontend / FE-003\n\n- Người thực hiện: Dung\n- Tuần / module / cấp độ: Tuan 4 / Request List/Detail / UI\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Da dang nhap DEPARTMENT_HEAD\n- Các bước gốc: 1. Vao danh sach request 2. Click 1 request\n- Dữ liệu: request co san\n- Kết quả mong đợi: Chuyen sang trang chi tiet dung request da chon\n\n**Ánh xạ API hiện tại:** Postman chỉ kiểm tra SPA shell. Thao tác/hiển thị/đa trình duyệt phải làm thủ công; đặt biến `manualUiVerified_FE-003=true` sau khi đối chiếu checklist."
+          }
+        },
+        {
+          "name": "FE-004 - Validate form tao/sua plan",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('runManualUiCases') !== 'true') { console.warn('UI case skipped: Postman cannot validate browser interaction/visual state. Follow the checklist in the request description.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"FE-004 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"FE-004 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "pm.test('FE-004 | SPA shell reachable', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "pm.test('FE-004 | manual UI verification still required', function () { pm.expect(pm.environment.get('manualUiVerified_FE-004')).to.eql('true'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{webappBase}}/hr/campaigns",
+            "description": "**Nguồn:** Dung - Frontend / FE-004\n\n- Người thực hiện: Dung\n- Tuần / module / cấp độ: Tuan 4 / Plan Editor / UI\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Role HR_MANAGER\n- Các bước gốc: 1. Bo trong truong bat buoc, submit\n- Dữ liệu: du lieu thieu\n- Kết quả mong đợi: Hien loi validate, khong cho submit\n\n**Ánh xạ API hiện tại:** Postman chỉ kiểm tra SPA shell. Thao tác/hiển thị/đa trình duyệt phải làm thủ công; đặt biến `manualUiVerified_FE-004=true` sau khi đối chiếu checklist."
+          }
+        },
+        {
+          "name": "FE-005 - Giao dien len lich phong van",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('runManualUiCases') !== 'true') { console.warn('UI case skipped: Postman cannot validate browser interaction/visual state. Follow the checklist in the request description.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"FE-005 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"FE-005 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "pm.test('FE-005 | SPA shell reachable', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "pm.test('FE-005 | manual UI verification still required', function () { pm.expect(pm.environment.get('manualUiVerified_FE-005')).to.eql('true'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{webappBase}}/hr/interviews",
+            "description": "**Nguồn:** Dung - Frontend / FE-005\n\n- Người thực hiện: Dung\n- Tuần / module / cấp độ: Tuan 4 / Interview Scheduler / UI\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Role HR_MANAGER\n- Các bước gốc: 1. Chon candidate, chon slot, xac nhan\n- Dữ liệu: slot con trong\n- Kết quả mong đợi: Interview duoc tao, UI cap nhat danh sach\n\n**Ánh xạ API hiện tại:** Postman chỉ kiểm tra SPA shell. Thao tác/hiển thị/đa trình duyệt phải làm thủ công; đặt biến `manualUiVerified_FE-005=true` sau khi đối chiếu checklist."
+          }
+        },
+        {
+          "name": "FE-006 - Giao dien tim kiem ung vien",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('runManualUiCases') !== 'true') { console.warn('UI case skipped: Postman cannot validate browser interaction/visual state. Follow the checklist in the request description.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"FE-006 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"FE-006 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "pm.test('FE-006 | SPA shell reachable', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "pm.test('FE-006 | manual UI verification still required', function () { pm.expect(pm.environment.get('manualUiVerified_FE-006')).to.eql('true'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{webappBase}}/hr/search",
+            "description": "**Nguồn:** Dung - Frontend / FE-006\n\n- Người thực hiện: Dung\n- Tuần / module / cấp độ: Tuan 5 / Candidate Search / UI\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Role HR_MANAGER\n- Các bước gốc: 1. Nhap tu khoa tim kiem, submit\n- Dữ liệu: tu khoa lien quan ky nang\n- Kết quả mong đợi: Ket qua hien thi dang danh sach, sap xep theo do phu hop\n\n**Ánh xạ API hiện tại:** Postman chỉ kiểm tra SPA shell. Thao tác/hiển thị/đa trình duyệt phải làm thủ công; đặt biến `manualUiVerified_FE-006=true` sau khi đối chiếu checklist."
+          }
+        },
+        {
+          "name": "FE-007 - Kiem tra giao dien tren nhieu trinh duyet",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('runManualUiCases') !== 'true') { console.warn('UI case skipped: Postman cannot validate browser interaction/visual state. Follow the checklist in the request description.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"FE-007 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"FE-007 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "pm.test('FE-007 | SPA shell reachable', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "pm.test('FE-007 | manual UI verification still required', function () { pm.expect(pm.environment.get('manualUiVerified_FE-007')).to.eql('true'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{webappBase}}/",
+            "description": "**Nguồn:** Dung - Frontend / FE-007\n\n- Người thực hiện: Dung\n- Tuần / module / cấp độ: Tuan 5 / Toan he thong / Compatibility\n- Ưu tiên / approach: Thap / Black Box Testing\n- Tiền điều kiện: He thong dang chay\n- Các bước gốc: 1. Mo webapp tren Chrome/Edge/Firefox\n- Dữ liệu: cung 1 tai khoan test\n- Kết quả mong đợi: Giao dien hien thi nhat quan tren 3 trinh duyet\n\n**Ánh xạ API hiện tại:** Postman chỉ kiểm tra SPA shell. Thao tác/hiển thị/đa trình duyệt phải làm thủ công; đặt biến `manualUiVerified_FE-007=true` sau khi đối chiếu checklist."
+          }
+        },
+        {
+          "name": "FE-008 - Chuong thong bao va so luong chua doc",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('runManualUiCases') !== 'true') { console.warn('UI case skipped: Postman cannot validate browser interaction/visual state. Follow the checklist in the request description.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"FE-008 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"FE-008 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "pm.test('FE-008 | SPA shell reachable', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "pm.test('FE-008 | manual UI verification still required', function () { pm.expect(pm.environment.get('manualUiVerified_FE-008')).to.eql('true'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{webappBase}}/candidate/notifications",
+            "description": "**Nguồn:** Dung - Frontend / FE-008\n\n- Người thực hiện: Dung\n- Tuần / module / cấp độ: Tuan 5 / Notifications / UI\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Co thong bao moi\n- Các bước gốc: 1. Quan sat icon chuong 2. Click xem danh sach\n- Dữ liệu: co it nhat 1 notification chua doc\n- Kết quả mong đợi: So luong hien dung, click vao danh dau da doc\n\n**Ánh xạ API hiện tại:** Postman chỉ kiểm tra SPA shell. Thao tác/hiển thị/đa trình duyệt phải làm thủ công; đặt biến `manualUiVerified_FE-008=true` sau khi đối chiếu checklist."
+          }
+        },
+        {
+          "name": "FE-009 - Sidebar hien thi dung menu theo role",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('runManualUiCases') !== 'true') { console.warn('UI case skipped: Postman cannot validate browser interaction/visual state. Follow the checklist in the request description.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"FE-009 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"FE-009 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "pm.test('FE-009 | SPA shell reachable', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "pm.test('FE-009 | manual UI verification still required', function () { pm.expect(pm.environment.get('manualUiVerified_FE-009')).to.eql('true'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{webappBase}}/dashboard",
+            "description": "**Nguồn:** Dung - Frontend / FE-009\n\n- Người thực hiện: Dung\n- Tuần / module / cấp độ: Tuan 5 / Sidebar/Nav / UI\n- Ưu tiên / approach: Cao / Black Box + White Box Testing\n- Tiền điều kiện: Dang nhap voi tung role\n- Các bước gốc: 1. Quan sat sidebar cho moi role\n- Dữ liệu: 4 tai khoan 4 role\n- Kết quả mong đợi: Chi hien muc menu duoc phep cho tung role\n\n**Ánh xạ API hiện tại:** Postman chỉ kiểm tra SPA shell. Thao tác/hiển thị/đa trình duyệt phải làm thủ công; đặt biến `manualUiVerified_FE-009=true` sau khi đối chiếu checklist."
+          }
+        },
+        {
+          "name": "FE-010 - Tu dong chuyen ve login khi het phien",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('runManualUiCases') !== 'true') { console.warn('UI case skipped: Postman cannot validate browser interaction/visual state. Follow the checklist in the request description.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"FE-010 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"FE-010 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "pm.test('FE-010 | SPA shell reachable', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "pm.test('FE-010 | manual UI verification still required', function () { pm.expect(pm.environment.get('manualUiVerified_FE-010')).to.eql('true'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{webappBase}}/dashboard",
+            "description": "**Nguồn:** Dung - Frontend / FE-010\n\n- Người thực hiện: Dung\n- Tuần / module / cấp độ: Tuan 6 / Session / UI\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Access token het han\n- Các bước gốc: 1. Cho token het han, thuc hien 1 hanh dong\n- Dữ liệu: token het han\n- Kết quả mong đợi: Tu dong redirect ve trang login\n\n**Ánh xạ API hiện tại:** Postman chỉ kiểm tra SPA shell. Thao tác/hiển thị/đa trình duyệt phải làm thủ công; đặt biến `manualUiVerified_FE-010=true` sau khi đối chiếu checklist."
+          }
+        },
+        {
+          "name": "FE-011 - Hien thi thong bao loi khi API that bai",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('runManualUiCases') !== 'true') { console.warn('UI case skipped: Postman cannot validate browser interaction/visual state. Follow the checklist in the request description.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"FE-011 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"FE-011 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "pm.test('FE-011 | SPA shell reachable', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "pm.test('FE-011 | manual UI verification still required', function () { pm.expect(pm.environment.get('manualUiVerified_FE-011')).to.eql('true'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{webappBase}}/dept-head/requests",
+            "description": "**Nguồn:** Dung - Frontend / FE-011\n\n- Người thực hiện: Dung\n- Tuần / module / cấp độ: Tuan 6 / Error Handling / UI\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Backend tra ve loi 5xx\n- Các bước gốc: 1. Goi 1 hanh dong khi API loi\n- Dữ liệu: API mock tra ve 500\n- Kết quả mong đợi: Hien toast/thong bao loi than thien, khong crash UI\n\n**Ánh xạ API hiện tại:** Postman chỉ kiểm tra SPA shell. Thao tác/hiển thị/đa trình duyệt phải làm thủ công; đặt biến `manualUiVerified_FE-011=true` sau khi đối chiếu checklist."
+          }
+        },
+        {
+          "name": "FE-012 - Hien loading khi cho du lieu",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('runManualUiCases') !== 'true') { console.warn('UI case skipped: Postman cannot validate browser interaction/visual state. Follow the checklist in the request description.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"FE-012 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"FE-012 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "pm.test('FE-012 | SPA shell reachable', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "pm.test('FE-012 | manual UI verification still required', function () { pm.expect(pm.environment.get('manualUiVerified_FE-012')).to.eql('true'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{webappBase}}/hr/candidates",
+            "description": "**Nguồn:** Dung - Frontend / FE-012\n\n- Người thực hiện: Dung\n- Tuần / module / cấp độ: Tuan 6 / Loading States / UI\n- Ưu tiên / approach: Thap / Black Box Testing\n- Tiền điều kiện: Man hinh dang tai du lieu\n- Các bước gốc: 1. Vao trang co du lieu tai cham\n- Dữ liệu: API cham >1s\n- Kết quả mong đợi: Hien spinner/skeleton trong luc cho\n\n**Ánh xạ API hiện tại:** Postman chỉ kiểm tra SPA shell. Thao tác/hiển thị/đa trình duyệt phải làm thủ công; đặt biến `manualUiVerified_FE-012=true` sau khi đối chiếu checklist."
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - Hieu - Notification, Reports & Defect (12 TC)",
+      "item": [
+        {
+          "name": "NOTI-001 - Xem danh sach thong bao cua user",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"hrToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Login HR first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"NOTI-001 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"NOTI-001 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "const list = Array.isArray(json) ? json : (json.data || json.items || []); pm.test('NOTI-001 | notification list returned', function () { pm.expect(list).to.be.an('array'); });",
+                  "const unread = list.find((item) => !item.isRead); if (unread) { pm.environment.set('notificationId', unread.id); } pm.environment.set('observedUnreadCount', String(list.filter((item) => !item.isRead).length));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hrToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/notifications",
+            "description": "**Nguồn:** Hieu - Notify & Reports / NOTI-001\n\n- Người thực hiện: Hieu\n- Tuần / module / cấp độ: Tuan 3 / Notifications / Functional\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Da dang nhap, co thong bao\n- Các bước gốc: 1. GET /notifications\n- Dữ liệu: user co it nhat 1 notification\n- Kết quả mong đợi: Tra ve danh sach thong bao dung user\n\n**Ánh xạ API hiện tại:** Giữ nguyên endpoint/mục tiêu kiểm thử."
+          }
+        },
+        {
+          "name": "NOTI-002 - Danh dau 1 thong bao da doc",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"hrToken\",\"notificationId\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"NOTI-001 must find an unread notification first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"NOTI-002 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"NOTI-002 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('NOTI-002 | notification marked read', function () { pm.expect(json.isRead).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hrToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/notifications/{{notificationId}}/read",
+            "description": "**Nguồn:** Hieu - Notify & Reports / NOTI-002\n\n- Người thực hiện: Hieu\n- Tuần / module / cấp độ: Tuan 3 / Notifications / Functional\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Co thong bao chua doc\n- Các bước gốc: 1. PATCH /notifications/:id/read\n- Dữ liệu: notification id hop le\n- Kết quả mong đợi: Trang thai chuyen sang da doc\n\n**Ánh xạ API hiện tại:** Giữ nguyên endpoint/mục tiêu kiểm thử."
+          }
+        },
+        {
+          "name": "NOTI-003 - Danh dau tat ca da doc",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"hrToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Login HR first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200,201];",
+                  "pm.test(\"NOTI-003 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"NOTI-003 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('NOTI-003 | mark-all-read accepted', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hrToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/notifications/mark-all-read",
+            "description": "**Nguồn:** Hieu - Notify & Reports / NOTI-003\n\n- Người thực hiện: Hieu\n- Tuần / module / cấp độ: Tuan 4 / Notifications / Functional\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Co nhieu thong bao chua doc\n- Các bước gốc: 1. PATCH /notifications/read-all\n- Dữ liệu: user co nhieu unread\n- Kết quả mong đợi: Tat ca notification cua user chuyen da doc\n\n**Ánh xạ API hiện tại:** Route hiện tại là POST `/notifications/mark-all-read` (thay cho PATCH `/read-all`)."
+          }
+        },
+        {
+          "name": "NOTI-004 - Lay so luong thong bao chua doc",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"hrToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Login HR first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"NOTI-004 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"NOTI-004 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "const list = Array.isArray(json) ? json : (json.data || json.items || []); const unreadCount = list.filter((item) => !item.isRead).length; pm.environment.set('observedUnreadCount', String(unreadCount));",
+                  "pm.test('NOTI-004 | unread count can be derived', function () { pm.expect(unreadCount).to.be.a('number').and.at.least(0); });",
+                  "if (pm.environment.get('expectedUnreadCount') !== '') { pm.test('NOTI-004 | unread count matches expected data', function () { pm.expect(unreadCount).to.eql(Number(pm.environment.get('expectedUnreadCount'))); }); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hrToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/notifications",
+            "description": "**Nguồn:** Hieu - Notify & Reports / NOTI-004\n\n- Người thực hiện: Hieu\n- Tuần / module / cấp độ: Tuan 4 / Notifications / Functional\n- Ưu tiên / approach: Thap / Black Box Testing\n- Tiền điều kiện: Co thong bao chua doc\n- Các bước gốc: 1. GET /notifications/unread-count\n- Dữ liệu: user co 3 unread\n- Kết quả mong đợi: Tra ve dung so luong 3\n\n**Ánh xạ API hiện tại:** Route `/unread-count` chưa tồn tại; collection đếm `isRead=false` từ danh sách để vẫn kiểm thử dữ liệu."
+          }
+        },
+        {
+          "name": "NOTI-005 - Gui email khi co loi moi phong van",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"hrToken\",\"interviewId\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"INT-001 must create an interview first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"NOTI-005 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"NOTI-005 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('NOTI-005 | at least one interview email was sent', function () { const list = Array.isArray(json) ? json : (json.data || json.items || []); pm.expect(list.some((entry) => entry.status === 'SENT')).to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hrToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/interviews/schedules/{{interviewId}}/email-logs",
+            "description": "**Nguồn:** Hieu - Notify & Reports / NOTI-005\n\n- Người thực hiện: Hieu\n- Tuần / module / cấp độ: Tuan 4 / Email / Integration\n- Ưu tiên / approach: Cao / White Box Testing\n- Tiền điều kiện: Interview vua duoc tao\n- Các bước gốc: 1. Tao interview 2. Kiem tra hang doi BullMQ email\n- Dữ liệu: candidate co email hop le\n- Kết quả mong đợi: Email invite duoc gui qua worker, log thanh cong\n\n**Ánh xạ API hiện tại:** Dùng API email-logs của schedule thay vì truy cập BullMQ trực tiếp."
+          }
+        },
+        {
+          "name": "REP-001 - Xem bao cao tuyen dung hang nam",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"adminToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Login Admin first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"REP-001 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"REP-001 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('REP-001 | annual report payload returned', function () { pm.expect(json).to.be.an('object'); pm.expect(json).to.have.any.keys('summary', 'departmentBreakdown', 'year'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/reports/annual?year={{reportYear}}",
+            "description": "**Nguồn:** Hieu - Notify & Reports / REP-001\n\n- Người thực hiện: Hieu\n- Tuần / module / cấp độ: Tuan 5 / Reports / Functional\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Role ADMIN\n- Các bước gốc: 1. GET /reports/annual\n- Dữ liệu: du lieu tuyen dung ca nam\n- Kết quả mong đợi: Tra ve so lieu tong hop dung theo nam\n\n**Ánh xạ API hiện tại:** Giữ nguyên endpoint/mục tiêu kiểm thử."
+          }
+        },
+        {
+          "name": "REP-002 - Xem bao cao theo phong ban",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"adminToken\",\"departmentId\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Setup department first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"REP-002 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"REP-002 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('REP-002 | department report payload returned', function () { pm.expect(json).to.be.an('object'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/reports/department/{{departmentId}}",
+            "description": "**Nguồn:** Hieu - Notify & Reports / REP-002\n\n- Người thực hiện: Hieu\n- Tuần / module / cấp độ: Tuan 5 / Reports / Functional\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Role ADMIN hoac DEPARTMENT_HEAD\n- Các bước gốc: 1. GET /reports/department/:id\n- Dữ liệu: department co du lieu tuyen dung\n- Kết quả mong đợi: Tra ve so lieu dung phong ban duoc chon\n\n**Ánh xạ API hiện tại:** Giữ nguyên endpoint/mục tiêu kiểm thử."
+          }
+        },
+        {
+          "name": "REP-003 - Xem chi so time-to-hire",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"adminToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Login Admin first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"REP-003 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"REP-003 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('REP-003 | time-to-hire metrics returned', function () { pm.expect(json).to.be.an('object'); pm.expect(json).to.have.any.keys('averageTimeToHireDays', 'averageTimeInStageDays', 'totalCompletedHires'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/reports/time-to-hire",
+            "description": "**Nguồn:** Hieu - Notify & Reports / REP-003\n\n- Người thực hiện: Hieu\n- Tuần / module / cấp độ: Tuan 5 / Reports / Functional\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Role ADMIN\n- Các bước gốc: 1. GET /reports/time-to-hire\n- Dữ liệu: co request da COMPLETED\n- Kết quả mong đợi: Tra ve thoi gian trung binh tu tao den tuyen dung\n\n**Ánh xạ API hiện tại:** Giữ nguyên endpoint/mục tiêu kiểm thử."
+          }
+        },
+        {
+          "name": "REP-004 - Xem pipeline tong quan",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"hrToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Login HR first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"REP-004 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"REP-004 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('REP-004 | pipeline breakdown returned', function () { pm.expect(json).to.be.an('object'); pm.expect(json).to.have.any.keys('breakdown', 'totalCampaigns', 'totalActiveCampaigns'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{hrToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/reports/pipeline",
+            "description": "**Nguồn:** Hieu - Notify & Reports / REP-004\n\n- Người thực hiện: Hieu\n- Tuần / module / cấp độ: Tuan 6 / Reports / Functional\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Role HR_MANAGER\n- Các bước gốc: 1. GET /reports/pipeline\n- Dữ liệu: co request o nhieu trang thai\n- Kết quả mong đợi: Tra ve so luong request theo tung trang thai\n\n**Ánh xạ API hiện tại:** Giữ nguyên endpoint/mục tiêu kiểm thử."
+          }
+        },
+        {
+          "name": "REP-005 - Chan truy cap bao cao voi role khong hop le",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const requiredKeys = [\"candidateAToken\"];",
+                  "const missingKeys = requiredKeys.filter((key) => !pm.environment.get(key));",
+                  "if (missingKeys.length) { console.warn(\"Provide Candidate A token first\" + ': ' + missingKeys.join(', ')); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [403];",
+                  "pm.test(\"REP-005 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"REP-005 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('REP-005 | candidate report access forbidden', function () { pm.expect(pm.response.code).to.eql(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{candidateAToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{apiBase}}/reports/annual?year={{reportYear}}",
+            "description": "**Nguồn:** Hieu - Notify & Reports / REP-005\n\n- Người thực hiện: Hieu\n- Tuần / module / cấp độ: Tuan 6 / Reports / Security\n- Ưu tiên / approach: Cao / Black Box + White Box Testing\n- Tiền điều kiện: Role CANDIDATE\n- Các bước gốc: 1. GET /reports/annual voi token CANDIDATE\n- Dữ liệu: token CANDIDATE\n- Kết quả mong đợi: Tra ve 403 Forbidden\n\n**Ánh xạ API hiện tại:** Giữ nguyên endpoint/mục tiêu kiểm thử."
+          }
+        },
+        {
+          "name": "DEF-001 - Kiem tra quy trinh ghi nhan defect",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('runManualProcessCases') !== 'true') { console.warn('DEF-001 skipped: no defect-management API is present; use the manual checklist in the description.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"DEF-001 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"DEF-001 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('DEF-001 | defect workflow API/integration exists', function () { const paths = Object.keys(json.paths || {}).filter((entry) => /defect|bug/i.test(entry)); pm.expect(paths, 'No defect/bug endpoints found').to.not.be.empty; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayBase}}/api/docs-json",
+            "description": "**Nguồn:** Hieu - Notify & Reports / DEF-001\n\n- Người thực hiện: Hieu\n- Tuần / module / cấp độ: Tuan 6 / Defect Mgmt / Process\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Phat hien loi trong qua trinh test\n- Các bước gốc: 1. Tao defect voi day du Severity/Priority theo quy trinh New->Assigned->...\n- Dữ liệu: defect mau (Critical/High/Medium/Low)\n- Kết quả mong đợi: Defect duoc ghi nhan dung workflow, gan dung nguoi xu ly\n\n**Ánh xạ API hiện tại:** Không có module/API defect trong hệ thống; request kiểm tra OpenAPI và sẽ fail cho tới khi có tích hợp issue tracker."
+          }
+        },
+        {
+          "name": "DEF-002 - Retest defect da fix truoc khi dong",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.environment.get('runManualProcessCases') !== 'true') { console.warn('DEF-002 skipped: retest/close/reopen must be done in the selected issue tracker.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatusCodes = [200];",
+                  "pm.test(\"DEF-002 | HTTP status\", function () { pm.expect(expectedStatusCodes).to.include(pm.response.code); });",
+                  "pm.test(\"DEF-002 | response time\", function () { pm.expect(pm.response.responseTime).to.be.below(Number(pm.environment.get('maxResponseTimeMs') || 5000)); });",
+                  "let json = null;",
+                  "try { json = pm.response.json(); } catch (error) { /* Some negative/binary cases intentionally have no JSON body. */ }",
+                  "pm.test('DEF-002 | retest workflow requires external evidence', function () { pm.expect(pm.environment.get('manualDefectRetestVerified')).to.eql('true'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gatewayBase}}/api/docs-json",
+            "description": "**Nguồn:** Hieu - Notify & Reports / DEF-002\n\n- Người thực hiện: Hieu\n- Tuần / module / cấp độ: Tuan 6 / Defect Mgmt / Process\n- Ưu tiên / approach: TB / Black Box Testing\n- Tiền điều kiện: Defect co trang thai Fixed\n- Các bước gốc: 1. Retest lai test case lien quan defect\n- Dữ liệu: test case goc cua defect\n- Kết quả mong đợi: Neu pass thi dong defect (Closed), neu fail thi mo lai\n\n**Ánh xạ API hiện tại:** Manual-only: nhập `manualDefectRetestVerified=true` sau khi retest defect Fixed trong issue tracker."
+          }
+        }
+      ]
+    }
+  ]
+}

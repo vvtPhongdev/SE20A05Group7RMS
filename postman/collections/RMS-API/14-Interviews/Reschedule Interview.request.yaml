@@ -1,0 +1,16 @@
+$kind: http-request
+name: Reschedule Interview
+method: PATCH
+url: '{{baseUrl}}/api/v1/interviews/schedules/{{scheduleId}}/reschedule'
+order: 4000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "scheduledAt": "2026-08-20T14:00:00Z",
+      "reason": "Conflict"
+    }
+description: Reschedule an interview

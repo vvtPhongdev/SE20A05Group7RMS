@@ -1,0 +1,6 @@
+$kind: http-request
+name: List Completed Interviews
+method: GET
+url: '{{baseUrl}}/api/v1/interviews/completed'
+order: 11000
+description: List all completed interviews

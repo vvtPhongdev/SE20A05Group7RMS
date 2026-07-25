@@ -39,6 +39,7 @@ import {
   IsObject,
   IsISO8601,
   IsArray,
+  IsIn,
   ArrayMaxSize,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -152,6 +153,17 @@ export class ForgotPasswordDto {
   @ApiProperty({ example: 'admin@acme.com', description: 'User email' })
   @IsEmail()
   email!: string;
+
+  @ApiProperty({
+    example: '/account-settings',
+    required: false,
+    enum: ['/reset-password', '/account-settings'],
+    description: 'Approved page that receives the reset token',
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['/reset-password', '/account-settings'])
+  redirectPath?: '/reset-password' | '/account-settings';
 }
 
 export class ResetPasswordDto {
@@ -381,10 +393,24 @@ export class UpdateMyProfileDto {
   @IsNotEmpty()
   displayName?: string;
 
+  @ApiProperty({ example: 'john.doe@acme.com', required: false, description: 'Login email' })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
   @ApiProperty({ example: '0987654321', required: false, description: 'Phone number' })
   @IsOptional()
   @IsString()
-  phone?: string;
+  phone?: string | null;
+
+  @ApiProperty({
+    required: false,
+    description: 'Supabase browser access token used only to synchronize a matching social login',
+  })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  supabaseAccessToken?: string;
 }
 
 export class DeptHeadAddMemberDto {
@@ -918,7 +944,9 @@ export class IdentityController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update current user identity profile' })
   updateCurrentUserProfile(@CurrentUser('sub') userId: string, @Body() body: UpdateMyProfileDto) {
-    return firstValueFrom(this.identityClient.send('users.update', { id: userId, ...body }));
+    return firstValueFrom(
+      this.identityClient.send('identity.auth.update-account', { userId, ...body }),
+    );
   }
 
   @Get('me/id')

@@ -1,0 +1,6 @@
+$kind: http-request
+name: List Interviewers
+method: GET
+url: '{{baseUrl}}/api/v1/users/interviewers'
+order: 2000
+description: List all users with interviewer role

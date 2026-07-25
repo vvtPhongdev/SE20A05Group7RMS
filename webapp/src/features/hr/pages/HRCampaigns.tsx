@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { isHrRole } from '@wr/contracts';
+import { isHrRole, RecruitmentRequestStatus } from '@wr/contracts';
 import { useAuth } from '../../../context/AuthContext';
 import { apiRequest, ApiError } from '../../../lib/api';
 import { mapPlanStatus, type OverallPlanSummary, type PlanStatus } from '../../../lib/planStatus';
@@ -12,6 +12,7 @@ type Campaign = {
   department: string;
   headcount: number;
   status: PlanStatus;
+  requestStatus: RecruitmentRequestStatus;
   window: string;
   progress: number;
   owner: string;
@@ -33,7 +34,7 @@ interface RecruitmentRequestApiItem {
   position: string;
   department: { id: string; name: string; code: string } | null;
   reviewedBy: { id: string; displayName: string } | null;
-  status: string;
+  status: RecruitmentRequestStatus;
   headcount: number;
   urgency: string;
   jobDescription: string;
@@ -100,6 +101,7 @@ const mapCampaign = (
     department: item.department?.name ?? 'Unassigned',
     headcount: item.headcount,
     status,
+    requestStatus: item.status,
     window: plan ? `${formatDate(plan.startDate)} - ${formatDate(plan.endDate)}` : 'TBD',
     progress: PROGRESS_BY_STATUS[status],
     owner: plan?.createdBy?.displayName ?? item.reviewedBy?.displayName ?? 'Unassigned',
@@ -153,6 +155,146 @@ const statusConfig: Record<
   },
 };
 
+const requestStatusConfig: Record<
+  RecruitmentRequestStatus,
+  { label: string; dot: string; badge: string }
+> = {
+  DRAFT: {
+    label: 'Draft',
+    dot: 'bg-draft',
+    badge: 'border-draft/20 bg-draft/10 text-draft',
+  },
+  PENDING_HR_REVIEW: {
+    label: 'Pending HR Review',
+    dot: 'bg-pending',
+    badge: 'border-pending/20 bg-pending/10 text-pending',
+  },
+  PENDING_BOSS_APPROVAL: {
+    label: 'Pending Admin Approval',
+    dot: 'bg-pending',
+    badge: 'border-pending/20 bg-pending/10 text-pending',
+  },
+  PENDING_REVIEW: {
+    label: 'Pending Review',
+    dot: 'bg-pending',
+    badge: 'border-pending/20 bg-pending/10 text-pending',
+  },
+  APPROVED: {
+    label: 'Request Approved',
+    dot: 'bg-approved',
+    badge: 'border-approved/20 bg-approved/10 text-approved',
+  },
+  REJECTED: {
+    label: 'Rejected',
+    dot: 'bg-rejected',
+    badge: 'border-rejected/20 bg-rejected/10 text-rejected',
+  },
+  REVISION_NEEDED: {
+    label: 'Revision Needed',
+    dot: 'bg-revision',
+    badge: 'border-revision/20 bg-revision/10 text-revision',
+  },
+  PLANNING: {
+    label: 'Planning',
+    dot: 'bg-teal-command',
+    badge: 'border-teal-command/20 bg-teal-command/10 text-teal-command',
+  },
+  PLAN_PENDING_APPROVAL: {
+    label: 'Plan Pending Approval',
+    dot: 'bg-pending',
+    badge: 'border-pending/20 bg-pending/10 text-pending',
+  },
+  PLAN_APPROVED: {
+    label: 'Plan Approved',
+    dot: 'bg-approved',
+    badge: 'border-approved/20 bg-approved/10 text-approved',
+  },
+  ACTIVE: {
+    label: 'Active',
+    dot: 'bg-teal-command',
+    badge: 'border-teal-command/20 bg-teal-command/10 text-teal-command',
+  },
+  SCREENING: {
+    label: 'Screening',
+    dot: 'bg-pending',
+    badge: 'border-pending/20 bg-pending/10 text-pending',
+  },
+  INTERVIEWING: {
+    label: 'Interviewing',
+    dot: 'bg-revision',
+    badge: 'border-revision/20 bg-revision/10 text-revision',
+  },
+  DECISION_PENDING: {
+    label: 'Decision Pending',
+    dot: 'bg-pending',
+    badge: 'border-pending/20 bg-pending/10 text-pending',
+  },
+  INTERVIEW_COMPLETED: {
+    label: 'Interview Completed',
+    dot: 'bg-approved',
+    badge: 'border-approved/20 bg-approved/10 text-approved',
+  },
+  OFFER_EXTENDED: {
+    label: 'Offer Extended',
+    dot: 'bg-teal-command',
+    badge: 'border-teal-command/20 bg-teal-command/10 text-teal-command',
+  },
+  OFFER_ACCEPTED: {
+    label: 'Offer Accepted',
+    dot: 'bg-approved',
+    badge: 'border-approved/20 bg-approved/10 text-approved',
+  },
+  OFFER_DECLINED: {
+    label: 'Offer Declined',
+    dot: 'bg-rejected',
+    badge: 'border-rejected/20 bg-rejected/10 text-rejected',
+  },
+  HIRED: {
+    label: 'Hired',
+    dot: 'bg-approved',
+    badge: 'border-approved/20 bg-approved/10 text-approved',
+  },
+  NOT_HIRED: {
+    label: 'Not Hired',
+    dot: 'bg-rejected',
+    badge: 'border-rejected/20 bg-rejected/10 text-rejected',
+  },
+  COMPLETED: {
+    label: 'Completed',
+    dot: 'bg-approved',
+    badge: 'border-approved/20 bg-approved/10 text-approved',
+  },
+  CLOSED: {
+    label: 'Closed',
+    dot: 'bg-slate-ink',
+    badge: 'border-slate-ink/20 bg-slate-ink/10 text-slate-ink',
+  },
+  CANCELLED: {
+    label: 'Cancelled',
+    dot: 'bg-rejected',
+    badge: 'border-rejected/20 bg-rejected/10 text-rejected',
+  },
+};
+
+const CAMPAIGN_REQUEST_STATUSES: RecruitmentRequestStatus[] = [
+  RecruitmentRequestStatus.APPROVED,
+  RecruitmentRequestStatus.PLANNING,
+  RecruitmentRequestStatus.PLAN_PENDING_APPROVAL,
+  RecruitmentRequestStatus.PLAN_APPROVED,
+  RecruitmentRequestStatus.ACTIVE,
+  RecruitmentRequestStatus.SCREENING,
+  RecruitmentRequestStatus.INTERVIEWING,
+  RecruitmentRequestStatus.INTERVIEW_COMPLETED,
+  RecruitmentRequestStatus.DECISION_PENDING,
+  RecruitmentRequestStatus.OFFER_EXTENDED,
+  RecruitmentRequestStatus.OFFER_ACCEPTED,
+  RecruitmentRequestStatus.OFFER_DECLINED,
+  RecruitmentRequestStatus.HIRED,
+  RecruitmentRequestStatus.NOT_HIRED,
+  RecruitmentRequestStatus.COMPLETED,
+  RecruitmentRequestStatus.CLOSED,
+];
+
 const metricToneClasses: Record<string, { label: string; dot: string }> = {
   draft: { label: 'text-draft', dot: 'bg-draft' },
   pending: { label: 'text-pending', dot: 'bg-pending' },
@@ -201,6 +343,19 @@ const StatusBadge = ({ status }: { status: PlanStatus }) => {
   );
 };
 
+const RequestStatusBadge = ({ status }: { status: RecruitmentRequestStatus }) => {
+  const config = requestStatusConfig[status];
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-bold ${config.badge}`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${config.dot}`} />
+      {config.label}
+    </span>
+  );
+};
+
 export const HRCampaigns: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -210,6 +365,7 @@ export const HRCampaigns: React.FC = () => {
   const [apiError, setApiError] = useState('');
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<PlanStatus | 'All'>('All');
+  const [requestStatus, setRequestStatus] = useState<RecruitmentRequestStatus | 'All'>('All');
   const [selectedId, setSelectedId] = useState('');
   const [actionError, setActionError] = useState('');
   const [actionSubmitting, setActionSubmitting] = useState(false);
@@ -221,8 +377,8 @@ export const HRCampaigns: React.FC = () => {
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [createError, setCreateError] = useState('');
 
-  const loadCampaigns = async () => {
-    setLoading(true);
+  const loadCampaigns = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) setLoading(true);
     setApiError('');
     try {
       const [response, departments] = await Promise.all([
@@ -254,13 +410,19 @@ export const HRCampaigns: React.FC = () => {
     } catch (loadError) {
       setApiError(loadError instanceof Error ? loadError.message : 'Unable to load campaigns');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
     void loadCampaigns();
-  }, [token, user?.id, user?.role]);
+  }, [loadCampaigns, user?.id, user?.role]);
+
+  useEffect(() => {
+    const refreshPersistedStatuses = () => void loadCampaigns({ silent: true });
+    window.addEventListener('focus', refreshPersistedStatuses);
+    return () => window.removeEventListener('focus', refreshPersistedStatuses);
+  }, [loadCampaigns]);
 
   const canCreatePlans = isHrRole(user?.role);
   const canEditCampaign = (campaign: Campaign) => canCreatePlans && Boolean(campaign.planId);
@@ -314,15 +476,22 @@ export const HRCampaigns: React.FC = () => {
 
     return campaigns.filter((campaign) => {
       const matchesStatus = status === 'All' || campaign.status === status;
+      const matchesRequestStatus =
+        requestStatus === 'All' || campaign.requestStatus === requestStatus;
       const matchesQuery =
         !normalizedQuery ||
-        [campaign.id, campaign.position, campaign.department, campaign.owner, campaign.status].some(
-          (value) => value.toLowerCase().includes(normalizedQuery),
-        );
+        [
+          campaign.id,
+          campaign.position,
+          campaign.department,
+          campaign.owner,
+          campaign.requestStatus,
+          campaign.status,
+        ].some((value) => value.toLowerCase().includes(normalizedQuery));
 
-      return matchesStatus && matchesQuery;
+      return matchesStatus && matchesRequestStatus && matchesQuery;
     });
-  }, [campaigns, query, status]);
+  }, [campaigns, query, requestStatus, status]);
 
   const selected =
     campaigns.find((campaign) => campaign.id === selectedId) ?? visibleCampaigns[0] ?? null;
@@ -457,7 +626,7 @@ export const HRCampaigns: React.FC = () => {
               </p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-[minmax(220px,1fr)_180px]">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(240px,1fr)_210px_180px]">
               <label className="relative block">
                 <span className="sr-only">Search campaigns</span>
                 <Icon
@@ -474,13 +643,31 @@ export const HRCampaigns: React.FC = () => {
               </label>
               <label className="inline-flex h-10 items-center gap-2 rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-on-surface-variant">
                 <Icon className="h-4 w-4" name="filter" />
-                <span className="sr-only">Filter campaign status</span>
+                <span className="sr-only">Filter request status</span>
+                <select
+                  className="w-full border-none bg-transparent p-0 text-sm font-semibold text-on-surface-variant outline-none focus:ring-0"
+                  onChange={(event) =>
+                    setRequestStatus(event.target.value as RecruitmentRequestStatus | 'All')
+                  }
+                  value={requestStatus}
+                >
+                  <option value="All">All request status</option>
+                  {CAMPAIGN_REQUEST_STATUSES.map((requestStatusOption) => (
+                    <option key={requestStatusOption} value={requestStatusOption}>
+                      {requestStatusConfig[requestStatusOption].label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="inline-flex h-10 items-center gap-2 rounded-lg border border-border-warm bg-clean-surface px-3 text-sm text-on-surface-variant">
+                <Icon className="h-4 w-4" name="filter" />
+                <span className="sr-only">Filter plan status</span>
                 <select
                   className="w-full border-none bg-transparent p-0 text-sm font-semibold text-on-surface-variant outline-none focus:ring-0"
                   onChange={(event) => setStatus(event.target.value as PlanStatus | 'All')}
                   value={status}
                 >
-                  <option value="All">All status</option>
+                  <option value="All">All plan status</option>
                   <option value="DRAFT">Draft</option>
                   <option value="PENDING_APPROVAL">Pending</option>
                   <option value="APPROVED">Approved</option>
@@ -499,6 +686,7 @@ export const HRCampaigns: React.FC = () => {
                     'Position',
                     'Department',
                     'HC',
+                    'Request Status',
                     'Plan Status',
                     'Campaign Window',
                     'Progress',
@@ -531,6 +719,9 @@ export const HRCampaigns: React.FC = () => {
                       </td>
                       <td className="px-5 py-4 font-mono text-sm text-on-surface-variant">
                         {campaign.headcount}
+                      </td>
+                      <td className="px-5 py-4">
+                        <RequestStatusBadge status={campaign.requestStatus} />
                       </td>
                       <td className="px-5 py-4">
                         <StatusBadge status={campaign.status} />
@@ -623,8 +814,19 @@ export const HRCampaigns: React.FC = () => {
                     Headcount: {selected.headcount}
                   </span>
                 </div>
-                <div className="mt-3">
-                  <StatusBadge status={selected.status} />
+                <div className="mt-3 flex flex-wrap gap-3">
+                  <div>
+                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-on-surface-variant">
+                      Request Status
+                    </p>
+                    <RequestStatusBadge status={selected.requestStatus} />
+                  </div>
+                  <div>
+                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-on-surface-variant">
+                      Plan Status
+                    </p>
+                    <StatusBadge status={selected.status} />
+                  </div>
                 </div>
               </div>
 

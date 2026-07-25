@@ -452,6 +452,7 @@ export class ReportsService {
 
   async getAnnualReport(payload: { year: number }) {
     const { year } = payload;
+    const now = new Date();
     const startOfYear = new Date(year, 0, 1);
     const endOfYear = new Date(year, 11, 31, 23, 59, 59, 999);
 
@@ -475,6 +476,30 @@ export class ReportsService {
           select: {
             id: true,
             displayName: true,
+          },
+        },
+        overallPlan: {
+          select: {
+            id: true,
+            status: true,
+            startDate: true,
+            endDate: true,
+            tasks: {
+              select: {
+                id: true,
+                taskType: true,
+                status: true,
+                startDate: true,
+                endDate: true,
+                assignedTo: {
+                  select: {
+                    id: true,
+                    displayName: true,
+                  },
+                },
+              },
+              orderBy: [{ startDate: 'asc' }, { createdAt: 'asc' }],
+            },
           },
         },
       },
@@ -753,6 +778,52 @@ export class ReportsService {
           : 0,
     }));
 
+    const campaignTracking = requests.flatMap((request) => {
+      const plan = request.overallPlan;
+      if (!plan) return [];
+
+      const tasks = plan.tasks;
+      const currentTask =
+        tasks.find((task) => task.status === TaskStatus.IN_PROGRESS) ??
+        tasks.find(
+          (task) =>
+            task.status !== TaskStatus.COMPLETED &&
+            !!task.startDate &&
+            !!task.endDate &&
+            task.startDate <= now &&
+            task.endDate >= now,
+        ) ??
+        tasks.find((task) => task.status !== TaskStatus.COMPLETED) ??
+        null;
+      const completedTasks = tasks.filter((task) => task.status === TaskStatus.COMPLETED).length;
+
+      return [
+        {
+          requestId: request.id,
+          planId: plan.id,
+          position: request.position,
+          department: request.department.name,
+          requestStatus: request.status,
+          planStatus: plan.status,
+          startDate: plan.startDate.toISOString(),
+          endDate: plan.endDate.toISOString(),
+          completedTasks,
+          totalTasks: tasks.length,
+          progress: tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 0,
+          currentTask: currentTask
+            ? {
+                id: currentTask.id,
+                taskType: currentTask.taskType,
+                status: currentTask.status,
+                startDate: currentTask.startDate?.toISOString() ?? null,
+                endDate: currentTask.endDate?.toISOString() ?? null,
+                assignee: currentTask.assignedTo.displayName,
+              }
+            : null,
+        },
+      ];
+    });
+
     return {
       year,
       summary: {
@@ -770,6 +841,7 @@ export class ReportsService {
       departmentBreakdown,
       managerPerformance,
       timeToHireByStage,
+      campaignTracking,
     };
   }
 

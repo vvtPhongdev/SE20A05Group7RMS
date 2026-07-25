@@ -1,0 +1,13 @@
+$kind: http-request
+name: Upload CV
+method: POST
+url: '{{baseUrl}}/api/v1/candidate/cvs'
+order: 4000
+body:
+  type: formdata
+  content:
+    - key: file
+      type: file
+      src: ''
+      description: CV file (PDF/DOCX/DOC)
+description: Upload CV PDF/DOCX/DOC (multipart/form-data)

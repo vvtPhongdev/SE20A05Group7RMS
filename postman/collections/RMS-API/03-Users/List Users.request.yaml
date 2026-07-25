@@ -1,0 +1,6 @@
+$kind: http-request
+name: List Users
+method: GET
+url: '{{baseUrl}}/api/v1/users'
+order: 1000
+description: 'List all users. Roles: ADMIN, HR_LEADER'

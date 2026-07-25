@@ -1,0 +1,18 @@
+$kind: http-request
+name: Create Job Posting
+method: POST
+url: '{{baseUrl}}/api/v1/job-postings'
+order: 5000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "recruitmentRequestId": "{{requestId}}",
+      "title": "Senior Software Engineer",
+      "description": "We are hiring...",
+      "requirements": "3+ years"
+    }
+description: Create a new job posting

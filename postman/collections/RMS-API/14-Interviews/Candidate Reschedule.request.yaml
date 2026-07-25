@@ -1,0 +1,16 @@
+$kind: http-request
+name: Candidate Reschedule
+method: PATCH
+url: '{{baseUrl}}/api/v1/interviews/schedules/{{scheduleId}}/candidate-reschedule'
+order: 7000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "proposedAt": "2026-08-22T10:00:00Z",
+      "reason": "Prior commitment"
+    }
+description: Candidate requests to reschedule an interview

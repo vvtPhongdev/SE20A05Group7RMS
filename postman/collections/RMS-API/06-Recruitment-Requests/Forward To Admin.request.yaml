@@ -1,0 +1,6 @@
+$kind: http-request
+name: Forward To Admin
+method: PATCH
+url: '{{baseUrl}}/api/v1/recruitment-requests/{{requestId}}/forward-to-admin'
+order: 9000
+description: Forward recruitment request to admin for final decision

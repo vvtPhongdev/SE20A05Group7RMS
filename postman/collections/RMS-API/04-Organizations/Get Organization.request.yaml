@@ -1,0 +1,6 @@
+$kind: http-request
+name: Get Organization
+method: GET
+url: '{{baseUrl}}/api/v1/organizations/{{organizationId}}'
+order: 3000
+description: Get organization by ID

@@ -1,0 +1,6 @@
+$kind: http-request
+name: Get Interview Details
+method: GET
+url: '{{baseUrl}}/api/v1/interviews/{{interviewId}}/details'
+order: 12000
+description: Get detailed information about an interview

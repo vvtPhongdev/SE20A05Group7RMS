@@ -1,0 +1,16 @@
+$kind: http-request
+name: Create Offer
+method: POST
+url: '{{baseUrl}}/api/v1/offers'
+order: 3000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "recruitmentRequestId": "{{requestId}}",
+      "candidateId": "{{candidateId}}"
+    }
+description: Create a job offer for a candidate

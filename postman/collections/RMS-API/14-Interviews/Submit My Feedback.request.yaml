@@ -1,0 +1,19 @@
+$kind: http-request
+name: Submit My Feedback
+method: POST
+url: '{{baseUrl}}/api/v1/interviews/{{interviewId}}/my-feedback'
+order: 13000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "decision": "PASS",
+      "technicalScore": 8,
+      "communicationScore": 7,
+      "cultureScore": 9,
+      "notes": "Strong candidate"
+    }
+description: Submit interviewer feedback for an interview

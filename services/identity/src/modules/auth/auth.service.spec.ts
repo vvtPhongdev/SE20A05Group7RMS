@@ -10,11 +10,15 @@ import * as nodemailer from 'nodemailer';
 import { UserRole } from '@wr/contracts';
 
 const mockSupabaseGetUser = jest.fn();
+const mockSupabaseUpdateUserById = jest.fn();
 
 jest.mock('@supabase/supabase-js', () => ({
   createClient: jest.fn(() => ({
     auth: {
       getUser: mockSupabaseGetUser,
+      admin: {
+        updateUserById: mockSupabaseUpdateUserById,
+      },
     },
   })),
 }));
@@ -476,6 +480,23 @@ describe('AuthService', () => {
       expect(mockSendMail).toHaveBeenCalled();
     });
 
+    it('should return account-setting requests to the approved account page', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValueOnce({ id: 'uuid-1234', email });
+      const redisInstance = (service as any).redis;
+      redisInstance.get.mockResolvedValueOnce(null);
+
+      const mockSendMail = (nodemailer.createTransport() as any).sendMail;
+      mockSendMail.mockClear();
+
+      await service.forgotPassword({ email, redirectPath: '/account-settings' });
+
+      expect(mockSendMail).toHaveBeenCalledWith(
+        expect.objectContaining({
+          text: expect.stringContaining('/account-settings?email='),
+        }),
+      );
+    });
+
     it('should return success immediately without generating code or email if user does not exist', async () => {
       mockPrismaService.user.findUnique.mockResolvedValueOnce(null);
       const redisInstance = (service as any).redis;
@@ -506,6 +527,96 @@ describe('AuthService', () => {
       );
 
       expect(redisInstance.get).toHaveBeenCalledWith(rateLimitKey);
+    });
+  });
+
+  describe('updateAccount', () => {
+    const existingUser = {
+      id: 'uuid-1234',
+      email: 'test@example.com',
+      passwordHash: 'hashed-password',
+    };
+
+    it('should update the current RMS profile without invoking Supabase', async () => {
+      const updatedProfile = {
+        id: existingUser.id,
+        email: existingUser.email,
+        displayName: 'Updated User',
+        phone: '0987654321',
+      };
+      mockPrismaService.user.findUnique.mockResolvedValueOnce(existingUser);
+      mockPrismaService.user.update.mockResolvedValueOnce(updatedProfile);
+
+      const result = await service.updateAccount({
+        userId: existingUser.id,
+        displayName: updatedProfile.displayName,
+        phone: updatedProfile.phone,
+      });
+
+      expect(result).toEqual(updatedProfile);
+      expect(mockSupabaseGetUser).not.toHaveBeenCalled();
+      expect(mockSupabaseUpdateUserById).not.toHaveBeenCalled();
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: existingUser.id },
+          data: expect.objectContaining({
+            displayName: updatedProfile.displayName,
+            email: existingUser.email,
+            phone: updatedProfile.phone,
+          }),
+        }),
+      );
+    });
+
+    it('should verify and synchronize the matching Supabase identity before changing email', async () => {
+      const socialUser = { ...existingUser, passwordHash: null };
+      const updatedProfile = { ...socialUser, email: 'new@example.com' };
+      mockPrismaService.user.findUnique
+        .mockResolvedValueOnce(socialUser)
+        .mockResolvedValueOnce(null);
+      mockSupabaseGetUser.mockResolvedValueOnce({
+        data: {
+          user: {
+            id: 'supabase-user-123',
+            email: socialUser.email,
+            user_metadata: {},
+          },
+        },
+        error: null,
+      });
+      mockSupabaseUpdateUserById.mockResolvedValueOnce({ data: {}, error: null });
+      mockPrismaService.user.update.mockResolvedValueOnce(updatedProfile);
+
+      const result = await service.updateAccount({
+        userId: socialUser.id,
+        email: updatedProfile.email,
+        supabaseAccessToken: 'supabase-access-token',
+      });
+
+      expect(result).toEqual(updatedProfile);
+      expect(mockSupabaseGetUser).toHaveBeenCalledWith('supabase-access-token');
+      expect(mockSupabaseUpdateUserById).toHaveBeenCalledWith('supabase-user-123', {
+        email: updatedProfile.email,
+        email_confirm: true,
+      });
+    });
+
+    it('should reject a social-login email change without a matching Supabase session', async () => {
+      const socialUser = { ...existingUser, passwordHash: null };
+      mockPrismaService.user.findUnique
+        .mockResolvedValueOnce(socialUser)
+        .mockResolvedValueOnce(null);
+
+      await expect(
+        service.updateAccount({ userId: socialUser.id, email: 'new@example.com' }),
+      ).rejects.toThrow(
+        new RpcException({
+          status: HttpStatus.BAD_REQUEST,
+          message: 'Sign in with Google again before changing your email',
+        }),
+      );
+
+      expect(prisma.user.update).not.toHaveBeenCalled();
     });
   });
 

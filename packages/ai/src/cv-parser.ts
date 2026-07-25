@@ -1,6 +1,14 @@
-import { readFile } from 'fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import mammoth from 'mammoth';
 import { PDFParse } from 'pdf-parse';
+
+const execFileAsync = promisify(execFile);
+const libreOfficePath =
+  process.env.LIBREOFFICE_PATH || 'C:\\Program Files\\LibreOffice\\program\\soffice.exe';
 
 const isRemoteFile = (filePath: string) => /^https?:\/\//i.test(filePath);
 
@@ -91,10 +99,31 @@ export async function parseDocxBuffer(buffer: Buffer): Promise<string> {
   return normalizeExtractedText(result.value);
 }
 
-/**
- * Parses the Word-compatible HTML .doc template used by the webapp.
- * Legacy binary .doc parsing is intentionally not supported.
- */
+async function convertLegacyDocToText(buffer: Buffer): Promise<string> {
+  const workingDirectory = await mkdtemp(join(tmpdir(), 'wr-cv-doc-'));
+  const inputPath = join(workingDirectory, 'source.doc');
+  const outputPath = join(workingDirectory, 'source.txt');
+
+  try {
+    await writeFile(inputPath, buffer);
+    await execFileAsync(
+      libreOfficePath,
+      ['--headless', '--convert-to', 'txt:Text', '--outdir', workingDirectory, inputPath],
+      { windowsHide: true, timeout: 30_000 },
+    );
+    return normalizeExtractedText(await readFile(outputPath, 'utf8'));
+  } catch (error) {
+    throw new Error(
+      `Unable to convert legacy DOC to text with LibreOffice: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  } finally {
+    await rm(workingDirectory, { recursive: true, force: true });
+  }
+}
+
+/** Parses Word-compatible HTML templates and legacy binary .doc files. */
 export async function parseDoc(filePath: string): Promise<string> {
   const buffer = await readFileBuffer(filePath);
   return parseDocBuffer(buffer);
@@ -103,11 +132,8 @@ export async function parseDoc(filePath: string): Promise<string> {
 export async function parseDocBuffer(buffer: Buffer): Promise<string> {
   const html = buffer.toString('utf8');
 
-  if (!/<html[\s>]/i.test(html)) {
-    throw new Error('Legacy binary DOC files are not supported. Please upload PDF, DOCX, or the RMS template DOC.');
-  }
-
-  return parseWordHtmlText(html);
+  if (/<html[\s>]/i.test(html)) return parseWordHtmlText(html);
+  return convertLegacyDocToText(buffer);
 }
 
 /**

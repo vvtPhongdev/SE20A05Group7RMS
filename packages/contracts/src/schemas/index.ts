@@ -50,6 +50,7 @@ export const RefreshTokenSchema = z.object({
 
 export const ForgotPasswordSchema = z.object({
   email: z.string().email(),
+  redirectPath: z.enum(['/reset-password', '/account-settings']).optional(),
 });
 
 export const ResetPasswordSchema = z.object({
@@ -79,6 +80,13 @@ export const UpdateUserSchema = z.object({
   departmentId: z.string().uuid().optional().nullable(),
 });
 
+export const UpdateAccountSchema = z.object({
+  displayName: z.string().trim().min(1).max(255).optional(),
+  email: z.string().trim().toLowerCase().email().optional(),
+  phone: z.string().trim().max(20).optional().nullable(),
+  supabaseAccessToken: z.string().min(1).optional(),
+});
+
 export const AuthTokenResponseSchema = z.object({
   accessToken: z.string(),
   refreshToken: z.string(),
@@ -98,6 +106,7 @@ export type SupabaseLoginInput = z.infer<typeof SupabaseLoginSchema>;
 export type SupabaseRegisterInput = z.infer<typeof SupabaseRegisterSchema>;
 export type LoginInput = z.infer<typeof LoginSchema>;
 export type UpdateUserInput = z.infer<typeof UpdateUserSchema>;
+export type UpdateAccountInput = z.infer<typeof UpdateAccountSchema>;
 export type ForgotPasswordInput = z.infer<typeof ForgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof ResetPasswordSchema>;
 export type AuthTokenResponse = z.infer<typeof AuthTokenResponseSchema>;
@@ -405,6 +414,7 @@ export type CreateEmailLogInput = z.infer<typeof CreateEmailLogSchema>;
 export const CvParseJobPayloadSchema = z.object({
   cvDocumentId: z.string().uuid(),
   filePath: z.string().min(1),
+  parserPreference: z.enum(['MODEL_VECTOR', 'GEMINI_API']).optional(),
 });
 
 export const EmbeddingGenerateJobPayloadSchema = z.object({

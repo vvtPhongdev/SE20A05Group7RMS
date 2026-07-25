@@ -1,0 +1,6 @@
+$kind: http-request
+name: Department Report
+method: GET
+url: '{{baseUrl}}/api/v1/reports/department/{{departmentId}}'
+order: 4000
+description: Get recruitment report for a specific department

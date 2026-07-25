@@ -9,7 +9,7 @@
 // });
 
 // function getLogoPath(): string | null {
-//   const logoPath = path.join(__dirname, '../../../../assets/logo.png');
+//   const logoPath = path.join(__dirname, '../../../../webapp/public/logo-offical.svg');
 //   return fs.existsSync(logoPath) ? logoPath : null;
 // }
 
@@ -192,7 +192,8 @@
 //       attachments: logoPath
 //         ? [
 //             {
-//               filename: 'logo.png',
+//               filename: 'logo-offical.svg',
+//               contentType: 'image/svg+xml',
 //               path: logoPath,
 //               cid: 'logo',
 //             },
@@ -245,7 +246,7 @@ const transporter = nodemailer.createTransport({
 });
 
 function getLogoPath(): string | null {
-  const logoPath = path.join(__dirname, '../../../../assets/logo.png');
+  const logoPath = path.join(__dirname, '../../../../webapp/public/logo-offical.svg');
   return fs.existsSync(logoPath) ? logoPath : null;
 }
 
@@ -500,7 +501,8 @@ export async function processEmailSendJob(payload: EmailSendJobPayload): Promise
       attachments: logoPath
         ? [
             {
-              filename: 'logo.png',
+              filename: 'logo-offical.svg',
+              contentType: 'image/svg+xml',
               path: logoPath,
               cid: 'logo',
             },

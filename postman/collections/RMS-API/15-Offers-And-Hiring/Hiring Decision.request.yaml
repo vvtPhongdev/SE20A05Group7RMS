@@ -1,0 +1,21 @@
+$kind: http-request
+name: Hiring Decision
+method: POST
+url: '{{baseUrl}}/api/v1/hiring-decisions/{{requestId}}'
+order: 1000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "decision": "HIRE",
+      "candidateId": "{{candidateId}}",
+      "compensation": {
+        "base": 5000,
+        "currency": "USD"
+      },
+      "startDate": "2026-09-01"
+    }
+description: Make a hiring decision for a recruitment request

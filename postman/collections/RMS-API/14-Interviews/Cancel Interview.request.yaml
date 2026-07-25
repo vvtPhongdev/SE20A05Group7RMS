@@ -1,0 +1,15 @@
+$kind: http-request
+name: Cancel Interview
+method: PATCH
+url: '{{baseUrl}}/api/v1/interviews/schedules/{{scheduleId}}/cancel'
+order: 5000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "reason": "Candidate withdrew"
+    }
+description: Cancel an interview schedule

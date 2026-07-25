@@ -15,6 +15,7 @@ export interface User {
   role: UserRole;
   organizationId?: string;
   departmentId?: string | null;
+  phone?: string | null;
   department?: UserDepartment | null;
   departmentsHeaded?: UserDepartment[];
 }
@@ -46,6 +47,7 @@ interface AuthContextType {
     refreshToken?: string,
     rememberMe?: boolean,
   ) => void;
+  updateCurrentUser: (updatedUser: User) => void;
   logout: () => Promise<void>;
 }
 
@@ -73,6 +75,14 @@ const storeAuth = (
   storage.setItem('user', JSON.stringify(loggedUser));
   if (refreshToken) {
     storage.setItem('refreshToken', refreshToken);
+  }
+};
+
+const replaceStoredUser = (updatedUser: User) => {
+  for (const storage of [sessionStorage, localStorage]) {
+    if (storage.getItem('token') || storage.getItem('accessToken')) {
+      storage.setItem('user', JSON.stringify(updatedUser));
+    }
   }
 };
 
@@ -489,6 +499,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(loggedUser);
   };
 
+  const updateCurrentUser = (updatedUser: User) => {
+    replaceStoredUser(updatedUser);
+    setUser(updatedUser);
+  };
+
   const logout = async () => {
     const refreshToken = getStoredRefreshToken();
 
@@ -514,6 +529,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         registerWithSupabaseSession,
         getSupabaseProfile,
         loginWithToken,
+        updateCurrentUser,
         logout,
       }}
     >

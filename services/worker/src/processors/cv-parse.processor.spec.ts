@@ -1,5 +1,11 @@
 import { PrismaClient } from '@prisma/client';
-import { buildCvSearchText, extractCvWithAi, extractText, isCvAiConfigured } from '@wr/ai';
+import {
+  buildCvSearchText,
+  extractCvWithAi,
+  extractText,
+  isCvAiConfigured,
+  parseCandidateTemplateCv,
+} from '@wr/ai';
 import { logger } from '../logger';
 import { processCvParseJob } from './cv-parse.processor';
 
@@ -26,6 +32,10 @@ jest.mock('@wr/ai', () => ({
   extractCvWithAi: jest.fn(),
   isCvAiConfigured: jest.fn(),
   buildCvSearchText: jest.fn((rawText: string) => rawText),
+  parseCandidateTemplateCv: jest.fn().mockResolvedValue({
+    matched: false,
+    reason: 'RMS template marker is missing.',
+  }),
 }));
 
 describe('processCvParseJob', () => {
@@ -39,6 +49,10 @@ describe('processCvParseJob', () => {
     prismaMock.candidateProfile.update.mockResolvedValue({});
     (isCvAiConfigured as jest.Mock).mockReturnValue(false);
     (buildCvSearchText as jest.Mock).mockImplementation((rawText: string) => rawText);
+    (parseCandidateTemplateCv as jest.Mock).mockResolvedValue({
+      matched: false,
+      reason: 'RMS template marker is missing.',
+    });
   });
 
   it('skips parsing if CandidateCV extraction is already completed', async () => {
@@ -98,6 +112,44 @@ describe('processCvParseJob', () => {
       }),
     );
     expect(result).toEqual({ cvDocumentId: 'cv-2', rawText: localText });
+  });
+
+  it('uses the template parser before Gemini for a matching Word CV', async () => {
+    const templateText = 'RMS-CV-TEMPLATE: V1\nJane Doe\nProfessional Summary';
+    const templateExtraction = {
+      documentText: templateText,
+      resume: { personalInfo: { fullName: 'Jane Doe', email: 'jane@example.com' } },
+      confidence: 0.96,
+      warnings: [],
+      method: 'LOCAL_TEXT' as const,
+      model: 'rms-template-parser-v1',
+    };
+    prismaMock.candidateCV.findUnique.mockResolvedValue({
+      id: 'cv-template',
+      candidateId: candidate.id,
+      candidate,
+      fileName: 'rms-cv.doc',
+      fileType: 'DOC',
+      rawText: templateText,
+      parsedAt: null,
+      processingStatus: 'PENDING',
+    });
+    (parseCandidateTemplateCv as jest.Mock).mockResolvedValue({
+      matched: true,
+      similarity: 0.91,
+      extraction: templateExtraction,
+    });
+    (isCvAiConfigured as jest.Mock).mockReturnValue(true);
+
+    await processCvParseJob({ cvDocumentId: 'cv-template', filePath: 'rms-cv.doc' });
+
+    expect(parseCandidateTemplateCv).toHaveBeenCalledWith({ fileType: 'DOC', rawText: templateText });
+    expect(extractCvWithAi).not.toHaveBeenCalled();
+    expect(prismaMock.candidateCV.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ processingMethod: 'LOCAL_TEXT', structuredData: expect.any(Object) }),
+      }),
+    );
   });
 
   it('uses AI vision OCR and persists structured resume data for an image PDF', async () => {

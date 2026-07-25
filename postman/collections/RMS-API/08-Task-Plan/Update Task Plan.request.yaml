@@ -1,0 +1,15 @@
+$kind: http-request
+name: Update Task Plan
+method: PATCH
+url: '{{baseUrl}}/api/v1/task-plan/{{taskPlanId}}'
+order: 4000
+headers:
+  - key: Content-Type
+    value: application/json
+body:
+  type: json
+  content: |-
+    {
+      "title": "Updated Task Title"
+    }
+description: Update task plan details

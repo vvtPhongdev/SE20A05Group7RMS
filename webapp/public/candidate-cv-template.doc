@@ -66,6 +66,15 @@
       font-style: italic;
     }
 
+    .rms-template-marker {
+      color: #ffffff;
+      font-size: 1pt;
+      height: 0;
+      line-height: 0;
+      margin: 0;
+      overflow: hidden;
+    }
+
     .date {
       float: right;
       color: #56646a;
@@ -84,75 +93,68 @@
   </style>
 </head>
 <body>
-  <h1>[FULL NAME]</h1>
-  <p class="role">[PROFESSIONAL TITLE]</p>
+  <p class="rms-template-marker">RMS-CV-TEMPLATE: V1</p>
+  <h1>Full Name:</h1>
+  <p class="role">Professional Title:</p>
 
   <div class="contact">
     <table>
       <tr>
-        <td><strong>Email:</strong> [name@example.com]</td>
-        <td><strong>Phone:</strong> [+84 ...]</td>
+        <td><strong>Email:</strong> </td>
+        <td><strong>Phone:</strong> </td>
       </tr>
       <tr>
-        <td><strong>Address:</strong> [City, Country]</td>
-        <td><strong>LinkedIn:</strong> [https://linkedin.com/in/...]</td>
+        <td><strong>Address:</strong> </td>
+        <td><strong>LinkedIn:</strong> </td>
       </tr>
       <tr>
-        <td><strong>GitHub:</strong> [https://github.com/...]</td>
-        <td><strong>Portfolio:</strong> [https://...]</td>
+        <td><strong>GitHub:</strong> </td>
+        <td><strong>Portfolio:</strong> </td>
       </tr>
     </table>
   </div>
 
   <h2>Professional Summary</h2>
-  <p class="hint">
-    Write 3-5 sentences describing your experience, strengths, career direction, and the value
-    you can bring to an employer.
-  </p>
+  <p><strong>Summary:</strong> </p>
 
   <h2>Technical Skills</h2>
-  <p><strong>Programming languages:</strong> [JavaScript, TypeScript, Java, ...]</p>
-  <p><strong>Frameworks and libraries:</strong> [React, NestJS, Spring Boot, ...]</p>
-  <p><strong>Databases and tools:</strong> [PostgreSQL, Docker, Git, ...]</p>
+  <p><strong>Programming languages:</strong> </p>
+  <p><strong>Frameworks and libraries:</strong> </p>
+  <p><strong>Databases and tools:</strong> </p>
 
   <h2>Soft Skills</h2>
-  <p>[Communication, Teamwork, Problem solving, Time management, ...]</p>
+  <p><strong>Soft skills:</strong> </p>
 
   <h2>Languages</h2>
-  <p>[English - IELTS 7.0]</p>
-  <p>[Japanese - N3]</p>
+  <p><strong>Languages:</strong> </p>
 
   <h2>Work Experience</h2>
-  <h3>
-    [POSITION] - [COMPANY]
-    <span class="date">[YYYY-MM] - [Present or YYYY-MM]</span>
-  </h3>
+  <h3>Position: </h3>
+  <p>Company: </p>
+  <p>Start date: </p>
+  <p>End date: </p>
   <ul>
-    <li>[Describe a responsibility or project using a strong action verb.]</li>
-    <li>[Describe a measurable achievement, for example: improved processing time by 30%.]</li>
-    <li>[Mention relevant technologies, team size, or business impact.]</li>
+    <li>Achievement: </li>
   </ul>
 
-  <h3>
-    [POSITION] - [COMPANY]
-    <span class="date">[YYYY-MM] - [YYYY-MM]</span>
-  </h3>
+  <h3>Position: </h3>
+  <p>Company: </p>
+  <p>Start date: </p>
+  <p>End date: </p>
   <ul>
-    <li>[Responsibility or achievement]</li>
-    <li>[Responsibility or achievement]</li>
+    <li>Achievement: </li>
   </ul>
 
   <h2>Education</h2>
-  <h3>
-    [DEGREE] - [MAJOR]
-    <span class="date">[YYYY-MM] - [YYYY-MM]</span>
-  </h3>
-  <p>[SCHOOL / UNIVERSITY]</p>
-  <p class="hint">Optional: GPA, scholarship, relevant coursework, or academic achievements.</p>
+  <h3>Degree: </h3>
+  <p>Major: </p>
+  <p>School / University: </p>
+  <p>Start date: </p>
+  <p>End date: </p>
 
   <h2>Additional Information</h2>
-  <p><strong>Certifications:</strong> [Certification name - Issuing organization - Year]</p>
-  <p><strong>Projects:</strong> [Project name, role, technologies, and result]</p>
-  <p><strong>Activities:</strong> [Volunteer work, clubs, awards, or professional memberships]</p>
+  <p><strong>Certifications:</strong> </p>
+  <p><strong>Projects:</strong> </p>
+  <p><strong>Activities:</strong> </p>
 </body>
 </html>

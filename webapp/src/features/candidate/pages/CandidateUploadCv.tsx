@@ -114,8 +114,18 @@ interface CvDocument {
   rawText?: string;
   processingMethod?: string | null;
   processingError?: string | null;
-  structuredData?: { resume?: unknown; confidence?: number } | null;
+  structuredData?: { resume?: unknown; confidence?: number; templateMatched?: boolean } | null;
 }
+
+const getParsingSource = (method?: string | null) => {
+  if (method === 'AI_VISION') {
+    return { label: 'Gemini API parsing', detail: 'Gemini Vision OCR + extraction', tone: 'text-blue-700' };
+  }
+  if (method === 'AI_TEXT') {
+    return { label: 'Gemini API parsing', detail: 'Gemini text extraction', tone: 'text-blue-700' };
+  }
+  return { label: 'Model parsing', detail: 'Local template/text parser', tone: 'text-teal-command' };
+};
 
 interface CvExperience {
   id: string;
@@ -273,54 +283,6 @@ const parseRawTextFallback = (text: string): Partial<CvFormData> => {
     result.technicalSkills = skillsMatch[1].trim();
   }
 
-  // 4. Experience
-  // e.g. "Experience: 8 years of React, Node.js, and PostgreSQL."
-  const expMatch = text.match(/Experience:\s*(.*?)(?:\n|$)/i);
-  if (expMatch) {
-    const expText = expMatch[1].trim();
-    const yearsMatch = expText.match(/^(\d+)\s*years?/i);
-    let durationYears = 0;
-    if (yearsMatch) {
-      durationYears = parseInt(yearsMatch[1], 10);
-    }
-    const currentYear = new Date().getFullYear();
-    const startYear = currentYear - (durationYears || 5);
-    const startDate = `${startYear}-01`;
-
-    result.experience = [
-      {
-        id: `parsed-exp-${Date.now()}`,
-        company: expText.includes('TensorFlow') ? 'AI Research Lab' : 'Software Solutions Inc',
-        position: result.currentRole || 'Software Engineer',
-        startDate: startDate,
-        endDate: '',
-        isCurrent: true,
-        achievements: `Developed key components using ${expText}.\nFocused on system architecture, performance, and best practices.`,
-      },
-    ];
-  }
-
-  // 5. Education
-  const educationMatch = text.match(
-    /Education:\s*(.*?)(?:\n(?:Experience|Skills|Summary|Projects):|$)/is,
-  );
-  if (educationMatch) {
-    const educationText = educationMatch[1].replace(/\s+/g, ' ').trim();
-    const [degree = '', school = '', major = ''] = educationText
-      .split(/\s+at\s+|\s+-\s+|,\s+/i)
-      .map((part) => part.trim());
-    result.education = [
-      {
-        id: `parsed-edu-${Date.now()}`,
-        school,
-        major,
-        degree,
-        startDate: '',
-        endDate: '',
-      },
-    ];
-  }
-
   return result;
 };
 
@@ -345,6 +307,19 @@ const isTemplateInstruction = (value: string) =>
   /write 3-5 sentences|you can bring to an employer|strong action verb|measurable achievement|relevant technologies|optional:|responsibility or achievement|^30%\.?\]?$|^\.\.\.?$/i.test(
     value,
   );
+
+const templateEmptyValue = 'none';
+
+const isTemplateCv = (text: string) =>
+  /\[\s*(?:full name|professional title|name@example\.com|degree|major|school\s*\/\s*university)\s*\]|full name\s*:|professional title\s*:|write 3-5 sentences|strong action verb|measurable achievement/i.test(
+    text,
+  );
+
+const valueOrTemplateNone = (value: string, isTemplate: boolean) =>
+  isTemplate && !value ? templateEmptyValue : value;
+
+const resolveImportedText = (aiValue: string | undefined, parsedValue: string | undefined) =>
+  parsedValue === templateEmptyValue ? templateEmptyValue : aiValue || parsedValue || '';
 
 const decodeHtmlEntities = (value: string) =>
   value
@@ -416,7 +391,16 @@ const getSection = (lines: string[], heading: string) => {
 };
 
 const readLabeledValue = (text: string, label: string) => {
-  const labels = ['Email', 'Phone', 'Address', 'LinkedIn', 'GitHub', 'Portfolio'];
+  const labels = [
+    'Full Name',
+    'Professional Title',
+    'Email',
+    'Phone',
+    'Address',
+    'LinkedIn',
+    'GitHub',
+    'Portfolio',
+  ];
   const labeledText = labels.reduce(
     (current, currentLabel) => current.replace(new RegExp(`\\s+(${currentLabel}:)`, 'gi'), '\n$1'),
     text,
@@ -561,6 +545,7 @@ const parseEducationSection = (section: string): CvEducation[] => {
 
 const parseRawText = (text: string): Partial<CvFormData> => {
   const normalizedText = normalizeRawCvText(text);
+  const templateCv = isTemplateCv(normalizedText);
   const lines = normalizedText.split('\n').map(cleanExtractedValue).filter(Boolean);
   const firstHeadingIndex = lines.findIndex((line) =>
     resumeSectionHeadings.some((heading) => heading.toLowerCase() === line.toLowerCase()),
@@ -569,24 +554,36 @@ const parseRawText = (text: string): Partial<CvFormData> => {
     .slice(0, firstHeadingIndex === -1 ? Math.min(lines.length, 8) : firstHeadingIndex)
     .filter((line) => !/^(email|phone|address|linkedin|github|portfolio):/i.test(line));
   const legacyHeaderMatch = headerLines[0]?.match(/^(.*?)\s+CV\s*(?:-|--)\s*(.*?)\.?$/i);
+  const templateFullName = readLabeledValue(normalizedText, 'Full Name');
+  const templateCurrentRole = readLabeledValue(normalizedText, 'Professional Title');
 
   const parsed: Partial<CvFormData> = {
-    fullName: cleanExtractedValue(legacyHeaderMatch?.[1] || headerLines[0]),
-    currentRole: cleanExtractedValue(legacyHeaderMatch?.[2] || headerLines[1]),
-    email: readLabeledValue(normalizedText, 'Email'),
-    phone: readLabeledValue(normalizedText, 'Phone'),
-    address: readLabeledValue(normalizedText, 'Address'),
-    linkedinUrl: readLabeledValue(normalizedText, 'LinkedIn'),
-    githubUrl: readLabeledValue(normalizedText, 'GitHub'),
-    portfolioUrl: readLabeledValue(normalizedText, 'Portfolio'),
-    summary:
+    fullName: valueOrTemplateNone(
+      templateCv ? templateFullName : cleanExtractedValue(legacyHeaderMatch?.[1] || headerLines[0]),
+      templateCv,
+    ),
+    currentRole: valueOrTemplateNone(
+      templateCv ? templateCurrentRole : cleanExtractedValue(legacyHeaderMatch?.[2] || headerLines[1]),
+      templateCv,
+    ),
+    email: valueOrTemplateNone(readLabeledValue(normalizedText, 'Email'), templateCv),
+    phone: valueOrTemplateNone(readLabeledValue(normalizedText, 'Phone'), templateCv),
+    address: valueOrTemplateNone(readLabeledValue(normalizedText, 'Address'), templateCv),
+    linkedinUrl: valueOrTemplateNone(readLabeledValue(normalizedText, 'LinkedIn'), templateCv),
+    githubUrl: valueOrTemplateNone(readLabeledValue(normalizedText, 'GitHub'), templateCv),
+    portfolioUrl: valueOrTemplateNone(readLabeledValue(normalizedText, 'Portfolio'), templateCv),
+    summary: valueOrTemplateNone(
       getSection(lines, 'Professional Summary') ||
-      cleanExtractedValue(normalizedText.match(/Summary:\s*(.*?)(?:\n|$)/i)?.[1]),
-    technicalSkills:
+        cleanExtractedValue(normalizedText.match(/Summary:\s*(.*?)(?:\n|$)/i)?.[1]),
+      templateCv,
+    ),
+    technicalSkills: valueOrTemplateNone(
       extractSkillText(getSection(lines, 'Technical Skills')) ||
-      cleanExtractedValue(normalizedText.match(/Skills:\s*(.*?)(?:\n|$)/i)?.[1]),
-    softSkills: extractSkillText(getSection(lines, 'Soft Skills')),
-    languages: getSection(lines, 'Languages').replace(/\n/g, ', '),
+        cleanExtractedValue(normalizedText.match(/Skills:\s*(.*?)(?:\n|$)/i)?.[1]),
+      templateCv,
+    ),
+    softSkills: valueOrTemplateNone(extractSkillText(getSection(lines, 'Soft Skills')), templateCv),
+    languages: valueOrTemplateNone(getSection(lines, 'Languages').replace(/\n/g, ', '), templateCv),
     experience: parseWorkExperienceSection(getSection(lines, 'Work Experience')),
     education: parseEducationSection(getSection(lines, 'Education')),
   };
@@ -601,6 +598,84 @@ const parseRawText = (text: string): Partial<CvFormData> => {
   delete fallback.experience;
   delete fallback.education;
   return fallback;
+};
+
+type ParsedCvPreview = {
+  fullName: string;
+  currentRole: string;
+  email: string;
+  phone: string;
+  address: string;
+  links: Array<{ label: string; value: string }>;
+  summary: string;
+  technicalSkills: string[];
+  softSkills: string[];
+  languages: string[];
+  experience: Array<{ title: string; company: string; duration: string; achievements: string[] }>;
+  education: Array<{ degree: string; major: string; school: string; duration: string }>;
+};
+
+const uniqueItems = (items: Array<string | undefined>) =>
+  [...new Set(items.map((item) => item?.trim()).filter((item): item is string => Boolean(item)))];
+
+const createParsedCvPreview = (document: CvDocument): ParsedCvPreview => {
+  // Preview only values parsed from this CV's extracted text. Stored AI/profile drafts can
+  // belong to a previously uploaded document and must not appear as this CV's result.
+  const fallback = parseRawText(document.rawText || '');
+  const aiResume = {} as ResumeDraftData;
+  const personalInfo = aiResume?.personalInfo;
+  const aiSkills = aiResume?.skills;
+  const readLink = (type: 'LINKEDIN' | 'GITHUB' | 'PORTFOLIO') =>
+    findLink(personalInfo?.links, type) || fallback[`${type.toLowerCase()}Url` as keyof CvFormData] || '';
+  const experiences = aiResume?.workExperience?.length
+    ? aiResume.workExperience.map((item) => ({
+        title: item.position || 'Role not found',
+        company: item.company || 'Company not found',
+        duration: `${item.startDate || 'Unknown'} – ${item.isCurrent ? 'Present' : item.endDate || 'Unknown'}`,
+        achievements: item.achievements || [],
+      }))
+    : (fallback.experience || []).map((item) => ({
+        title: item.position || 'Role not found',
+        company: item.company || 'Company not found',
+        duration: formatExperienceDuration(item) || 'Duration not found',
+        achievements: splitAchievements(item.achievements),
+      }));
+  const education = aiResume?.education?.length
+    ? aiResume.education.map((item) => ({
+        degree: item.degree || '',
+        major: item.major || '',
+        school: item.school || 'School not found',
+        duration: [item.startDate, item.endDate].filter(Boolean).join(' – ') || 'Duration not found',
+      }))
+    : (fallback.education || []).map((item) => ({
+        degree: item.degree,
+        major: item.major,
+        school: item.school || 'School not found',
+        duration: [item.startDate, item.endDate].filter(Boolean).join(' – ') || 'Duration not found',
+      }));
+
+  return {
+    fullName: personalInfo?.fullName || fallback.fullName || 'Not found',
+    currentRole: aiResume?.currentRole || fallback.currentRole || 'Not found',
+    email: personalInfo?.email || fallback.email || '',
+    phone: personalInfo?.phoneNumber || fallback.phone || '',
+    address: personalInfo?.address || fallback.address || '',
+    links: [
+      { label: 'LinkedIn', value: String(readLink('LINKEDIN')) },
+      { label: 'GitHub', value: String(readLink('GITHUB')) },
+      { label: 'Portfolio', value: String(readLink('PORTFOLIO')) },
+    ].filter((link) => link.value),
+    summary: aiResume?.summary || fallback.summary || '',
+    technicalSkills: uniqueItems(aiSkills?.technical || splitList(fallback.technicalSkills || '')),
+    softSkills: uniqueItems(aiSkills?.softSkills || splitList(fallback.softSkills || '')),
+    languages: uniqueItems(
+      aiSkills?.languages?.map((language) =>
+        language.proficiency ? `${language.name} · ${language.proficiency}` : language.name,
+      ) || splitList(fallback.languages || ''),
+    ),
+    experience: experiences,
+    education,
+  };
 };
 
 type ImportReadIssueKey =
@@ -683,6 +758,7 @@ export const CandidateUploadCv: React.FC = () => {
 
   // Drag and Drop Visual State
   const [isDragActive, setIsDragActive] = useState(false);
+  const [parserPreference, setParserPreference] = useState<'MODEL_VECTOR' | 'GEMINI_API'>('MODEL_VECTOR');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const updateFileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
@@ -751,37 +827,31 @@ export const CandidateUploadCv: React.FC = () => {
   }, [uploadProgress.phase]);
 
   const handleImportCv = (doc: CvDocument) => {
-    if (!doc.rawText) {
-      setApiError('No raw text content available in this CV to import');
-      return;
-    }
-
-    const parsed = parseRawText(doc.rawText);
+    const parsed = parseRawText(doc.rawText || '');
     const aiResumeResult = ResumeDraftSchema.safeParse(doc.structuredData?.resume);
     const aiResume = aiResumeResult.success ? aiResumeResult.data : undefined;
     const aiPersonalInfo = aiResume?.personalInfo;
     const aiSkills = aiResume?.skills;
-    setImportReadIssues(createImportReadIssues(parsed));
-    setIsAiImportedDraft(true);
-
-    setCvSaved(false);
-    setCvForm((current) => ({
-      ...current,
-      fullName: aiPersonalInfo?.fullName || parsed.fullName || current.fullName,
-      email: aiPersonalInfo?.email || parsed.email || current.email,
-      phone: aiPersonalInfo?.phoneNumber || parsed.phone || current.phone,
-      currentRole: aiResume?.currentRole || parsed.currentRole || current.currentRole,
-      address: aiPersonalInfo?.address || parsed.address || current.address,
-      linkedinUrl:
-        findLink(aiPersonalInfo?.links, 'LINKEDIN') || parsed.linkedinUrl || current.linkedinUrl,
-      githubUrl: findLink(aiPersonalInfo?.links, 'GITHUB') || parsed.githubUrl || current.githubUrl,
-      portfolioUrl:
-        findLink(aiPersonalInfo?.links, 'PORTFOLIO') || parsed.portfolioUrl || current.portfolioUrl,
-      summary: aiResume?.summary || parsed.summary || current.summary,
-      technicalSkills:
-        aiSkills?.technical?.join(', ') || parsed.technicalSkills || current.technicalSkills,
-      softSkills: aiSkills?.softSkills?.join(', ') || parsed.softSkills || current.softSkills,
-      languages: formatLanguages(aiSkills?.languages) || parsed.languages || current.languages,
+    const importedForm: CvFormData = {
+      ...emptyCvForm,
+      fullName: resolveImportedText(aiPersonalInfo?.fullName, parsed.fullName),
+      email: resolveImportedText(aiPersonalInfo?.email, parsed.email),
+      phone: resolveImportedText(aiPersonalInfo?.phoneNumber, parsed.phone),
+      currentRole: resolveImportedText(aiResume?.currentRole, parsed.currentRole),
+      address: resolveImportedText(aiPersonalInfo?.address, parsed.address),
+      linkedinUrl: resolveImportedText(
+        findLink(aiPersonalInfo?.links, 'LINKEDIN'),
+        parsed.linkedinUrl,
+      ),
+      githubUrl: resolveImportedText(findLink(aiPersonalInfo?.links, 'GITHUB'), parsed.githubUrl),
+      portfolioUrl: resolveImportedText(
+        findLink(aiPersonalInfo?.links, 'PORTFOLIO'),
+        parsed.portfolioUrl,
+      ),
+      summary: resolveImportedText(aiResume?.summary, parsed.summary),
+      technicalSkills: resolveImportedText(aiSkills?.technical?.join(', '), parsed.technicalSkills),
+      softSkills: resolveImportedText(aiSkills?.softSkills?.join(', '), parsed.softSkills),
+      languages: resolveImportedText(formatLanguages(aiSkills?.languages), parsed.languages),
       experience: aiResume?.workExperience?.length
         ? aiResume.workExperience.map((item, index) => ({
             id: `ai-exp-${index}`,
@@ -792,9 +862,7 @@ export const CandidateUploadCv: React.FC = () => {
             isCurrent: item.isCurrent || false,
             achievements: (item.achievements || []).join('\n'),
           }))
-        : parsed.experience && parsed.experience.length > 0
-          ? parsed.experience
-          : current.experience,
+        : parsed.experience || [],
       education: aiResume?.education?.length
         ? aiResume.education.map((item, index) => ({
             id: `ai-edu-${index}`,
@@ -804,10 +872,13 @@ export const CandidateUploadCv: React.FC = () => {
             startDate: item.startDate || '',
             endDate: item.endDate || '',
           }))
-        : parsed.education && parsed.education.length > 0
-          ? parsed.education
-          : current.education,
-    }));
+        : parsed.education || [],
+    };
+    setImportReadIssues(createImportReadIssues(importedForm));
+    setIsAiImportedDraft(true);
+
+    setCvSaved(false);
+    setCvForm(importedForm);
 
     setView('builder');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1026,6 +1097,7 @@ export const CandidateUploadCv: React.FC = () => {
     });
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('parserPreference', parserPreference);
     try {
       const uploaded = await apiRequest<{
         id: string;
@@ -1110,6 +1182,7 @@ export const CandidateUploadCv: React.FC = () => {
     });
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('parserPreference', parserPreference);
 
     try {
       const updated = await apiRequest<{
@@ -1835,6 +1908,10 @@ export const CandidateUploadCv: React.FC = () => {
               Support for PDF, DOCX, and DOC files. Max file size: 10MB. Ensure your contact details
               and work history are clearly legible for best parsing results.
             </p>
+            <div className="mb-5 grid w-full max-w-md grid-cols-2 gap-2 rounded-lg bg-surface-container-low p-1" onClick={(e) => e.stopPropagation()}>
+              <button type="button" onClick={() => setParserPreference('MODEL_VECTOR')} className={`rounded-md px-3 py-2 text-xs font-bold ${parserPreference === 'MODEL_VECTOR' ? 'bg-white text-teal-command shadow-sm' : 'text-slate-ink'}`}>Model AI Vector</button>
+              <button type="button" onClick={() => setParserPreference('GEMINI_API')} className={`rounded-md px-3 py-2 text-xs font-bold ${parserPreference === 'GEMINI_API' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-ink'}`}>Gemini API</button>
+            </div>
             <div className="flex gap-3" onClick={(e) => e.stopPropagation()}>
               <button
                 disabled={uploading || updatingCvId !== null}
@@ -1875,6 +1952,7 @@ export const CandidateUploadCv: React.FC = () => {
                 <tbody className="text-xs text-deep-charcoal font-medium">
                   {documents.map((doc) => {
                     const deleteBlocked = isCvDeleteBlocked(doc);
+                    const parsingSource = getParsingSource(doc.processingMethod);
                     const updateDisabled = uploading || updatingCvId !== null;
                     const updateTitle =
                       updatingCvId === doc.id
@@ -1917,21 +1995,18 @@ export const CandidateUploadCv: React.FC = () => {
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>{' '}
                                 Ready
                               </span>
-                              {doc.processingMethod && (
-                                <span className="text-[10px] text-outline">
-                                  {doc.processingMethod === 'AI_VISION'
-                                    ? 'Gemini Vision OCR'
-                                    : doc.processingMethod === 'AI_TEXT'
-                                      ? 'Gemini extraction'
-                                      : 'Local text'}
-                                </span>
-                              )}
+                              <span className={`text-[10px] font-semibold ${parsingSource.tone}`}>
+                                {parsingSource.label}: {parsingSource.detail}
+                              </span>
                             </div>
                           )}
                           {doc.parsingStatus === 'Parsing...' && (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200/50 text-[10px] font-bold">
-                              <Icons.spinner /> Parsing...
-                            </span>
+                            <div className="flex flex-col items-start gap-1">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200/50 text-[10px] font-bold">
+                                <Icons.spinner /> Parsing...
+                              </span>
+                              <span className="text-[10px] text-outline">Detecting parsing source...</span>
+                            </div>
                           )}
                           {doc.parsingStatus === 'Failed' && (
                             <span
@@ -2081,7 +2156,7 @@ export const CandidateUploadCv: React.FC = () => {
 
       {showSuccessModal && successParsedCv && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-deep-charcoal/60 backdrop-blur-sm transition-opacity duration-300 animate-fadeIn">
-          <div className="w-full max-w-lg scale-95 transform rounded-2xl bg-white p-8 shadow-2xl transition-all duration-300 border border-border-warm/50 animate-scaleIn">
+          <div className="flex max-h-[90vh] w-full max-w-4xl scale-95 transform flex-col rounded-2xl border border-border-warm/50 bg-white p-6 shadow-2xl transition-all duration-300 animate-scaleIn sm:p-8">
             <div className="flex items-center justify-between border-b border-border-warm pb-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200/50">
@@ -2125,75 +2200,81 @@ export const CandidateUploadCv: React.FC = () => {
               </button>
             </div>
 
-            <div className="mt-6 space-y-4">
-              <div className="rounded-xl border border-border-warm bg-surface-container-lowest p-4">
-                <div className="flex items-center justify-between border-b border-border-warm/50 pb-2 mb-3">
-                  <span className="text-xs font-bold text-deep-charcoal uppercase tracking-wider">
-                    Extracted Profile Draft
-                  </span>
-                  <span className="text-xs text-slate-ink font-semibold">
-                    {successParsedCv.name}
-                  </span>
-                </div>
-
-                {(() => {
-                  const parsed = parseRawText(successParsedCv.rawText || '');
-                  return (
-                    <div className="space-y-3">
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-ink tracking-wider block">
-                          Full Name
-                        </span>
-                        <span className="text-sm font-semibold text-deep-charcoal">
-                          {parsed.fullName || 'Not found'}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-ink tracking-wider block">
-                          Current Role / Title
-                        </span>
-                        <span className="text-sm font-semibold text-deep-charcoal">
-                          {parsed.currentRole || 'Not found'}
-                        </span>
-                      </div>
-                      {parsed.technicalSkills && (
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-ink tracking-wider block">
-                            Skills Found
-                          </span>
-                          <div className="flex flex-wrap gap-1.5 mt-1">
-                            {parsed.technicalSkills
-                              .split(',')
-                              .slice(0, 5)
-                              .map((s) => (
-                                <span
-                                  key={s}
-                                  className="rounded bg-teal-command/10 px-2 py-0.5 text-[10px] font-bold text-teal-command"
-                                >
-                                  {s.trim()}
-                                </span>
-                              ))}
-                            {parsed.technicalSkills.split(',').length > 5 && (
-                              <span className="text-[10px] text-slate-ink font-semibold self-center">
-                                +{parsed.technicalSkills.split(',').length - 5} more
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
+            <div className="mt-6 min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+              <div className={`rounded-lg border px-3 py-2 text-xs font-semibold ${successParsedCv.structuredData?.templateMatched ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                {successParsedCv.structuredData?.templateMatched
+                  ? 'Template check: This CV matches the official CV template.'
+                  : 'Template check: This CV differs from the official template.'}
               </div>
+              {(() => {
+                const preview = createParsedCvPreview(successParsedCv);
+                const renderSkillVector = (skills: string[], tone: string, emptyText: string) => (
+                  <div className="flex flex-wrap gap-2">
+                    {skills.length ? skills.map((skill) => (
+                      <span key={skill} className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold ${tone}`}>
+                        <span className="font-mono text-[10px] opacity-70">[ ]</span>{skill}
+                      </span>
+                    )) : <span className="text-xs italic text-slate-ink">{emptyText}</span>}
+                  </div>
+                );
+                return (
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border-warm bg-surface-container-lowest px-4 py-3">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wider text-deep-charcoal">Extracted profile preview</p>
+                        <p className="mt-0.5 text-xs text-slate-ink">Review the values below before importing them into your profile.</p>
+                      </div>
+                      <span className="max-w-full truncate text-xs font-semibold text-slate-ink">{successParsedCv.name}</span>
+                    </div>
 
-              <p className="text-xs leading-relaxed text-slate-ink font-medium">
-                You can import this parsed data into your Profile Builder to review, update, and
-                finalize your CV profile.
-              </p>
+                    <section className="rounded-xl border border-border-warm p-4">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-ink">Personal information</p>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <div><p className="text-sm font-bold text-deep-charcoal">{preview.fullName}</p><p className="text-xs text-slate-ink">{preview.currentRole}</p></div>
+                        <div className="space-y-1 text-xs text-slate-ink">
+                          {preview.email && <p>{preview.email}</p>}
+                          {preview.phone && <p>{preview.phone}</p>}
+                          {preview.address && <p>{preview.address}</p>}
+                          {!preview.email && !preview.phone && !preview.address && <p className="italic">No contact details found.</p>}
+                        </div>
+                      </div>
+                      {preview.links.length ? <div className="mt-3 flex flex-wrap gap-2">{preview.links.map((link) => <span key={link.label} className="rounded bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-ink">{link.label}: {link.value}</span>)}</div> : null}
+                      {preview.summary && <p className="mt-3 border-t border-border-warm pt-3 text-xs leading-5 text-slate-ink">{preview.summary}</p>}
+                    </section>
+
+                    <section className="rounded-xl border border-teal-command/20 bg-teal-command/[0.03] p-4">
+                      <div className="flex flex-wrap items-baseline justify-between gap-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-teal-command">Skill vectors</p>
+                        <p className="text-[10px] text-slate-ink">Each extracted skill is kept as an individual item for profile import.</p>
+                      </div>
+                      <div className="mt-3 space-y-3">
+                        <div><p className="mb-1.5 text-xs font-bold text-deep-charcoal">Technical skills</p>{renderSkillVector(preview.technicalSkills, 'border-teal-command/20 bg-white text-teal-command', 'No technical skills found.')}</div>
+                        <div><p className="mb-1.5 text-xs font-bold text-deep-charcoal">Soft skills</p>{renderSkillVector(preview.softSkills, 'border-violet-200 bg-violet-50 text-violet-700', 'No soft skills found.')}</div>
+                        <div><p className="mb-1.5 text-xs font-bold text-deep-charcoal">Languages</p>{renderSkillVector(preview.languages, 'border-amber-200 bg-amber-50 text-amber-800', 'No languages found.')}</div>
+                      </div>
+                    </section>
+
+                    {(preview.experience.length > 0 || preview.education.length > 0) && <div className="grid gap-4 md:grid-cols-2">
+                      <section className="rounded-xl border border-border-warm p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-ink">Experience ({preview.experience.length})</p><div className="mt-3 space-y-3">{preview.experience.length ? preview.experience.map((item, index) => <div key={`${item.company}-${index}`} className="border-l-2 border-teal-command/30 pl-3"><p className="text-xs font-bold text-deep-charcoal">{item.title}</p><p className="text-xs text-slate-ink">{item.company} · {item.duration}</p>{item.achievements.slice(0, 2).map((achievement) => <p key={achievement} className="mt-1 text-[11px] leading-4 text-slate-ink">• {achievement}</p>)}</div>) : <p className="text-xs italic text-slate-ink">No experience found.</p>}</div></section>
+                      <section className="rounded-xl border border-border-warm p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-slate-ink">Education ({preview.education.length})</p><div className="mt-3 space-y-3">{preview.education.length ? preview.education.map((item, index) => <div key={`${item.school}-${index}`} className="border-l-2 border-amber-300 pl-3"><p className="text-xs font-bold text-deep-charcoal">{[item.degree, item.major].filter(Boolean).join(' · ') || 'Qualification not found'}</p><p className="text-xs text-slate-ink">{item.school} · {item.duration}</p></div>) : <p className="text-xs italic text-slate-ink">No education found.</p>}</div></section>
+                    </div>}
+                  </>
+                );
+              })()}
+              {successParsedCv.processingMethod === 'AI_TEXT' ||
+              successParsedCv.processingMethod === 'AI_VISION' ? (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-900">
+                  Parsing source: Gemini API ({getParsingSource(successParsedCv.processingMethod).detail}).
+                </div>
+              ) : (
+                <div className="rounded-lg border border-teal-command/20 bg-teal-command/10 px-3 py-2 text-xs font-semibold text-teal-command">
+                  Parsing source: Model parsing ({getParsingSource(successParsedCv.processingMethod).detail}).
+                </div>
+              )}
               <CvAiReviewNotice />
             </div>
 
-            <div className="mt-8 flex justify-end gap-3 border-t border-border-warm pt-4">
+            <div className="mt-5 flex shrink-0 justify-end gap-3 border-t border-border-warm pt-4">
               <button
                 type="button"
                 onClick={() => setShowSuccessModal(false)}
@@ -2447,12 +2528,14 @@ const CvAiReviewNotice = () => (
 
 const DownloadCvTemplateLink = () => (
   <a
-    href="/candidate-cv-template.doc"
-    download="Candidate-CV-Template.doc"
+    href="/api/v1/candidate/cvs/template"
+    download="RMS-CV-Template.doc"
+    title="Download the official RMS CV template"
+    aria-label="Download the official RMS CV template"
     className="inline-flex items-center gap-2 rounded-lg border border-border-warm bg-white px-4 py-2 text-sm font-semibold text-deep-charcoal hover:border-teal-command hover:text-teal-command"
   >
     <Icons.download />
-    Download CV Template
+    Download official CV template
   </a>
 );
 

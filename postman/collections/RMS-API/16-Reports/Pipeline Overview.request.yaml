@@ -1,0 +1,6 @@
+$kind: http-request
+name: Pipeline Overview
+method: GET
+url: '{{baseUrl}}/api/v1/reports/pipeline'
+order: 6000
+description: Get recruitment pipeline overview

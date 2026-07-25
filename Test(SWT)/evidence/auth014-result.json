@@ -1,0 +1,10 @@
+{
+    "id":  "AUTH-014",
+    "title":  "Microservice timeout / graceful error handling",
+    "status":  "PASS",
+    "actual":  "Gateway returned a controlled 5xx while Identity was unavailable, stayed healthy, and login succeeded after automatic recovery.",
+    "evidence":  "api/AUTH-014.log",
+    "startedAt":  "2026-07-20T06:26:36.0821671Z",
+    "finishedAt":  "2026-07-20T06:26:43.1142698Z",
+    "marker":  "SWT-AUTH014-20260720062636"
+}

@@ -242,18 +242,24 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
         className="border-[var(--wr-border-default)] bg-[var(--wr-bg-surface)]"
         collapsible="icon"
       >
-        <SidebarHeader className="border-b border-[var(--wr-border-subtle)] p-4">
-          <SidebarMenu>
+        <SidebarHeader className="border-b border-[var(--wr-border-subtle)] p-4 group-data-[collapsible=icon]:px-1">
+          <SidebarMenu className="group-data-[collapsible=icon]:items-center">
             <SidebarMenuItem>
               <SidebarMenuButton
-                className="h-12 gap-3 hover:bg-transparent data-[active=true]:bg-transparent"
+                className="h-12 gap-3 overflow-visible hover:bg-transparent data-[active=true]:bg-transparent group-data-[collapsible=icon]:h-12! group-data-[collapsible=icon]:w-20! group-data-[collapsible=icon]:p-0!"
                 size="lg"
                 tooltip="Works Recruiter"
               >
-                <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--wr-accent-primary)] text-sm font-bold text-white">
-                  RMS
-                </div>
-                <div className="min-w-0 text-left">
+                <object
+                  aria-label="RMS Recruiter"
+                  className="pointer-events-none h-10 w-20 shrink-0 object-contain transition"
+                  data="/logo-offical.svg"
+                  tabIndex={-1}
+                  type="image/svg+xml"
+                >
+                  RMS Recruiter
+                </object>
+                <div className="min-w-0 text-left group-data-[collapsible=icon]:hidden">
                   <p className="truncate text-sm font-bold text-[var(--wr-text-primary)]">
                     Works Recruiter
                   </p>
@@ -266,11 +272,11 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           </SidebarMenu>
         </SidebarHeader>
 
-        <SidebarContent className="px-2 py-4">
-          <SidebarGroup>
+        <SidebarContent className="px-2 py-4 group-data-[collapsible=icon]:px-0">
+          <SidebarGroup className="group-data-[collapsible=icon]:p-0">
             <SidebarGroupLabel>Workspace</SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu>
+              <SidebarMenu className="group-data-[collapsible=icon]:items-center">
                 {navItems.map((item) => {
                   const Icon = iconMap[item.icon];
 
@@ -343,10 +349,17 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
           </SidebarGroup>
         </SidebarContent>
 
-        <SidebarFooter className="border-t border-[var(--wr-border-subtle)] p-3">
-          <SidebarMenu>
+        <SidebarFooter className="border-t border-[var(--wr-border-subtle)] p-3 group-data-[collapsible=icon]:px-1">
+          <SidebarMenu className="group-data-[collapsible=icon]:items-center">
             <SidebarMenuItem>
-              <SidebarMenuButton className="h-12" size="lg" tooltip={user.displayName}>
+              <SidebarMenuButton
+                aria-label="Open account settings"
+                className="h-12 group-data-[collapsible=icon]:size-12! group-data-[collapsible=icon]:p-1.5!"
+                isActive={location.pathname === '/account-settings'}
+                onClick={() => navigate('/account-settings')}
+                size="lg"
+                tooltip={`${user.displayName} · Account settings`}
+              >
                 <div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--wr-border-strong)] text-sm font-semibold text-[var(--wr-text-primary)]">
                   {avatar ? (
                     <img alt="User avatar" className="h-full w-full object-cover" src={avatar} />
@@ -354,7 +367,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                     user.displayName?.charAt(0).toUpperCase() || 'U'
                   )}
                 </div>
-                <div className="min-w-0 text-left">
+                <div className="min-w-0 text-left group-data-[collapsible=icon]:hidden">
                   <p className="truncate text-sm font-semibold text-[var(--wr-text-primary)]">
                     {user.displayName}
                   </p>
