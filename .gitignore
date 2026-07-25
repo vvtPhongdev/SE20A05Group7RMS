@@ -88,3 +88,16 @@ archive/
 # END Ruler Generated Files
 
 .ruler/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+
+# Postman/Newman generated reports
+/Test(SWT)/Postman/reports/
+
+# AI Evidence markdown files (only Word docx are tracked as evidence)
+docs/Report/AI_Evidence/*.md
