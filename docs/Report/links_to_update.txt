@@ -1,0 +1,63 @@
+# INSTRUCTIONS:
+# Copy the real shared conversation links from Gemini or ChatGPT and replace the placeholder URLs below.
+# Once filled, run: python docs/Report/update_evidence_links.py
+
+[Week1]
+Task 1: https://gemini.google.com/share/7c2061d29208
+Task 2: https://gemini.google.com/share/example1_2
+
+[Week2]
+Task 1: https://chatgpt.com/share/6a16f70c-c96c-83ec-a066-9a0acfb2f7da
+Task 2: https://chatgpt.com/share/6a16f70c-c96c-83ec-a066-9a0acfb2f7da
+Task 3: https://chatgpt.com/share/6a16f70c-c96c-83ec-a066-9a0acfb2f7da
+Task 4: https://chatgpt.com/share/6a16f70c-c96c-83ec-a066-9a0acfb2f7da
+Task 5: https://chatgpt.com/share/6a16f70c-c96c-83ec-a066-9a0acfb2f7da
+Task 6: https://chatgpt.com/share/6a16f70c-c96c-83ec-a066-9a0acfb2f7da
+Task 7: https://chatgpt.com/share/6a16f70c-c96c-83ec-a066-9a0acfb2f7da
+
+[Week3]
+Task 1: https://gemini.google.com/share/591bd474d0b1
+Task 2: https://gemini.google.com/share/example3_2
+Task 3: https://gemini.google.com/share/example3_3
+Task 4: https://gemini.google.com/share/example3_4
+
+[Week4]
+Task 1: https://share.gemini.google/6d2G6GHQYMmr
+Task 2: https://share.gemini.google/example4_2
+Task 3: https://share.gemini.google/example4_3
+
+[Week5]
+Task 1: https://share.gemini.google/rGQ869MMLiWu
+Task 2: https://share.gemini.google/example5_2
+Task 3: https://share.gemini.google/example5_3
+
+[Week6]
+Task 1: https://share.gemini.google/6dtuAN0Zidyi
+Task 2: https://share.gemini.google/example6_2
+Task 3: https://share.gemini.google/example6_3
+Task 4: https://gemini.google.com/share/6d79681d7b87
+
+[Week7]
+Task 1: https://gemini.google.com/share/example7_1
+Task 2: https://gemini.google.com/share/example7_2
+Task 3: https://gemini.google.com/share/example7_3
+Task 4: https://gemini.google.com/share/example7_4
+Task 5: https://gemini.google.com/share/example7_5
+
+[Week8]
+Task 1: https://gemini.google.com/share/example8_1
+Task 2: https://gemini.google.com/share/example8_2
+Task 3: https://gemini.google.com/share/example8_3
+Task 4: https://gemini.google.com/share/example8_4
+Task 5: https://gemini.google.com/share/example8_5
+
+[Week9]
+Task 1: https://gemini.google.com/share/example9_1
+Task 2: https://gemini.google.com/share/example9_2
+Task 3: https://gemini.google.com/share/example9_3
+Task 4: https://gemini.google.com/share/example9_4
+
+[Week10]
+Task 1: https://gemini.google.com/share/example10_1
+Task 2: https://gemini.google.com/share/example10_2
+Task 3: https://gemini.google.com/share/example10_3
