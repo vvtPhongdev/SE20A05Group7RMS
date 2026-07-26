@@ -69,8 +69,49 @@ model Organization {
 
   users       User[]
   departments Department[]
+  invitations OrganizationInvitation[]
 
   @@map("organizations")
+}
+
+model OrganizationInvitation {
+  id             String   @id @default(uuid())
+  code           String   @unique(map: "uq_organization_invitations_code")
+  email          String
+  displayName    String   @map("display_name")
+  role           String
+  organizationId String   @map("organization_id")
+  departmentId   String?  @map("department_id")
+  invitedById    String   @map("invited_by_id")
+  expiresAt      DateTime @map("expires_at")
+  acceptedAt     DateTime? @map("accepted_at")
+  revokedAt      DateTime? @map("revoked_at")
+  lastSentAt     DateTime? @map("last_sent_at")
+  resendCount    Int      @default(0) @map("resend_count")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  department   Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  auditEvents  OrganizationInvitationAudit[]
+
+  @@index([email], map: "idx_organization_invitations_email")
+  @@index([organizationId], map: "idx_organization_invitations_organization")
+  @@index([expiresAt], map: "idx_organization_invitations_expires_at")
+  @@map("organization_invitations")
+}
+
+model OrganizationInvitationAudit {
+  id           String   @id @default(uuid())
+  invitationId String   @map("invitation_id")
+  actorId      String?  @map("actor_id")
+  action       String
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  invitation OrganizationInvitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+
+  @@index([invitationId, createdAt], map: "idx_invitation_audit_invitation_created")
+  @@map("organization_invitation_audits")
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -94,6 +135,7 @@ model Department {
   parent       Department?          @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children     Department[]         @relation("DepartmentHierarchy")
   users        User[]
+  invitations  OrganizationInvitation[]
   requests     RecruitmentRequest[]
 
   @@unique([organizationId, code], map: "uq_departments_org_code")

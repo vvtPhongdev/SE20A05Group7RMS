@@ -472,23 +472,83 @@ const parseWorkExperienceSection = (section: string): CvExperience[] => {
   const experience: CvExperience[] = [];
   let current: CvExperience | null = null;
 
+  const startExperience = (index: number) => {
+    if (current) experience.push(current);
+    current = {
+      id: `parsed-exp-${index}`,
+      company: '',
+      position: '',
+      startDate: '',
+      endDate: '',
+      isCurrent: false,
+      achievements: '',
+    };
+    return current;
+  };
+
+  const labeledValue = (line: string, labels: string[]) => {
+    const match = line.match(new RegExp(`^(?:${labels.join('|')})\\s*:\\s*(.+)$`, 'i'));
+    return cleanExtractedValue(match?.[1]);
+  };
+
+  const normalizedDate = (value: string) => {
+    const match = value.match(/^(\\d{4})[-/](0?[1-9]|1[0-2])$/);
+    return match ? `${match[1]}-${match[2].padStart(2, '0')}` : value;
+  };
+
   lines.forEach((line, index) => {
+    const position = labeledValue(line, ['Position', 'Job Title', 'Role']);
+    if (position) {
+      const item = startExperience(index);
+      item.position = position;
+      return;
+    }
+
+    const company = labeledValue(line, ['Company', 'Employer']);
+    if (company) {
+      (current ?? startExperience(index)).company = company;
+      return;
+    }
+
+    const startDate = labeledValue(line, ['Start Date', 'Start']);
+    if (startDate) {
+      (current ?? startExperience(index)).startDate = normalizedDate(startDate);
+      return;
+    }
+
+    const endDate = labeledValue(line, ['End Date', 'End']);
+    if (endDate) {
+      const item = current ?? startExperience(index);
+      item.isCurrent = /^(present|current|now|ongoing)$/i.test(endDate);
+      item.endDate = item.isCurrent ? '' : normalizedDate(endDate);
+      return;
+    }
+
+    const labeledAchievement = labeledValue(line, [
+      'Achievement',
+      'Achievements',
+      'Responsibility',
+      'Responsibilities',
+      'Description',
+    ]);
+    if (labeledAchievement) {
+      const item = current ?? startExperience(index);
+      item.achievements = [item.achievements, labeledAchievement].filter(Boolean).join('\n');
+      return;
+    }
+
     const dateRange = parseDateRange(line);
     const looksLikeHeader =
       /\s+-\s+/.test(stripDateRange(line)) || Boolean(dateRange.startDate && !current);
 
     if (looksLikeHeader) {
-      if (current) experience.push(current);
+      const item = startExperience(index);
       const parsedHeader = parsePositionCompany(line);
-      current = {
-        id: `parsed-exp-${index}`,
-        company: parsedHeader.company,
-        position: parsedHeader.position,
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-        isCurrent: dateRange.isCurrent,
-        achievements: '',
-      };
+      item.company = parsedHeader.company;
+      item.position = parsedHeader.position;
+      item.startDate = dateRange.startDate;
+      item.endDate = dateRange.endDate;
+      item.isCurrent = dateRange.isCurrent;
       return;
     }
 
@@ -511,6 +571,55 @@ const parseWorkExperienceSection = (section: string): CvExperience[] => {
   );
 };
 
+const normalizeEducationKey = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+const deduplicateEducation = (items: CvEducation[]): CvEducation[] => {
+  const normalized: CvEducation[] = [];
+
+  for (const item of items) {
+    const next = {
+      ...item,
+      school: item.school.trim(),
+      major: item.major.trim(),
+      degree: item.degree.trim(),
+      startDate: item.startDate.trim(),
+      endDate: item.endDate.trim(),
+    };
+    if (![next.school, next.major, next.degree, next.startDate, next.endDate].some(Boolean)) continue;
+
+    const nextSchool = normalizeEducationKey(next.school);
+    const nextMajor = normalizeEducationKey(next.major);
+    const nextDegree = normalizeEducationKey(next.degree);
+    const duplicate = normalized.find((existing) => {
+      const school = normalizeEducationKey(existing.school);
+      const major = normalizeEducationKey(existing.major);
+      const degree = normalizeEducationKey(existing.degree);
+      const sameSchool = Boolean(nextSchool && school && nextSchool === school);
+      const sameProgram =
+        Boolean(nextMajor && major && nextMajor === major) ||
+        Boolean(nextDegree && degree && nextDegree === degree);
+      const hasMissingProgram = (!nextMajor && !nextDegree) || (!major && !degree);
+      const sameDates =
+        Boolean(next.startDate && existing.startDate && next.startDate === existing.startDate) ||
+        Boolean(next.endDate && existing.endDate && next.endDate === existing.endDate);
+      return (sameSchool && (sameProgram || hasMissingProgram)) || (sameProgram && sameDates);
+    });
+
+    if (duplicate) {
+      duplicate.school ||= next.school;
+      duplicate.major ||= next.major;
+      duplicate.degree ||= next.degree;
+      duplicate.startDate ||= next.startDate;
+      duplicate.endDate ||= next.endDate;
+    } else {
+      normalized.push(next);
+    }
+  }
+
+  return normalized;
+};
+
 const parseEducationSection = (section: string): CvEducation[] => {
   const lines = section
     .split('\n')
@@ -519,28 +628,54 @@ const parseEducationSection = (section: string): CvEducation[] => {
     .filter((line) => !/optional:|gpa|scholarship|coursework/i.test(line));
 
   const education: CvEducation[] = [];
-  for (let index = 0; index < lines.length; index += 1) {
-    const header = lines[index] ?? '';
-    const dateRange = parseDateRange(header);
-    const title = stripDateRange(header);
-    const [degree = '', ...majorParts] = title.split(/\s+-\s+/);
-    const nextLine = cleanExtractedValue(lines[index + 1]);
+  let current: CvEducation | null = null;
+  const degreePattern = /\b(bachelor|master|doctor|ph\.?d|associate|diploma|certificate|b\.?s\.?c?|m\.?s\.?c?|b\.?a\.?|m\.?a\.?)\b/i;
+  const schoolPattern = /\b(university|college|school|academy|institute|polytechnic)\b/i;
 
-    education.push({
-      id: `parsed-edu-${index}`,
-      degree: cleanExtractedValue(degree),
-      major: cleanExtractedValue(majorParts.join(' - ')),
-      school: nextLine,
-      startDate: dateRange.startDate,
-      endDate: dateRange.endDate,
-    });
+  const startEducation = (index: number) => {
+    if (current) education.push(current);
+    current = { id: `parsed-edu-${index}`, school: '', major: '', degree: '', startDate: '', endDate: '' };
+    return current;
+  };
 
-    if (nextLine) index += 1;
-  }
+  lines.forEach((line, index) => {
+    const dateRange = parseDateRange(line);
+    const title = cleanExtractedValue(stripDateRange(line));
+    const labeled = line.match(/^(school|university|institution|degree|major|field of study|program)\s*:\s*(.+)$/i);
+    const label = labeled?.[1]?.toLowerCase();
+    const value = cleanExtractedValue(labeled?.[2] || title);
+    const shouldStart =
+      !current ||
+      (Boolean(dateRange.startDate) && Boolean(current.startDate)) ||
+      (degreePattern.test(value) && Boolean(current.degree || current.school));
+    const item = shouldStart ? startEducation(index) : current ?? startEducation(index);
 
-  return education.filter((item) =>
-    [item.school, item.major, item.degree, item.startDate, item.endDate].some(Boolean),
-  );
+    if (dateRange.startDate) {
+      item.startDate = dateRange.startDate;
+      item.endDate = dateRange.endDate;
+    }
+    if (!value) return;
+
+    if (label === 'school' || label === 'university' || label === 'institution' || schoolPattern.test(value)) {
+      item.school ||= value;
+      return;
+    }
+    if (label === 'degree' || degreePattern.test(value)) {
+      const [degree, ...majorParts] = value.split(/\s+-\s+|\s+in\s+/i);
+      item.degree ||= cleanExtractedValue(degree);
+      item.major ||= cleanExtractedValue(majorParts.join(' - '));
+      return;
+    }
+    if (label === 'major' || label === 'field of study' || label === 'program') {
+      item.major ||= value;
+      return;
+    }
+    if (!item.school) item.school = value;
+    else if (!item.major) item.major = value;
+  });
+
+  if (current) education.push(current);
+  return deduplicateEducation(education);
 };
 
 const parseRawText = (text: string): Partial<CvFormData> => {
@@ -863,16 +998,18 @@ export const CandidateUploadCv: React.FC = () => {
             achievements: (item.achievements || []).join('\n'),
           }))
         : parsed.experience || [],
-      education: aiResume?.education?.length
-        ? aiResume.education.map((item, index) => ({
-            id: `ai-edu-${index}`,
-            school: item.school || '',
-            major: item.major || '',
-            degree: item.degree || '',
-            startDate: item.startDate || '',
-            endDate: item.endDate || '',
-          }))
-        : parsed.education || [],
+      education: deduplicateEducation(
+        aiResume?.education?.length
+          ? aiResume.education.map((item, index) => ({
+              id: `ai-edu-${index}`,
+              school: item.school || '',
+              major: item.major || '',
+              degree: item.degree || '',
+              startDate: item.startDate || '',
+              endDate: item.endDate || '',
+            }))
+          : parsed.education || [],
+      ),
     };
     setImportReadIssues(createImportReadIssues(importedForm));
     setIsAiImportedDraft(true);
@@ -1031,7 +1168,7 @@ export const CandidateUploadCv: React.FC = () => {
                   isCurrent: /present|current|hiện tại/i.test(item.duration || ''),
                   achievements: item.description || '',
                 })),
-          education:
+          education: deduplicateEducation(
             resumeEducation.length > 0
               ? resumeEducation.map((item, index) => ({
                   id: `resume-edu-${index}`,
@@ -1049,6 +1186,7 @@ export const CandidateUploadCv: React.FC = () => {
                   startDate: '',
                   endDate: legacyMonth(item.year),
                 })),
+          ),
         });
       } catch (loadError) {
         setApiError(loadError instanceof Error ? loadError.message : 'Unable to load CV profile');

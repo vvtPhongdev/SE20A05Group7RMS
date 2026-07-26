@@ -1289,6 +1289,30 @@ export class RecruitingController {
     return firstValueFrom(this.recruitingClient.send('recruiting.pipeline_overview', {}));
   }
 
+  @Get('talent/feedback/metrics')
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER)
+  @ApiOperation({ summary: 'Quality metrics for the talent-search feedback loop' })
+  getTalentFeedbackMetrics(@Query() query: any) {
+    return firstValueFrom(
+      this.recruitingClient.send('talent.feedback.metrics', {
+        requestId: query.requestId,
+        limit: query.limit ? Number(query.limit) : undefined,
+      }),
+    );
+  }
+
+  @Get('talent/feedback/evaluation')
+  @Roles(UserRole.ADMIN, UserRole.HR_LEADER)
+  @ApiOperation({ summary: 'Offline ranking evaluation from HR outcomes' })
+  evaluateTalentFeedback(@Query() query: any) {
+    return firstValueFrom(
+      this.recruitingClient.send('talent.feedback.evaluate', {
+        requestId: query.requestId,
+        limit: query.limit ? Number(query.limit) : undefined,
+      }),
+    );
+  }
+
   @Get('reports/hr-request-queue-summary')
   @Roles(UserRole.HR_LEADER)
   @ApiOperation({ summary: 'Get HR recruitment-request review queue summary' })

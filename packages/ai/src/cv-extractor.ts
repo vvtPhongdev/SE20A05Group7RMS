@@ -282,6 +282,7 @@ function buildExtractionPrompt(input: CvExtractionInput) {
     'Always include documentText, resume, confidence, and warnings. Use a confidence number from 0 to 1 and an empty warnings array when there are no warnings.',
     // Chỉnh sửa dòng dưới đây để AI chấp nhận các mốc thời gian tương lai có trong CV của bạn
     'Do not invent missing employers, dates, skills, degrees, contact details, or achievements. Note that the CV may contain future dates (e.g., up to 2030) representing planned/expected education or employment; extract them exactly as they appear without treating them as invalid or synthetic data.',
+    'For education, return exactly one array object per distinct qualification. Keep its school, degree, major, and dates together in that one object; do not split one qualification into separate entries or repeat it.',
     'Omit optional fields when the CV does not visibly support them; do not use null for missing values.',
     'Normalize employment dates to YYYY-MM when the month is visible, otherwise YYYY.',
     'For each job, calculate durationMonths from the visible dates. Omit durationMonths when dates are insufficient.',

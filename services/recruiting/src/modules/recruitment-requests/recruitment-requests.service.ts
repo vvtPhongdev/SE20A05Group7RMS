@@ -1,7 +1,7 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { Prisma } from '@prisma/client';
-import { isHrRole, RecruitmentRequestStatus, UserRole } from '@wr/contracts';
+import { isHrRole, NotificationType, RecruitmentRequestStatus, UserRole } from '@wr/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
 
 export type UUID = string;
@@ -123,7 +123,10 @@ const latestHrRevisionSuggestion = (logs: RequestLogWithMetadata[]) => {
 
 @Injectable()
 export class RecruitmentRequestsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject('NOTIFICATION_SERVICE') private readonly notificationClient: ClientProxy,
+  ) {}
 
   store = new Map<string, RecruitmentRequest>();
 
@@ -287,7 +290,7 @@ export class RecruitmentRequestsService {
             toStatus: log.toStatus,
             createdAt: log.createdAt,
             metadata: log.metadata,
-            actor: log.performedBy.displayName,
+            actor: log.performedBy?.displayName ?? 'Unknown user',
           })),
           createdAt: request.createdAt,
           updatedAt: request.updatedAt,
@@ -315,6 +318,17 @@ export class RecruitmentRequestsService {
         reviewedBy: {
           select: { id: true, displayName: true },
         },
+        approvedBy: {
+          select: { id: true, displayName: true },
+        },
+        approvalRecords: {
+          orderBy: { decidedAt: 'asc' },
+          include: {
+            approver: {
+              select: { id: true, displayName: true },
+            },
+          },
+        },
         overallPlan: {
           include: {
             tasks: {
@@ -326,6 +340,11 @@ export class RecruitmentRequestsService {
         },
         logs: {
           orderBy: { createdAt: 'asc' },
+          include: {
+            performedBy: {
+              select: { id: true, displayName: true },
+            },
+          },
         },
       },
     });
@@ -676,6 +695,33 @@ export class RecruitmentRequestsService {
         },
       },
     });
+
+    const assignmentTitle = `Recruitment request assigned: ${request.position}`;
+    const assignmentBody = `You have been assigned to the recruitment request for ${request.position} (ID: ${request.id}). Please review the request and begin the next steps.`;
+
+    this.notificationClient
+      .send('notification.create_notification', {
+        userId: hrManager.id,
+        type: NotificationType.REQUEST_UPDATE,
+        title: assignmentTitle,
+        body: assignmentBody,
+        relatedEntityId: request.id,
+        relatedEntityType: 'RecruitmentRequest',
+      })
+      .subscribe({
+        error: (err) => console.error('Failed to send HR assignment notification:', err),
+      });
+
+    this.notificationClient
+      .send('notification.send_email', {
+        userId: hrManager.id,
+        toEmail: hrManager.email,
+        subject: `[Works Recruiter] ${assignmentTitle}`,
+        body: [`Hello ${hrManager.displayName},`, '', assignmentBody, '', 'Works Recruiter'].join('\n'),
+      })
+      .subscribe({
+        error: (err) => console.error('Failed to queue HR assignment email:', err),
+      });
 
     return updated;
   }

@@ -49,16 +49,41 @@ interface RecruitmentRequest {
 }
 
 interface RecruitmentRequestDetail {
+  id: string;
   position: string;
-  department?: { name: string } | null;
-  requester?: { displayName: string } | null;
-  owner?: { displayName: string } | null;
-  reviewedBy?: { displayName: string } | null;
+  department?: { id: string; name: string; code: string } | null;
+  createdBy?: { id: string; displayName: string } | null;
+  requester?: { id: string; displayName: string } | null;
+  owner?: { id: string; displayName: string } | null;
+  reviewedBy?: { id: string; displayName: string } | null;
+  approvedBy?: { id: string; displayName: string } | null;
   status: string;
   urgency: string;
   headcount: number;
   justification?: string | null;
   jobDescription?: string | null;
+  skillRequirements?: Record<string, unknown> | string[] | null;
+  rejectionReason?: string | null;
+  hrSuggestedChanges?: string | null;
+  hrRevisionSuggestion?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  approvalRecords?: Array<{
+    id: string;
+    decision: string;
+    comments?: string | null;
+    decidedAt: string;
+    approver?: { displayName: string } | null;
+  }>;
+  logs?: Array<{
+    id: string;
+    action: string;
+    fromStatus?: string | null;
+    toStatus?: string | null;
+    createdAt: string;
+    metadata?: Record<string, unknown> | null;
+    performedBy?: { displayName: string } | null;
+  }>;
 }
 
 type SortField =
@@ -100,6 +125,9 @@ export const AdminAllRequests: React.FC = () => {
   const [sortDir, setSortDir] = useState<SortDirection>('desc');
   const [detailRequest, setDetailRequest] = useState<RecruitmentRequestDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [selectedHrManagerId, setSelectedHrManagerId] = useState('');
+  const [assigning, setAssigning] = useState(false);
 
   const mapStatus = (status: string): RequestStatus => {
     const statuses: Record<string, RequestStatus> = {
@@ -392,31 +420,36 @@ export const AdminAllRequests: React.FC = () => {
     clearSelection();
   };
 
+  const openAssignDialog = () => {
+    if (selectedIds.length === 0) return;
+    setSelectedHrManagerId('');
+    setAssignDialogOpen(true);
+  };
+
   const handleAssignToHR = async () => {
-    const available = hrManagers.map((manager) => manager.name).join(', ');
-    const name = prompt(`Enter an HR manager name (${available}):`);
-    const manager = hrManagers.find(
-      (item) => item.name.toLowerCase() === name?.trim().toLowerCase(),
-    );
-    if (!manager) {
-      if (name) setApiError('Please enter the exact name of an active HR manager.');
+    if (!selectedHrManagerId) {
+      setApiError('Select an active HR member before assigning.');
       return;
     }
 
     setApiError('');
+    setAssigning(true);
     try {
       await Promise.all(
         selectedIds.map((id) =>
           apiRequest(`/recruitment-requests/${id}/assign`, token, {
             method: 'PATCH',
-            body: JSON.stringify({ hrManagerId: manager.id }),
+            body: JSON.stringify({ hrManagerId: selectedHrManagerId }),
           }),
         ),
       );
       await loadRequests();
       clearSelection();
+      setAssignDialogOpen(false);
     } catch (assignError) {
       setApiError(assignError instanceof Error ? assignError.message : 'Unable to assign requests');
+    } finally {
+      setAssigning(false);
     }
   };
 
@@ -430,6 +463,15 @@ export const AdminAllRequests: React.FC = () => {
     } catch {
       return value;
     }
+  };
+
+  const formatDetailValue = (value: unknown) => {
+    if (value === null || value === undefined || value === '') return '-';
+    if (Array.isArray(value)) return value.map(String).join(', ') || '-';
+    if (typeof value === 'object') return Object.entries(value as Record<string, unknown>)
+      .map(([key, item]) => `${key}: ${String(item)}`)
+      .join(', ');
+    return String(value);
   };
 
   const getPriorityStyles = (p: Urgency) => {
@@ -933,7 +975,7 @@ export const AdminAllRequests: React.FC = () => {
         </button>
         <button
           className="flex items-center gap-2 text-[#ccc5c2] hover:text-white transition-colors text-sm font-semibold"
-          onClick={handleAssignToHR}
+          onClick={openAssignDialog}
         >
           <span className="material-symbols-outlined text-[20px]">assignment_ind</span>
           <span className="font-label-md">Assign to HR</span>
@@ -946,9 +988,46 @@ export const AdminAllRequests: React.FC = () => {
         </button>
       </div>
 
+      {assignDialogOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/35 p-4">
+          <section aria-modal="true" className="w-full max-w-lg rounded-lg border border-border-warm bg-clean-surface shadow-xl" role="dialog">
+            <div className="flex items-start justify-between border-b border-border-warm px-6 py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-deep-charcoal">Assign HR</h2>
+                <p className="mt-1 text-sm text-slate-ink">
+                  Assign {selectedIds.length} selected request{selectedIds.length === 1 ? '' : 's'} to an active HR member. Existing owners will be reassigned.
+                </p>
+              </div>
+              <button className="rounded-lg p-2 text-slate-ink hover:bg-surface-container-low" disabled={assigning} onClick={() => setAssignDialogOpen(false)} type="button">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="max-h-[55vh] space-y-2 overflow-y-auto p-4">
+              {hrManagers.length === 0 ? (
+                <p className="rounded-lg bg-workflow-ivory p-4 text-sm text-slate-ink">No active HR members are available.</p>
+              ) : hrManagers.map((manager) => (
+                <label key={manager.id} className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${selectedHrManagerId === manager.id ? 'border-teal-command bg-teal-command/5' : 'border-border-warm hover:bg-workflow-ivory'}`}>
+                  <input checked={selectedHrManagerId === manager.id} className="h-4 w-4 text-teal-command focus:ring-teal-command" name="assigned-hr" onChange={() => setSelectedHrManagerId(manager.id)} type="radio" value={manager.id} />
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-fixed-dim text-sm font-bold text-on-surface">
+                    {manager.name.split(' ').map((name) => name[0]).slice(0, 2).join('').toUpperCase()}
+                  </span>
+                  <span className="font-semibold text-deep-charcoal">{manager.name}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex justify-end gap-3 border-t border-border-warm px-6 py-4">
+              <button className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-ink hover:bg-surface-container-low" disabled={assigning} onClick={() => setAssignDialogOpen(false)} type="button">Cancel</button>
+              <button className="rounded-lg bg-teal-command px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50" disabled={!selectedHrManagerId || assigning} onClick={() => void handleAssignToHR()} type="button">
+                {assigning ? 'Assigning...' : 'Assign HR'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
       {(detailRequest || detailLoading) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4">
-          <section className="w-full max-w-3xl rounded-lg border border-border-warm bg-clean-surface shadow-xl">
+          <section aria-modal="true" className="flex max-h-[92vh] w-full max-w-5xl flex-col rounded-lg border border-border-warm bg-clean-surface shadow-xl" role="dialog">
             <div className="flex items-start justify-between border-b border-border-warm px-6 py-4">
               <div>
                 <h2 className="text-lg font-semibold text-deep-charcoal">Request Detail</h2>
@@ -964,37 +1043,31 @@ export const AdminAllRequests: React.FC = () => {
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
-            <div className="grid gap-4 p-6 md:grid-cols-2">
+            <div className="overflow-y-auto p-6">
               {detailLoading ? (
                 <p className="text-sm text-slate-ink">Loading...</p>
               ) : (
-                <>
-                  <DetailItem label="Department" value={detailRequest?.department?.name ?? '-'} />
-                  <DetailItem
-                    label="Requester"
-                    value={detailRequest?.requester?.displayName ?? '-'}
-                  />
-                  <DetailItem label="Status" value={detailRequest?.status ?? '-'} />
-                  <DetailItem label="Urgency" value={detailRequest?.urgency ?? '-'} />
-                  <DetailItem label="Headcount" value={String(detailRequest?.headcount ?? '-')} />
-                  <DetailItem
-                    label="Owner"
-                    value={
-                      detailRequest?.owner?.displayName ??
-                      detailRequest?.reviewedBy?.displayName ??
-                      'Not assigned'
-                    }
-                  />
-                  <div className="md:col-span-2">
-                    <DetailItem label="Justification" value={detailRequest?.justification ?? '-'} />
+                <div className="space-y-6">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <DetailItem label="Request ID" value={detailRequest?.id ?? '-'} />
+                    <DetailItem label="Department" value={detailRequest?.department ? `${detailRequest.department.name} (${detailRequest.department.code})` : '-'} />
+                    <DetailItem label="Requester" value={detailRequest?.createdBy?.displayName ?? detailRequest?.requester?.displayName ?? '-'} />
+                    <DetailItem label="Status" value={detailRequest?.status ?? '-'} />
+                    <DetailItem label="Urgency" value={detailRequest?.urgency ?? '-'} />
+                    <DetailItem label="Headcount" value={String(detailRequest?.headcount ?? '-')} />
+                    <DetailItem label="Assigned HR" value={detailRequest?.reviewedBy?.displayName ?? detailRequest?.owner?.displayName ?? 'Not assigned'} />
+                    <DetailItem label="Approved by" value={detailRequest?.approvedBy?.displayName ?? 'Not approved'} />
+                    <DetailItem label="Created" value={detailRequest?.createdAt ? formatDisplayDate(detailRequest.createdAt) : '-'} />
+                    <DetailItem label="Last updated" value={detailRequest?.updatedAt ? formatDisplayDate(detailRequest.updatedAt) : '-'} />
+                    <DetailItem label="Skills / requirements" value={formatDetailValue(detailRequest?.skillRequirements)} />
+                    <DetailItem label="Rejection reason" value={detailRequest?.rejectionReason ?? '-'} />
                   </div>
-                  <div className="md:col-span-2">
-                    <DetailItem
-                      label="Job Description"
-                      value={detailRequest?.jobDescription ?? '-'}
-                    />
-                  </div>
-                </>
+                  <DetailSection label="Justification" value={detailRequest?.justification} />
+                  <DetailSection label="Job Description" value={detailRequest?.jobDescription} />
+                  <DetailSection label="HR suggested changes" value={detailRequest?.hrSuggestedChanges} />
+                  <DetailSection label="HR revision suggestion" value={detailRequest?.hrRevisionSuggestion} />
+                  <DetailHistory approvalRecords={detailRequest?.approvalRecords} logs={detailRequest?.logs} />
+                </div>
               )}
             </div>
           </section>
@@ -1007,6 +1080,48 @@ export const AdminAllRequests: React.FC = () => {
 const DetailItem = ({ label, value }: { label: string; value: string }) => (
   <div className="rounded-lg border border-border-warm bg-workflow-ivory/60 p-3">
     <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">{label}</p>
-    <p className="mt-1 text-sm font-semibold text-deep-charcoal">{value}</p>
+    <p className="mt-1 break-words text-sm font-semibold text-deep-charcoal">{value}</p>
+  </div>
+);
+
+const DetailSection = ({ label, value }: { label: string; value?: string | null }) => (
+  <section className="rounded-lg border border-border-warm bg-workflow-ivory/60 p-4">
+    <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-slate-ink">{label}</h3>
+    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-deep-charcoal">{value || '-'}</p>
+  </section>
+);
+
+const DetailHistory = ({
+  approvalRecords = [],
+  logs = [],
+}: {
+  approvalRecords?: RecruitmentRequestDetail['approvalRecords'];
+  logs?: RecruitmentRequestDetail['logs'];
+}) => (
+  <div className="grid gap-6 lg:grid-cols-2">
+    <section>
+      <h3 className="mb-3 text-sm font-bold text-deep-charcoal">Approval history</h3>
+      <div className="space-y-2">
+        {approvalRecords.length === 0 ? <p className="rounded-lg bg-workflow-ivory p-3 text-sm text-slate-ink">No approval records yet.</p> : approvalRecords.map((record) => (
+          <div key={record.id} className="rounded-lg border border-border-warm p-3 text-sm">
+            <p className="font-bold text-deep-charcoal">{record.decision}</p>
+            <p className="mt-1 text-slate-ink">{record.approver?.displayName ?? 'Unknown approver'} · {new Date(record.decidedAt).toLocaleString()}</p>
+            {record.comments ? <p className="mt-2 whitespace-pre-wrap text-on-surface">{record.comments}</p> : null}
+          </div>
+        ))}
+      </div>
+    </section>
+    <section>
+      <h3 className="mb-3 text-sm font-bold text-deep-charcoal">Activity history</h3>
+      <div className="space-y-2">
+        {logs.length === 0 ? <p className="rounded-lg bg-workflow-ivory p-3 text-sm text-slate-ink">No activity records yet.</p> : logs.map((log) => (
+          <div key={log.id} className="rounded-lg border border-border-warm p-3 text-sm">
+            <p className="font-bold text-deep-charcoal">{log.action}</p>
+            <p className="mt-1 text-slate-ink">{log.performedBy?.displayName ?? 'Unknown user'} · {new Date(log.createdAt).toLocaleString()}</p>
+            {log.fromStatus || log.toStatus ? <p className="mt-1 text-on-surface">{log.fromStatus ?? '-'} → {log.toStatus ?? '-'}</p> : null}
+          </div>
+        ))}
+      </div>
+    </section>
   </div>
 );

@@ -1,27 +1,8 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { UserRole } from '@wr/contracts';
 import { getRoleHomePath } from '../lib/auth';
 import { getErrorMessage, getErrorMetadata } from '../lib/errors';
-
-const accountTypes = [
-  {
-    value: 'candidate',
-    label: 'Candidate',
-    description: 'Upload CVs and track interview invitations.',
-  },
-  {
-    value: 'department-head',
-    label: 'Department Head',
-    description: 'Request roles and review interview outcomes.',
-  },
-  {
-    value: 'hr',
-    label: 'HR',
-    description: 'Plan campaigns, manage tasks, and oversee the recruitment pipeline.',
-  },
-];
 
 const onboardingSignals = [
   ['3.4d', 'median approval setup'],
@@ -77,7 +58,6 @@ export const SignUp: React.FC = () => {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [organization, setOrganization] = useState('');
-  const [accountType, setAccountType] = useState(accountTypes[0].value);
   const [password, setPassword] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -86,7 +66,7 @@ export const SignUp: React.FC = () => {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [isGoogleSignup, setIsGoogleSignup] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [verifiedRole, setVerifiedRole] = useState<UserRole | null>(null);
+  const [invitationSummary, setInvitationSummary] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{
     fullName?: string;
     email?: string;
@@ -95,7 +75,6 @@ export const SignUp: React.FC = () => {
 
   // States and refs for registration OTP verification flow
   const {
-    user,
     loginWithToken,
     signInWithGoogle,
     completeSupabaseLogin,
@@ -109,6 +88,35 @@ export const SignUp: React.FC = () => {
   const [otpVerified, setOtpVerified] = useState(false);
   const otpInputRefs = useRef<Array<HTMLInputElement | null>>([]);
   const authMode = searchParams.get('auth');
+
+  useEffect(() => {
+    const inviteCode = searchParams.get('inviteCode');
+    if (inviteCode) setOrganization(inviteCode);
+  }, [searchParams]);
+
+  useEffect(() => {
+    const code = organization.trim();
+    if (!code) {
+      setInvitationSummary(null);
+      return;
+    }
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch('/api/v1/organization-invitations/validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code }),
+        });
+        if (!response.ok) throw new Error((await response.json()).message || 'Invalid invitation code');
+        const invitation = await response.json();
+        setInvitationSummary(`${invitation.organizationName} · ${invitation.role.replace(/_/g, ' ')}`);
+      } catch (err) {
+        setInvitationSummary(null);
+        setError(getErrorMessage(err, 'Invitation code is invalid or expired. You can clear it to register as a Candidate.'));
+      }
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [organization]);
 
   const maskedEmail = useMemo(() => {
     const [localPart, domain] = email.split('@');
@@ -269,7 +277,6 @@ export const SignUp: React.FC = () => {
 
       if (data.accessToken && data.user) {
         loginWithToken(data.accessToken, data.user, data.refreshToken);
-        setVerifiedRole(data.user.role);
       }
     } catch (err: unknown) {
       setOtpError(getErrorMessage(err, 'Invalid or expired code. Please try again.'));
@@ -287,25 +294,13 @@ export const SignUp: React.FC = () => {
     ].filter(Boolean).length;
   }, [password]);
 
-  const mapRole = (frontendRole: string): UserRole => {
-    switch (frontendRole) {
-      case 'department-head':
-        return UserRole.DEPARTMENT_HEAD;
-      case 'hr':
-        return UserRole.HR_LEADER;
-      case 'candidate':
-        return UserRole.CANDIDATE;
-      default:
-        return UserRole.CANDIDATE;
-    }
-  };
-
   const handleGoogleSignUp = async () => {
     setError(null);
     setGoogleLoading(true);
 
     try {
-      await signInWithGoogle('/signup?auth=google');
+      const inviteCode = organization.trim();
+      await signInWithGoogle(`/signup?auth=google${inviteCode ? `&inviteCode=${encodeURIComponent(inviteCode)}` : ''}`);
     } catch (err: unknown) {
       setGoogleLoading(false);
       setError(getErrorMessage(err, 'Could not start Google sign-up.'));
@@ -340,11 +335,6 @@ export const SignUp: React.FC = () => {
     setFieldErrors(nextFieldErrors);
     if (Object.keys(nextFieldErrors).length > 0) return;
 
-    if (!organization.trim()) {
-      setError('Enter your organization to continue.');
-      return;
-    }
-
     if (!acceptedTerms) {
       setError('Accept the workspace terms before creating the account.');
       return;
@@ -356,9 +346,11 @@ export const SignUp: React.FC = () => {
       if (isGoogleSignup) {
         const loggedUser = await registerWithSupabaseSession({
           displayName: normalizedFullName,
-          role: mapRole(accountType),
+          invitationCode: organization.trim() || undefined,
         });
-        navigate(getRoleHomePath(loggedUser.role), { replace: true });
+        setEmail(loggedUser.email);
+        setOtpSecondsLeft(272);
+        setSubmitted(true);
         return;
       }
 
@@ -369,7 +361,7 @@ export const SignUp: React.FC = () => {
           email: normalizedEmail,
           displayName: normalizedFullName,
           password,
-          role: mapRole(accountType),
+          invitationCode: organization.trim() || undefined,
         }),
       });
 
@@ -509,11 +501,7 @@ export const SignUp: React.FC = () => {
                     </p>
                     <button
                       className="mt-8 flex h-12 w-full items-center justify-center rounded-[var(--wr-radius-lg)] bg-[var(--wr-accent-primary)] px-4 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-[1px] hover:bg-[var(--wr-accent-primary-hover)] active:translate-y-0 active:scale-[0.98]"
-                      onClick={() =>
-                        navigate(
-                          getRoleHomePath(verifiedRole ?? user?.role ?? mapRole(accountType)),
-                        )
-                      }
+                      onClick={() => navigate('/dashboard')}
                       type="button"
                     >
                       Go to Dashboard
@@ -711,18 +699,19 @@ export const SignUp: React.FC = () => {
 
                       <div className="space-y-2">
                         <label className="block text-sm font-medium" htmlFor="organization">
-                          Organization
+                          Invitation / organization code
                         </label>
                         <input
                           className="h-12 w-full rounded-[var(--wr-radius-lg)] border border-[var(--wr-border-default)] bg-[#fefdfb] px-4 text-sm outline-none transition focus:border-[var(--wr-focus-ring)] focus:bg-white focus:ring-2 focus:ring-[var(--wr-focus-ring)]/20"
                           id="organization"
-                          placeholder="Northline Systems"
+                          placeholder="Paste your invitation code (optional)"
                           value={organization}
                           onChange={(event) => setOrganization(event.target.value)}
                         />
                         <p className="text-xs text-[var(--wr-text-muted)]">
-                          This helps admins map your account.
+                          Leave blank to create a Candidate account. An invitation assigns your organization and role.
                         </p>
+                        {invitationSummary ? <p className="text-xs font-semibold text-approved">Invitation found: {invitationSummary}</p> : null}
                       </div>
                     </div>
 
@@ -759,36 +748,6 @@ export const SignUp: React.FC = () => {
                       )}
                     </div>
 
-                    <fieldset className="space-y-3">
-                      <legend className="text-sm font-medium">Account type</legend>
-                      <div className="grid grid-cols-1 gap-3">
-                        {accountTypes.map((type) => (
-                          <label
-                            className={`flex cursor-pointer items-start gap-3 rounded-[var(--wr-radius-lg)] border p-4 transition hover:bg-[var(--wr-bg-elevated)] ${
-                              accountType === type.value
-                                ? 'border-[var(--wr-accent-primary)] bg-[var(--wr-accent-soft)]'
-                                : 'border-[var(--wr-border-default)] bg-[#fefdfb]'
-                            }`}
-                            key={type.value}
-                          >
-                            <input
-                              checked={accountType === type.value}
-                              className="mt-1 h-4 w-4 border-[var(--wr-border-strong)] text-[var(--wr-accent-primary)] focus:ring-[var(--wr-focus-ring)]"
-                              name="accountType"
-                              type="radio"
-                              value={type.value}
-                              onChange={(event) => setAccountType(event.target.value)}
-                            />
-                            <span>
-                              <span className="block text-sm font-semibold">{type.label}</span>
-                              <span className="mt-1 block text-xs leading-5 text-[var(--wr-text-secondary)]">
-                                {type.description}
-                              </span>
-                            </span>
-                          </label>
-                        ))}
-                      </div>
-                    </fieldset>
 
                     {!isGoogleSignup && (
                       <div className="space-y-2">

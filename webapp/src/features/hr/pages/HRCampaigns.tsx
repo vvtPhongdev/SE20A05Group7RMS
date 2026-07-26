@@ -679,7 +679,7 @@ export const HRCampaigns: React.FC = () => {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1040px] border-collapse text-left">
+            <table className="w-full min-w-[1180px] border-collapse text-left">
               <thead className="bg-workflow-ivory text-xs uppercase tracking-[0.14em] text-on-surface-variant">
                 <tr>
                   {[

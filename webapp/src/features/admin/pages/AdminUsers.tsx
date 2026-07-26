@@ -11,7 +11,6 @@ import {
 
 type RoleKey = 'Admin' | 'Department Head' | 'HR' | 'Candidate';
 type UserStatus = 'Active' | 'Inactive' | 'Pending';
-type EmailCheckState = 'idle' | 'checking' | 'available' | 'exists';
 
 interface ManagedUser {
   id: string;
@@ -22,6 +21,20 @@ interface ManagedUser {
   status: UserStatus;
   lastLogin: string;
   avatarUrl?: string;
+}
+
+interface ManagedInvitation {
+  id: string;
+  email: string;
+  displayName: string;
+  role: string;
+  expiresAt: string;
+  acceptedAt?: string | null;
+  revokedAt?: string | null;
+  resendCount: number;
+  lastSentAt?: string | null;
+  department?: { name: string } | null;
+  auditEvents: Array<{ id: string; action: string; createdAt: string }>;
 }
 
 type UserForm = Omit<ManagedUser, 'id' | 'lastLogin'>;
@@ -46,6 +59,8 @@ const roleBadgeClasses: Record<RoleKey, string> = {
 export const AdminUsers: React.FC = () => {
   const { token } = useAuth();
   const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [invitations, setInvitations] = useState<ManagedInvitation[]>([]);
+  const [invitationMessage, setInvitationMessage] = useState<string | null>(null);
   const [organizationId, setOrganizationId] = useState('');
   const [departmentOptions, setDepartmentOptions] = useState<Array<{ id: string; name: string }>>(
     [],
@@ -64,11 +79,8 @@ export const AdminUsers: React.FC = () => {
   const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState<UserForm>(emptyForm);
-  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [emailCheck, setEmailCheck] = useState<EmailCheckState>('idle');
-  const [emailCheckMessage, setEmailCheckMessage] = useState<string | null>(null);
-  const [verifiedEmail, setVerifiedEmail] = useState('');
+  const [savingUser, setSavingUser] = useState(false);
 
   // Dropdown Menu State
   const [activeMenuUserId, setActiveMenuUserId] = useState<string | null>(null);
@@ -115,6 +127,11 @@ export const AdminUsers: React.FC = () => {
     setUsers(response.data.map(mapUser));
   };
 
+  const loadInvitations = async () => {
+    const response = await apiRequest<ManagedInvitation[]>('/organization-invitations', token);
+    setInvitations(response);
+  };
+
   useEffect(() => {
     const loadPage = async () => {
       setLoading(true);
@@ -126,7 +143,7 @@ export const AdminUsers: React.FC = () => {
         ]);
         setOrganizationId(organizations[0]?.id ?? '');
         setDepartmentOptions(departments);
-        await loadUsers();
+        await Promise.all([loadUsers(), loadInvitations()]);
       } catch (loadError) {
         setError(loadError instanceof Error ? loadError.message : 'Unable to load users');
       } finally {
@@ -209,11 +226,7 @@ export const AdminUsers: React.FC = () => {
   const openCreateModal = () => {
     setEditingUser(null);
     setForm(emptyForm);
-    setPassword('');
     setError(null);
-    setEmailCheck('idle');
-    setEmailCheckMessage(null);
-    setVerifiedEmail('');
     setModalOpen(true);
   };
 
@@ -226,11 +239,7 @@ export const AdminUsers: React.FC = () => {
       department: user.department,
       status: user.status,
     });
-    setPassword('');
     setError(null);
-    setEmailCheck('idle');
-    setEmailCheckMessage(null);
-    setVerifiedEmail('');
     setModalOpen(true);
   };
 
@@ -238,9 +247,6 @@ export const AdminUsers: React.FC = () => {
     setModalOpen(false);
     setEditingUser(null);
     setError(null);
-    setEmailCheck('idle');
-    setEmailCheckMessage(null);
-    setVerifiedEmail('');
   };
 
   const toggleStatus = async (id: string) => {
@@ -259,65 +265,9 @@ export const AdminUsers: React.FC = () => {
     }
   };
 
-  const resetEmailVerification = () => {
-    setEmailCheck('idle');
-    setEmailCheckMessage(null);
-    setVerifiedEmail('');
-  };
-
-  const verifyEmailAvailability = async () => {
-    const email = form.email.trim().toLowerCase();
-    setError(null);
-
-    if (!email) {
-      setEmailCheck('idle');
-      setEmailCheckMessage(null);
-      setError('Email is required.');
-      return false;
-    }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setEmailCheck('idle');
-      setEmailCheckMessage(null);
-      setError('Use a valid email address.');
-      return false;
-    }
-
-    setEmailCheck('checking');
-    setEmailCheckMessage('Checking email...');
-
-    try {
-      const result = await apiRequest<{ exists: boolean; isActive: boolean }>(
-        `/users/email-exists?email=${encodeURIComponent(email)}`,
-        token,
-      );
-
-      if (result.exists) {
-        setEmailCheck('exists');
-        setEmailCheckMessage(
-          result.isActive
-            ? 'This email already belongs to an active account.'
-            : 'This email already exists in the database.',
-        );
-        setVerifiedEmail('');
-        return false;
-      }
-
-      setEmailCheck('available');
-      setEmailCheckMessage('Email is available.');
-      setVerifiedEmail(email);
-      return true;
-    } catch (checkError) {
-      setEmailCheck('idle');
-      setEmailCheckMessage(null);
-      setVerifiedEmail('');
-      setError(checkError instanceof Error ? checkError.message : 'Unable to verify email');
-      return false;
-    }
-  };
-
   const saveUser = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (savingUser) return;
     setError(null);
 
     if (!form.name.trim() || !form.email.trim()) {
@@ -337,6 +287,7 @@ export const AdminUsers: React.FC = () => {
         ? undefined
         : departmentOptions.find((department) => department.name === form.department)?.id;
 
+    setSavingUser(true);
     try {
       if (editingUser) {
         await apiRequest(`/users/${editingUser.id}`, token, {
@@ -362,17 +313,7 @@ export const AdminUsers: React.FC = () => {
         if (!organizationId) {
           throw new Error('No organization is available for the new user');
         }
-        if (!password || password.length < 8) {
-          setError('A password of at least 8 characters is required.');
-          return;
-        }
-
-        if (emailCheck !== 'available' || verifiedEmail !== normalizedEmail) {
-          setError('Please verify this email before creating the user.');
-          return;
-        }
-
-        await apiRequest('/users', token, {
+        await apiRequest('/organization-invitations', token, {
           method: 'POST',
           body: JSON.stringify({
             email: normalizedEmail,
@@ -380,15 +321,32 @@ export const AdminUsers: React.FC = () => {
             role: apiRole(form.role),
             organizationId,
             departmentId,
-            password,
           }),
         });
       }
 
       await loadUsers();
+      await loadInvitations();
+      if (!editingUser) setInvitationMessage(`Invitation sent to ${normalizedEmail}.`);
       closeModal();
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Unable to save user');
+    } finally {
+      setSavingUser(false);
+    }
+  };
+
+  const manageInvitation = async (invitation: ManagedInvitation, action: 'resend' | 'revoke') => {
+    setError(null);
+    setInvitationMessage(null);
+    try {
+      await apiRequest(`/organization-invitations/${invitation.id}/${action}`, token, { method: 'POST' });
+      await loadInvitations();
+      setInvitationMessage(
+        action === 'resend' ? `Invitation resent to ${invitation.email}.` : `Invitation for ${invitation.email} was revoked.`,
+      );
+    } catch (manageError) {
+      setError(manageError instanceof Error ? manageError.message : `Unable to ${action} invitation`);
     }
   };
 
@@ -535,12 +493,13 @@ export const AdminUsers: React.FC = () => {
         actions={
           <AdminActionButton onClick={openCreateModal}>
             <span className="material-symbols-outlined text-xl">add</span>
-            Add User
+            Invite member
           </AdminActionButton>
         }
       />
 
       {error && !modalOpen ? <AdminInlineAlert>{error}</AdminInlineAlert> : null}
+      {invitationMessage ? <AdminInlineAlert>{invitationMessage}</AdminInlineAlert> : null}
       {loading ? <AdminLoadingState label="Loading users..." /> : null}
 
       {/* Summary Stats Pill Counters */}
@@ -566,6 +525,40 @@ export const AdminUsers: React.FC = () => {
           <span className="font-label-md text-on-surface">{counts.candidates} Candidates</span>
         </div>
       </div>
+
+      <section className="mb-margin-lg rounded-xl border border-border-warm bg-clean-surface p-5">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-deep-charcoal">Pending invitations</h2>
+            <p className="mt-1 text-sm text-slate-ink">Resend active invitations, revoke access, and review the latest audit event.</p>
+          </div>
+          <span className="rounded-full bg-workflow-ivory px-3 py-1 text-sm font-semibold text-on-surface">{invitations.filter((item) => !item.acceptedAt && !item.revokedAt && new Date(item.expiresAt) > new Date()).length} active</span>
+        </div>
+        {invitations.length === 0 ? (
+          <p className="text-sm text-slate-ink">No invitations have been sent.</p>
+        ) : (
+          <div className="space-y-3">
+            {invitations.map((invitation) => {
+              const isActive = !invitation.acceptedAt && !invitation.revokedAt && new Date(invitation.expiresAt) > new Date();
+              const latestAudit = invitation.auditEvents[0];
+              return (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border-warm bg-workflow-ivory/50 p-3" key={invitation.id}>
+                  <div>
+                    <p className="font-medium text-deep-charcoal">{invitation.displayName} <span className="font-normal text-slate-ink">({invitation.email})</span></p>
+                    <p className="mt-1 text-xs text-slate-ink">{mapRole(invitation.role)}{invitation.department ? ` · ${invitation.department.name}` : ''} · expires {new Date(invitation.expiresAt).toLocaleDateString()} · resent {invitation.resendCount} time(s)</p>
+                    <p className="mt-1 text-xs text-slate-ink">Audit: {latestAudit ? `${latestAudit.action.toLowerCase()} ${new Date(latestAudit.createdAt).toLocaleString()}` : 'created'}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${isActive ? 'bg-approved/15 text-approved' : 'bg-slate-ink/10 text-slate-ink'}`}>{invitation.acceptedAt ? 'Accepted' : invitation.revokedAt ? 'Revoked' : isActive ? 'Active' : 'Expired'}</span>
+                    <button className="rounded-lg border border-teal-command/30 bg-white px-3 py-1.5 text-xs font-semibold text-teal-command disabled:opacity-50" disabled={!isActive} onClick={() => void manageInvitation(invitation, 'resend')} type="button">Resend</button>
+                    <button className="rounded-lg border border-rejected/30 bg-white px-3 py-1.5 text-xs font-semibold text-rejected disabled:opacity-50" disabled={!isActive} onClick={() => void manageInvitation(invitation, 'revoke')} type="button">Revoke</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       {/* Filter Row */}
       <div className="flex flex-wrap gap-4 mb-margin-md items-center">
@@ -803,17 +796,18 @@ export const AdminUsers: React.FC = () => {
             <div className="flex items-start justify-between gap-4 border-b border-border-warm p-6">
               <div>
                 <h2 className="text-xl font-semibold text-deep-charcoal">
-                  {editingUser ? 'Edit user' : 'Create user'}
+                  {editingUser ? 'Edit user' : 'Invite member'}
                 </h2>
                 <p className="mt-1 text-sm text-slate-ink">
                   {editingUser
                     ? 'Update role, department, or account status.'
-                    : 'Create a new workspace account and assign its access role.'}
+                    : 'Send an invitation email with a 7-day sign-up link and access role.'}
                 </p>
               </div>
               <button
                 aria-label="Close modal"
                 className="flex h-9 w-9 items-center justify-center rounded-lg border border-border-warm bg-white text-slate-ink transition hover:border-rejected hover:text-rejected active:scale-[0.98]"
+                disabled={savingUser}
                 onClick={closeModal}
                 type="button"
               >
@@ -846,52 +840,9 @@ export const AdminUsers: React.FC = () => {
                     disabled={Boolean(editingUser)}
                     type="email"
                     value={form.email}
-                    onChange={(event) => {
-                      setForm((current) => ({ ...current, email: event.target.value }));
-                      if (!editingUser) {
-                        resetEmailVerification();
-                      }
-                    }}
+                    onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
                   />
-                  {!editingUser ? (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        className="h-8 rounded-lg border border-teal-command/30 bg-white px-3 text-xs font-semibold text-teal-command transition hover:border-teal-command hover:bg-teal-command/5 disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={emailCheck === 'checking' || !form.email.trim()}
-                        onClick={verifyEmailAvailability}
-                        type="button"
-                      >
-                        {emailCheck === 'checking' ? 'Checking...' : 'Verify email'}
-                      </button>
-                      {emailCheckMessage ? (
-                        <span
-                          className={`text-xs font-medium ${
-                            emailCheck === 'available'
-                              ? 'text-approved'
-                              : emailCheck === 'exists'
-                                ? 'text-rejected'
-                                : 'text-slate-ink'
-                          }`}
-                        >
-                          {emailCheckMessage}
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : null}
                 </label>
-                {!editingUser ? (
-                  <label className="space-y-2 block sm:col-span-2">
-                    <span className="text-sm font-medium text-deep-charcoal">Initial password</span>
-                    <input
-                      className="h-11 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none transition focus:border-teal-command focus:bg-white focus:ring-2 focus:ring-teal-command/15"
-                      minLength={8}
-                      required
-                      type="password"
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                    />
-                  </label>
-                ) : null}
                 <label className="space-y-2 block">
                   <span className="text-sm font-medium text-deep-charcoal">Role</span>
                   <select
@@ -953,6 +904,7 @@ export const AdminUsers: React.FC = () => {
               <div className="flex flex-col-reverse gap-3 border-t border-border-warm pt-5 sm:flex-row sm:justify-end">
                 <button
                   className="h-10 rounded-lg border border-border-warm bg-white px-4 text-sm font-semibold text-slate-ink transition hover:border-rejected hover:text-rejected active:scale-[0.98]"
+                  disabled={savingUser}
                   onClick={closeModal}
                   type="button"
                 >
@@ -960,14 +912,10 @@ export const AdminUsers: React.FC = () => {
                 </button>
                 <button
                   className="h-10 rounded-lg bg-teal-command px-5 text-sm font-semibold text-white transition hover:bg-primary active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={
-                    !editingUser &&
-                    (emailCheck !== 'available' ||
-                      verifiedEmail !== form.email.trim().toLowerCase())
-                  }
+                  disabled={savingUser}
                   type="submit"
                 >
-                  {editingUser ? 'Save changes' : 'Create user'}
+                  {savingUser ? (editingUser ? 'Saving...' : 'Sending invitation...') : editingUser ? 'Save changes' : 'Send invitation'}
                 </button>
               </div>
             </form>

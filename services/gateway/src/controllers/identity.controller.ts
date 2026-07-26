@@ -98,13 +98,10 @@ export class SupabaseRegisterDto extends SupabaseLoginDto {
   @IsNotEmpty()
   displayName!: string;
 
-  @ApiProperty({
-    example: 'CANDIDATE',
-    enum: UserRole,
-    description: 'RMS role to request for this account',
-  })
-  @IsEnum(UserRole)
-  role!: UserRole;
+  @ApiProperty({ required: false, description: 'Invitation code supplied by an administrator' })
+  @IsOptional()
+  @IsString()
+  invitationCode?: string;
 }
 
 export class RegisterDto {
@@ -122,13 +119,39 @@ export class RegisterDto {
   @IsNotEmpty()
   password!: string;
 
-  @ApiProperty({
-    example: 'CANDIDATE',
-    enum: UserRole,
-    description: 'User role',
-  })
+  @ApiProperty({ required: false, description: 'Invitation code supplied by an administrator' })
+  @IsOptional()
+  @IsString()
+  invitationCode?: string;
+}
+
+export class CreateOrganizationInvitationDto {
+  @IsEmail()
+  email!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  displayName!: string;
+
   @IsEnum(UserRole)
   role!: UserRole;
+
+  @IsUUID()
+  organizationId!: string;
+
+  @IsOptional()
+  @IsUUID()
+  departmentId?: string;
+}
+
+export class ValidateOrganizationInvitationDto {
+  @IsString()
+  @IsNotEmpty()
+  code!: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
 }
 
 export class VerifyRegisterDto {
@@ -589,6 +612,14 @@ export class IdentityController {
     return firstValueFrom(this.identityClient.send('auth.supabase-register', body));
   }
 
+  @Post('organization-invitations/validate')
+  @Public()
+  @Throttle({ default: { limit: appConfig.RATE_LIMIT_AUTH_LIMIT, ttl: appConfig.RATE_LIMIT_TTL } })
+  @HttpCode(HttpStatus.OK)
+  validateOrganizationInvitation(@Body() body: ValidateOrganizationInvitationDto) {
+    return firstValueFrom(this.identityClient.send('auth.organization-invitations.validate', body));
+  }
+
   @Post('auth/refresh')
   @Public()
   @Throttle({ default: { limit: appConfig.RATE_LIMIT_AUTH_LIMIT, ttl: appConfig.RATE_LIMIT_TTL } })
@@ -745,6 +776,56 @@ export class IdentityController {
   @ApiOperation({ summary: 'Create a new user' })
   createUser(@Body() body: CreateUserDto) {
     return firstValueFrom(this.identityClient.send('users.create', body));
+  }
+
+  @Post('organization-invitations')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Invite a member to an organization' })
+  createOrganizationInvitation(
+    @CurrentUser('sub') invitedById: string,
+    @Body() body: CreateOrganizationInvitationDto,
+  ) {
+    return firstValueFrom(this.identityClient.send('users.get', { id: invitedById })).then((currentUser) => {
+      if (!currentUser.organizationId || currentUser.organizationId !== body.organizationId) {
+        throw new ForbiddenException('You can only invite members to your own organization');
+      }
+      return firstValueFrom(
+        this.identityClient.send('auth.organization-invitations.create', { ...body, invitedById }),
+      );
+    });
+  }
+
+  @Get('organization-invitations')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List organization invitations and audit history' })
+  async listOrganizationInvitations(@CurrentUser('sub') actorId: string) {
+    const currentUser = await firstValueFrom(this.identityClient.send('users.get', { id: actorId }));
+    if (!currentUser.organizationId) throw new BadRequestException('Organization is required');
+    return firstValueFrom(
+      this.identityClient.send('auth.organization-invitations.list', { organizationId: currentUser.organizationId }),
+    );
+  }
+
+  @Post('organization-invitations/:id/resend')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Resend an active organization invitation' })
+  async resendOrganizationInvitation(@CurrentUser('sub') actorId: string, @Param('id') invitationId: string) {
+    const currentUser = await firstValueFrom(this.identityClient.send('users.get', { id: actorId }));
+    if (!currentUser.organizationId) throw new BadRequestException('Organization is required');
+    return firstValueFrom(this.identityClient.send('auth.organization-invitations.resend', { invitationId, organizationId: currentUser.organizationId, actorId }));
+  }
+
+  @Post('organization-invitations/:id/revoke')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Revoke an organization invitation' })
+  async revokeOrganizationInvitation(@CurrentUser('sub') actorId: string, @Param('id') invitationId: string) {
+    const currentUser = await firstValueFrom(this.identityClient.send('users.get', { id: actorId }));
+    if (!currentUser.organizationId) throw new BadRequestException('Organization is required');
+    return firstValueFrom(this.identityClient.send('auth.organization-invitations.revoke', { invitationId, organizationId: currentUser.organizationId, actorId }));
   }
 
   @Post('dept-head/settings/team-members')

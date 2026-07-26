@@ -347,7 +347,14 @@ export class DepartmentsService {
     };
 
     try {
-      return await this.prisma.department.update({ where: { id }, data });
+      const department = await this.prisma.department.update({ where: { id }, data });
+      if (parsed.headUserId) {
+        await this.prisma.user.update({
+          where: { id: parsed.headUserId },
+          data: { departmentId: id },
+        });
+      }
+      return department;
     } catch (error) {
       const message = error instanceof Error ? error.message : '';
       if (!message.includes('skills') && !message.includes('bachelor_requirements')) {
@@ -381,7 +388,7 @@ export class DepartmentsService {
         },
       });
 
-      return this.prisma.department.update({
+      const department = await this.prisma.department.update({
         where: { id },
         data: {
           name: data.name,
@@ -400,6 +407,13 @@ export class DepartmentsService {
           updatedAt: true,
         },
       });
+      if (parsed.headUserId) {
+        await this.prisma.user.update({
+          where: { id: parsed.headUserId },
+          data: { departmentId: id },
+        });
+      }
+      return department;
     }
   }
 

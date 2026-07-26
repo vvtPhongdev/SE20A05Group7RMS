@@ -22,8 +22,7 @@ export interface User {
 
 interface SupabaseRegisterData {
   displayName: string;
-  role: UserRole;
-  rememberMe?: boolean;
+  invitationCode?: string;
 }
 
 interface AuthResponse {
@@ -39,7 +38,7 @@ interface AuthContextType {
   login: (email: string, password: string, rememberMe?: boolean) => Promise<User>;
   signInWithGoogle: (redirectPath?: string) => Promise<void>;
   completeSupabaseLogin: (rememberMe?: boolean) => Promise<User>;
-  registerWithSupabaseSession: (data: SupabaseRegisterData) => Promise<User>;
+  registerWithSupabaseSession: (data: SupabaseRegisterData) => Promise<{ success: boolean; email: string }>;
   getSupabaseProfile: () => Promise<{ email: string; displayName: string } | null>;
   loginWithToken: (
     accessToken: string,
@@ -437,8 +436,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const registerWithSupabaseSession = async ({
     displayName,
-    role,
-    rememberMe = false,
+    invitationCode,
   }: SupabaseRegisterData) => {
     setLoading(true);
 
@@ -454,7 +452,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify({
           accessToken: sessionData.session.access_token,
           displayName,
-          role,
+          invitationCode,
         }),
       });
 
@@ -462,7 +460,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw await readAuthError(response);
       }
 
-      return saveAuthResponse(await response.json(), rememberMe);
+      return (await response.json()) as { success: boolean; email: string };
     } finally {
       setLoading(false);
     }

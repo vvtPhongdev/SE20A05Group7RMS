@@ -22,6 +22,15 @@ import {
   UpdateAccountInput,
   VerifyRegisterSchema,
   VerifyRegisterInput,
+  CreateOrganizationInvitationSchema,
+  CreateOrganizationInvitationInput,
+  ValidateOrganizationInvitationSchema,
+  ValidateOrganizationInvitationInput,
+  ListOrganizationInvitationsSchema,
+  ListOrganizationInvitationsInput,
+  ManageOrganizationInvitationSchema,
+  ManageOrganizationInvitationInput,
+  UserRole,
 } from '@wr/contracts';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import * as bcrypt from 'bcryptjs';
@@ -327,6 +336,191 @@ export class AuthService implements OnModuleDestroy {
     return organization;
   }
 
+  private invitationError(message: string): never {
+    throw new RpcException({ status: HttpStatus.BAD_REQUEST, message });
+  }
+
+  private async resolveInvitation(code: string, email: string) {
+    const invitation = await this.prisma.organizationInvitation.findUnique({
+      where: { code },
+      include: { organization: { select: { id: true, name: true } }, department: { select: { id: true, name: true } } },
+    });
+
+    if (!invitation) this.invitationError('Invitation code is invalid. Check the code and try again.');
+    if (invitation.email.toLowerCase() !== email.toLowerCase()) {
+      this.invitationError('This invitation was sent to a different email address.');
+    }
+    if (invitation.revokedAt) this.invitationError('This invitation has been revoked.');
+    if (invitation.acceptedAt) this.invitationError('This invitation has already been used.');
+    if (invitation.expiresAt <= new Date()) this.invitationError('This invitation has expired. Ask an administrator for a new invitation.');
+    return invitation;
+  }
+
+  private async getRegistrationAssignment(email: string, invitationCode?: string) {
+    if (invitationCode) {
+      const invitation = await this.resolveInvitation(invitationCode, email);
+      return {
+        role: invitation.role,
+        organizationId: invitation.organizationId,
+        departmentId: invitation.departmentId,
+        invitationCode: invitation.code,
+      };
+    }
+
+    const organization = await this.getOrCreateDefaultOrganization();
+    return {
+      role: UserRole.CANDIDATE,
+      organizationId: organization.id,
+      departmentId: null,
+      invitationCode: null,
+    };
+  }
+
+  private async sendRegistrationOtp(email: string) {
+    const code = crypto.randomInt(100000, 1000000).toString();
+    await this.redis.set(`register:${email}`, code, 'EX', 900);
+
+    const host = config.SMTP_HOST;
+    const port = config.SMTP_PORT;
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: config.SMTP_USER && config.SMTP_PASS ? { user: config.SMTP_USER, pass: config.SMTP_PASS } : undefined,
+    });
+    const logoPath = getLogoPath();
+    try {
+      await transporter.sendMail({
+        from: config.SMTP_FROM.replace('Works Reruiter', 'Works Recruiter').replace('worksreruiter.com', 'worksrecruiter.com'),
+        to: email,
+        subject: 'Works Recruiter — Complete your Registration',
+        text: `Your registration verification code is: ${code}. This code is valid for 15 minutes.`,
+        html: buildAuthHtmlTemplate('Complete your Registration', `<p>Use this 6-digit verification code to complete your registration:</p><div style="text-align:center;margin:30px 0"><strong style="font-family:monospace;font-size:32px;letter-spacing:4px">${code}</strong></div><p>This code is valid for <strong>15 minutes</strong>.</p>`, !!logoPath),
+        attachments: logoPath ? [{ filename: 'logo-offical.svg', contentType: 'image/svg+xml', path: logoPath, cid: 'logo' }] : undefined,
+      });
+    } catch (err: any) {
+      console.error(`Failed to send registration OTP to ${email}:`, err.message);
+      if (config.NODE_ENV !== 'development' && host !== 'localhost') {
+        throw new RpcException({ status: HttpStatus.INTERNAL_SERVER_ERROR, message: 'Failed to send verification email. Please try again later.' });
+      }
+    }
+  }
+
+  async createOrganizationInvitation(payload: CreateOrganizationInvitationInput & { invitedById: string }) {
+    const { invitedById, ...input } = payload;
+    const parsed = CreateOrganizationInvitationSchema.parse(input);
+    const email = parsed.email.toLowerCase();
+    const existingUser = await this.prisma.user.findUnique({ where: { email }, select: { isActive: true } });
+    if (existingUser?.isActive) {
+      throw new RpcException({ status: HttpStatus.CONFLICT, message: 'This email already belongs to an active account.' });
+    }
+    const organization = await this.prisma.organization.findUnique({ where: { id: parsed.organizationId }, select: { id: true, name: true } });
+    if (!organization) this.invitationError('Organization does not exist.');
+    if (parsed.departmentId) {
+      const department = await this.prisma.department.findFirst({ where: { id: parsed.departmentId, organizationId: parsed.organizationId }, select: { id: true } });
+      if (!department) this.invitationError('Department does not belong to this organization.');
+    }
+
+    await this.prisma.organizationInvitation.updateMany({
+      where: { email, acceptedAt: null, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    const invitation = await this.prisma.organizationInvitation.create({
+      data: { ...parsed, email, invitedById, code: crypto.randomBytes(24).toString('base64url'), expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), lastSentAt: new Date() },
+      include: { department: { select: { name: true } } },
+    });
+    await this.prisma.organizationInvitationAudit.create({ data: { invitationId: invitation.id, actorId: invitedById, action: 'CREATED' } });
+    const signupBaseUrl = (config.API_CORS_ORIGIN.split(',')[0] ?? '').trim().replace(/\/$/, '');
+    const signupLink = `${signupBaseUrl}/signup?inviteCode=${encodeURIComponent(invitation.code)}`;
+    const roleLabel = invitation.role.replace(/_/g, ' ');
+    const logoPath = getLogoPath();
+    const transporter = nodemailer.createTransport({ host: config.SMTP_HOST, port: config.SMTP_PORT, secure: config.SMTP_PORT === 465, auth: config.SMTP_USER && config.SMTP_PASS ? { user: config.SMTP_USER, pass: config.SMTP_PASS } : undefined });
+    try {
+      await transporter.sendMail({
+        from: config.SMTP_FROM.replace('Works Reruiter', 'Works Recruiter').replace('worksreruiter.com', 'worksrecruiter.com'),
+        to: email,
+        subject: `You're invited to join ${organization.name} on Works Recruiter`,
+        text: `You have been invited to join ${organization.name} as ${roleLabel}. Sign up at ${signupLink} or enter this invitation code: ${invitation.code}. This invitation expires in 7 days.`,
+        html: buildAuthHtmlTemplate('You are invited to Works Recruiter', `<p>You have been invited to join <strong>${organization.name}</strong> as <strong>${roleLabel}</strong>${invitation.department ? ` in ${invitation.department.name}` : ''}.</p><p style="text-align:center;margin:30px 0"><a href="${signupLink}" style="background:#4f46e5;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">Create your account</a></p><p>Your invitation code:</p><p style="font-family:monospace;word-break:break-all">${invitation.code}</p><p>This invitation expires in <strong>7 days</strong>.</p>`, !!logoPath),
+        attachments: logoPath ? [{ filename: 'logo-offical.svg', contentType: 'image/svg+xml', path: logoPath, cid: 'logo' }] : undefined,
+      });
+    } catch (err: any) {
+      console.error(`Failed to send invitation to ${email}:`, err.message);
+      if (config.NODE_ENV !== 'development' && config.SMTP_HOST !== 'localhost') throw new RpcException({ status: HttpStatus.INTERNAL_SERVER_ERROR, message: 'Invitation was created but the email could not be sent.' });
+    }
+    return { id: invitation.id, email, expiresAt: invitation.expiresAt };
+  }
+
+  async listOrganizationInvitations(dto: ListOrganizationInvitationsInput) {
+    const parsed = ListOrganizationInvitationsSchema.parse(dto);
+    return this.prisma.organizationInvitation.findMany({
+      where: { organizationId: parsed.organizationId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        department: { select: { id: true, name: true } },
+        auditEvents: { orderBy: { createdAt: 'desc' }, take: 10 },
+      },
+    });
+  }
+
+  async resendOrganizationInvitation(payload: ManageOrganizationInvitationInput & { actorId: string }) {
+    const { actorId, ...input } = payload;
+    const parsed = ManageOrganizationInvitationSchema.parse(input);
+    const invitation = await this.prisma.organizationInvitation.findFirst({
+      where: { id: parsed.invitationId, organizationId: parsed.organizationId },
+      include: { organization: { select: { name: true } }, department: { select: { name: true } } },
+    });
+    if (!invitation) this.invitationError('Invitation was not found.');
+    if (invitation.revokedAt) this.invitationError('A revoked invitation cannot be resent.');
+    if (invitation.acceptedAt) this.invitationError('This invitation has already been accepted.');
+    if (invitation.expiresAt <= new Date()) this.invitationError('This invitation has expired. Create a new invitation instead.');
+
+    const signupBaseUrl = (config.API_CORS_ORIGIN.split(',')[0] ?? '').trim().replace(/\/$/, '');
+    const signupLink = `${signupBaseUrl}/signup?inviteCode=${encodeURIComponent(invitation.code)}`;
+    const logoPath = getLogoPath();
+    const transporter = nodemailer.createTransport({ host: config.SMTP_HOST, port: config.SMTP_PORT, secure: config.SMTP_PORT === 465, auth: config.SMTP_USER && config.SMTP_PASS ? { user: config.SMTP_USER, pass: config.SMTP_PASS } : undefined });
+    try {
+      await transporter.sendMail({
+        from: config.SMTP_FROM.replace('Works Reruiter', 'Works Recruiter').replace('worksreruiter.com', 'worksrecruiter.com'),
+        to: invitation.email,
+        subject: `Reminder: join ${invitation.organization.name} on Works Recruiter`,
+        text: `Sign up at ${signupLink} or enter invitation code ${invitation.code}. This invitation expires on ${invitation.expiresAt.toLocaleDateString()}.`,
+        html: buildAuthHtmlTemplate('Your Works Recruiter invitation', `<p>Your invitation to join <strong>${invitation.organization.name}</strong> as <strong>${invitation.role.replace(/_/g, ' ')}</strong> is still active.</p><p style="text-align:center;margin:30px 0"><a href="${signupLink}" style="background:#4f46e5;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">Create your account</a></p><p>Invitation code:</p><p style="font-family:monospace;word-break:break-all">${invitation.code}</p>`, !!logoPath),
+        attachments: logoPath ? [{ filename: 'logo-offical.svg', contentType: 'image/svg+xml', path: logoPath, cid: 'logo' }] : undefined,
+      });
+    } catch (err: any) {
+      console.error(`Failed to resend invitation to ${invitation.email}:`, err.message);
+      if (config.NODE_ENV !== 'development' && config.SMTP_HOST !== 'localhost') throw new RpcException({ status: HttpStatus.INTERNAL_SERVER_ERROR, message: 'Failed to resend invitation email.' });
+    }
+    const updated = await this.prisma.organizationInvitation.update({
+      where: { id: invitation.id },
+      data: { lastSentAt: new Date(), resendCount: { increment: 1 } },
+    });
+    await this.prisma.organizationInvitationAudit.create({ data: { invitationId: invitation.id, actorId, action: 'RESENT' } });
+    return updated;
+  }
+
+  async revokeOrganizationInvitation(payload: ManageOrganizationInvitationInput & { actorId: string }) {
+    const { actorId, ...input } = payload;
+    const parsed = ManageOrganizationInvitationSchema.parse(input);
+    const invitation = await this.prisma.organizationInvitation.findFirst({ where: { id: parsed.invitationId, organizationId: parsed.organizationId } });
+    if (!invitation) this.invitationError('Invitation was not found.');
+    if (invitation.acceptedAt) this.invitationError('An accepted invitation cannot be revoked.');
+    if (invitation.revokedAt) return invitation;
+    const updated = await this.prisma.organizationInvitation.update({ where: { id: invitation.id }, data: { revokedAt: new Date() } });
+    await this.prisma.organizationInvitationAudit.create({ data: { invitationId: invitation.id, actorId, action: 'REVOKED' } });
+    return updated;
+  }
+
+  async validateOrganizationInvitation(dto: ValidateOrganizationInvitationInput) {
+    const parsed = ValidateOrganizationInvitationSchema.parse(dto);
+    const invitation = parsed.email
+      ? await this.resolveInvitation(parsed.code, parsed.email)
+      : await this.prisma.organizationInvitation.findUnique({ where: { code: parsed.code }, include: { organization: { select: { name: true } }, department: { select: { name: true } } } });
+    if (!invitation || invitation.revokedAt || invitation.acceptedAt || invitation.expiresAt <= new Date()) this.invitationError('Invitation code is invalid or expired.');
+    return { organizationName: invitation.organization.name, departmentName: invitation.department?.name ?? null, role: invitation.role, expiresAt: invitation.expiresAt };
+  }
+
   /**
    * Register a new user, hashes password, generates access token and refresh token.
    * Refresh token is stored in Redis under its SHA-256 hash.
@@ -335,6 +529,7 @@ export class AuthService implements OnModuleDestroy {
     // 1. Validate payload
     const parsed = RegisterUserSchema.parse(dto);
     const email = parsed.email.toLowerCase();
+    const assignment = await this.getRegistrationAssignment(email, parsed.invitationCode);
 
     // 2. Check duplicate email
     const existing = await this.prisma.user.findUnique({
@@ -349,19 +544,14 @@ export class AuthService implements OnModuleDestroy {
       }
       // If user exists but is not active, update their information
       const passwordHash = await bcrypt.hash(parsed.password, 12);
-      let departmentId = existing.departmentId;
-      if (!departmentId && parsed.role === 'DEPARTMENT_HEAD') {
-        const defaultDept = await this.prisma.department.findFirst();
-        if (defaultDept) {
-          departmentId = defaultDept.id;
-        }
-      }
+      const departmentId = assignment.departmentId;
       await this.prisma.user.update({
         where: { id: existing.id },
         data: {
           displayName: parsed.displayName,
           passwordHash,
-          role: parsed.role,
+          role: assignment.role,
+          organizationId: assignment.organizationId,
           departmentId,
         },
       });
@@ -380,25 +570,16 @@ export class AuthService implements OnModuleDestroy {
         });
       }
 
-      // Find a default department for the new Department Head
-      let departmentId: string | undefined;
-      if (parsed.role === 'DEPARTMENT_HEAD') {
-        const defaultDept = await this.prisma.department.findFirst({
-          where: { organizationId: organization.id },
-        });
-        if (defaultDept) {
-          departmentId = defaultDept.id;
-        }
-      }
+      const departmentId = assignment.departmentId;
 
       // 4. Create user in database (inactive by default)
       await this.prisma.user.create({
         data: {
           email,
           displayName: parsed.displayName,
-          role: parsed.role,
+          role: assignment.role,
           passwordHash,
-          organizationId: organization.id,
+          organizationId: assignment.organizationId,
           departmentId,
           isActive: false,
         },
@@ -412,6 +593,11 @@ export class AuthService implements OnModuleDestroy {
     // 6. Store code in Redis with 15-min TTL
     const redisKey = `register:${email}`;
     await this.redis.set(redisKey, code, 'EX', 900);
+    if (assignment.invitationCode) {
+      await this.redis.set(`register-invitation:${email}`, assignment.invitationCode, 'EX', 900);
+    } else {
+      await this.redis.del(`register-invitation:${email}`);
+    }
 
     // 7. Send verification code via SMTP (nodemailer)
     const host = config.SMTP_HOST;
@@ -566,7 +752,7 @@ export class AuthService implements OnModuleDestroy {
     return this.issueRmsTokens(user);
   }
 
-  async registerWithSupabase(dto: SupabaseRegisterInput): Promise<AuthTokenResponse> {
+  async registerWithSupabase(dto: SupabaseRegisterInput): Promise<{ success: boolean; email: string }> {
     const parsed = SupabaseRegisterSchema.parse(dto);
     const identity = await this.getVerifiedSupabaseIdentity(parsed.accessToken);
 
@@ -574,18 +760,8 @@ export class AuthService implements OnModuleDestroy {
       where: { email: identity.email },
     });
 
-    if (existing?.isActive) {
-      return this.issueRmsTokens(existing);
-    }
-
-    const organization = await this.getOrCreateDefaultOrganization();
-    let departmentId = existing?.departmentId ?? undefined;
-    if (!departmentId && parsed.role === 'DEPARTMENT_HEAD') {
-      const defaultDept = await this.prisma.department.findFirst({
-        where: { organizationId: organization.id },
-      });
-      departmentId = defaultDept?.id;
-    }
+    if (existing?.isActive) throw new RpcException({ status: HttpStatus.CONFLICT, message: 'Email already exists' });
+    const assignment = await this.getRegistrationAssignment(identity.email, parsed.invitationCode);
 
     const displayName = parsed.displayName.trim() || identity.displayName;
     const user = existing
@@ -593,25 +769,29 @@ export class AuthService implements OnModuleDestroy {
           where: { id: existing.id },
           data: {
             displayName,
-            role: parsed.role,
-            departmentId,
+            role: assignment.role,
+            organizationId: assignment.organizationId,
+            departmentId: assignment.departmentId,
             passwordHash: null,
-            isActive: true,
+            isActive: false,
           },
         })
       : await this.prisma.user.create({
           data: {
             email: identity.email,
             displayName,
-            role: parsed.role,
+            role: assignment.role,
             passwordHash: null,
-            organizationId: organization.id,
-            departmentId,
-            isActive: true,
+            organizationId: assignment.organizationId,
+            departmentId: assignment.departmentId,
+            isActive: false,
           },
         });
 
-    return this.issueRmsTokens(user);
+    if (assignment.invitationCode) await this.redis.set(`register-invitation:${identity.email}`, assignment.invitationCode, 'EX', 900);
+    else await this.redis.del(`register-invitation:${identity.email}`);
+    await this.sendRegistrationOtp(identity.email);
+    return { success: true, email: user.email };
   }
   /**
    * Refresh an existing refresh token and rotate to a new pair.
@@ -892,6 +1072,11 @@ export class AuthService implements OnModuleDestroy {
       });
     }
 
+    const invitationCode = await this.redis.get(`register-invitation:${email}`);
+    if (invitationCode) {
+      await this.resolveInvitation(invitationCode, email);
+    }
+
     // 4. Update user status in database to active
     await this.prisma.user.update({
       where: { id: user.id },
@@ -900,6 +1085,16 @@ export class AuthService implements OnModuleDestroy {
 
     // 5. Clean up code from Redis
     await this.redis.del(redisKey);
+    if (invitationCode) {
+      const acceptedInvitation = await this.prisma.organizationInvitation.update({
+        where: { code: invitationCode },
+        data: { acceptedAt: new Date() },
+      });
+      await this.prisma.organizationInvitationAudit.create({
+        data: { invitationId: acceptedInvitation.id, actorId: user.id, action: 'ACCEPTED' },
+      });
+      await this.redis.del(`register-invitation:${email}`);
+    }
 
     // 6. Generate Access Token (JWT)
     const payload = {
