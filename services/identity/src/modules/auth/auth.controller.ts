@@ -41,6 +41,30 @@ export class AuthController {
     return this.service.resetPassword(data);
   }
 
+  @MessagePattern('auth.organization-invitations.create')
+  async createOrganizationInvitation(@Payload() data: any) {
+    return this.service.createOrganizationInvitation(data);
+  }
+
+  @MessagePattern('auth.organization-invitations.validate')
+  async validateOrganizationInvitation(@Payload() data: any) {
+    return this.service.validateOrganizationInvitation(data);
+  }
+
+  @MessagePattern('auth.organization-invitations.list')
+  async listOrganizationInvitations(@Payload() data: any) {
+    return this.service.listOrganizationInvitations(data);
+  }
+
+  @MessagePattern('auth.organization-invitations.resend')
+  async resendOrganizationInvitation(@Payload() data: any) {
+    return this.service.resendOrganizationInvitation(data);
+  }
+
+  @MessagePattern('auth.organization-invitations.revoke')
+  async revokeOrganizationInvitation(@Payload() data: any) {
+    return this.service.revokeOrganizationInvitation(data);
+  }
   @MessagePattern('identity.auth.update-account')
   async updateAccount(@Payload() data: any) {
     return this.service.updateAccount(data);

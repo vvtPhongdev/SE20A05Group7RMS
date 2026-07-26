@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
+import { ClientsModule, Transport } from '@nestjs/microservices';
 import { DatabaseModule } from './common/database/database.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { ApplicationsModule } from './modules/applications/applications.module';
@@ -44,6 +45,16 @@ function getRedisConnection() {
     BullModule.forRoot({
       connection: getRedisConnection(),
     }),
+    ClientsModule.register([
+      {
+        name: 'NOTIFICATION_SERVICE',
+        transport: Transport.TCP,
+        options: {
+          host: '127.0.0.1',
+          port: config.NOTIFICATION_PORT,
+        },
+      },
+    ]),
     RolesModule,
     ApplicationsModule,
     InvitesModule,

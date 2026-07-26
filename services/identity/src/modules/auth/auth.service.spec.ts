@@ -346,7 +346,6 @@ describe('AuthService', () => {
       const result = await service.registerWithSupabase({
         accessToken: 'supabase-access-token',
         displayName: 'New User',
-        role: UserRole.CANDIDATE,
       });
 
       expect(prisma.user.create).toHaveBeenCalledWith({
@@ -356,11 +355,11 @@ describe('AuthService', () => {
           role: UserRole.CANDIDATE,
           passwordHash: null,
           organizationId: 'org-123',
-          departmentId: undefined,
-          isActive: true,
+          departmentId: null,
+          isActive: false,
         },
       });
-      expect(result.user.email).toBe('new@example.com');
+      expect(result.email).toBe('new@example.com');
     });
   });
 

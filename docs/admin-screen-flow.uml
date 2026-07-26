@@ -1,65 +1,114 @@
 @startuml admin-screen-flow
-title RMS - Screen Flow: Admin
+title RMS - Screen Flow: System Admin
 
 left to right direction
-skinparam monochrome false
 skinparam shadowing false
 skinparam roundCorner 12
 skinparam defaultFontName Arial
+skinparam linetype ortho
 skinparam state {
   BackgroundColor<<Screen>> #E3F2FD
   BackgroundColor<<Popup>> #FFF3CD
+  BackgroundColor<<External>> #E8EAF6
   BackgroundColor<<Error>> #FDE2E1
   BorderColor #1E3A5F
   FontColor #172033
 }
 
-state "Đăng nhập\n/login" as Login <<Screen>>
-state "Admin Dashboard\n/admin" as Dashboard <<Screen>>
-state "Approval Queue\n/admin/approval-queue" as ApprovalQueue <<Screen>>
-state "All Recruitment Requests\n/admin/requests" as Requests <<Screen>>
-state "Interview Results\n/admin/interview-results" as Results <<Screen>>
-state "User Management\n/admin/users" as Users <<Screen>>
-state "System Settings\n/admin/settings" as Settings <<Screen>>
-state "Annual Reports\n/admin/reports" as Reports <<Screen>>
-state "Department Statistics\n/admin/dept-stats" as DeptStats <<Screen>>
+state "Sign in\n/login" as Login <<Screen>>
+state "Admin dashboard\n/admin" as Dashboard <<Screen>>
+state "Approval queue\n/admin/approval-queue" as ApprovalQueue <<Screen>>
+state "Request / plan details\nright drawer" as ApprovalDetail <<Popup>>
+state "Approve / reject\nreview modal" as ReviewModal <<Popup>>
+state "All recruitment requests\n/admin/requests" as Requests <<Screen>>
+state "Request details\nmodal" as RequestDetail <<Popup>>
+state "Interview results + final decisions\n/admin/interview-results" as Results <<Screen>>
+state "Candidate profile / CV summary\nmodal" as CandidateSummary <<Popup>>
+state "CV file preview\nnew browser tab" as CvPreview <<External>>
+state "Request more information\nmodal" as RequestInfo <<Popup>>
+state "Offer email / Hire\nmodal" as HireModal <<Popup>>
+state "Rejection email\nmodal" as RejectModal <<Popup>>
+state "User management\n/admin/users" as Users <<Screen>>
+state "Create / edit user\nmodal" as UserEditor <<Popup>>
+state "System settings\n/admin/settings" as Settings <<Screen>>
+state "Add / edit department\nmodal" as DepartmentEditor <<Popup>>
+state "Department requirements\nmodal" as RequirementsEditor <<Popup>>
+state "Add pipeline stage\nmodal (draft until Save All)" as StageEditor <<Popup>>
+state "Annual reports\n/admin/reports" as Reports <<Screen>>
+state "Department statistics\n/admin/dept-stats" as DeptStats <<Screen>>
 state "Unauthorized\n/unauthorized" as Unauthorized <<Error>>
 
-state "Modal / Drawer" as AdminModal {
-  state "Request / Plan detail\n<<drawer>>" as RequestDetail <<Popup>>
-  state "Approve / reject / request changes\n<<modal>>" as ApprovalDecision <<Popup>>
-  state "Candidate CV & feedback review\n<<drawer>>" as CandidateReview <<Popup>>
-  state "Hire / reject / request information\n<<modal>>" as HiringDecision <<Popup>>
-  state "User / role editor\n<<modal>>" as UserEditor <<Popup>>
-  state "Organization / department editor\n<<modal>>" as OrgEditor <<Popup>>
-  state "Export annual report\n<<modal>>" as ExportReport <<Popup>>
-}
-
 [*] --> Login
-Login --> Dashboard : Đăng nhập thành công (ADMIN)\n[POST /api/v1/auth/login]
-Login --> Unauthorized : Không đúng role / JWT không hợp lệ
-Dashboard --> ApprovalQueue : Sidebar: Approval Queue\n[GET /api/v1/reports/admin-dashboard]
+Login --> Dashboard : Login succeeds (ADMIN)\n[POST /api/v1/auth/login]
+Login --> Unauthorized : Signed-in user opens an ADMIN route\nwithout ADMIN role
+
+Dashboard --> Dashboard : Load KPI and activity data\n[GET /api/v1/reports/admin-dashboard]
+Dashboard --> ApprovalQueue : Sidebar / approval CTA
 Dashboard --> Requests : Sidebar: All Requests
 Dashboard --> Results : Sidebar: Interview Results
 Dashboard --> Users : Sidebar: Users
 Dashboard --> Settings : Sidebar: Settings
 Dashboard --> Reports : Sidebar: Reports
 Dashboard --> DeptStats : Sidebar: Department Statistics
-ApprovalQueue --> RequestDetail : Mở request hoặc overall plan\n[GET /api/v1/recruitment-requests/:id]\n[GET /api/v1/overall-plan/by-request/:requestId]
-RequestDetail --> ApprovalDecision : Approve / Reject / Request changes
-ApprovalDecision --> ApprovalQueue : Lưu quyết định request\n[PATCH /api/v1/recruitment-requests/:id/decision]\n[PATCH /api/v1/recruitment-requests/:id/request-changes]
-ApprovalDecision --> ApprovalQueue : Duyệt / từ chối kế hoạch\n[PATCH /api/v1/overall-plan/:id/approve]\n[PATCH /api/v1/overall-plan/:id/reject]
-Requests --> RequestDetail : View tracking & audit\n[GET /api/v1/reports/realtime-tracking]\n[GET /api/v1/audit-logs]
-Results --> CandidateReview : Mở CV, lịch sử và panel feedback\n[GET /api/v1/admin-interview-results]\n[GET /api/v1/candidate/cvs/candidate/:candidateId/latest/file]
-CandidateReview --> HiringDecision : Hire / Reject / Request more information
-HiringDecision --> Results : Ghi quyết định cuối cùng; tạo offer khi Hire\n[POST /api/v1/admin-interview-results/:requestId/decision]\n[POST /api/v1/admin-interview-results/:requestId/request-info]
-Users --> UserEditor : Thêm/sửa user, role, trạng thái\n[GET|POST|PATCH /api/v1/users]
-UserEditor --> Users : Lưu role / active status\n[PATCH /api/v1/users/:id/role]\n[PATCH /api/v1/users/:id/status]
-Settings --> OrgEditor : Quản lý organization, department, job role\n[POST|PATCH /api/v1/organizations]\n[POST|PATCH /api/v1/departments]\n[POST|GET /api/v1/roles]
-OrgEditor --> Settings : Lưu cấu hình tổ chức\n[PATCH /api/v1/organizations/:id/settings]
-Reports --> ExportReport : Chọn kỳ báo cáo và export
-ExportReport --> Reports : Tải báo cáo\n[GET /api/v1/reports/annual/export]
-Reports --> DeptStats : Drill-down theo phòng ban\n[GET /api/v1/reports/annual]
-DeptStats --> Reports : Trở lại tổng quan\n[GET /api/v1/reports/departments]
-Dashboard --> Login : Logout\n[POST /api/v1/auth/logout]
+
+ApprovalQueue --> ApprovalDetail : Open request or overall plan\n[GET /api/v1/recruitment-requests?limit=100]\n[GET /api/v1/departments]
+ApprovalDetail --> ReviewModal : Approve or Reject
+ReviewModal --> ApprovalQueue : Decide recruitment request\n[PATCH /api/v1/recruitment-requests/:id/decision]
+ReviewModal --> ApprovalQueue : Approve / reject overall plan\n[PATCH /api/v1/overall-plan/:planId/approve|reject]
+ApprovalDetail --> ApprovalQueue : Close drawer
+
+Requests --> RequestDetail : Open request\n[GET /api/v1/recruitment-requests/:id]
+RequestDetail --> Requests : Close modal
+Requests --> Requests : Assign selected requests to an HR manager\n[PATCH /api/v1/recruitment-requests/:id/assign]
+Requests --> Requests : Export filtered / selected rows as client-side CSV
+Requests --> Unauthorized : "New Request" currently navigates to\n/dept-head/create-request (role guard blocks ADMIN)
+
+Results --> CandidateSummary : View candidate profile / CV summary\n[GET /api/v1/candidate-profiles/:candidateId]
+Results --> Results : Load completed panels awaiting / holding a decision\n[GET /api/v1/admin/interview-results]
+CandidateSummary --> CvPreview : Open latest CV file\n[GET /api/v1/candidate/cvs/candidate/:candidateId/latest/file]
+CvPreview --> CandidateSummary : Close browser tab
+CandidateSummary --> Results : Close modal
+Results --> RequestInfo : Request more information
+RequestInfo --> Results : Save HR follow-up request\n[POST /api/v1/admin/interview-results/:requestId/request-info]
+Results --> HireModal : Hire / prepare offer email
+HireModal --> Results : Approve hire, create offer and queue email\n[POST /api/v1/admin/interview-results/:requestId/decision]\n[decision=HIRE]
+Results --> RejectModal : Reject / prepare rejection email
+RejectModal --> Results : Mark Not Hired and queue email\n[POST /api/v1/admin/interview-results/:requestId/decision]\n[decision=REJECT]
+
+Users --> UserEditor : Add or edit user
+Users --> Users : Load users, organizations and departments\n[GET /api/v1/users?limit=100]\n[GET /api/v1/organizations]\n[GET /api/v1/departments]
+UserEditor --> Users : Create user\n[POST /api/v1/users]
+UserEditor --> Users : Update profile, role and/or status\n[PATCH /api/v1/users/:id]\n[PATCH /api/v1/users/:id/role|status]
+Users --> Users : Quick activate / deactivate\n[PATCH /api/v1/users/:id/status]
+
+Settings --> Settings : Save organization profile, approvals and pipeline\n[PATCH /api/v1/organizations/:organizationId]
+Settings --> Settings : Load organization, departments and Department Heads\n[GET /api/v1/organizations]\n[GET /api/v1/departments]\n[GET /api/v1/users?role=DEPARTMENT_HEAD]
+Settings --> DepartmentEditor : Add or edit department
+DepartmentEditor --> Settings : Create / update department\n[POST /api/v1/departments]\n[PATCH /api/v1/departments/:id]
+Settings --> Settings : Delete department\n[DELETE /api/v1/departments/:id]
+Settings --> RequirementsEditor : Edit skills or bachelor requirements
+RequirementsEditor --> Settings : Save department requirements\n[PATCH /api/v1/departments/:id]
+Settings --> StageEditor : Add pipeline stage
+StageEditor --> Settings : Add to local settings draft
+Settings --> Settings : Discard reloads persisted configuration
+
+Reports --> Reports : Select year and load report\n[GET /api/v1/reports/annual?year=:year]
+Reports --> Reports : Export PDF directly\n[GET /api/v1/reports/annual/export?year=:year&format=pdf]
+DeptStats --> DeptStats : Change range (30d / quarter / year)\n[GET /api/v1/reports/departments?range=:range]
+
+Dashboard --> Login : Sign out\n[POST /api/v1/auth/logout]
+
+note bottom of Dashboard
+  Route aliases:
+  /dashboard -> /admin for an ADMIN session
+  /admin/dashboard -> /admin
+  /admin/reports/annual -> /admin/reports
+  /admin/reports/dept-stats -> /admin/dept-stats
+end note
+
+note bottom of Unauthorized
+  ProtectedRoute sends unauthenticated access to /login
+  and wrong-role access to /unauthorized.
+end note
+
 @enduml

@@ -17,6 +17,9 @@ type SearchResult = {
     coverageScore: number;
     vectorSimilarityPenalty?: number;
     feedbackScore?: number;
+    directFeedbackScore?: number;
+    semanticFeedbackScore?: number;
+    rerankerScore?: number;
   };
   parsed: string;
   evidence: React.ReactNode;
@@ -117,6 +120,13 @@ export const CandidateSearch: React.FC = () => {
   const [detailCandidate, setDetailCandidate] = useState<SearchResult | null>(null);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([]);
   const [decisionSubmitting, setDecisionSubmitting] = useState(false);
+  const [feedbackReason, setFeedbackReason] = useState('');
+  const [qualityMetrics, setQualityMetrics] = useState<{
+    impressions: number;
+    decisionCoverage: number;
+    shortlistRate: number;
+    highScorePrecision: number;
+  } | null>(null);
 
   useEffect(() => {
     type JobPosting = {
@@ -148,6 +158,21 @@ export const CandidateSearch: React.FC = () => {
     void loadCampaigns();
   }, [requestedCampaignId, token]);
 
+  useEffect(() => {
+    if (!campaign) {
+      setQualityMetrics(null);
+      return;
+    }
+    void apiRequest<{
+      impressions: number;
+      decisionCoverage: number;
+      shortlistRate: number;
+      highScorePrecision: number;
+    }>(`/talent/feedback/metrics?requestId=${encodeURIComponent(campaign)}`, token)
+      .then(setQualityMetrics)
+      .catch(() => setQualityMetrics(null));
+  }, [campaign, token]);
+
   const handleSearch = async (
     requestedPage = 1,
     options: { shortlistOnly?: boolean; query?: string; pageSize?: number } = {},
@@ -174,6 +199,9 @@ export const CandidateSearch: React.FC = () => {
           coverageScore: number;
           vectorSimilarityPenalty?: number;
           feedbackScore?: number;
+          directFeedbackScore?: number;
+          semanticFeedbackScore?: number;
+          rerankerScore?: number;
           baseOverallScore?: number;
           displayName: string;
           headline?: string | null;
@@ -224,6 +252,9 @@ export const CandidateSearch: React.FC = () => {
             coverageScore: result.coverageScore,
             vectorSimilarityPenalty: result.vectorSimilarityPenalty,
             feedbackScore: result.feedbackScore,
+            directFeedbackScore: result.directFeedbackScore,
+            semanticFeedbackScore: result.semanticFeedbackScore,
+            rerankerScore: result.rerankerScore,
           },
           parsed: result.latestCv?.parsedAt
             ? `Parsed ${new Date(result.latestCv.parsedAt).toLocaleString()}`
@@ -316,7 +347,12 @@ export const CandidateSearch: React.FC = () => {
     try {
       await apiRequest('/talent/screening-decision', token, {
         method: 'POST',
-        body: JSON.stringify({ requestId: campaign, candidateIds, status }),
+        body: JSON.stringify({
+          requestId: campaign,
+          candidateIds,
+          status,
+          ...(feedbackReason ? { feedbackReason } : {}),
+        }),
       });
       setResults((current) =>
         current.map((result) =>
@@ -1288,6 +1324,23 @@ export const CandidateSearch: React.FC = () => {
                   ))}
                 </div>
               ) : null}
+              <label className="mt-4 flex flex-col gap-1 text-xs font-semibold text-slate-ink">
+                Decision reason (optional, used to evaluate search quality)
+                <select
+                  className="h-9 rounded-lg border border-border-warm bg-workflow-ivory px-2 text-sm font-normal"
+                  onChange={(event) => setFeedbackReason(event.target.value)}
+                  value={feedbackReason}
+                >
+                  <option value="">No reason selected</option>
+                  <option value="STRONG_SKILL_MATCH">Strong skill match</option>
+                  <option value="RELEVANT_EXPERIENCE">Relevant experience</option>
+                  <option value="ROLE_ALIGNMENT">Role alignment</option>
+                  <option value="MISSING_REQUIRED_SKILLS">Missing required skills</option>
+                  <option value="INSUFFICIENT_EXPERIENCE">Insufficient experience</option>
+                  <option value="ROLE_MISMATCH">Role mismatch</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </label>
             </div>
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
@@ -1304,22 +1357,20 @@ export const CandidateSearch: React.FC = () => {
                 ))}
               </div>
             </div>
-            <div className="border-t border-border-warm pt-4">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-ink">
-                  Embedding Index
-                </span>
-                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-approved">
-                  Active
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Icon className="h-4 w-4 text-teal-command" name="database" />
-                <span className="font-mono text-sm">v4.2-STABLE</span>
-              </div>
-            </div>
           </div>
         </section>
+
+        {qualityMetrics ? (
+          <section className="rounded-lg border border-teal-command/20 bg-teal-command/5 p-4">
+            <h3 className="mb-3 text-sm font-semibold text-teal-command">Search quality</h3>
+            <div className="grid grid-cols-2 gap-3 text-xs text-slate-ink">
+              <span>Impressions <strong>{qualityMetrics.impressions}</strong></span>
+              <span>Decision coverage <strong>{Math.round(qualityMetrics.decisionCoverage * 100)}%</strong></span>
+              <span>Shortlist rate <strong>{Math.round(qualityMetrics.shortlistRate * 100)}%</strong></span>
+              <span>High-score precision <strong>{Math.round(qualityMetrics.highScorePrecision * 100)}%</strong></span>
+            </div>
+          </section>
+        ) : null}
 
         <section className="rounded-lg border border-border-warm bg-workflow-ivory p-4">
           <div className="mb-2 flex items-center gap-2 text-revision">

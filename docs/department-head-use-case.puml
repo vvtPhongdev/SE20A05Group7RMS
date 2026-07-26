@@ -1,0 +1,102 @@
+@startuml
+title RMS - Use Case Diagram - Trưởng phòng ban (DEPARTMENT_HEAD)
+
+left to right direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam ArrowColor #52606D
+skinparam ActorBorderColor #B45309
+skinparam ActorFontColor #92400E
+skinparam UsecaseBorderColor #64748B
+skinparam UsecaseBackgroundColor #FFFFFF
+skinparam PackageBorderColor #D97706
+skinparam PackageBackgroundColor #FFFBEB
+
+actor "Trưởng phòng ban\n(DEPARTMENT_HEAD)" as DeptHead
+
+rectangle "RMS - Department Head Portal" {
+  package "Tài khoản" {
+    usecase "Đăng ký bằng email" as DH_RegisterEmail
+    usecase "Xác thực email bằng OTP" as DH_VerifyOtp
+    usecase "Đăng ký bằng Google" as DH_RegisterGoogle
+    usecase "Đăng nhập bằng\nemail/mật khẩu" as DH_LoginEmail
+    usecase "Đăng nhập bằng Google" as DH_LoginGoogle
+    usecase "Khôi phục mật khẩu" as DH_RecoverPassword
+    usecase "Đăng xuất" as DH_Logout
+  }
+
+  package "Dashboard và theo dõi" {
+    usecase "Xem KPI, yêu cầu gần đây và\ntheo dõi tiến độ thời gian thực" as DH_Dashboard
+  }
+
+  package "Yêu cầu tuyển dụng" {
+    usecase "Tạo yêu cầu tuyển dụng" as DH_CreateRequest
+    usecase "Lưu bản nháp" as DH_SaveDraft
+    usecase "Kiểm tra và gửi yêu cầu\nđể HR xem xét" as DH_SubmitRequest
+    usecase "Xem, tìm kiếm, lọc và\ntheo dõi yêu cầu" as DH_TrackRequests
+    usecase "Xem chi tiết, lịch sử thay đổi và\ntiến độ kế hoạch Campaign" as DH_RequestDetails
+    usecase "Gửi bản nháp đang lưu" as DH_SubmitDraft
+    usecase "Chỉnh sửa và gửi lại yêu cầu\ncần bổ sung" as DH_ResubmitRequest
+    usecase "Phản hồi đề xuất chỉnh sửa\ncủa HR" as DH_RespondRevision
+    usecase "Xóa yêu cầu đang chờ và\nchưa vào Campaign" as DH_DeletePending
+  }
+
+  package "Phỏng vấn" {
+    usecase "Xem lịch phỏng vấn\ncủa phòng ban" as DH_ViewInterviews
+    usecase "Xem CV ứng viên" as DH_ViewCv
+    usecase "Xác nhận tham gia hoặc\nbáo vắng trong panel" as DH_Attendance
+    usecase "Xem chi tiết và đánh giá\nphỏng vấn đã hoàn tất" as DH_Feedback
+  }
+
+  package "Hồ sơ và cài đặt phòng ban" {
+    usecase "Mở cài đặt phòng ban" as DH_Settings
+    usecase "Cập nhật hồ sơ cá nhân" as DH_Profile
+    usecase "Xem danh sách và thêm\nthành viên phòng ban" as DH_Team
+    usecase "Cấu hình ưu tiên thông báo" as DH_NotificationPreferences
+    usecase "Cấu hình mức ưu tiên\ntuyển dụng mặc định" as DH_DefaultPriority
+  }
+}
+
+DeptHead --> DH_RegisterEmail
+DeptHead --> DH_RegisterGoogle
+DeptHead --> DH_LoginEmail
+DeptHead --> DH_LoginGoogle
+DeptHead --> DH_RecoverPassword
+DeptHead --> DH_Logout
+DeptHead --> DH_Dashboard
+DeptHead --> DH_CreateRequest
+DeptHead --> DH_SubmitRequest
+DeptHead --> DH_TrackRequests
+DeptHead --> DH_ViewInterviews
+DeptHead --> DH_Settings
+
+DH_RegisterEmail ..> DH_VerifyOtp : <<include>>
+DH_SaveDraft ..> DH_CreateRequest : <<extend>>
+
+DH_RequestDetails ..> DH_TrackRequests : <<extend>>
+DH_SubmitDraft ..> DH_TrackRequests : <<extend>>
+DH_ResubmitRequest ..> DH_TrackRequests : <<extend>>
+DH_ResubmitRequest ..> DH_RespondRevision : <<include>>
+DH_DeletePending ..> DH_TrackRequests : <<extend>>
+
+DH_ViewCv ..> DH_ViewInterviews : <<extend>>
+DH_Attendance ..> DH_ViewInterviews : <<extend>>
+DH_Feedback ..> DH_ViewInterviews : <<extend>>
+
+DH_Profile ..> DH_Settings : <<extend>>
+DH_Team ..> DH_Settings : <<extend>>
+DH_NotificationPreferences ..> DH_Settings : <<extend>>
+DH_DefaultPriority ..> DH_Settings : <<extend>>
+
+note right of DH_DeletePending
+  UI chỉ cho xóa yêu cầu trạng thái Pending
+  và chưa chuyển sang không gian Campaign Plan.
+end note
+
+note right of DH_Feedback
+  Trưởng phòng ghi quyết định, điểm kỹ thuật,
+  giao tiếp, văn hóa và nhận xét của mình.
+end note
+
+@enduml

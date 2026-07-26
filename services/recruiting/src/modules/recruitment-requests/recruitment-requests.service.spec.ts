@@ -25,7 +25,10 @@ describe('RecruitmentRequestsService', () => {
     $transaction: jest.fn(),
   };
 
-  const service = new RecruitmentRequestsService(prisma as any);
+  const notificationClient = {
+    send: jest.fn(() => ({ subscribe: jest.fn() })),
+  };
+  const service = new RecruitmentRequestsService(prisma as any, notificationClient as any);
 
   beforeEach(() => {
     jest.clearAllMocks();

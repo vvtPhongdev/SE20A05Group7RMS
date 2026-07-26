@@ -1,0 +1,24 @@
+KE HOACH KIEM THU - Works Reruiter / RMS (SWP391 - Group 7 - SE20A05),,,
+,,,
+,,,
+Du an,Works Reruiter - Enterprise Recruitment Workflow Management System (RMS),,
+Nhom,"SWP391 Group 7 (SE20A05) - Thanh vien: Nam, Ly, Phong, Dung, Hieu",,
+Tien do,1 thang (19/06/2026 - 18/07/2026): Tuan 1 lap ke hoach & moi truong; Tuan 2-3 Unit/Integration; Tuan 4-5 System/Regression; Tuan 6 UAT & tong ket,,
+Tong so test case,65,,
+Ngay cap nhat,2026-07-18,,
+,,,
+Nguoi thuc hien,Vai tro / Module phu trach,So TC,Sheet
+Hoang Hoai Nam (DE190287),Team Leader - Recruitment Request & Plan,14,Nam - Request & Plan
+Huynh Dang Ly (DE190075),QA Lead - Gateway & Auth (Identity),14,Ly - Gateway & Auth
+Vo Van Thanh Phong (DE190421),Tester - Interview & Candidate/CV,13,Phong - Interview & CV
+Ngo Tuan Dung (DE190244),Tester - Frontend (React SPA),12,Dung - Frontend
+Nguyen Duy Hieu (DE190561),Tester - Notification & Reports,12,Hieu - Notify & Reports
+,,,
+Sheet du lieu test,Moi thanh vien co 1 sheet 'Test Data - <Ten>' kem theo sheet test case tuong ung,,
+Test Data - Nam,Du lieu mau phuc vu test case cua Hoang Hoai Nam (DE190287),,
+Test Data - Ly,Du lieu mau phuc vu test case cua Huynh Dang Ly (DE190075),,
+Test Data - Phong,Du lieu mau phuc vu test case cua Vo Van Thanh Phong (DE190421),,
+Test Data - Dung,Du lieu mau phuc vu test case cua Ngo Tuan Dung (DE190244),,
+Test Data - Hieu,Du lieu mau phuc vu test case cua Nguyen Duy Hieu (DE190561),,
+,,,
+Ghi chu,"Cot 'Testing Approach' phan loai Black Box (system/API/UI theo input-output), White Box (unit, logic/branch/validate) va Black+White (integration giua cac module).",,

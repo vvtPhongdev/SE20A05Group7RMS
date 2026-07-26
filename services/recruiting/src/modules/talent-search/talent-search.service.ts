@@ -9,7 +9,7 @@ import {
 } from '@wr/ai';
 import { PrismaService } from '../../common/database/prisma.service';
 
-type TalentFeedbackAction =
+export type TalentFeedbackAction =
   | 'IMPRESSION'
   | 'VIEW_CV'
   | 'MARK_REVIEW'
@@ -50,6 +50,43 @@ const FEEDBACK_ACTION_WEIGHTS: Record<Exclude<TalentFeedbackAction, 'IMPRESSION'
   INVITE: 0.1,
   HIRE: 0.14,
   REJECT: -0.12,
+};
+
+export type FeedbackAdjustment = {
+  direct: number;
+  semantic: number;
+  total: number;
+};
+
+// Feedback is evidence, never a replacement for the CV/JD match. These caps keep a
+// single recruiter's decision from moving a neighbouring CV across a decision boundary.
+export const FEEDBACK_SEMANTIC_THRESHOLD = 0.82;
+export const FEEDBACK_SEMANTIC_CAP = 0.05;
+
+export const calculateFeedbackAdjustments = (
+  candidateIds: string[],
+  directScores: Map<string, number>,
+  similarities: Array<{ candidateId: string; sourceCandidateId: string; similarity: number }>,
+): Map<string, FeedbackAdjustment> => {
+  const adjustments = new Map<string, FeedbackAdjustment>(
+    candidateIds.map((candidateId) => [
+      candidateId,
+      { direct: directScores.get(candidateId) ?? 0, semantic: 0, total: directScores.get(candidateId) ?? 0 },
+    ]),
+  );
+  for (const relation of similarities) {
+    if (relation.candidateId === relation.sourceCandidateId || relation.similarity < FEEDBACK_SEMANTIC_THRESHOLD) continue;
+    const source = directScores.get(relation.sourceCandidateId) ?? 0;
+    if (!source) continue;
+    // Negative signals are more subjective, so they travel at one quarter of the positive rate.
+    const strength = Math.min(1, (relation.similarity - FEEDBACK_SEMANTIC_THRESHOLD) / (1 - FEEDBACK_SEMANTIC_THRESHOLD));
+    const contribution = source * strength * (source < 0 ? 0.05 : 0.2);
+    const current = adjustments.get(relation.candidateId);
+    if (!current) continue;
+    current.semantic = Math.max(-FEEDBACK_SEMANTIC_CAP, Math.min(FEEDBACK_SEMANTIC_CAP, current.semantic + contribution));
+    current.total = Math.max(-0.2, Math.min(0.2, current.direct + current.semantic));
+  }
+  return adjustments;
 };
 
 type RoleTrack = 'FRONTEND' | 'BACKEND' | 'FULLSTACK' | null;
@@ -176,7 +213,7 @@ export class TalentSearchService {
       shouldPrioritizeManualQuery ? this.getVectorScores(originalQuery) : Promise.resolve(null),
     ]);
 
-    const feedbackScores = await this.getFeedbackScores(
+    const feedbackAdjustments = await this.getFeedbackAdjustments(
       candidates.map((candidate: any) => candidate.id),
       requestId,
     );
@@ -248,14 +285,29 @@ export class TalentSearchService {
         );
         const vectorSimilarityPenalty = this.getVectorSimilarityPenalty(vectorSimilarity);
         const safeguardedBaseScore = this.roundScore(adjustedBaseScore * vectorSimilarityPenalty);
-        const feedbackScore = feedbackScores.get(candidate.id) ?? 0;
-        const overallScore = this.roundScore(this.clamp(safeguardedBaseScore + feedbackScore));
+        const feedbackAdjustment = feedbackAdjustments.get(candidate.id) ?? {
+          direct: 0,
+          semantic: 0,
+          total: 0,
+        };
+        const feedbackScore = feedbackAdjustment.total;
+        const rerankerScore = this.getEvidenceRerankerAdjustment({
+          coverageScore,
+          vectorSimilarity,
+          gaps: baseResult.gaps,
+        });
+        const overallScore = this.roundScore(
+          this.clamp(safeguardedBaseScore + feedbackScore + rerankerScore),
+        );
         const matchExplanation = this.buildMatchExplanation({
           ...baseResult,
           coverageScore,
           overallScore,
           vectorSimilarityPenalty,
           feedbackScore,
+          directFeedbackScore: feedbackAdjustment.direct,
+          semanticFeedbackScore: feedbackAdjustment.semantic,
+          rerankerScore,
         });
 
         return {
@@ -265,6 +317,9 @@ export class TalentSearchService {
           baseOverallScore: safeguardedBaseScore,
           vectorSimilarityPenalty,
           feedbackScore,
+          directFeedbackScore: feedbackAdjustment.direct,
+          semanticFeedbackScore: feedbackAdjustment.semantic,
+          rerankerScore,
           matchExplanation,
           displayName: candidate.user.displayName,
           headline: capabilities?.currentRole ?? null,
@@ -321,6 +376,9 @@ export class TalentSearchService {
             querySource,
             baseOverallScore: result.baseOverallScore,
             feedbackScore: result.feedbackScore,
+            directFeedbackScore: result.directFeedbackScore,
+            semanticFeedbackScore: result.semanticFeedbackScore,
+            rerankerScore: result.rerankerScore,
           } as any,
         })),
       });
@@ -407,6 +465,8 @@ export class TalentSearchService {
     requestId: string;
     candidateIds: string[];
     status: 'SHORTLISTED' | 'REJECTED' | 'PENDING';
+    feedbackReason?: string;
+    feedbackNote?: string;
     actorUserId?: string;
     actorRole?: string;
   }) {
@@ -473,7 +533,12 @@ export class TalentSearchService {
             action,
             query: searchRun.query,
             candidateSnapshot: {},
-            metadata: { source: 'candidate_search_decision', actorRole: payload.actorRole },
+            metadata: {
+              source: 'candidate_search_decision',
+              actorRole: payload.actorRole,
+              feedbackReason: payload.feedbackReason,
+              feedbackNote: payload.feedbackNote?.trim().slice(0, 500),
+            },
           })),
         });
       }
@@ -618,10 +683,75 @@ export class TalentSearchService {
     };
   }
 
-  private async getFeedbackScores(
+  async getQualityMetrics(params: { requestId?: string; limit?: number }) {
+    const rows = await this.prisma.talentSearchFeedback.findMany({
+      where: params.requestId ? { requestId: params.requestId } : undefined,
+      select: { action: true, candidateId: true, searchRunId: true, overallScore: true, metadata: true },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(params.limit ?? 5000, 10000),
+    });
+    const impressions = rows.filter((row) => row.action === 'IMPRESSION');
+    const decisions = rows.filter((row) => ['SHORTLIST', 'SCHEDULE_INTERVIEW', 'INVITE', 'HIRE', 'REJECT'].includes(row.action));
+    const positiveKeys = new Set(
+      decisions
+        .filter((row) => ['SHORTLIST', 'SCHEDULE_INTERVIEW', 'INVITE', 'HIRE'].includes(row.action))
+        .map((row) => `${row.searchRunId}:${row.candidateId}`),
+    );
+    const highConfidence = impressions.filter((row) => (row.overallScore ?? 0) >= 0.65);
+    const reasons = new Map<string, number>();
+    for (const row of decisions) {
+      const reason = (row.metadata as { feedbackReason?: unknown } | null)?.feedbackReason;
+      if (typeof reason === 'string' && reason) reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
+    }
+    return {
+      impressions: impressions.length,
+      decisions: decisions.length,
+      decisionCoverage: impressions.length ? this.roundScore(decisions.length / impressions.length) : 0,
+      shortlistRate: impressions.length ? this.roundScore(decisions.filter((row) => row.action === 'SHORTLIST').length / impressions.length) : 0,
+      interviewRate: impressions.length ? this.roundScore(decisions.filter((row) => ['SCHEDULE_INTERVIEW', 'INVITE'].includes(row.action)).length / impressions.length) : 0,
+      hireRate: impressions.length ? this.roundScore(decisions.filter((row) => row.action === 'HIRE').length / impressions.length) : 0,
+      highScorePrecision: highConfidence.length
+        ? this.roundScore(highConfidence.filter((row) => positiveKeys.has(`${row.searchRunId}:${row.candidateId}`)).length / highConfidence.length)
+        : 0,
+      feedbackReasons: [...reasons.entries()].map(([reason, count]) => ({ reason, count })),
+    };
+  }
+
+  async evaluateRanking(params: { requestId?: string; limit?: number }) {
+    const rows = await this.prisma.talentSearchFeedback.findMany({
+      where: params.requestId ? { requestId: params.requestId } : undefined,
+      select: { action: true, candidateId: true, searchRunId: true, rank: true },
+      orderBy: { createdAt: 'asc' },
+      take: Math.min(params.limit ?? 10000, 20000),
+    });
+    const byRun = new Map<string, typeof rows>();
+    for (const row of rows) byRun.set(row.searchRunId, [...(byRun.get(row.searchRunId) ?? []), row]);
+    let evaluatedRuns = 0;
+    let precisionAt5 = 0;
+    let precisionAt10 = 0;
+    let reciprocalRank = 0;
+    for (const runRows of byRun.values()) {
+      const positives = new Set(runRows.filter((row) => ['SHORTLIST', 'SCHEDULE_INTERVIEW', 'INVITE', 'HIRE'].includes(row.action)).map((row) => row.candidateId));
+      const impressions = runRows.filter((row) => row.action === 'IMPRESSION' && row.rank).sort((a, b) => (a.rank ?? 0) - (b.rank ?? 0));
+      if (!positives.size || !impressions.length) continue;
+      evaluatedRuns += 1;
+      precisionAt5 += impressions.slice(0, 5).filter((row) => positives.has(row.candidateId)).length / Math.min(5, impressions.length);
+      precisionAt10 += impressions.slice(0, 10).filter((row) => positives.has(row.candidateId)).length / Math.min(10, impressions.length);
+      const first = impressions.findIndex((row) => positives.has(row.candidateId));
+      reciprocalRank += first >= 0 ? 1 / (first + 1) : 0;
+    }
+    return {
+      evaluatedRuns,
+      precisionAt5: evaluatedRuns ? this.roundScore(precisionAt5 / evaluatedRuns) : 0,
+      precisionAt10: evaluatedRuns ? this.roundScore(precisionAt10 / evaluatedRuns) : 0,
+      meanReciprocalRank: evaluatedRuns ? this.roundScore(reciprocalRank / evaluatedRuns) : 0,
+    };
+  }
+
+  private async getFeedbackAdjustments(
     candidateIds: string[],
     requestId?: string,
-  ): Promise<Map<string, number>> {
+  ): Promise<Map<string, FeedbackAdjustment>> {
     if (candidateIds.length === 0) return new Map();
 
     const rows = await this.prisma.talentSearchFeedback.findMany({
@@ -648,7 +778,32 @@ export class TalentSearchService {
       scores.set(row.candidateId, this.clamp(current + baseWeight * scopeMultiplier, -0.2, 0.2));
     }
 
-    return scores;
+    const sourceCandidateIds = [...scores.keys()];
+    if (!sourceCandidateIds.length) return calculateFeedbackAdjustments(candidateIds, scores, []);
+    try {
+      const similarities = (await this.prisma.$queryRawUnsafe(
+        `SELECT target_cv."candidate_id" AS "candidateId", source_cv."candidate_id" AS "sourceCandidateId",
+                MAX(1 - (target_embedding.embedding <=> source_embedding.embedding)) AS similarity
+         FROM cv_embeddings target_embedding
+         JOIN candidate_cvs target_cv ON target_cv.id = target_embedding."cv_document_id"
+         JOIN cv_embeddings source_embedding ON TRUE
+         JOIN candidate_cvs source_cv ON source_cv.id = source_embedding."cv_document_id"
+         WHERE target_cv."candidate_id" = ANY($1::uuid[])
+           AND source_cv."candidate_id" = ANY($2::uuid[])
+           AND target_cv."candidate_id" <> source_cv."candidate_id"
+         GROUP BY target_cv."candidate_id", source_cv."candidate_id"`,
+        candidateIds,
+        sourceCandidateIds,
+      )) as Array<{ candidateId: string; sourceCandidateId: string; similarity: number | string }>;
+      return calculateFeedbackAdjustments(
+        candidateIds,
+        scores,
+        similarities.map((row) => ({ ...row, similarity: Number(row.similarity) })),
+      );
+    } catch (error) {
+      this.logger.warn(`Semantic feedback propagation unavailable: ${error instanceof Error ? error.message : String(error)}`);
+      return calculateFeedbackAdjustments(candidateIds, scores, []);
+    }
   }
 
   private buildEffectiveQuery(originalQuery: string, requestContext: RequestSearchContext | null) {
@@ -734,6 +889,17 @@ export class TalentSearchService {
     return 0.25;
   }
 
+  private getEvidenceRerankerAdjustment(params: {
+    coverageScore: number;
+    vectorSimilarity: number;
+    gaps?: Array<{ severity: string }>;
+  }) {
+    const criticalGaps = params.gaps?.filter((gap) => gap.severity === 'CRITICAL').length ?? 0;
+    const coverageSignal = params.coverageScore >= 0.8 ? 0.025 : params.coverageScore < 0.3 ? -0.02 : 0;
+    const semanticSignal = params.vectorSimilarity >= 0.65 ? 0.015 : params.vectorSimilarity < 0.25 ? -0.015 : 0;
+    return this.roundScore(this.clamp(coverageSignal + semanticSignal - Math.min(criticalGaps, 2) * 0.01, -0.05, 0.05));
+  }
+
   private buildMatchExplanation(result: {
     overallScore: number;
     vectorScore: number;
@@ -741,6 +907,9 @@ export class TalentSearchService {
     coverageScore: number;
     vectorSimilarityPenalty?: number;
     feedbackScore?: number;
+    directFeedbackScore?: number;
+    semanticFeedbackScore?: number;
+    rerankerScore?: number;
     readinessLabel: string;
     matchedSkills?: Array<{ skill: string; confidence: number; source: string; distance?: number }>;
     gaps?: Array<{ skill: string; gapType: string; severity: string }>;
@@ -762,6 +931,12 @@ export class TalentSearchService {
         : '',
       result.feedbackScore
         ? `HR feedback adjustment: ${result.feedbackScore > 0 ? '+' : ''}${Math.round(result.feedbackScore * 100)}%`
+        : '',
+      result.semanticFeedbackScore
+        ? `Similar-CV feedback (bounded): ${result.semanticFeedbackScore > 0 ? '+' : ''}${Math.round(result.semanticFeedbackScore * 100)}%`
+        : '',
+      result.rerankerScore
+        ? `Evidence reranker: ${result.rerankerScore > 0 ? '+' : ''}${Math.round(result.rerankerScore * 100)}%`
         : '',
     ].filter(Boolean);
 
@@ -804,6 +979,9 @@ export class TalentSearchService {
       matchExplanation: result.matchExplanation,
       baseOverallScore: result.baseOverallScore,
       feedbackScore: result.feedbackScore,
+      directFeedbackScore: result.directFeedbackScore,
+      semanticFeedbackScore: result.semanticFeedbackScore,
+      rerankerScore: result.rerankerScore,
       latestCvId: result.latestCv?.id,
     };
   }

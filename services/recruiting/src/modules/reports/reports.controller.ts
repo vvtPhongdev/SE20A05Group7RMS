@@ -25,6 +25,17 @@ export class ReportsController {
   async getPipelineOverview() {
     return this.reportsService.getPipelineOverview();
   }
+
+  @MessagePattern('recruiting.hr_request_queue_summary')
+  async getHrRequestQueueSummary() {
+    return this.reportsService.getHrRequestQueueSummary();
+  }
+
+  @MessagePattern('recruiting.hr_dashboard')
+  async getHrDashboard() {
+    return this.reportsService.getHrDashboard();
+  }
+
   @MessagePattern('recruiting.annual_report_export')
   async getAnnualReportExport(@Payload() payload: { year: number; format: 'csv' | 'pdf' }) {
     return this.reportsService.getAnnualReportExport(payload);

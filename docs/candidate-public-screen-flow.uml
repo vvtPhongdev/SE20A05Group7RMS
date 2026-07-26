@@ -1,81 +1,121 @@
 @startuml candidate-public-screen-flow
-title RMS - Screen Flow: Candidate and Public User
+title RMS - Screen Flow: Public User and Candidate
 
 left to right direction
-skinparam monochrome false
 skinparam shadowing false
 skinparam roundCorner 12
 skinparam defaultFontName Arial
+skinparam linetype ortho
 skinparam state {
   BackgroundColor<<Screen>> #E3F2FD
   BackgroundColor<<Popup>> #FFF3CD
+  BackgroundColor<<External>> #E8EAF6
   BackgroundColor<<Error>> #FDE2E1
   BorderColor #1E3A5F
   FontColor #172033
 }
 
-state "Public Landing / Job Board\n/" as Landing <<Screen>>
-state "Public Job Detail\njob detail modal" as PublicJobDetail <<Popup>>
-state "Đăng ký\n/signup" as Register <<Screen>>
-state "Email OTP verification\n/verify-email" as VerifyOtp <<Screen>>
-state "Đăng nhập\n/login" as Login <<Screen>>
+state "Public landing + published jobs\n/" as Landing <<Screen>>
+state "Job details\nreusable modal" as JobDetail <<Popup>>
+state "Sign up\n/signup" as Register <<Screen>>
+state "Registration OTP\nsame /signup screen" as SignupOtp <<Popup>>
+state "Standalone email verification\n/verify-email" as VerifyEmail <<Screen>>
+state "Sign in\n/login" as Login <<Screen>>
 state "Forgot password\n/forgot-password" as ForgotPassword <<Screen>>
-state "Reset password\n/reset-password" as ResetPassword <<Screen>>
-state "Supabase / Google SSO\nexternal identity provider" as SupabaseAuth <<Popup>>
-state "Candidate Dashboard & Open Jobs\n/candidate" as Dashboard <<Screen>>
-state "My Profile\n/candidate/profile" as Profile <<Screen>>
-state "Upload / Manage CV\n/candidate/upload-cv" as UploadCv <<Screen>>
-state "Notifications\n/candidate/notifications" as Notifications <<Screen>>
-state "Interview Details\n/candidate/interviews" as Interviews <<Screen>>
-state "My Offers\n/candidate/offers" as Offers <<Screen>>
-state "Offer Detail\n/candidate/offer/:offerId" as OfferDetail <<Screen>>
-state "Unauthorized / validation error\n/unauthorized" as Error <<Error>>
+state "Reset password\n/reset-password?email&token" as ResetPassword <<Screen>>
+state "Google / Supabase identity provider" as GoogleAuth <<External>>
+state "Unauthorized\n/unauthorized" as Unauthorized <<Error>>
 
-state "Modal / Drawer" as CandidateModal {
-  state "Apply confirmation\n<<modal>>" as ApplyModal <<Popup>>
-  state "Avatar / profile editor\n<<drawer>>" as ProfileEditor <<Popup>>
-  state "CV upload / replace / delete\n<<modal>>" as CvModal <<Popup>>
-  state "Interview confirm / reschedule / cancel\n<<modal>>" as InterviewResponse <<Popup>>
-  state "Offer accept / decline\n<<modal>>" as OfferResponse <<Popup>>
-}
+state "Candidate dashboard\n/candidate" as Dashboard <<Screen>>
+state "My profile\n/candidate/profile" as Profile <<Screen>>
+state "Avatar crop / frame editor\nmodal on Profile" as AvatarEditor <<Popup>>
+state "Upload & edit CV\n/candidate/upload-cv" as UploadCv <<Screen>>
+state "Upload / parsing progress\npopup" as CvProgress <<Popup>>
+state "CV parsed successfully\nmodal" as CvSuccess <<Popup>>
+state "Delete CV confirmation\nmodal" as CvDelete <<Popup>>
+state "CV required before applying\nmodal" as CvRequired <<Popup>>
+state "Inbox alerts\n/candidate/notifications" as Notifications <<Screen>>
+state "Interview details + response form\n/candidate/interviews?id=:scheduleId" as Interviews <<Screen>>
+state "My offers\n/candidate/offers" as Offers <<Screen>>
+state "Offer details + response form\n/candidate/offer/:offerId" as OfferDetail <<Screen>>
 
 [*] --> Landing
-Landing --> PublicJobDetail : Browse public job postings\n[GET /api/v1/public/job-postings]
-Landing --> Login : Sign in
-Landing --> Register : Create account
-PublicJobDetail --> Login : Apply requires authentication
-PublicJobDetail --> ApplyModal : Apply when signed in
-ApplyModal --> UploadCv : No CV available
-ApplyModal --> Dashboard : Submit application\n[POST /api/v1/applications]
-Register --> VerifyOtp : Email/password registration\n[POST /api/v1/auth/register]
-Register --> SupabaseAuth : Continue with Google / Supabase
-SupabaseAuth --> Register : New account registration\n[POST /api/v1/auth/supabase-register]
-SupabaseAuth --> Dashboard : Existing account login\n[POST /api/v1/auth/supabase-login]
-VerifyOtp --> Login : Verify or resend OTP\n[POST /api/v1/auth/verify-register]\n[POST /api/v1/auth/resend-register-otp]
-Login --> Dashboard : Candidate login succeeds\n[POST /api/v1/auth/login]
-Login --> SupabaseAuth : Google sign-in
-Login --> ForgotPassword : Forgot password
-ForgotPassword --> ResetPassword : Send password reset request\n[POST /api/v1/auth/forgot-password]
-ResetPassword --> Login : Reset successful\n[POST /api/v1/auth/reset-password]
-Login --> Error : Invalid credentials / non-candidate role
-Dashboard --> PublicJobDetail : View job details
-Dashboard --> ApplyModal : Apply from job card
+
+Landing --> JobDetail : View published job\n[GET /api/v1/public/job-postings?status=PUBLISHED&visibility=PUBLIC]
+JobDetail --> Landing : Close modal
+JobDetail --> Login : Sign in to apply (public action)
+Landing --> Login : Sign In
+Landing --> Register : Get Started / Sign up
+
+Register --> SignupOtp : Email/password registration succeeds\n[POST /api/v1/auth/register]
+SignupOtp --> SignupOtp : Verify or resend code\n[POST /api/v1/auth/verify-register]\n[POST /api/v1/auth/resend-register-otp]
+SignupOtp --> Dashboard : Go to Dashboard\n[verified role = CANDIDATE]
+Register --> GoogleAuth : Continue with Google
+Login --> GoogleAuth : Continue with Google
+GoogleAuth --> Dashboard : Existing Candidate account\n[POST /api/v1/auth/supabase-login]
+GoogleAuth --> Register : New Google account; complete role/profile\n[/auth/supabase-login returns account-not-registered]
+Register --> Dashboard : Finish Google-backed Candidate registration\n[POST /api/v1/auth/supabase-register]
+
+Register ..> VerifyEmail : Standalone route also exists;\ncurrent SignUp keeps OTP inline
+VerifyEmail --> Login : Verification completed
+
+Login --> Dashboard : Credentials accepted (CANDIDATE)\n[POST /api/v1/auth/login]
+Login --> ForgotPassword : Forgot password?
+ForgotPassword --> ForgotPassword : Send reset email; show success state\n[POST /api/v1/auth/forgot-password]
+ForgotPassword --> ResetPassword : Open link received by email
+ResetPassword --> Login : Reset succeeds; choose Back to sign in\n[POST /api/v1/auth/reset-password]
+Login --> Unauthorized : Direct access to a route for another role
+
+Dashboard --> JobDetail : View job details
+JobDetail --> JobDetail : Apply with an uploaded CV\n[POST /api/v1/applications]
+Dashboard --> Dashboard : Apply from job card\n[POST /api/v1/applications]
+Dashboard --> CvRequired : Apply without an uploaded CV
+JobDetail --> CvRequired : Apply without an uploaded CV
+CvRequired --> UploadCv : Upload CV
+CvRequired --> Dashboard : Cancel
+
 Dashboard --> Profile : Sidebar: My Profile
-Profile --> ProfileEditor : Edit profile / avatar
-ProfileEditor --> Profile : Save personal profile and avatar\n[PATCH /api/v1/candidate-profiles/me]\n[POST /api/v1/candidate-profiles/me/avatar]
+Profile --> Profile : Save personal/contact data\n[PATCH /api/v1/candidate-profiles/me]
+Profile --> AvatarEditor : Add / replace avatar or edit frame
+AvatarEditor --> Profile : Save or delete avatar\n[POST|DELETE /api/v1/candidate-profiles/me/avatar]\n[PATCH /api/v1/candidate-profiles/me]
+
 Dashboard --> UploadCv : Sidebar: Upload CV
-UploadCv --> CvModal : Upload, replace or delete CV
-CvModal --> UploadCv : Manage CV; queue parsing & embedding\n[POST /api/v1/candidate/cvs]\n[PATCH /api/v1/candidate/cvs/:id/file]\n[DELETE /api/v1/candidate/cvs/:id]
-UploadCv --> Dashboard : CV ready for application
+UploadCv --> CvProgress : Upload or replace file\n[POST /api/v1/candidate/cvs]\n[PATCH /api/v1/candidate/cvs/:id/file]
+CvProgress --> CvProgress : Poll parsing status\n[GET /api/v1/candidate/cvs]
+CvProgress --> CvSuccess : Parsing becomes Ready
+CvProgress --> UploadCv : Parsing fails / close progress
+CvSuccess --> UploadCv : Review parsed result
+UploadCv --> CvDelete : Delete document
+CvDelete --> UploadCv : Confirm or cancel\n[DELETE /api/v1/candidate/cvs/:id]
+UploadCv --> UploadCv : Edit structured resume and save profile\n[PATCH /api/v1/candidate-profiles/me]
+
 Dashboard --> Notifications : Sidebar: Inbox Alerts\n[GET /api/v1/notifications]
-Notifications --> OfferDetail : Open offer notification
-Notifications --> Interviews : Open interview notification
+Notifications --> Notifications : Mark read/unread or archive\n[PATCH /api/v1/notifications/:id/read|unread]\n[DELETE /api/v1/notifications/:id]
+Notifications --> OfferDetail : Open OfferLetter notification
+Notifications --> Interviews : Open InterviewSchedule notification
+Notifications --> Notifications : Confirm attendance from alert\n[POST /api/v1/interviews/schedules/:id/confirm]
+
 Dashboard --> Interviews : Sidebar: Interview Details
-Interviews --> InterviewResponse : Confirm, request reschedule or cancel
-InterviewResponse --> Interviews : Save attendance/response\n[POST /api/v1/interviews/schedules/:id/confirm]\n[PATCH /api/v1/interviews/schedules/:id/candidate-reschedule]\n[PATCH /api/v1/interviews/schedules/:id/candidate-cancel]
+Interviews --> Interviews : Confirm attendance\n[POST /api/v1/interviews/schedules/:id/confirm]
+Interviews --> Interviews : Request reschedule\n[PATCH /api/v1/interviews/schedules/:id/candidate-reschedule]
+Interviews --> Interviews : Cancel with reason\n[PATCH /api/v1/interviews/schedules/:id/candidate-cancel]
+
 Dashboard --> Offers : Sidebar: My Offers\n[GET /api/v1/offers/me]
-Offers --> OfferDetail : Open offer
-OfferDetail --> OfferResponse : Accept / decline (decline requires reason)
-OfferResponse --> Offers : Persist response; notify HR/Admin\n[POST /api/v1/offers/:id/respond]
-Dashboard --> Login : Logout\n[POST /api/v1/auth/logout]
+Offers --> OfferDetail : Open offer\n[GET /api/v1/offers/:offerId]
+OfferDetail --> OfferDetail : Accept or decline with optional note\n[POST /api/v1/offers/:offerId/respond]
+OfferDetail --> Offers : Back to offers
+
+Dashboard --> Login : Sign out\n[POST /api/v1/auth/logout]
+
+note bottom of Login
+  Login redirects every successful account to its role home.
+  This diagram follows the CANDIDATE branch.
+  /dashboard also redirects a Candidate session to /candidate.
+end note
+
+note bottom of Unauthorized
+  ProtectedRoute sends an unauthenticated visitor to /login
+  and a signed-in user with the wrong role to /unauthorized.
+end note
+
 @enduml

@@ -376,7 +376,7 @@ const InterviewScheduleMultiCombobox = ({
 };
 
 export const HRInterviewSchedule: React.FC = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { token, user } = useAuth();
   const [filter, setFilter] = useState<InterviewStatus | 'All'>('All');
   const [checking, setChecking] = useState(false);
@@ -458,6 +458,23 @@ export const HRInterviewSchedule: React.FC = () => {
   useEffect(() => {
     void loadScheduleData();
   }, [token]);
+
+  useEffect(() => {
+    const googleCalendarStatus = searchParams.get('googleCalendar');
+    if (!googleCalendarStatus) return;
+
+    if (googleCalendarStatus === 'connected') {
+      setNeedsGoogleConnection(false);
+      setApiError('');
+      setActionMessage('Google Calendar connected successfully. You can now create a Google Meet.');
+    } else {
+      setApiError('Google Calendar connection was not completed. Please try again.');
+    }
+
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.delete('googleCalendar');
+    setSearchParams(nextSearchParams, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const candidateNameById = useMemo(() => {
     const names = new Map<string, string>();
@@ -777,20 +794,14 @@ export const HRInterviewSchedule: React.FC = () => {
     setConnectingGoogle(true);
     setApiError('');
     setActionMessage('');
-    const consentWindow = window.open('', '_blank', 'noopener,noreferrer');
     try {
+      const returnTo = `${window.location.pathname}${window.location.search}`;
       const response = await apiRequest<GoogleCalendarAuthUrlResponse>(
-        '/google-calendar/auth-url',
+        `/google-calendar/auth-url?returnTo=${encodeURIComponent(returnTo)}`,
         token,
       );
-      if (consentWindow) {
-        consentWindow.location.href = response.authorizationUrl;
-      } else {
-        window.location.href = response.authorizationUrl;
-      }
-      setActionMessage('Complete Google consent in the new tab, then return and create the Meet.');
+      window.location.assign(response.authorizationUrl);
     } catch (connectError) {
-      consentWindow?.close();
       setApiError(
         connectError instanceof Error ? connectError.message : 'Unable to start Google connection',
       );

@@ -297,6 +297,7 @@ export const HRJobPostingWorkspace: React.FC = () => {
     [plan],
   );
   const canUseWorkspace = user?.role === UserRole.ADMIN || isHrRole(user?.role);
+  const canEditPosting = canUseWorkspace && (!posting || posting.status === 'DRAFT');
   const displayedMedia = [
     ...media.map((asset, index) => ({ ...asset, id: `saved-${index}`, pending: false })),
     ...pendingMedia.map((asset) => ({
@@ -320,6 +321,10 @@ export const HRJobPostingWorkspace: React.FC = () => {
   });
 
   const savePosting = async () => {
+    if (!canEditPosting) {
+      setApiError('Job postings can only be edited and saved while in Draft status.');
+      return;
+    }
     if (!request || !title.trim() || !description.trim() || !startDate || !expireDate) return;
     setSaving(true);
     setApiError('');
@@ -405,7 +410,7 @@ export const HRJobPostingWorkspace: React.FC = () => {
   };
 
   const stageMedia = (file: File | null, kind: MediaKind) => {
-    if (!file || !request) return;
+    if (!canEditPosting || !file || !request) return;
     setApiError('');
     setPendingMedia((current) => [
       ...current,
@@ -420,6 +425,7 @@ export const HRJobPostingWorkspace: React.FC = () => {
   };
 
   const removeDisplayedMedia = (asset: (typeof displayedMedia)[number]) => {
+    if (!canEditPosting) return;
     if (asset.pending) {
       setPendingMedia((current) => {
         const removed = current.find((item) => item.id === asset.id);
@@ -446,13 +452,17 @@ export const HRJobPostingWorkspace: React.FC = () => {
           <p className="mt-1 text-sm text-on-surface-variant">{description}</p>
           <p className="mt-1 text-xs font-medium text-teal-command">{guidance}</p>
         </div>
-        <label className="inline-flex h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary">
+        <label
+          className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-teal-command px-4 text-sm font-semibold text-white transition hover:bg-primary ${
+            canEditPosting && !saving ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
+          }`}
+        >
           <Icon className="h-4 w-4" name="upload" />
           Select Image
           <input
             accept="image/jpeg,image/png,image/webp,image/gif"
             className="hidden"
-            disabled={!canUseWorkspace || saving}
+            disabled={!canEditPosting || saving}
             onChange={(event) => {
               stageMedia(event.target.files?.[0] ?? null, kind);
               event.target.value = '';
@@ -476,7 +486,7 @@ export const HRJobPostingWorkspace: React.FC = () => {
                 </div>
                 <button
                   className="rounded-lg border border-border-warm px-2 py-1 text-xs font-semibold text-rejected transition hover:bg-rejected/5"
-                  disabled={!canUseWorkspace}
+                  disabled={!canEditPosting}
                   onClick={() => removeDisplayedMedia(asset)}
                   type="button"
                 >
@@ -495,6 +505,7 @@ export const HRJobPostingWorkspace: React.FC = () => {
   );
 
   const updateNotice = (id: string, field: 'title' | 'body', value: string) => {
+    if (!canEditPosting) return;
     setNotices((current) =>
       current.map((notice) => (notice.id === id ? { ...notice, [field]: value } : notice)),
     );
@@ -535,6 +546,11 @@ export const HRJobPostingWorkspace: React.FC = () => {
             You need the JOB_POSTING task assignment for this campaign to edit or publish.
           </HRInlineAlert>
         ) : null}
+        {canUseWorkspace && !canEditPosting ? (
+          <HRInlineAlert>
+            This job posting is {posting?.status?.toLowerCase()}. Editing and saving are locked once it leaves Draft.
+          </HRInlineAlert>
+        ) : null}
 
         <HRCard className="overflow-hidden rounded-lg shadow-sm">
           <div className="relative min-h-[260px] bg-deep-charcoal">
@@ -569,6 +585,7 @@ export const HRJobPostingWorkspace: React.FC = () => {
                 </span>
                 <input
                   className="h-11 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                  disabled={!canEditPosting}
                   onChange={(event) => setTitle(event.target.value)}
                   value={title}
                 />
@@ -580,6 +597,7 @@ export const HRJobPostingWorkspace: React.FC = () => {
                 </span>
                 <textarea
                   className="min-h-[220px] w-full resize-y rounded-lg border border-border-warm bg-workflow-ivory p-3 text-sm leading-6 outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                  disabled={!canEditPosting}
                   onChange={(event) => setDescription(event.target.value)}
                   value={description}
                 />
@@ -595,6 +613,7 @@ export const HRJobPostingWorkspace: React.FC = () => {
                 </span>
                 <select
                   className="h-10 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                  disabled={!canEditPosting}
                   onChange={(event) => setVisibility(event.target.value as 'PUBLIC' | 'PRIVATE')}
                   value={visibility}
                 >
@@ -608,6 +627,7 @@ export const HRJobPostingWorkspace: React.FC = () => {
                 </span>
                 <input
                   className="h-10 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                  disabled={!canEditPosting}
                   onChange={(event) => setStartDate(event.target.value)}
                   type="date"
                   value={startDate}
@@ -619,6 +639,7 @@ export const HRJobPostingWorkspace: React.FC = () => {
                 </span>
                 <input
                   className="h-10 w-full rounded-lg border border-border-warm bg-workflow-ivory px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                  disabled={!canEditPosting}
                   onChange={(event) => setExpireDate(event.target.value)}
                   type="date"
                   value={expireDate}
@@ -666,7 +687,7 @@ export const HRJobPostingWorkspace: React.FC = () => {
             </div>
             <button
               className="inline-flex h-9 items-center gap-2 rounded-lg border border-teal-command px-3 text-sm font-semibold text-teal-command transition hover:bg-teal-command/5"
-              disabled={!canUseWorkspace}
+              disabled={!canEditPosting}
               onClick={() => setNotices((current) => [...current, newNotice()])}
               type="button"
             >
@@ -679,19 +700,21 @@ export const HRJobPostingWorkspace: React.FC = () => {
               <div className="grid gap-3 rounded-lg border border-border-warm bg-workflow-ivory p-3 md:grid-cols-[minmax(0,260px)_1fr_auto]" key={notice.id}>
                 <input
                   className="h-10 rounded-lg border border-border-warm bg-clean-surface px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                  disabled={!canEditPosting}
                   onChange={(event) => updateNotice(notice.id, 'title', event.target.value)}
                   placeholder="Notice title"
                   value={notice.title}
                 />
                 <input
                   className="h-10 rounded-lg border border-border-warm bg-clean-surface px-3 text-sm outline-none focus:border-teal-command focus:ring-2 focus:ring-teal-command/20"
+                  disabled={!canEditPosting}
                   onChange={(event) => updateNotice(notice.id, 'body', event.target.value)}
                   placeholder="Announcement copy"
                   value={notice.body}
                 />
                 <button
                   className="h-10 rounded-lg border border-border-warm px-3 text-sm font-semibold text-rejected transition hover:bg-rejected/5 disabled:opacity-50"
-                  disabled={notices.length === 1 || !canUseWorkspace}
+                  disabled={notices.length === 1 || !canEditPosting}
                   onClick={() => setNotices((current) => current.filter((_, itemIndex) => itemIndex !== index))}
                   type="button"
                 >
@@ -740,7 +763,7 @@ export const HRJobPostingWorkspace: React.FC = () => {
             </div>
             <button
               className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-teal-command font-bold text-white transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!canUseWorkspace || saving || !title.trim() || !description.trim() || !startDate || !expireDate}
+              disabled={!canEditPosting || saving || !title.trim() || !description.trim() || !startDate || !expireDate}
               onClick={() => void savePosting()}
               type="button"
             >
@@ -749,7 +772,7 @@ export const HRJobPostingWorkspace: React.FC = () => {
             </button>
             <button
               className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-teal-command bg-clean-surface font-bold text-teal-command transition hover:bg-teal-command/5 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!canUseWorkspace || !posting || posting.status === 'PUBLISHED' || publishing}
+              disabled={!canUseWorkspace || !posting || posting.status !== 'DRAFT' || publishing}
               onClick={() => void publishPosting()}
               type="button"
             >

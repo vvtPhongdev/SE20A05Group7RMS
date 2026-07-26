@@ -1,0 +1,155 @@
+@startuml
+title RMS - Use Case Diagram - Trưởng bộ phận HR (HR_LEADER)
+
+left to right direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam ArrowColor #52606D
+skinparam ActorBorderColor #0F766E
+skinparam ActorFontColor #134E4A
+skinparam UsecaseBorderColor #64748B
+skinparam UsecaseBackgroundColor #FFFFFF
+skinparam PackageBorderColor #14B8A6
+skinparam PackageBackgroundColor #F0FDFA
+
+actor "Trưởng bộ phận HR\n(HR_LEADER)" as HR
+
+rectangle "RMS - HR Portal" {
+  package "Tài khoản" {
+    usecase "Đăng ký bằng email" as HR_RegisterEmail
+    usecase "Xác thực email bằng OTP" as HR_VerifyOtp
+    usecase "Đăng ký bằng Google" as HR_RegisterGoogle
+    usecase "Đăng nhập bằng\nemail/mật khẩu" as HR_LoginEmail
+    usecase "Đăng nhập bằng Google" as HR_LoginGoogle
+    usecase "Khôi phục mật khẩu" as HR_RecoverPassword
+    usecase "Đăng xuất" as HR_Logout
+  }
+
+  package "Dashboard và xét duyệt yêu cầu" {
+    usecase "Xem dashboard HR" as HR_Dashboard
+    usecase "Xem, tìm kiếm và lọc\nhàng đợi yêu cầu" as HR_RequestQueue
+    usecase "Nhận phụ trách yêu cầu" as HR_ClaimRequest
+    usecase "Chỉnh nội dung và trả về\nđể Trưởng phòng bổ sung" as HR_ReturnRevision
+    usecase "Chuyển yêu cầu hợp lệ\ncho Admin phê duyệt" as HR_ForwardAdmin
+  }
+
+  package "Campaign Plan và task" {
+    usecase "Xem danh sách và chi tiết\nCampaign" as HR_ViewCampaigns
+    usecase "Tạo Overall Plan" as HR_CreatePlan
+    usecase "Cập nhật task, thời hạn và\nphân công HR phụ trách" as HR_ManagePlanTasks
+    usecase "Gửi / gửi lại kế hoạch\ncho Admin phê duyệt" as HR_SubmitPlan
+    usecase "Khởi động Campaign\nđã được duyệt" as HR_StartCampaign
+    usecase "Xem task cá nhân và cập nhật\ntrạng thái thực hiện" as HR_TaskPlanner
+  }
+
+  package "Job Posting" {
+    usecase "Mở workspace tin tuyển dụng" as HR_PostingWorkspace
+    usecase "Tạo / cập nhật bản nháp và\ntải media" as HR_SavePosting
+    usecase "Đăng tin tuyển dụng" as HR_PublishPosting
+    usecase "Đóng tin tuyển dụng" as HR_ClosePosting
+  }
+
+  package "Talent Pool và sàng lọc" {
+    usecase "Xem, tìm kiếm và lọc\nTalent Pool" as HR_TalentPool
+    usecase "Thêm ứng viên vào\nCampaign đang thu thập CV" as HR_AddCandidate
+    usecase "Tìm kiếm hybrid bằng ngữ nghĩa,\nđồ thị kỹ năng và bộ lọc" as HR_HybridSearch
+    usecase "Xem CV và giải thích\nđộ phù hợp" as HR_ViewCandidateCv
+    usecase "Đưa vào shortlist hoặc\nloại ở vòng sàng lọc" as HR_ScreeningDecision
+  }
+
+  package "Điều phối phỏng vấn" {
+    usecase "Xem lịch và hàng đợi\nphỏng vấn" as HR_ViewSchedule
+    usecase "Kiểm tra xung đột lịch" as HR_CheckAvailability
+    usecase "Lập lịch / đổi lịch phỏng vấn" as HR_ScheduleInterview
+    usecase "Tạo Google Meet\ncho phỏng vấn online" as HR_CreateMeet
+    usecase "Gửi lời mời cho ứng viên\nvà panel" as HR_SendInvitations
+    usecase "Xác nhận tham gia hoặc\nbáo vắng với tư cách panel" as HR_Attendance
+  }
+
+  package "Kết quả phỏng vấn" {
+    usecase "Xem phỏng vấn đã hoàn tất và\nphản hồi của panel" as HR_ViewResults
+    usecase "Lưu đánh giá của bản thân" as HR_SaveOwnFeedback
+    usecase "Lưu bản nháp đánh giá tổng hợp" as HR_SaveEvaluationDraft
+    usecase "Gửi đề xuất cuối cùng\ncho Admin quyết định" as HR_SubmitRecommendation
+    usecase "Ghi nhận bằng chứng\nphỏng vấn offline" as HR_RecordEvidence
+    usecase "Ghi nhận thỏa thuận lương" as HR_RecordSalaryDeal
+  }
+
+  package "Báo cáo và thông báo" {
+    usecase "Xem KPI, funnel, workload và\nrủi ro pipeline" as HR_PipelineReports
+    usecase "Xuất báo cáo pipeline CSV" as HR_ExportReport
+    usecase "Xem và lọc thông báo hệ thống" as HR_Notifications
+    usecase "Đánh dấu thông báo đã xử lý" as HR_ResolveNotification
+    usecase "Xuất danh sách thông báo CSV" as HR_ExportNotifications
+  }
+}
+
+HR --> HR_RegisterEmail
+HR --> HR_RegisterGoogle
+HR --> HR_LoginEmail
+HR --> HR_LoginGoogle
+HR --> HR_RecoverPassword
+HR --> HR_Logout
+HR --> HR_Dashboard
+HR --> HR_RequestQueue
+HR --> HR_ViewCampaigns
+HR --> HR_TaskPlanner
+HR --> HR_PostingWorkspace
+HR --> HR_TalentPool
+HR --> HR_HybridSearch
+HR --> HR_ViewSchedule
+HR --> HR_ViewResults
+HR --> HR_PipelineReports
+HR --> HR_Notifications
+
+HR_RegisterEmail ..> HR_VerifyOtp : <<include>>
+
+HR_ClaimRequest ..> HR_RequestQueue : <<extend>>
+HR_ReturnRevision ..> HR_RequestQueue : <<extend>>
+HR_ForwardAdmin ..> HR_RequestQueue : <<extend>>
+
+HR_CreatePlan ..> HR_ViewCampaigns : <<extend>>
+HR_ManagePlanTasks ..> HR_ViewCampaigns : <<extend>>
+HR_SubmitPlan ..> HR_ViewCampaigns : <<extend>>
+HR_StartCampaign ..> HR_ViewCampaigns : <<extend>>
+
+HR_SavePosting ..> HR_PostingWorkspace : <<extend>>
+HR_PublishPosting ..> HR_PostingWorkspace : <<extend>>
+HR_ClosePosting ..> HR_PostingWorkspace : <<extend>>
+
+HR_AddCandidate ..> HR_TalentPool : <<extend>>
+HR_ViewCandidateCv ..> HR_HybridSearch : <<extend>>
+HR_ScreeningDecision ..> HR_HybridSearch : <<extend>>
+
+HR_CheckAvailability ..> HR_ScheduleInterview : <<extend>>
+HR_CreateMeet ..> HR_ScheduleInterview : <<extend>>
+HR_ScheduleInterview ..> HR_SendInvitations : <<include>>
+HR_Attendance ..> HR_ViewSchedule : <<extend>>
+
+HR_SaveOwnFeedback ..> HR_ViewResults : <<extend>>
+HR_SaveEvaluationDraft ..> HR_ViewResults : <<extend>>
+HR_SubmitRecommendation ..> HR_ViewResults : <<extend>>
+HR_RecordEvidence ..> HR_SubmitRecommendation : <<extend>>\nphỏng vấn offline
+HR_RecordSalaryDeal ..> HR_ViewResults : <<extend>>
+
+HR_ExportReport ..> HR_PipelineReports : <<extend>>
+HR_ResolveNotification ..> HR_Notifications : <<extend>>
+HR_ExportNotifications ..> HR_Notifications : <<extend>>
+
+note right of HR_ReturnRevision
+  HR phải nhận phụ trách yêu cầu trước khi chỉnh sửa;
+  nội dung đề xuất và phản hồi được gửi lại Trưởng phòng.
+end note
+
+note right of HR_StartCampaign
+  Chỉ khởi động khi plan đã được Admin duyệt
+  và mọi task có người phụ trách, ngày bắt đầu, hạn chót.
+end note
+
+note right of HR_RecordEvidence
+  Bằng chứng ảnh hoặc biên bản là bắt buộc
+  khi gửi kết quả phỏng vấn offline.
+end note
+
+@enduml

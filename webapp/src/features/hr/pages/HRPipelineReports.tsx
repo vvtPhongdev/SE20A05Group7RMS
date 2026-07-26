@@ -413,8 +413,8 @@ export const HRPipelineReports: React.FC = () => {
       {
         label: 'REQS',
         value: `${total} Requests`,
-        rate: '100%',
-        width: '100%',
+        rate: `${rate(total)}%`,
+        width: width(total),
         tone: 'bg-teal-command/90 text-white',
       },
       {
@@ -763,7 +763,7 @@ export const HRPipelineReports: React.FC = () => {
                   <div className="text-right text-xs font-bold text-slate-ink">{item.label}</div>
                   <div className="min-w-0">
                     <div
-                      className={`flex h-10 min-w-[104px] items-center rounded-lg px-4 text-sm font-bold ${item.tone}`}
+                      className={`${item.width === '0%' ? 'hidden' : 'flex min-w-[104px]'} h-10 items-center rounded-lg px-4 text-sm font-bold ${item.tone}`}
                       style={{ width: item.width }}
                     >
                       <span className="truncate">{item.value}</span>

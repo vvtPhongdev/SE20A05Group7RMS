@@ -33,7 +33,7 @@ export const RegisterUserSchema = z.object({
   email: z.string().email(),
   displayName: z.string().min(1).max(255),
   password: z.string().min(8).max(128),
-  role: z.nativeEnum(UserRole),
+  invitationCode: z.string().trim().min(1).max(128).optional(),
 });
 
 export const LoginSchema = z.object({
@@ -70,7 +70,29 @@ export const SupabaseLoginSchema = z.object({
 
 export const SupabaseRegisterSchema = SupabaseLoginSchema.extend({
   displayName: z.string().min(1).max(255),
+  invitationCode: z.string().trim().min(1).max(128).optional(),
+});
+
+export const CreateOrganizationInvitationSchema = z.object({
+  email: z.string().email(),
+  displayName: z.string().min(1).max(255),
   role: z.nativeEnum(UserRole),
+  organizationId: z.string().uuid(),
+  departmentId: z.string().uuid().optional().nullable(),
+});
+
+export const ValidateOrganizationInvitationSchema = z.object({
+  code: z.string().trim().min(1).max(128),
+  email: z.string().email().optional(),
+});
+
+export const ListOrganizationInvitationsSchema = z.object({
+  organizationId: z.string().uuid(),
+});
+
+export const ManageOrganizationInvitationSchema = z.object({
+  invitationId: z.string().uuid(),
+  organizationId: z.string().uuid(),
 });
 
 export const UpdateUserSchema = z.object({
@@ -104,6 +126,10 @@ export type RegisterUserInput = z.infer<typeof RegisterUserSchema>;
 export type VerifyRegisterInput = z.infer<typeof VerifyRegisterSchema>;
 export type SupabaseLoginInput = z.infer<typeof SupabaseLoginSchema>;
 export type SupabaseRegisterInput = z.infer<typeof SupabaseRegisterSchema>;
+export type CreateOrganizationInvitationInput = z.infer<typeof CreateOrganizationInvitationSchema>;
+export type ValidateOrganizationInvitationInput = z.infer<typeof ValidateOrganizationInvitationSchema>;
+export type ListOrganizationInvitationsInput = z.infer<typeof ListOrganizationInvitationsSchema>;
+export type ManageOrganizationInvitationInput = z.infer<typeof ManageOrganizationInvitationSchema>;
 export type LoginInput = z.infer<typeof LoginSchema>;
 export type UpdateUserInput = z.infer<typeof UpdateUserSchema>;
 export type UpdateAccountInput = z.infer<typeof UpdateAccountSchema>;

@@ -98,4 +98,6 @@ archive/
 
 # Postman/Newman generated reports
 /Test(SWT)/Postman/reports/
-**/.codex-tmp/**
+
+# AI Evidence markdown files (only Word docx are tracked as evidence)
+docs/Report/AI_Evidence/*.md

@@ -52,6 +52,8 @@ export class TalentSearchController {
       requestId: string;
       candidateIds: string[];
       status: 'SHORTLISTED' | 'REJECTED' | 'PENDING';
+      feedbackReason?: string;
+      feedbackNote?: string;
       actorUserId?: string;
       actorRole?: string;
     },
@@ -62,6 +64,16 @@ export class TalentSearchController {
   @MessagePattern('talent.feedback.export_triplets')
   exportTriplets(@Payload() payload: { requestId?: string; limit?: number }) {
     return this.service.exportTrainingTriplets(payload);
+  }
+
+  @MessagePattern('talent.feedback.metrics')
+  getFeedbackMetrics(@Payload() payload: { requestId?: string; limit?: number }) {
+    return this.service.getQualityMetrics(payload);
+  }
+
+  @MessagePattern('talent.feedback.evaluate')
+  evaluateFeedback(@Payload() payload: { requestId?: string; limit?: number }) {
+    return this.service.evaluateRanking(payload);
   }
 
   @MessagePattern('talent.expand')
