@@ -66,7 +66,7 @@ const RecruiterLogo = () => (
 );
 
 export const Login: React.FC = () => {
-  const { login, signInWithGoogle, loginWithToken } = useAuth();
+  const { user, login, signInWithGoogle, loginWithToken } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
@@ -78,6 +78,13 @@ export const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const passwordResetSucceeded = searchParams.get('passwordReset') === 'success';
+
+  useEffect(() => {
+    if (user) {
+      console.log('[Login] User state active. Redirecting to:', getRoleHomePath(user.role));
+      navigate(getRoleHomePath(user.role), { replace: true });
+    }
+  }, [user, navigate]);
 
   useEffect(() => {
     const errorParam = searchParams.get('error');
@@ -97,9 +104,8 @@ export const Login: React.FC = () => {
       setGoogleLoading(true);
       try {
         const parsedUser = JSON.parse(userJson);
-        console.log('[Login] Exchanging token and redirecting to home path...', parsedUser);
+        console.log('[Login] Google login payload parsed. Activating token session...');
         loginWithToken(token, parsedUser, undefined, rememberMe);
-        navigate(getRoleHomePath(parsedUser.role), { replace: true });
       } catch (err) {
         console.error('Failed to parse Google user session:', err);
         setError('Google sign-in failed. Invalid session payload.');
@@ -107,7 +113,7 @@ export const Login: React.FC = () => {
         setGoogleLoading(false);
       }
     }
-  }, [searchParams, navigate, rememberMe, loginWithToken]);
+  }, [searchParams, rememberMe, loginWithToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,8 +136,7 @@ export const Login: React.FC = () => {
     setLoading(true);
 
     try {
-      const loggedUser = await login(normalizedEmail, password, rememberMe);
-      navigate(getRoleHomePath(loggedUser.role), { replace: true });
+      await login(normalizedEmail, password, rememberMe);
     } catch (err: unknown) {
       setError(getErrorMessage(err, 'Login failed. Please check your credentials.'));
     } finally {
