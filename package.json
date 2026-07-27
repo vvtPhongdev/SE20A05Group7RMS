@@ -52,7 +52,7 @@
     "eslint": "^9.20.0",
     "newman": "^6.2.2",
     "prettier": "^3.5.3",
-    "prisma": "^6.19.3",
+    "prisma": "^7.9.0",
     "prisma-erd-generator": "^2.4.2",
     "turbo": "2.9.7",
     "typescript": "^5.8.3",
@@ -62,7 +62,8 @@
     "node": ">=22.0.0"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.3",
+    "@prisma/client": "^7.9.0",
+    "@prisma/extension-accelerate": "^3.0.1",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
     "@tailwindcss/vite": "^4.3.0",

@@ -220,17 +220,13 @@
 //     throw error;
 //   }
 // }
-import { PrismaClient } from '@prisma/client';
 import { EmailSendJobPayload, EmailStatus } from '@wr/contracts';
+import { prisma } from '@wr/database';
 import * as nodemailer from 'nodemailer';
 import * as path from 'path';
 import * as fs from 'fs';
 import { config } from '../config';
 import { logger } from '../logger';
-
-const prisma = new PrismaClient({
-  log: ['warn', 'error'],
-});
 
 // 1. TỐI ƯU HIỆU NĂNG: Khởi tạo transporter một lần ở global scope
 const transporter = nodemailer.createTransport({

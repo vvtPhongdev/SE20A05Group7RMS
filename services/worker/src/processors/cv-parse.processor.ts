@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import {
   buildCvSearchText,
   extractCvWithAi,
@@ -7,12 +7,8 @@ import {
   parseCandidateTemplateCv,
 } from '@wr/ai';
 import { AuditAction, AuditEntityType, CvParseJobPayload } from '@wr/contracts';
-import { AuditLogService } from '@wr/database';
+import { AuditLogService, prisma } from '@wr/database';
 import { logger } from '../logger';
-
-const prisma = new PrismaClient({
-  log: ['warn', 'error'],
-});
 
 const auditLog = new AuditLogService(prisma);
 const INTERRUPTED_PROCESSING_ERROR =

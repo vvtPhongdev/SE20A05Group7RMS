@@ -12,6 +12,8 @@ export default defineConfig({
     path: 'packages/database/prisma/migrations',
   },
   datasource: {
-    url: process.env['DATABASE_URL'] ?? '',
+    // Prisma CLI needs a direct database URL for migrations. Runtime services
+    // use DATABASE_URL as their Prisma Accelerate URL instead.
+    url: process.env['DIRECT_DATABASE_URL'] ?? process.env['DATABASE_URL'] ?? '',
   },
 });

@@ -24,11 +24,12 @@
     "studio": "prisma studio"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.3"
+    "@prisma/client": "^7.9.0",
+    "@prisma/extension-accelerate": "^3.0.1"
   },
   "devDependencies": {
     "@wr/typescript-config": "*",
-    "prisma": "^6.19.3",
+    "prisma": "^7.9.0",
     "typescript": "^5.8.3"
   },
   "prisma": {

@@ -1,4 +1,4 @@
-import { PrismaClient, AuditLog, Prisma } from '@prisma/client';
+import { AuditLog, Prisma } from '@prisma/client';
 
 export interface AuditLogEntry {
   entityType: string;
@@ -18,7 +18,13 @@ export interface AuditLogEntry {
  * `auditLog` delegate being available.
  */
 export class AuditLogService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: {
+      // Accelerate augments each delegate's argument types with cacheStrategy.
+      // Keep this boundary structural so both direct and Accelerate clients work.
+      auditLog: any;
+    },
+  ) {}
 
   async log(entry: AuditLogEntry): Promise<AuditLog> {
     return this.prisma.auditLog.create({
