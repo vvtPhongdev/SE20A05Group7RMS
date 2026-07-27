@@ -685,7 +685,7 @@ export class IdentityController {
     const redirectOrigin = redirect || 'http://localhost:3000';
     const redirectUri = redirectOrigin.includes('localhost') 
       ? 'http://localhost:3001/api/v1/auth/google/callback' 
-      : appConfig.GOOGLE_REDIRECT_URL;
+      : 'https://se20a05-group7-rms.fly.dev/api/v1/auth/google/callback';
 
     const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${
       appConfig.GOOGLE_CLIENT_ID
@@ -712,7 +712,7 @@ export class IdentityController {
     const redirectOrigin = state || 'http://localhost:3000';
     const redirectUri = redirectOrigin.includes('localhost') 
       ? 'http://localhost:3001/api/v1/auth/google/callback' 
-      : appConfig.GOOGLE_REDIRECT_URL;
+      : 'https://se20a05-group7-rms.fly.dev/api/v1/auth/google/callback';
 
     try {
       const result = await firstValueFrom(
