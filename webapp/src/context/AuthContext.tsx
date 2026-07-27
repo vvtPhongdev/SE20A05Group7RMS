@@ -402,7 +402,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return mockUser;
       }
 
-      throw new Error(rmsAuthError);
+      throw rmsAuthError;
     } catch (err) {
       const mockUser = MOCK_USERS[email.toLowerCase()];
       if (mockUser && password === 'Password123!') {
