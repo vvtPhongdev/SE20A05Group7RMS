@@ -18,6 +18,9 @@
     "typecheck": {
       "dependsOn": ["^build"]
     },
+    "@wr/database#typecheck": {
+      "dependsOn": ["build"]
+    },
     "test": {
       "dependsOn": ["^build"]
     },
