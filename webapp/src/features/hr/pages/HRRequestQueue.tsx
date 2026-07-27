@@ -227,6 +227,12 @@ const urgencyConfig: Record<RequestUrgency, { label: string; badge: string; rail
   },
 };
 
+const fallbackUrgencyConfig = {
+  label: 'Normal Priority',
+  badge: 'border-slate-ink/20 bg-slate-ink/10 text-slate-ink',
+  rail: 'bg-slate-ink',
+};
+
 const iconPaths: Record<string, React.ReactNode> = {
   add: <path d="M12 5v14M5 12h14" />,
   search: <path d="m21 21-4.3-4.3M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" />,
@@ -596,7 +602,7 @@ export const HRRequestQueue: React.FC = () => {
 
         <section className="space-y-4">
           {filteredRequests.map((request) => {
-            const urgency = urgencyConfig[request.urgency];
+            const urgency = urgencyConfig[request.urgency] ?? fallbackUrgencyConfig;
 
             return (
               <article

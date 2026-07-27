@@ -155,6 +155,16 @@ const statusConfig: Record<
   },
 };
 
+// API data can contain a status introduced after this web client was built.
+// Keep the campaign screen usable while displaying that value instead of
+// crashing when a configuration lookup does not exist.
+const fallbackPlanStatusConfig = {
+  label: 'UNKNOWN',
+  dot: 'bg-slate-ink',
+  badge: 'border-slate-ink/20 bg-slate-ink/10 text-slate-ink',
+  progress: 'bg-slate-ink',
+};
+
 const requestStatusConfig: Record<
   RecruitmentRequestStatus,
   { label: string; dot: string; badge: string }
@@ -276,6 +286,12 @@ const requestStatusConfig: Record<
   },
 };
 
+const fallbackRequestStatusConfig = {
+  label: 'Unknown status',
+  dot: 'bg-slate-ink',
+  badge: 'border-slate-ink/20 bg-slate-ink/10 text-slate-ink',
+};
+
 const CAMPAIGN_REQUEST_STATUSES: RecruitmentRequestStatus[] = [
   RecruitmentRequestStatus.APPROVED,
   RecruitmentRequestStatus.PLANNING,
@@ -331,7 +347,7 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
 );
 
 const StatusBadge = ({ status }: { status: PlanStatus }) => {
-  const config = statusConfig[status];
+  const config = statusConfig[status] ?? fallbackPlanStatusConfig;
 
   return (
     <span
@@ -344,7 +360,7 @@ const StatusBadge = ({ status }: { status: PlanStatus }) => {
 };
 
 const RequestStatusBadge = ({ status }: { status: RecruitmentRequestStatus }) => {
-  const config = requestStatusConfig[status];
+  const config = requestStatusConfig[status] ?? fallbackRequestStatusConfig;
 
   return (
     <span
@@ -733,7 +749,7 @@ export const HRCampaigns: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface-variant">
                             <div
-                              className={`h-full rounded-full ${statusConfig[campaign.status].progress}`}
+                              className={`h-full rounded-full ${(statusConfig[campaign.status] ?? fallbackPlanStatusConfig).progress}`}
                               style={{ width: `${campaign.progress}%` }}
                             />
                           </div>

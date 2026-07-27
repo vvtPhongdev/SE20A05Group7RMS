@@ -230,6 +230,12 @@ const statusConfig: Record<PlanStatus, { label: string; dot: string; badge: stri
   },
 };
 
+const fallbackPlanStatusConfig = {
+  label: 'UNKNOWN',
+  dot: 'bg-slate-ink',
+  badge: 'border-slate-ink/20 bg-slate-ink/10 text-slate-ink',
+};
+
 const iconPaths: Record<string, React.ReactNode> = {
   back: <path d="M19 12H5m6-6-6 6 6 6" />,
   edit: <path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Zm12-14 3 3" />,
@@ -262,7 +268,7 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: string; className?: strin
 );
 
 const StatusBadge = ({ status }: { status: PlanStatus }) => {
-  const config = statusConfig[status];
+  const config = statusConfig[status] ?? fallbackPlanStatusConfig;
 
   return (
     <span
@@ -665,12 +671,12 @@ export const HRCampaignDetail: React.FC = () => {
     canManagePlan &&
     Boolean(plan) &&
     ['DRAFT', 'REJECTED', 'PENDING_APPROVAL', 'APPROVED'].includes(plan?.status ?? '');
-  const canStartCampaign =
-    canManagePlan &&
-    plan?.status === 'APPROVED' &&
-    request?.status !== 'ACTIVE' &&
-    tasks.length > 0 &&
-    tasks.every((task) => task.assigneeId && task.startDateInput && task.dueDateInput);
+  // An approved plan with a request that is not ACTIVE is an inconsistent state.
+  // Keep the activation action visible so HR can retry the start operation instead
+  // of leaving the campaign permanently blocked.
+  const hasCampaignActivationMismatch =
+    canManagePlan && plan?.status === 'APPROVED' && request?.status !== 'ACTIVE';
+  const canStartCampaign = hasCampaignActivationMismatch;
   const hasInterviewTask = tasks.some((task) => task.taskType === 'INTERVIEW_COORDINATION');
   const hasCandidateSearchTask =
     tasks.some((task) => task.taskType === 'CV_COLLECTION') ||
