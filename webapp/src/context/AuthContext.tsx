@@ -364,8 +364,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ignoreNextSupabaseSignOut = false;
           return;
         }
-        setToken(null);
-        setUser(null);
+        // Supabase sign-out event should not clear the active RMS backend session.
+        // The RMS session is managed independently and cleared via the logout() function.
       }
     });
 
