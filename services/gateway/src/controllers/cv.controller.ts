@@ -186,7 +186,12 @@ export class CvController {
     const storedFileName = basename(path);
     const uploadedPromise = uploadFile(bucket, path, file.buffer, {
       contentType: file.mimetype,
-    }).catch(() => {
+    }).catch((error) => {
+      this.logger.error(
+        `Failed to upload CV ${file.originalname} to storage (bucket: ${bucket}, path: ${path}): ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
       throw new BadRequestException('Failed to upload CV');
     });
     const [uploaded, rawText] = await Promise.all([uploadedPromise, rawTextPromise]);
@@ -247,7 +252,12 @@ export class CvController {
     const storedFileName = basename(path);
     const uploadedPromise = uploadFile(bucket, path, file.buffer, {
       contentType: file.mimetype,
-    }).catch(() => {
+    }).catch((error) => {
+      this.logger.error(
+        `Failed to upload replacement CV ${file.originalname} to storage (bucket: ${bucket}, path: ${path}): ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
       throw new BadRequestException('Failed to upload replacement CV');
     });
     const [uploaded, rawText] = await Promise.all([uploadedPromise, rawTextPromise]);
