@@ -12,6 +12,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
   const { user, loading } = useAuth();
   const location = useLocation();
 
+  console.log('[ProtectedRoute] path:', location.pathname, 'user:', user, 'loading:', loading);
+
   if (loading) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen bg-[var(--wr-bg-page)]">
@@ -21,6 +23,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
     );
   }
   if (!user) {
+    console.log('[ProtectedRoute] redirecting to /login because user is null');
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

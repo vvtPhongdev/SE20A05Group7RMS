@@ -90,11 +90,14 @@ export const Login: React.FC = () => {
     const token = searchParams.get('token');
     const userJson = searchParams.get('user');
 
+    console.log('[Login] Query params - rms_auth:', rmsAuth, 'token:', token ? 'exists' : 'null', 'user:', userJson);
+
     if (rmsAuth === 'google' && token && userJson) {
       setError(null);
       setGoogleLoading(true);
       try {
         const parsedUser = JSON.parse(userJson);
+        console.log('[Login] Exchanging token and redirecting to home path...', parsedUser);
         loginWithToken(token, parsedUser, undefined, rememberMe);
         navigate(getRoleHomePath(parsedUser.role), { replace: true });
       } catch (err) {
