@@ -118,7 +118,7 @@ const RequirementEditor = ({
         ))}
       </datalist>
       {values.length > 0 && (
-        <div className="flex flex-wrap gap-2 pt-1">
+        <div className="flex flex-wrap gap-2 pt-1 max-h-32 overflow-y-auto pr-1">
           {values.map((value) => (
             <button
               className="rounded-full bg-teal-command/10 px-3 py-1 text-xs font-semibold text-teal-command hover:bg-rejected/10 hover:text-rejected"
