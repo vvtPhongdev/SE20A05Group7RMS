@@ -1,7 +1,24 @@
 import { Injectable, HttpStatus } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
-import { isHrRole, TaskType } from '@wr/contracts';
+import {
+  isHrRole,
+  JobPostingStatus,
+  JobVisibility,
+  PlanStatus,
+  RecruitmentRequestStatus,
+  TaskType,
+  UserRole,
+} from '@wr/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
+
+const APPLICATION_OPEN_REQUEST_STATUSES = [
+  RecruitmentRequestStatus.ACTIVE,
+  RecruitmentRequestStatus.SCREENING,
+  RecruitmentRequestStatus.INTERVIEWING,
+  RecruitmentRequestStatus.DECISION_PENDING,
+  RecruitmentRequestStatus.INTERVIEW_COMPLETED,
+  RecruitmentRequestStatus.OFFER_EXTENDED,
+] as const;
 
 @Injectable()
 export class ApplicationsService {
@@ -62,6 +79,17 @@ export class ApplicationsService {
 
     const request = await this.prisma.recruitmentRequest.findUnique({
       where: { id: requestId },
+      include: {
+        overallPlan: { select: { status: true } },
+        jobPosting: {
+          select: {
+            status: true,
+            visibility: true,
+            startDate: true,
+            expireDate: true,
+          },
+        },
+      },
     });
 
     if (!request) {
@@ -71,15 +99,45 @@ export class ApplicationsService {
       });
     }
 
-    let candidateProfile = null;
+    if (payload.actorRole === UserRole.CANDIDATE) {
+      const now = new Date();
+      const posting = request.jobPosting;
+
+      if (
+        !APPLICATION_OPEN_REQUEST_STATUSES.includes(request.status as any) ||
+        request.overallPlan?.status !== PlanStatus.APPROVED
+      ) {
+        throw new RpcException({
+          status: HttpStatus.PRECONDITION_FAILED,
+          message: `Applications require a started campaign and an APPROVED plan. Current request status: ${request.status}; plan status: ${request.overallPlan?.status ?? 'MISSING'}`,
+        });
+      }
+
+      if (
+        !posting ||
+        posting.status !== JobPostingStatus.PUBLISHED ||
+        posting.visibility !== JobVisibility.PUBLIC ||
+        (posting.startDate && posting.startDate > now) ||
+        (posting.expireDate && posting.expireDate <= now)
+      ) {
+        throw new RpcException({
+          status: HttpStatus.PRECONDITION_FAILED,
+          message: 'This job posting is not currently open for applications',
+        });
+      }
+    }
+
+    let candidateProfile: any = null;
 
     if (candidateId) {
       candidateProfile = await this.prisma.candidateProfile.findUnique({
         where: { id: candidateId },
+        include: { cvDocuments: { select: { id: true }, take: 1 } },
       });
     } else if (userId) {
       candidateProfile = await this.prisma.candidateProfile.findUnique({
         where: { userId },
+        include: { cvDocuments: { select: { id: true }, take: 1 } },
       });
 
       if (!candidateProfile) {
@@ -106,6 +164,16 @@ export class ApplicationsService {
       throw new RpcException({
         status: HttpStatus.NOT_FOUND,
         message: 'Candidate profile not found or user is not a candidate',
+      });
+    }
+
+    if (
+      payload.actorRole === UserRole.CANDIDATE &&
+      (candidateProfile.cvDocuments?.length ?? 0) === 0
+    ) {
+      throw new RpcException({
+        status: HttpStatus.PRECONDITION_FAILED,
+        message: 'Upload a CV before applying',
       });
     }
 

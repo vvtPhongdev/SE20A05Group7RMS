@@ -147,4 +147,25 @@ describe('OverallPlanService', () => {
       );
     });
   });
+
+  describe('startCampaign', () => {
+    it('rejects an approved plan when the request is not PLAN_APPROVED', async () => {
+      prisma.overallPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        requestId: 'request-1',
+        status: PlanStatus.APPROVED,
+        request: {
+          id: 'request-1',
+          position: 'Engineer',
+          status: RecruitmentRequestStatus.CLOSED,
+        },
+        tasks: [],
+      });
+
+      await expect(
+        service.startCampaign({ id: 'plan-1', performedById: 'leader-1' }),
+      ).rejects.toThrow(RpcException);
+      expect(prisma.recruitmentRequest.update).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -531,7 +531,7 @@ export class OverallPlanService {
     const plan = await this.prisma.overallPlan.findUnique({
       where: { id },
       include: {
-        request: { select: { id: true, position: true } },
+        request: { select: { id: true, position: true, status: true } },
         tasks: {
           include: {
             assignedTo: {
@@ -547,9 +547,19 @@ export class OverallPlanService {
     if (plan.status !== PlanStatus.APPROVED) {
       this.rpc(HttpStatus.BAD_REQUEST, 'Only approved plans can be started');
     }
+    if (plan.request.status !== RecruitmentRequestStatus.PLAN_APPROVED) {
+      this.rpc(
+        HttpStatus.PRECONDITION_FAILED,
+        `Campaign can only start when its request is PLAN_APPROVED. Current status: ${plan.request.status}`,
+      );
+    }
+    if (plan.tasks.length === 0) {
+      this.rpc(HttpStatus.PRECONDITION_FAILED, 'Campaign must have at least one task before starting');
+    }
 
     const invalidTask = plan.tasks.find(
       (task) =>
+        !task.assignedTo ||
         !isHrRole(task.assignedTo.role) ||
         !task.assignedTo.isActive ||
         !task.startDate ||

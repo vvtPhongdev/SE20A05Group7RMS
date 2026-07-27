@@ -195,7 +195,25 @@ export class JobPostingsService {
       // Candidates can only see PUBLISHED and PUBLIC job postings
       where.status = JobPostingStatus.PUBLISHED;
       where.visibility = JobVisibility.PUBLIC;
-      where.AND = [...(where.AND ?? []), ...activeWindowWhere];
+      where.AND = [
+        ...(where.AND ?? []),
+        ...activeWindowWhere,
+        {
+          request: {
+            status: {
+              in: [
+                RecruitmentRequestStatus.ACTIVE,
+                RecruitmentRequestStatus.SCREENING,
+                RecruitmentRequestStatus.INTERVIEWING,
+                RecruitmentRequestStatus.DECISION_PENDING,
+                RecruitmentRequestStatus.INTERVIEW_COMPLETED,
+                RecruitmentRequestStatus.OFFER_EXTENDED,
+              ],
+            },
+          },
+        },
+        { request: { overallPlan: { status: 'APPROVED' } } },
+      ];
     } else if (userRole === UserRole.DEPARTMENT_HEAD) {
       // Department Heads can see their department's postings OR any PUBLIC + PUBLISHED postings
       if (userDeptId) {

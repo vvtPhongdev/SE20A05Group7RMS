@@ -1,7 +1,12 @@
 import { HttpStatus } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { Test, TestingModule } from '@nestjs/testing';
-import { JobPostingStatus, JobVisibility, RecruitmentRequestStatus } from '@wr/contracts';
+import {
+  JobPostingStatus,
+  JobVisibility,
+  PlanStatus,
+  RecruitmentRequestStatus,
+} from '@wr/contracts';
 import { PrismaService } from '../../common/database/prisma.service';
 import { JobPostingsService } from './job-postings.service';
 
@@ -268,10 +273,25 @@ describe('JobPostingsService', () => {
           where: expect.objectContaining({
             status: JobPostingStatus.PUBLISHED,
             visibility: JobVisibility.PUBLIC,
-            AND: [
+            AND: expect.arrayContaining([
               { OR: [{ startDate: null }, { startDate: { lte: expect.any(Date) } }] },
               { OR: [{ expireDate: null }, { expireDate: { gt: expect.any(Date) } }] },
-            ],
+              {
+                request: {
+                  status: {
+                    in: [
+                      RecruitmentRequestStatus.ACTIVE,
+                      RecruitmentRequestStatus.SCREENING,
+                      RecruitmentRequestStatus.INTERVIEWING,
+                      RecruitmentRequestStatus.DECISION_PENDING,
+                      RecruitmentRequestStatus.INTERVIEW_COMPLETED,
+                      RecruitmentRequestStatus.OFFER_EXTENDED,
+                    ],
+                  },
+                },
+              },
+              { request: { overallPlan: { status: PlanStatus.APPROVED } } },
+            ]),
           }),
         }),
       );

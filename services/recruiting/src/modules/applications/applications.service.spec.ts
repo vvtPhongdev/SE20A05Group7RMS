@@ -1,5 +1,11 @@
 ﻿import { TaskType, UserRole } from '@wr/contracts';
 import { ApplicationsService } from './applications.service';
+import {
+  JobPostingStatus,
+  JobVisibility,
+  PlanStatus,
+  RecruitmentRequestStatus,
+} from '@wr/contracts';
 
 describe('ApplicationsService', () => {
   const prisma = {
@@ -28,11 +34,22 @@ describe('ApplicationsService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    prisma.recruitmentRequest.findUnique.mockResolvedValue({ id: 'request-1' });
+    prisma.recruitmentRequest.findUnique.mockResolvedValue({
+      id: 'request-1',
+      status: RecruitmentRequestStatus.ACTIVE,
+      overallPlan: { status: PlanStatus.APPROVED },
+      jobPosting: {
+        status: JobPostingStatus.PUBLISHED,
+        visibility: JobVisibility.PUBLIC,
+        startDate: new Date(Date.now() - 60_000),
+        expireDate: new Date(Date.now() + 60_000),
+      },
+    });
     prisma.candidateProfile.findUnique.mockResolvedValue({
       id: 'candidate-1',
       userId: 'candidate-user-1',
       fullName: 'Candidate One',
+      cvDocuments: [{ id: 'cv-1' }],
     });
     prisma.application.findUnique.mockResolvedValue(null);
     prisma.taskPlan.findFirst.mockResolvedValue({
@@ -97,5 +114,67 @@ describe('ApplicationsService', () => {
         }),
       }),
     );
+  });
+
+  it('rejects a candidate application before the campaign is active', async () => {
+    prisma.recruitmentRequest.findUnique.mockResolvedValue({
+      id: 'request-1',
+      status: RecruitmentRequestStatus.PLAN_APPROVED,
+      overallPlan: { status: PlanStatus.APPROVED },
+      jobPosting: {
+        status: JobPostingStatus.PUBLISHED,
+        visibility: JobVisibility.PUBLIC,
+        startDate: new Date(Date.now() - 60_000),
+        expireDate: new Date(Date.now() + 60_000),
+      },
+    });
+
+    await expect(
+      service.create({
+        requestId: 'request-1',
+        userId: 'candidate-user-1',
+        actorRole: UserRole.CANDIDATE,
+      }),
+    ).rejects.toThrow();
+    expect(prisma.application.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a candidate application without a CV', async () => {
+    prisma.candidateProfile.findUnique.mockResolvedValue({
+      id: 'candidate-1',
+      userId: 'candidate-user-1',
+      cvDocuments: [],
+    });
+
+    await expect(
+      service.create({
+        requestId: 'request-1',
+        userId: 'candidate-user-1',
+        actorRole: UserRole.CANDIDATE,
+      }),
+    ).rejects.toThrow();
+    expect(prisma.application.create).not.toHaveBeenCalled();
+  });
+
+  it('allows applying after the request advances to screening', async () => {
+    prisma.recruitmentRequest.findUnique.mockResolvedValue({
+      id: 'request-1',
+      status: RecruitmentRequestStatus.SCREENING,
+      overallPlan: { status: PlanStatus.APPROVED },
+      jobPosting: {
+        status: JobPostingStatus.PUBLISHED,
+        visibility: JobVisibility.PUBLIC,
+        startDate: new Date(Date.now() - 60_000),
+        expireDate: new Date(Date.now() + 60_000),
+      },
+    });
+
+    await service.create({
+      requestId: 'request-1',
+      userId: 'candidate-user-1',
+      actorRole: UserRole.CANDIDATE,
+    });
+
+    expect(prisma.application.create).toHaveBeenCalled();
   });
 });
