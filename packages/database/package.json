@@ -13,7 +13,7 @@
   "scripts": {
     "build": "prisma generate && tsc --build",
     "clean": "rm -rf dist .turbo",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "prisma generate && tsc --noEmit",
     "lint": "echo 'lint ok'",
     "generate": "prisma generate",
     "migrate:dev": "prisma migrate dev",
