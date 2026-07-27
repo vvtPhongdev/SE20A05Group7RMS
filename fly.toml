@@ -9,12 +9,12 @@ primary_region = "sin"
 [env]
   NODE_ENV = "production"
   # Default hosts for internal microservices communication in the shared monolith container
-  IDENTITY_HOST = "127.0.0.1"
-  RECRUITING_HOST = "127.0.0.1"
-  PROFILES_HOST = "127.0.0.1"
-  NOTIFICATION_HOST = "127.0.0.1"
-  CV_HOST = "127.0.0.1"
-  INTERVIEW_HOST = "127.0.0.1"
+  IDENTITY_HOST = "0.0.0.0"
+  RECRUITING_HOST = "0.0.0.0"
+  PROFILES_HOST = "0.0.0.0"
+  NOTIFICATION_HOST = "0.0.0.0"
+  CV_HOST = "0.0.0.0"
+  INTERVIEW_HOST = "0.0.0.0"
 
 [http_service]
   internal_port = 8080
