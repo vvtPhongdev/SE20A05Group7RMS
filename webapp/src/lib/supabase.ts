@@ -14,6 +14,8 @@ export const supabase = createClient(supabaseUrl || '', supabaseKey || '', {
   auth: {
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    // OAuth callbacks and the account-registration hand-off need a browser session
+    // briefly. RMS clears it after exchanging it for its own refresh-session cookie.
     persistSession: true,
   },
 });

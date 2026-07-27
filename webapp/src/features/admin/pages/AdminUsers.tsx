@@ -48,6 +48,17 @@ const emptyForm: UserForm = {
 
 const roles: Array<RoleKey | 'All'> = ['All', 'Admin', 'Department Head', 'HR', 'Candidate'];
 const statuses: Array<UserStatus | 'All'> = ['All', 'Active', 'Inactive'];
+const INVITATION_RESEND_COOLDOWN_MS = 5 * 60 * 1000;
+
+const getResendCooldownMs = (lastSentAt: string | null | undefined, now: number) => {
+  if (!lastSentAt) return 0;
+  return Math.max(0, new Date(lastSentAt).getTime() + INVITATION_RESEND_COOLDOWN_MS - now);
+};
+
+const formatCooldown = (milliseconds: number) => {
+  const totalSeconds = Math.ceil(milliseconds / 1000);
+  return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`;
+};
 
 const roleBadgeClasses: Record<RoleKey, string> = {
   Admin: 'bg-deep-charcoal text-white',
@@ -81,6 +92,8 @@ export const AdminUsers: React.FC = () => {
   const [form, setForm] = useState<UserForm>(emptyForm);
   const [error, setError] = useState<string | null>(null);
   const [savingUser, setSavingUser] = useState(false);
+  const [resendingInvitationIds, setResendingInvitationIds] = useState<Set<string>>(() => new Set());
+  const [now, setNow] = useState(() => Date.now());
 
   // Dropdown Menu State
   const [activeMenuUserId, setActiveMenuUserId] = useState<string | null>(null);
@@ -336,7 +349,22 @@ export const AdminUsers: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   const manageInvitation = async (invitation: ManagedInvitation, action: 'resend' | 'revoke') => {
+    if (action === 'resend') {
+      if (
+        resendingInvitationIds.has(invitation.id) ||
+        getResendCooldownMs(invitation.lastSentAt, Date.now()) > 0
+      ) {
+        return;
+      }
+      setResendingInvitationIds((current) => new Set(current).add(invitation.id));
+    }
+
     setError(null);
     setInvitationMessage(null);
     try {
@@ -347,6 +375,14 @@ export const AdminUsers: React.FC = () => {
       );
     } catch (manageError) {
       setError(manageError instanceof Error ? manageError.message : `Unable to ${action} invitation`);
+    } finally {
+      if (action === 'resend') {
+        setResendingInvitationIds((current) => {
+          const next = new Set(current);
+          next.delete(invitation.id);
+          return next;
+        });
+      }
     }
   };
 
@@ -541,6 +577,9 @@ export const AdminUsers: React.FC = () => {
             {invitations.map((invitation) => {
               const isActive = !invitation.acceptedAt && !invitation.revokedAt && new Date(invitation.expiresAt) > new Date();
               const latestAudit = invitation.auditEvents[0];
+              const resendCooldownMs = getResendCooldownMs(invitation.lastSentAt, now);
+              const isResending = resendingInvitationIds.has(invitation.id);
+              const resendDisabled = !isActive || isResending || resendCooldownMs > 0;
               return (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border-warm bg-workflow-ivory/50 p-3" key={invitation.id}>
                   <div>
@@ -550,7 +589,7 @@ export const AdminUsers: React.FC = () => {
                   </div>
                   <div className="flex gap-2">
                     <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${isActive ? 'bg-approved/15 text-approved' : 'bg-slate-ink/10 text-slate-ink'}`}>{invitation.acceptedAt ? 'Accepted' : invitation.revokedAt ? 'Revoked' : isActive ? 'Active' : 'Expired'}</span>
-                    <button className="rounded-lg border border-teal-command/30 bg-white px-3 py-1.5 text-xs font-semibold text-teal-command disabled:opacity-50" disabled={!isActive} onClick={() => void manageInvitation(invitation, 'resend')} type="button">Resend</button>
+                    <button className="rounded-lg border border-teal-command/30 bg-white px-3 py-1.5 text-xs font-semibold text-teal-command disabled:cursor-not-allowed disabled:opacity-50" disabled={resendDisabled} onClick={() => void manageInvitation(invitation, 'resend')} type="button">{isResending ? 'Resending...' : resendCooldownMs > 0 ? `Resend in ${formatCooldown(resendCooldownMs)}` : 'Resend'}</button>
                     <button className="rounded-lg border border-rejected/30 bg-white px-3 py-1.5 text-xs font-semibold text-rejected disabled:opacity-50" disabled={!isActive} onClick={() => void manageInvitation(invitation, 'revoke')} type="button">Revoke</button>
                   </div>
                 </div>

@@ -12,9 +12,11 @@
   HttpStatus,
   ForbiddenException,
   BadRequestException,
+  UnauthorizedException,
   Res,
+  Req,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { config as appConfig } from '../config';
 import { ClientProxy } from '@nestjs/microservices';
@@ -83,6 +85,10 @@ export class LoginDto {
   @IsString()
   @IsNotEmpty()
   password!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  rememberMe?: boolean;
 }
 
 export class SupabaseLoginDto {
@@ -90,6 +96,10 @@ export class SupabaseLoginDto {
   @IsString()
   @IsNotEmpty()
   accessToken!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  rememberMe?: boolean;
 }
 
 export class SupabaseRegisterDto extends SupabaseLoginDto {
@@ -166,9 +176,9 @@ export class VerifyRegisterDto {
 }
 
 export class RefreshTokenDto {
-  @ApiProperty({ description: 'Refresh token' })
+  @ApiProperty({ description: 'Refresh token', required: false })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   refreshToken!: string;
 }
 
@@ -206,11 +216,26 @@ export class ResetPasswordDto {
 }
 
 export class LogoutDto {
-  @ApiProperty({ description: 'Refresh token to invalidate' })
+  @ApiProperty({ description: 'Refresh token to invalidate', required: false })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   refreshToken!: string;
 }
+
+const RMS_REFRESH_COOKIE = 'rms_refresh_token';
+const RMS_REMEMBER_COOKIE = 'rms_remember';
+const REMEMBER_ME_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+const getCookie = (request: Request, name: string) => {
+  const cookieHeader = request.headers.cookie;
+  if (!cookieHeader) return undefined;
+
+  return cookieHeader.split(';').reduce<string | undefined>((value, cookie) => {
+    if (value) return value;
+    const [key, ...parts] = cookie.trim().split('=');
+    return key === name ? decodeURIComponent(parts.join('=')) : undefined;
+  }, undefined);
+};
 
 export class CreateOrganizationDto {
   @ApiProperty({ example: 'Acme Corporation', description: 'Organization name' })
@@ -558,6 +583,48 @@ export class CreateGoogleMeetDto {
 export class IdentityController {
   constructor(@Inject(SERVICE_TOKENS.IDENTITY) private readonly identityClient: ClientProxy) {}
 
+  private setRefreshSession(response: Response, refreshToken: string, rememberMe: boolean) {
+    const options = {
+      httpOnly: true,
+      secure: appConfig.NODE_ENV === 'production',
+      sameSite: 'lax' as const,
+      path: '/api/v1/auth',
+      ...(rememberMe ? { maxAge: REMEMBER_ME_MAX_AGE_MS } : {}),
+    };
+
+    response.cookie(RMS_REFRESH_COOKIE, refreshToken, options);
+    if (rememberMe) {
+      response.cookie(RMS_REMEMBER_COOKIE, '1', options);
+    } else {
+      response.clearCookie(RMS_REMEMBER_COOKIE, {
+        httpOnly: true,
+        secure: appConfig.NODE_ENV === 'production',
+        sameSite: 'lax' as const,
+        path: '/api/v1/auth',
+      });
+    }
+  }
+
+  private clearRefreshSession(response: Response) {
+    const options = {
+      httpOnly: true,
+      secure: appConfig.NODE_ENV === 'production',
+      sameSite: 'lax' as const,
+      path: '/api/v1/auth',
+    };
+    response.clearCookie(RMS_REFRESH_COOKIE, options);
+    response.clearCookie(RMS_REMEMBER_COOKIE, options);
+  }
+
+  private sendAuthResponse(response: Response, result: any, rememberMe: boolean) {
+    this.setRefreshSession(response, result.refreshToken, rememberMe);
+    return {
+      accessToken: result.accessToken,
+      expiresIn: result.expiresIn,
+      user: result.user,
+    };
+  }
+
   // â”€â”€â”€ Auth â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @Post('auth/register')
@@ -590,8 +657,9 @@ export class IdentityController {
   @Throttle({ default: { limit: appConfig.RATE_LIMIT_AUTH_LIMIT, ttl: appConfig.RATE_LIMIT_TTL } })
   @ApiOperation({ summary: 'Login' })
   @HttpCode(HttpStatus.OK)
-  login(@Body() body: LoginDto) {
-    return firstValueFrom(this.identityClient.send('auth.login', body));
+  async login(@Body() body: LoginDto, @Res({ passthrough: true }) response: Response) {
+    const result = await firstValueFrom(this.identityClient.send('auth.login', body));
+    return this.sendAuthResponse(response, result, body.rememberMe === true);
   }
 
   @Post('auth/supabase-login')
@@ -599,8 +667,9 @@ export class IdentityController {
   @Throttle({ default: { limit: appConfig.RATE_LIMIT_AUTH_LIMIT, ttl: appConfig.RATE_LIMIT_TTL } })
   @ApiOperation({ summary: 'Exchange a Supabase session for an RMS token pair' })
   @HttpCode(HttpStatus.OK)
-  loginWithSupabase(@Body() body: SupabaseLoginDto) {
-    return firstValueFrom(this.identityClient.send('auth.supabase-login', body));
+  async loginWithSupabase(@Body() body: SupabaseLoginDto, @Res({ passthrough: true }) response: Response) {
+    const result = await firstValueFrom(this.identityClient.send('auth.supabase-login', body));
+    return this.sendAuthResponse(response, result, body.rememberMe === true);
   }
 
   @Post('auth/supabase-register')
@@ -625,8 +694,20 @@ export class IdentityController {
   @Throttle({ default: { limit: appConfig.RATE_LIMIT_AUTH_LIMIT, ttl: appConfig.RATE_LIMIT_TTL } })
   @ApiOperation({ summary: 'Refresh JWT token' })
   @HttpCode(HttpStatus.OK)
-  refresh(@Body() body: RefreshTokenDto) {
-    return firstValueFrom(this.identityClient.send('identity.auth.refresh', body));
+  async refresh(
+    @Body() body: RefreshTokenDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const refreshToken = body?.refreshToken ?? getCookie(request, RMS_REFRESH_COOKIE);
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token is invalid or has expired');
+    }
+
+    const result = await firstValueFrom(
+      this.identityClient.send('identity.auth.refresh', { refreshToken }),
+    );
+    return this.sendAuthResponse(response, result, getCookie(request, RMS_REMEMBER_COOKIE) === '1');
   }
 
   @Post('auth/logout')
@@ -634,8 +715,15 @@ export class IdentityController {
   @Throttle({ default: { limit: appConfig.RATE_LIMIT_AUTH_LIMIT, ttl: appConfig.RATE_LIMIT_TTL } })
   @ApiOperation({ summary: 'Logout and revoke refresh token' })
   @HttpCode(HttpStatus.NO_CONTENT)
-  async logout(@Body() body: LogoutDto) {
-    await firstValueFrom(this.identityClient.send('identity.auth.logout', body));
+  async logout(
+    @Body() body: LogoutDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const refreshToken = body?.refreshToken ?? getCookie(request, RMS_REFRESH_COOKIE);
+    this.clearRefreshSession(response);
+    if (!refreshToken) return;
+    await firstValueFrom(this.identityClient.send('identity.auth.logout', { refreshToken }));
     return;
   }
 

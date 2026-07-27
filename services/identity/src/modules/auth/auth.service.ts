@@ -36,6 +36,8 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import IORedis from 'ioredis';
+
+const INVITATION_RESEND_COOLDOWN_MS = 5 * 60 * 1000;
 import * as nodemailer from 'nodemailer';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -474,6 +476,18 @@ export class AuthService implements OnModuleDestroy {
     if (invitation.revokedAt) this.invitationError('A revoked invitation cannot be resent.');
     if (invitation.acceptedAt) this.invitationError('This invitation has already been accepted.');
     if (invitation.expiresAt <= new Date()) this.invitationError('This invitation has expired. Create a new invitation instead.');
+    if (
+      invitation.lastSentAt &&
+      Date.now() - invitation.lastSentAt.getTime() < INVITATION_RESEND_COOLDOWN_MS
+    ) {
+      const remainingSeconds = Math.ceil(
+        (INVITATION_RESEND_COOLDOWN_MS - (Date.now() - invitation.lastSentAt.getTime())) / 1000,
+      );
+      throw new RpcException({
+        status: HttpStatus.TOO_MANY_REQUESTS,
+        message: `Invitation email was recently sent. Try again in ${remainingSeconds} seconds.`,
+      });
+    }
 
     const signupBaseUrl = (config.API_CORS_ORIGIN.split(',')[0] ?? '').trim().replace(/\/$/, '');
     const signupLink = `${signupBaseUrl}/signup?inviteCode=${encodeURIComponent(invitation.code)}`;

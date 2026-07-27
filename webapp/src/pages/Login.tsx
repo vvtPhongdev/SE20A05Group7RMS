@@ -88,7 +88,7 @@ export const Login: React.FC = () => {
       setGoogleLoading(true);
 
       try {
-        const loggedUser = await completeSupabaseLogin(rememberMe);
+        const loggedUser = await completeSupabaseLogin();
         navigate(getRoleHomePath(loggedUser.role), { replace: true });
       } catch (err: unknown) {
         const authError = getErrorMetadata(err);
@@ -141,7 +141,7 @@ export const Login: React.FC = () => {
     setGoogleLoading(true);
 
     try {
-      await signInWithGoogle('/login?auth=google');
+      await signInWithGoogle('/login?auth=google', rememberMe);
     } catch (err: unknown) {
       setGoogleLoading(false);
       setError(getErrorMessage(err, 'Could not start Google sign-in.'));

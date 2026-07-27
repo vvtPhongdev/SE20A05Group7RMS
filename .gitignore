@@ -101,3 +101,6 @@ archive/
 
 # AI Evidence markdown files (only Word docx are tracked as evidence)
 docs/Report/AI_Evidence/*.md
+**/.codex-tmp/**
+**/.tmp/**
+**/CVSample/**

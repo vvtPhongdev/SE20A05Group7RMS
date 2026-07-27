@@ -36,7 +36,7 @@ interface AuthContextType {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<User>;
-  signInWithGoogle: (redirectPath?: string) => Promise<void>;
+  signInWithGoogle: (redirectPath?: string, rememberMe?: boolean) => Promise<void>;
   completeSupabaseLogin: (rememberMe?: boolean) => Promise<User>;
   registerWithSupabaseSession: (data: SupabaseRegisterData) => Promise<{ success: boolean; email: string }>;
   getSupabaseProfile: () => Promise<{ email: string; displayName: string } | null>;
@@ -51,55 +51,31 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const AUTH_STORAGE_KEYS = ['token', 'accessToken', 'refreshToken', 'user'] as const;
 const AUTH_LOGOUT_EVENT_KEY = 'authLogoutAt';
+const PENDING_REMEMBER_ME_KEY = 'rms_pending_remember_me';
+const MOCK_AUTH_STORAGE_KEY = 'rms_mock_auth';
+let ignoreNextSupabaseSignOut = false;
 
-const clearStoredAuth = () => {
-  for (const key of AUTH_STORAGE_KEYS) {
-    localStorage.removeItem(key);
-    sessionStorage.removeItem(key);
-  }
-};
-
-const storeAuth = (
-  accessToken: string,
-  loggedUser: User,
-  refreshToken?: string,
-  rememberMe = false,
-) => {
-  clearStoredAuth();
-
-  const storage = rememberMe ? localStorage : sessionStorage;
-  storage.setItem('token', accessToken);
-  storage.setItem('user', JSON.stringify(loggedUser));
-  if (refreshToken) {
-    storage.setItem('refreshToken', refreshToken);
-  }
-};
-
-const replaceStoredUser = (updatedUser: User) => {
-  for (const storage of [sessionStorage, localStorage]) {
-    if (storage.getItem('token') || storage.getItem('accessToken')) {
-      storage.setItem('user', JSON.stringify(updatedUser));
-    }
-  }
-};
-
-const getStoredAuth = () => {
-  for (const storage of [sessionStorage, localStorage]) {
-    const accessToken = storage.getItem('token') ?? storage.getItem('accessToken');
-    const savedUser = storage.getItem('user');
-
-    if (accessToken && savedUser) {
-      return { accessToken, savedUser };
-    }
+const storeMockAuth = (accessToken: string, loggedUser: User, rememberMe: boolean) => {
+  if (!rememberMe) {
+    localStorage.removeItem(MOCK_AUTH_STORAGE_KEY);
+    return;
   }
 
-  return null;
+  localStorage.setItem(MOCK_AUTH_STORAGE_KEY, JSON.stringify({ accessToken, loggedUser }));
 };
 
-const getStoredRefreshToken = () =>
-  sessionStorage.getItem('refreshToken') ?? localStorage.getItem('refreshToken');
+const getStoredMockAuth = (): { accessToken: string; loggedUser: User } | null => {
+  try {
+    const value = localStorage.getItem(MOCK_AUTH_STORAGE_KEY);
+    if (!value) return null;
+    const stored = JSON.parse(value) as { accessToken?: string; loggedUser?: User };
+    return stored.accessToken && stored.loggedUser ? { accessToken: stored.accessToken, loggedUser: stored.loggedUser } : null;
+  } catch {
+    localStorage.removeItem(MOCK_AUTH_STORAGE_KEY);
+    return null;
+  }
+};
 
 const clearSupabaseSession = async (scope: 'global' | 'local' | 'others' = 'local') => {
   await supabase.auth.signOut({ scope }).catch(() => undefined);
@@ -118,14 +94,11 @@ const revokeSupabaseSession = async () => {
   await clearSupabaseSession('local');
 };
 
-const revokeStoredRefreshToken = async (refreshToken: string | null) => {
-  if (!refreshToken) return;
-
+const revokeRefreshSession = async () => {
   try {
     const response = await fetch('/api/v1/auth/logout', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
+      credentials: 'include',
       keepalive: true,
     });
 
@@ -174,6 +147,21 @@ const shouldClearSupabaseSession = (error: unknown) => {
     code === 'refresh_token_not_found' ||
     code === 'refresh_token_already_used'
   );
+};
+
+const getPendingRememberMe = () => sessionStorage.getItem(PENDING_REMEMBER_ME_KEY) === 'true';
+
+const getTokenExpiry = (accessToken: string) => {
+  try {
+    const payload = accessToken.split('.')[1];
+    if (!payload) return null;
+    const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as {
+      exp?: number;
+    };
+    return typeof decoded.exp === 'number' ? decoded.exp * 1000 : null;
+  } catch {
+    return null;
+  }
 };
 
 export const useAuth = () => {
@@ -237,26 +225,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const restoreStoredAuth = () => {
-    const savedAuth = getStoredAuth();
-
-    if (!savedAuth) {
-      setToken(null);
-      setUser(null);
-      return;
-    }
-
-    try {
-      setToken(savedAuth.accessToken);
-      setUser(JSON.parse(savedAuth.savedUser) as User);
-    } catch {
-      clearStoredAuth();
-      setToken(null);
-      setUser(null);
-    }
-  };
-
-  const saveAuthResponse = async (data: AuthResponse, rememberMe = false) => {
+  const saveAuthResponse = async (data: AuthResponse) => {
     let loggedUser = mapAuthUser(data);
     try {
       const profileResponse = await fetch('/api/v1/me', {
@@ -268,7 +237,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       // The login payload remains sufficient for routing if profile hydration is unavailable.
     }
-    storeAuth(data.accessToken, loggedUser, data.refreshToken, rememberMe);
     setToken(data.accessToken);
     setUser(loggedUser);
     return loggedUser;
@@ -278,27 +246,67 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const response = await fetch('/api/v1/auth/supabase-login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accessToken }),
+      body: JSON.stringify({ accessToken, rememberMe }),
+      credentials: 'include',
     });
 
     if (!response.ok) {
       throw await readAuthError(response);
     }
 
-    return saveAuthResponse(await response.json(), rememberMe);
+    const loggedUser = await saveAuthResponse(await response.json());
+    ignoreNextSupabaseSignOut = true;
+    await clearSupabaseSession('local');
+    return loggedUser;
   };
+
+  const refreshRmsSession = async () => {
+    const response = await fetch('/api/v1/auth/refresh', {
+      method: 'POST',
+      credentials: 'include',
+    });
+
+    if (!response.ok) return null;
+    return saveAuthResponse(await response.json());
+  };
+
+  useEffect(() => {
+    if (!token) return;
+
+    const expiry = getTokenExpiry(token);
+    if (!expiry) return;
+
+    const refreshDelay = Math.max(0, expiry - Date.now() - 60_000);
+    const timeout = window.setTimeout(() => {
+      void refreshRmsSession().then((refreshedUser) => {
+        if (!refreshedUser) {
+          setToken(null);
+          setUser(null);
+        }
+      });
+    }, refreshDelay);
+
+    return () => window.clearTimeout(timeout);
+  }, [token]);
 
   useEffect(() => {
     let cancelled = false;
 
     const restoreSupabaseAuth = async () => {
       try {
+        if (new URLSearchParams(window.location.search).get('auth') !== 'google') {
+          const restoredUser = await refreshRmsSession();
+          if (restoredUser) return;
+        }
+
         const { data, error } = await supabase.auth.getSession();
         if (error || !data.session?.access_token) {
           if (shouldClearSupabaseSession(error)) {
             await clearSupabaseSession();
           }
-          restoreStoredAuth();
+          const storedMockAuth = getStoredMockAuth();
+          setToken(storedMockAuth?.accessToken ?? null);
+          setUser(storedMockAuth?.loggedUser ?? null);
           return;
         }
 
@@ -306,17 +314,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // a new Google account must retain its Supabase session while SignUp creates
         // the corresponding RMS account after a 404 from /supabase-login.
         if (new URLSearchParams(window.location.search).get('auth') === 'google') {
-          restoreStoredAuth();
           return;
         }
 
-        await exchangeSupabaseToken(data.session.access_token);
+        await exchangeSupabaseToken(data.session.access_token, getPendingRememberMe());
       } catch (error) {
         if (shouldClearSupabaseSession(error)) {
           await clearSupabaseSession();
         }
         if (!cancelled) {
-          restoreStoredAuth();
+          setToken(null);
+          setUser(null);
         }
       } finally {
         if (!cancelled) {
@@ -327,16 +335,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const handleStorageChange = (event: StorageEvent) => {
       if (event.storageArea === localStorage && event.key === AUTH_LOGOUT_EVENT_KEY) {
-        clearStoredAuth();
         setToken(null);
         setUser(null);
         return;
       }
 
-      const isAuthKey = AUTH_STORAGE_KEYS.some((key) => key === event.key);
-      if (event.storageArea === localStorage && isAuthKey) {
-        restoreStoredAuth();
-      }
     };
 
     void restoreSupabaseAuth();
@@ -344,7 +347,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
-        clearStoredAuth();
+        if (ignoreNextSupabaseSignOut) {
+          ignoreNextSupabaseSignOut = false;
+          return;
+        }
         setToken(null);
         setUser(null);
       }
@@ -365,18 +371,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await fetch('/api/v1/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, rememberMe }),
+        credentials: 'include',
       });
 
       if (response.ok) {
-        return saveAuthResponse(await response.json(), rememberMe);
+        return saveAuthResponse(await response.json());
       }
 
       const rmsAuthError = await readAuthError(response);
       const mockUser = MOCK_USERS[email.toLowerCase()];
       if (mockUser && password === 'Password123!') {
         const mockToken = `mock-jwt-token-for-${mockUser.role}`;
-        storeAuth(mockToken, mockUser, undefined, rememberMe);
+        storeMockAuth(mockToken, mockUser, rememberMe);
         setToken(mockToken);
         setUser(mockUser);
         return mockUser;
@@ -392,7 +399,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const mockUser = MOCK_USERS[email.toLowerCase()];
       if (mockUser && password === 'Password123!') {
         const mockToken = `mock-jwt-token-for-${mockUser.role}`;
-        storeAuth(mockToken, mockUser, undefined, rememberMe);
+        storeMockAuth(mockToken, mockUser, rememberMe);
         setToken(mockToken);
         setUser(mockUser);
         return mockUser;
@@ -404,7 +411,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signInWithGoogle = async (redirectPath = '/login?auth=google') => {
+  const signInWithGoogle = async (redirectPath = '/login?auth=google', rememberMe = false) => {
+    sessionStorage.setItem(PENDING_REMEMBER_ME_KEY, rememberMe.toString());
     const redirectTo = `${window.location.origin}${redirectPath}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -415,11 +423,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     if (error) {
+      sessionStorage.removeItem(PENDING_REMEMBER_ME_KEY);
       throw new Error(error.message);
     }
   };
 
-  const completeSupabaseLogin = async (rememberMe = false) => {
+  const completeSupabaseLogin = async (rememberMe = getPendingRememberMe()) => {
     setLoading(true);
 
     try {
@@ -428,7 +437,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error(error?.message || 'Supabase session was not found.');
       }
 
-      return await exchangeSupabaseToken(data.session.access_token, rememberMe);
+      const loggedUser = await exchangeSupabaseToken(data.session.access_token, rememberMe);
+      sessionStorage.removeItem(PENDING_REMEMBER_ME_KEY);
+      return loggedUser;
     } finally {
       setLoading(false);
     }
@@ -492,27 +503,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshToken?: string,
     rememberMe = false,
   ) => {
-    storeAuth(accessToken, loggedUser, refreshToken, rememberMe);
+    void refreshToken;
+    void rememberMe;
     setToken(accessToken);
     setUser(loggedUser);
   };
 
   const updateCurrentUser = (updatedUser: User) => {
-    replaceStoredUser(updatedUser);
     setUser(updatedUser);
   };
 
   const logout = async () => {
-    const refreshToken = getStoredRefreshToken();
-
-    clearStoredAuth();
+    localStorage.removeItem(MOCK_AUTH_STORAGE_KEY);
     setToken(null);
     setUser(null);
 
     localStorage.setItem(AUTH_LOGOUT_EVENT_KEY, Date.now().toString());
     localStorage.removeItem(AUTH_LOGOUT_EVENT_KEY);
 
-    await Promise.allSettled([revokeStoredRefreshToken(refreshToken), revokeSupabaseSession()]);
+    await Promise.allSettled([revokeRefreshSession(), revokeSupabaseSession()]);
   };
 
   return (
