@@ -1,4 +1,4 @@
-﻿import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { UserRole } from '@wr/contracts';
 import { supabase } from '../lib/supabase';
 
@@ -428,16 +428,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const completeSupabaseLogin = async (rememberMe = getPendingRememberMe()) => {
+  const completeSupabaseLogin = async (rememberMe = getPendingRememberMe()): Promise<User> => {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.getSession();
-      if (error || !data.session?.access_token) {
-        throw new Error(error?.message || 'Supabase session was not found.');
+      // First try getSession() — if Supabase already processed the hash it'll be ready.
+      const { data: immediate, error: immediateError } = await supabase.auth.getSession();
+      if (!immediateError && immediate.session?.access_token) {
+        const loggedUser = await exchangeSupabaseToken(immediate.session.access_token, rememberMe);
+        sessionStorage.removeItem(PENDING_REMEMBER_ME_KEY);
+        return loggedUser;
       }
 
-      const loggedUser = await exchangeSupabaseToken(data.session.access_token, rememberMe);
+      // If no session yet, wait for the SIGNED_IN event (Supabase processes the
+      // #access_token hash asynchronously after page load).
+      const accessToken = await new Promise<string>((resolve, reject) => {
+        const timer = window.setTimeout(() => {
+          subscription.unsubscribe();
+          reject(new Error('Supabase session was not found.'));
+        }, 10_000);
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+          if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.access_token) {
+            window.clearTimeout(timer);
+            subscription.unsubscribe();
+            resolve(session.access_token);
+          }
+        });
+      });
+
+      const loggedUser = await exchangeSupabaseToken(accessToken, rememberMe);
       sessionStorage.removeItem(PENDING_REMEMBER_ME_KEY);
       return loggedUser;
     } finally {
