@@ -683,9 +683,9 @@ export class IdentityController {
   @Public()
   async googleLogin(@Query('redirect') redirect: string, @Res() response: Response) {
     const redirectOrigin = redirect || 'http://localhost:3000';
-    const redirectUri = redirectOrigin.includes('localhost') 
-      ? 'http://localhost:3001/api/v1/auth/google/callback' 
-      : 'https://se20a05-group7-rms.fly.dev/api/v1/auth/google/callback';
+    const redirectUri = redirectOrigin.includes('localhost')
+      ? 'http://localhost:3000/api/auth/callback/google'
+      : 'https://work-recruiter.vercel.app/api/auth/callback/google';
 
     const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${
       appConfig.GOOGLE_CLIENT_ID
@@ -694,7 +694,7 @@ export class IdentityController {
     )}&response_type=code&scope=email%20profile%20openid&state=${encodeURIComponent(
       redirectOrigin,
     )}&prompt=select_account`;
-    
+
     return response.redirect(googleAuthUrl);
   }
 
@@ -710,9 +710,9 @@ export class IdentityController {
     }
 
     const redirectOrigin = state || 'http://localhost:3000';
-    const redirectUri = redirectOrigin.includes('localhost') 
-      ? 'http://localhost:3001/api/v1/auth/google/callback' 
-      : 'https://se20a05-group7-rms.fly.dev/api/v1/auth/google/callback';
+    const redirectUri = redirectOrigin.includes('localhost')
+      ? 'http://localhost:3000/api/auth/callback/google'
+      : 'https://work-recruiter.vercel.app/api/auth/callback/google';
 
     try {
       const result = await firstValueFrom(
@@ -741,7 +741,9 @@ export class IdentityController {
       throw new BadRequestException('Google authentication failed');
     } catch (err: any) {
       console.error('Google Callback Error:', err.message);
-      return response.redirect(`${redirectOrigin}/login?error=${encodeURIComponent(err.message || 'Google login failed')}`);
+      return response.redirect(
+        `${redirectOrigin}/login?error=${encodeURIComponent(err.message || 'Google login failed')}`,
+      );
     }
   }
 
@@ -761,7 +763,10 @@ export class IdentityController {
   @Throttle({ default: { limit: appConfig.RATE_LIMIT_AUTH_LIMIT, ttl: appConfig.RATE_LIMIT_TTL } })
   @ApiOperation({ summary: 'Exchange a Supabase session for an RMS token pair' })
   @HttpCode(HttpStatus.OK)
-  async loginWithSupabase(@Body() body: SupabaseLoginDto, @Res({ passthrough: true }) response: Response) {
+  async loginWithSupabase(
+    @Body() body: SupabaseLoginDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
     const result = await firstValueFrom(this.identityClient.send('auth.supabase-login', body));
     return this.sendAuthResponse(response, result, body.rememberMe === true);
   }
@@ -968,14 +973,19 @@ export class IdentityController {
     @CurrentUser('sub') invitedById: string,
     @Body() body: CreateOrganizationInvitationDto,
   ) {
-    return firstValueFrom(this.identityClient.send('users.get', { id: invitedById })).then((currentUser) => {
-      if (!currentUser.organizationId || currentUser.organizationId !== body.organizationId) {
-        throw new ForbiddenException('You can only invite members to your own organization');
-      }
-      return firstValueFrom(
-        this.identityClient.send('auth.organization-invitations.create', { ...body, invitedById }),
-      );
-    });
+    return firstValueFrom(this.identityClient.send('users.get', { id: invitedById })).then(
+      (currentUser) => {
+        if (!currentUser.organizationId || currentUser.organizationId !== body.organizationId) {
+          throw new ForbiddenException('You can only invite members to your own organization');
+        }
+        return firstValueFrom(
+          this.identityClient.send('auth.organization-invitations.create', {
+            ...body,
+            invitedById,
+          }),
+        );
+      },
+    );
   }
 
   @Get('organization-invitations')
@@ -983,10 +993,14 @@ export class IdentityController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List organization invitations and audit history' })
   async listOrganizationInvitations(@CurrentUser('sub') actorId: string) {
-    const currentUser = await firstValueFrom(this.identityClient.send('users.get', { id: actorId }));
+    const currentUser = await firstValueFrom(
+      this.identityClient.send('users.get', { id: actorId }),
+    );
     if (!currentUser.organizationId) throw new BadRequestException('Organization is required');
     return firstValueFrom(
-      this.identityClient.send('auth.organization-invitations.list', { organizationId: currentUser.organizationId }),
+      this.identityClient.send('auth.organization-invitations.list', {
+        organizationId: currentUser.organizationId,
+      }),
     );
   }
 
@@ -994,20 +1008,42 @@ export class IdentityController {
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Resend an active organization invitation' })
-  async resendOrganizationInvitation(@CurrentUser('sub') actorId: string, @Param('id') invitationId: string) {
-    const currentUser = await firstValueFrom(this.identityClient.send('users.get', { id: actorId }));
+  async resendOrganizationInvitation(
+    @CurrentUser('sub') actorId: string,
+    @Param('id') invitationId: string,
+  ) {
+    const currentUser = await firstValueFrom(
+      this.identityClient.send('users.get', { id: actorId }),
+    );
     if (!currentUser.organizationId) throw new BadRequestException('Organization is required');
-    return firstValueFrom(this.identityClient.send('auth.organization-invitations.resend', { invitationId, organizationId: currentUser.organizationId, actorId }));
+    return firstValueFrom(
+      this.identityClient.send('auth.organization-invitations.resend', {
+        invitationId,
+        organizationId: currentUser.organizationId,
+        actorId,
+      }),
+    );
   }
 
   @Post('organization-invitations/:id/revoke')
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Revoke an organization invitation' })
-  async revokeOrganizationInvitation(@CurrentUser('sub') actorId: string, @Param('id') invitationId: string) {
-    const currentUser = await firstValueFrom(this.identityClient.send('users.get', { id: actorId }));
+  async revokeOrganizationInvitation(
+    @CurrentUser('sub') actorId: string,
+    @Param('id') invitationId: string,
+  ) {
+    const currentUser = await firstValueFrom(
+      this.identityClient.send('users.get', { id: actorId }),
+    );
     if (!currentUser.organizationId) throw new BadRequestException('Organization is required');
-    return firstValueFrom(this.identityClient.send('auth.organization-invitations.revoke', { invitationId, organizationId: currentUser.organizationId, actorId }));
+    return firstValueFrom(
+      this.identityClient.send('auth.organization-invitations.revoke', {
+        invitationId,
+        organizationId: currentUser.organizationId,
+        actorId,
+      }),
+    );
   }
 
   @Post('dept-head/settings/team-members')

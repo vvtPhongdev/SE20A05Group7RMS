@@ -37,9 +37,15 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<User>;
   signInWithGoogle: (redirectPath?: string, rememberMe?: boolean) => Promise<void>;
-  registerWithGoogle: (data: { signupToken: string; displayName: string; invitationCode?: string }) => Promise<User>;
+  registerWithGoogle: (data: {
+    signupToken: string;
+    displayName: string;
+    invitationCode?: string;
+  }) => Promise<User>;
   completeSupabaseLogin: (rememberMe?: boolean) => Promise<User>;
-  registerWithSupabaseSession: (data: SupabaseRegisterData) => Promise<{ success: boolean; email: string }>;
+  registerWithSupabaseSession: (
+    data: SupabaseRegisterData,
+  ) => Promise<{ success: boolean; email: string }>;
   getSupabaseProfile: () => Promise<{ email: string; displayName: string } | null>;
   loginWithToken: (
     accessToken: string,
@@ -71,7 +77,9 @@ const getStoredMockAuth = (): { accessToken: string; loggedUser: User } | null =
     const value = localStorage.getItem(MOCK_AUTH_STORAGE_KEY);
     if (!value) return null;
     const stored = JSON.parse(value) as { accessToken?: string; loggedUser?: User };
-    return stored.accessToken && stored.loggedUser ? { accessToken: stored.accessToken, loggedUser: stored.loggedUser } : null;
+    return stored.accessToken && stored.loggedUser
+      ? { accessToken: stored.accessToken, loggedUser: stored.loggedUser }
+      : null;
   } catch {
     localStorage.removeItem(MOCK_AUTH_STORAGE_KEY);
     return null;
@@ -340,7 +348,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(null);
         return;
       }
-
     };
 
     void restoreSupabaseAuth();
@@ -414,7 +421,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithGoogle = async (redirectPath = '/login?auth=google', rememberMe = false) => {
     sessionStorage.setItem(PENDING_REMEMBER_ME_KEY, rememberMe.toString());
-    
+
     // If the redirectPath includes an inviteCode parameter, let's store it in sessionStorage
     // so we can retrieve it on signup redirection
     if (redirectPath.includes('inviteCode=')) {
@@ -428,7 +435,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     window.location.href = `/api/v1/auth/google?redirect=${encodeURIComponent(origin)}`;
   };
 
-  const registerWithGoogle = async (data: { signupToken: string; displayName: string; invitationCode?: string }) => {
+  const registerWithGoogle = async (data: {
+    signupToken: string;
+    displayName: string;
+    invitationCode?: string;
+  }) => {
     setLoading(true);
     try {
       const response = await fetch('/api/v1/auth/google-register', {
@@ -467,7 +478,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           reject(new Error('Supabase session was not found.'));
         }, 10_000);
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        const {
+          data: { subscription },
+        } = supabase.auth.onAuthStateChange((event, session) => {
           if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.access_token) {
             window.clearTimeout(timer);
             subscription.unsubscribe();

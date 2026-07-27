@@ -20,6 +20,11 @@ export default defineConfig({
     port: 3000,
     strictPort: true,
     proxy: {
+      '/api/auth/callback/google': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace('/api/auth/callback/google', '/api/v1/auth/google/callback'),
+      },
       '/api': {
         target: 'http://localhost:3001',
         changeOrigin: true,
