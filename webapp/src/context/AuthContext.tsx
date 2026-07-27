@@ -303,6 +303,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const restoreSupabaseAuth = async () => {
       try {
+        if (new URLSearchParams(window.location.search).has('token')) {
+          setLoading(false);
+          return;
+        }
+
         if (new URLSearchParams(window.location.search).get('auth') !== 'google') {
           const restoredUser = await refreshRmsSession();
           if (restoredUser) return;
