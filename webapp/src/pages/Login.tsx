@@ -87,6 +87,8 @@ export const Login: React.FC = () => {
   }, [user, navigate]);
 
   useEffect(() => {
+    if (user) return;
+
     const errorParam = searchParams.get('error');
     if (errorParam) {
       setError(errorParam);
@@ -113,7 +115,7 @@ export const Login: React.FC = () => {
         setGoogleLoading(false);
       }
     }
-  }, [searchParams, rememberMe, loginWithToken]);
+  }, [searchParams, user, rememberMe, loginWithToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
