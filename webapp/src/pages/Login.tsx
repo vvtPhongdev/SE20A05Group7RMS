@@ -81,7 +81,6 @@ export const Login: React.FC = () => {
 
   useEffect(() => {
     if (user) {
-      console.log('[Login] User state active. Redirecting to:', getRoleHomePath(user.role));
       navigate(getRoleHomePath(user.role), { replace: true });
     }
   }, [user, navigate]);
@@ -99,14 +98,11 @@ export const Login: React.FC = () => {
     const token = searchParams.get('token');
     const userJson = searchParams.get('user');
 
-    console.log('[Login] Query params - rms_auth:', rmsAuth, 'token:', token ? 'exists' : 'null', 'user:', userJson);
-
     if (rmsAuth === 'google' && token && userJson) {
       setError(null);
       setGoogleLoading(true);
       try {
         const parsedUser = JSON.parse(userJson);
-        console.log('[Login] Google login payload parsed. Activating token session...');
         loginWithToken(token, parsedUser, undefined, rememberMe);
       } catch (err) {
         console.error('Failed to parse Google user session:', err);
@@ -160,11 +156,6 @@ export const Login: React.FC = () => {
 
   return (
     <div className="min-h-[100dvh] bg-[#f7f5f1] text-[var(--wr-text-primary)]">
-      {user && (
-        <div id="debug-auth-banner" className="fixed top-0 left-0 right-0 z-50 bg-green-600 text-white text-center py-2 font-semibold">
-          DEBUG: Logged in as {user.displayName} ({user.role}). Redirecting...
-        </div>
-      )}
       <main className="grid min-h-[100dvh] lg:grid-cols-[minmax(0,1.08fr)_minmax(430px,0.92fr)]">
         <section className="relative hidden overflow-hidden border-r border-[var(--wr-border-default)] bg-[#f7f5f1] px-10 py-8 lg:flex lg:flex-col xl:px-14">
           <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.72),rgba(245,242,237,0.2)_42%,rgba(43,122,142,0.08))]" />
