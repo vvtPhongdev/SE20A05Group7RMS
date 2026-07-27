@@ -21,7 +21,10 @@ export async function apiRequest<T>(
     headers.set('Content-Type', 'application/json');
   }
 
-  const apiBaseUrl = (import.meta.env.VITE_API_URL ?? import.meta.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/$/, '');
+  const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  const apiBaseUrl = isLocal
+    ? (import.meta.env.VITE_API_URL ?? import.meta.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/$/, '')
+    : '';
   const response = await fetch(`${apiBaseUrl}/api/v1${path}`, { ...init, headers });
   if (!response.ok) {
     const error = await response.json().catch(() => null);

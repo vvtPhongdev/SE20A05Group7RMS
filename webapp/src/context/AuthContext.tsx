@@ -402,12 +402,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return mockUser;
       }
 
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error || !data.session?.access_token) {
-        throw rmsAuthError;
-      }
-
-      return await exchangeSupabaseToken(data.session.access_token, rememberMe);
+      throw new Error(rmsAuthError);
     } catch (err) {
       const mockUser = MOCK_USERS[email.toLowerCase()];
       if (mockUser && password === 'Password123!') {
