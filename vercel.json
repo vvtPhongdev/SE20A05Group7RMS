@@ -1,12 +1,14 @@
 {
-  "cleanUrls": true,
+  "installCommand": "npm install",
+  "buildCommand": "npm run shared:build && npm run build -w webapp",
+  "outputDirectory": "webapp/dist",
   "rewrites": [
     {
       "source": "/api/:path*",
       "destination": "https://se20a05-group7-rms.fly.dev/api/:path*"
     },
     {
-      "source": "/:path*",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
