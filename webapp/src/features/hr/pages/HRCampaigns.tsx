@@ -87,7 +87,8 @@ const mapCampaign = (
   bachelorRequirements: string[] = [],
 ): Campaign => {
   const plan = item.overallPlan;
-  const status = item.status === 'COMPLETED' ? 'COMPLETED' : mapPlanStatus(plan);
+  const status =
+    item.status === 'COMPLETED' ? 'COMPLETED' : item.status === 'ACTIVE' ? 'ACTIVE' : mapPlanStatus(plan);
   const skills = (item.skillRequirements ?? {}) as Record<string, unknown>;
   const salaryMin = skills.salaryMin as string | number | undefined;
   const salaryMax = skills.salaryMax as string | number | undefined;
@@ -135,6 +136,12 @@ const statusConfig: Record<
     dot: 'bg-approved',
     badge: 'border-approved/20 bg-approved/10 text-approved',
     progress: 'bg-approved',
+  },
+  ACTIVE: {
+    label: 'ACTIVE',
+    dot: 'bg-teal-command',
+    badge: 'border-teal-command/20 bg-teal-command/10 text-teal-command',
+    progress: 'bg-teal-command',
   },
   DRAFT: {
     label: 'DRAFT',
