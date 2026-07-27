@@ -21,6 +21,16 @@ export class AuthController {
     return this.service.loginWithSupabase(data);
   }
 
+  @MessagePattern('auth.google-login')
+  async googleLogin(@Payload() data: { code: string; redirectOrigin: string }) {
+    return this.service.googleLogin(data.code, data.redirectOrigin);
+  }
+
+  @MessagePattern('auth.google-register')
+  async googleRegister(@Payload() data: { signupToken: string; displayName: string; invitationCode?: string }) {
+    return this.service.googleRegister(data);
+  }
+
   @MessagePattern('auth.supabase-register')
   async registerWithSupabase(@Payload() data: any) {
     return this.service.registerWithSupabase(data);

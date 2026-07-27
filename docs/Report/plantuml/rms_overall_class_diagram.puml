@@ -1,0 +1,140 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+title Works Recruiter RMS - Overall Class Diagram (Architectural View)
+
+package "Web application" {
+  class App
+  class AuthContext
+  class ApiClient
+}
+package "API Gateway" {
+  class IdentityController
+  class RecruitingController
+  class GatewayCvController
+  class InterviewController
+  class ProfilesController
+  class NotificationsController
+  class JwtAuthGuard
+}
+package "Identity service" {
+  class AuthController
+  class AuthService
+  class UsersService
+  class OrganizationsService
+  class DepartmentsService
+  class RedisService
+}
+package "Recruiting service" {
+  class RecruitmentRequestsController
+  class RecruitmentRequestsService
+  class ApplicationsService
+  class OverallPlanService
+  class TaskPlanService
+  class ReportsService
+  class CvScreeningService
+  class CvSearchService
+  class HiringDecisionService
+  class OfferLetterService
+}
+package "CV, profile and worker" {
+  class CvController
+  class CvService
+  class CandidateProfilesService
+  class DocumentsService
+  class EvidenceService
+  class CvParseProcessor
+  class AIParser
+  class StorageService
+}
+package "Interview and notifications" {
+  class SchedulesService
+  class InvitationsService
+  class InterviewResultService
+  class NotificationsService
+  class EmailTemplateService
+}
+package "Shared infrastructure" {
+  class PrismaService
+  class AuditLogService
+  class Queue
+  class NotificationClient
+}
+class User
+class Organization
+class Department
+class RecruitmentRequest
+class Application
+class CandidateCV
+class CandidateProfile
+class InterviewSchedule
+class InterviewResult
+class TaskPlan
+class OverallPlan
+class RequestLog
+class Notification
+
+App --> AuthContext
+App --> ApiClient
+ApiClient --> IdentityController
+ApiClient --> RecruitingController
+ApiClient --> GatewayCvController
+ApiClient --> InterviewController
+ApiClient --> ProfilesController
+ApiClient --> NotificationsController
+JwtAuthGuard ..> IdentityController
+IdentityController --> AuthController
+AuthController --> AuthService
+AuthService --> UsersService
+AuthService --> RedisService
+AuthService --> PrismaService
+RecruitingController --> RecruitmentRequestsController
+RecruitmentRequestsController --> RecruitmentRequestsService
+RecruitmentRequestsService --> ApplicationsService
+RecruitmentRequestsService --> TaskPlanService
+RecruitmentRequestsService --> NotificationClient
+RecruitmentRequestsService --> PrismaService
+GatewayCvController --> CvController
+CvController --> CvService
+CvService --> PrismaService
+CvService --> Queue
+Queue --> CvParseProcessor
+CvParseProcessor --> AIParser
+CvParseProcessor --> StorageService
+CvParseProcessor --> PrismaService
+ProfilesController --> CandidateProfilesService
+CandidateProfilesService --> DocumentsService
+CandidateProfilesService --> EvidenceService
+InterviewController --> SchedulesService
+InterviewController --> InterviewResultService
+InterviewResultService --> NotificationClient
+InterviewResultService --> AuditLogService
+InterviewResultService --> PrismaService
+NotificationsController --> NotificationsService
+NotificationsService --> EmailTemplateService
+NotificationsService --> PrismaService
+UsersService --> User
+OrganizationsService --> Organization
+DepartmentsService --> Department
+RecruitmentRequestsService --> RecruitmentRequest
+ApplicationsService --> Application
+CvService --> CandidateCV
+CandidateProfilesService --> CandidateProfile
+SchedulesService --> InterviewSchedule
+InterviewResultService --> InterviewResult
+TaskPlanService --> TaskPlan
+OverallPlanService --> OverallPlan
+RecruitmentRequestsService --> RequestLog
+NotificationsService --> Notification
+Organization "1" o-- "*" Department
+Organization "1" o-- "*" User
+Department "1" o-- "*" RecruitmentRequest
+RecruitmentRequest "1" o-- "*" Application
+Application "1" o-- "*" InterviewSchedule
+InterviewSchedule "1" o-- "*" InterviewResult
+User "1" o-- "0..1" CandidateProfile
+CandidateProfile "1" o-- "*" CandidateCV
+RecruitmentRequest "1" o-- "*" TaskPlan
+OverallPlan "1" o-- "*" RecruitmentRequest
+@enduml

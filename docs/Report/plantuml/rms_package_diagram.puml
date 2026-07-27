@@ -1,0 +1,26 @@
+@startuml
+skinparam packageStyle rectangle
+title Works Recruiter RMS - Package Diagram
+package "webapp (React/Vite)" as web
+package "gateway (NestJS REST API)" as gateway
+package "identity service" as identity
+package "recruiting service" as recruiting
+package "CV service" as cv
+package "interview service" as interview
+package "notification service" as notification
+package "worker" as worker
+package "shared packages" as shared { [database] [contracts] [ai] [storage] [queue] [config] [logger] }
+web --> gateway : HTTPS /api
+gateway --> identity : TCP messages
+gateway --> recruiting : TCP messages
+gateway --> cv : TCP messages
+gateway --> interview : TCP messages
+gateway --> notification : TCP messages
+recruiting ..> shared
+cv ..> shared
+interview ..> shared
+identity ..> shared
+worker ..> shared
+worker --> cv : parse job result
+recruiting --> notification : events
+@enduml

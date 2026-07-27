@@ -1,0 +1,23 @@
+@startuml
+title CV Upload and AI Parsing - Sequence Diagram
+actor Candidate
+participant WebApp
+participant Gateway
+participant Storage
+participant CvService
+queue Queue
+participant Worker
+participant AI
+database PostgreSQL
+Candidate -> WebApp : upload CV file
+WebApp -> Gateway : multipart upload
+Gateway -> Storage : save file
+Gateway -> CvService : create CV metadata (PENDING)
+CvService -> PostgreSQL : insert CandidateCV
+Gateway -> Queue : enqueue CV_PARSE job
+Queue -> Worker : processCvParseJob
+Worker -> Storage : download file
+Worker -> AI : extract text + structured data
+Worker -> PostgreSQL : update parsed data, search text, status
+Worker --> WebApp : status becomes completed (poll/reload)
+@enduml

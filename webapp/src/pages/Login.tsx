@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getRoleHomePath } from '../lib/auth';
-import { getErrorMessage, getErrorMetadata } from '../lib/errors';
+import { getErrorMessage } from '../lib/errors';
 
 const pipelineStages = [
   { label: 'Approved', value: '93.4%', width: '93.4%', tone: 'bg-[var(--wr-success)]' },
@@ -66,7 +66,7 @@ const RecruiterLogo = () => (
 );
 
 export const Login: React.FC = () => {
-  const { login, signInWithGoogle, completeSupabaseLogin } = useAuth();
+  const { login, signInWithGoogle, loginWithToken } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
@@ -77,34 +77,34 @@ export const Login: React.FC = () => {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
-  const authMode = searchParams.get('auth');
   const passwordResetSucceeded = searchParams.get('passwordReset') === 'success';
 
   useEffect(() => {
-    if (authMode !== 'google') return;
+    const errorParam = searchParams.get('error');
+    if (errorParam) {
+      setError(errorParam);
+      return;
+    }
 
-    const completeGoogleLogin = async () => {
+    const rmsAuth = searchParams.get('rms_auth');
+    const token = searchParams.get('token');
+    const userJson = searchParams.get('user');
+
+    if (rmsAuth === 'google' && token && userJson) {
       setError(null);
       setGoogleLoading(true);
-
       try {
-        const loggedUser = await completeSupabaseLogin();
-        navigate(getRoleHomePath(loggedUser.role), { replace: true });
-      } catch (err: unknown) {
-        const authError = getErrorMetadata(err);
-        if (authError.status === 404 || authError.code === 'RMS_ACCOUNT_NOT_REGISTERED') {
-          navigate('/signup?auth=google', { replace: true });
-          return;
-        }
-
-        setError(getErrorMessage(err, 'Google sign-in failed. Please try again.'));
+        const parsedUser = JSON.parse(userJson);
+        loginWithToken(token, parsedUser, undefined, rememberMe);
+        navigate(getRoleHomePath(parsedUser.role), { replace: true });
+      } catch (err) {
+        console.error('Failed to parse Google user session:', err);
+        setError('Google sign-in failed. Invalid session payload.');
       } finally {
         setGoogleLoading(false);
       }
-    };
-
-    void completeGoogleLogin();
-  }, [authMode, navigate, rememberMe]);
+    }
+  }, [searchParams, navigate, rememberMe, loginWithToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

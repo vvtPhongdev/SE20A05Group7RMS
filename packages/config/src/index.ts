@@ -37,6 +37,9 @@ export const GatewayEnvSchema = BaseEnvSchema.extend({
   RATE_LIMIT_TTL: z.coerce.number().int().default(60000),
   RATE_LIMIT_LIMIT: z.coerce.number().int().default(100),
   RATE_LIMIT_AUTH_LIMIT: z.coerce.number().int().default(10),
+  GOOGLE_CLIENT_ID: z.string().default(''),
+  GOOGLE_CLIENT_SECRET: z.string().default(''),
+  GOOGLE_REDIRECT_URL: z.string().default(''),
 });
 
 // ─── Identity Service Environment ───────────────────────────────────

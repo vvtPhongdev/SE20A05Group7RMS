@@ -766,6 +766,157 @@ export class AuthService implements OnModuleDestroy {
     return this.issueRmsTokens(user);
   }
 
+  async googleLogin(code: string, redirectOrigin: string) {
+    const tokenUrl = 'https://oauth2.googleapis.com/token';
+    const body = new URLSearchParams({
+      code,
+      client_id: config.GOOGLE_CLIENT_ID,
+      client_secret: config.GOOGLE_CLIENT_SECRET,
+      redirect_uri: redirectOrigin,
+      grant_type: 'authorization_code',
+    });
+
+    const tokenResponse = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      console.error('Failed to exchange Google OAuth code:', errorText);
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'Failed to authenticate with Google. Invalid authorization code.',
+      });
+    }
+
+    const tokenData = (await tokenResponse.json()) as { access_token: string; id_token?: string };
+
+    const userinfoUrl = 'https://www.googleapis.com/oauth2/v2/userinfo';
+    const userinfoResponse = await fetch(userinfoUrl, {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+
+    if (!userinfoResponse.ok) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'Failed to fetch user profile info from Google.',
+      });
+    }
+
+    const userinfo = (await userinfoResponse.json()) as {
+      email: string;
+      name?: string;
+      given_name?: string;
+      family_name?: string;
+      picture?: string;
+    };
+
+    const email = userinfo.email.toLowerCase();
+    const displayName = userinfo.name || `${userinfo.given_name || ''} ${userinfo.family_name || ''}`.trim() || 'Google User';
+
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      const signupToken = this.jwtService.sign(
+        { email, displayName, signup: true },
+        { secret: config.JWT_SECRET, expiresIn: '15m' },
+      );
+      return {
+        success: false,
+        signupToken,
+        email,
+        displayName,
+      };
+    }
+
+    if (!user.isActive) {
+      throw new RpcException({
+        status: HttpStatus.FORBIDDEN,
+        message: 'This RMS account is not active yet.',
+      });
+    }
+
+    const tokens = await this.issueRmsTokens(user);
+    return {
+      success: true,
+      ...tokens,
+    };
+  }
+
+  async googleRegister(dto: { signupToken: string; displayName: string; invitationCode?: string }) {
+    let payload: any;
+    try {
+      payload = this.jwtService.verify(dto.signupToken, { secret: config.JWT_SECRET });
+    } catch {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'Signup token has expired or is invalid. Please sign in with Google again.',
+      });
+    }
+
+    if (!payload.signup || !payload.email) {
+      throw new RpcException({
+        status: HttpStatus.BAD_REQUEST,
+        message: 'Invalid signup token payload.',
+      });
+    }
+
+    const email = payload.email.toLowerCase();
+    const existing = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existing?.isActive) {
+      throw new RpcException({
+        status: HttpStatus.CONFLICT,
+        message: 'An active account already exists with this email.',
+      });
+    }
+
+    const assignment = await this.getRegistrationAssignment(email, dto.invitationCode);
+    const displayName = dto.displayName.trim() || payload.displayName || 'Google User';
+
+    const user = existing
+      ? await this.prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            displayName,
+            role: assignment.role,
+            organizationId: assignment.organizationId,
+            departmentId: assignment.departmentId,
+            passwordHash: null,
+            isActive: true,
+          },
+        })
+      : await this.prisma.user.create({
+          data: {
+            email,
+            displayName,
+            role: assignment.role,
+            passwordHash: null,
+            organizationId: assignment.organizationId,
+            departmentId: assignment.departmentId,
+            isActive: true,
+          },
+        });
+
+    if (assignment.invitationCode) {
+      const acceptedInvitation = await this.prisma.organizationInvitation.update({
+        where: { code: assignment.invitationCode },
+        data: { acceptedAt: new Date() },
+      });
+      await this.prisma.organizationInvitationAudit.create({
+        data: { invitationId: acceptedInvitation.id, actorId: user.id, action: 'ACCEPTED' },
+      });
+    }
+
+    return this.issueRmsTokens(user);
+  }
+
   async registerWithSupabase(dto: SupabaseRegisterInput): Promise<{ success: boolean; email: string }> {
     const parsed = SupabaseRegisterSchema.parse(dto);
     const identity = await this.getVerifiedSupabaseIdentity(parsed.accessToken);

@@ -1,0 +1,21 @@
+@startuml
+title Finalize Interview Evaluation - Sequence Diagram
+actor HR
+participant WebApp
+participant Gateway
+participant InterviewController
+participant InterviewResultService as ResultService
+database PostgreSQL
+participant NotificationService
+HR -> WebApp : submit panel scores and recommendation
+WebApp -> Gateway : POST /interviews/{id}/results
+Gateway -> InterviewController : recordResult(payload)
+InterviewController -> ResultService : recordResult(payload)
+ResultService -> PostgreSQL : validate schedule, evaluator and application
+ResultService -> PostgreSQL : upsert InterviewResult records
+ResultService -> PostgreSQL : complete schedule and update application/request
+ResultService -> PostgreSQL : transaction + RequestLog
+ResultService -> NotificationService : notify Admin and Dept Head
+ResultService --> Gateway : success
+Gateway --> WebApp : result recorded
+@enduml

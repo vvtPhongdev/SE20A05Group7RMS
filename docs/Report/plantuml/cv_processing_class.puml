@@ -1,0 +1,17 @@
+@startuml
+title CV Upload, Parsing and Screening - Class Diagram
+class GatewayCvController { +uploadMine() +createFromStorage() +search() }
+class CvController { +create(dto) +updateStatus(dto) }
+class CvService { +create(payload) +findByCandidate(payload) }
+class CvParseProcessor { +processCvParseJob(payload) }
+class StorageService { +uploadFile() +getSignedUrl() }
+class AIParser { +extractTextFromBuffer() +extractCvWithAi() +buildCvSearchText() }
+class PrismaService
+GatewayCvController --> CvController
+CvController --> CvService
+CvService --> PrismaService
+GatewayCvController --> StorageService
+CvParseProcessor --> StorageService
+CvParseProcessor --> AIParser
+CvParseProcessor --> PrismaService
+@enduml

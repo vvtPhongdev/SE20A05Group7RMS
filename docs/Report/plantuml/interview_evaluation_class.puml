@@ -1,0 +1,20 @@
+@startuml
+title Interview Evaluation and Recommendation - Class Diagram
+class InterviewController { +recordResult(payload) +recordPersonalFeedback(payload) }
+class InterviewResultService { +recordResult(payload) +recordPersonalFeedback(payload) +saveEvaluationDraft(payload) }
+class PrismaService
+class AuditLogService { +log(event) }
+class NotificationClient { +send(pattern,payload) }
+class InterviewSchedule
+class InterviewResult
+class Application
+class RecruitmentRequest
+InterviewController --> InterviewResultService
+InterviewResultService --> PrismaService
+InterviewResultService --> AuditLogService
+InterviewResultService --> NotificationClient
+InterviewResultService --> InterviewSchedule
+InterviewResultService --> InterviewResult
+InterviewResultService --> Application
+InterviewResultService --> RecruitmentRequest
+@enduml

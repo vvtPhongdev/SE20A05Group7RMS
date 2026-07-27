@@ -1,8 +1,8 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getRoleHomePath } from '../lib/auth';
-import { getErrorMessage, getErrorMetadata } from '../lib/errors';
+import { getErrorMessage } from '../lib/errors';
 
 const onboardingSignals = [
   ['3.4d', 'median approval setup'],
@@ -77,10 +77,9 @@ export const SignUp: React.FC = () => {
   const {
     loginWithToken,
     signInWithGoogle,
-    completeSupabaseLogin,
-    registerWithSupabaseSession,
-    getSupabaseProfile,
+    registerWithGoogle,
   } = useAuth();
+  const [signupToken, setSignupToken] = useState('');
   const [otpDigits, setOtpDigits] = useState<string[]>(Array(6).fill(''));
   const [otpSecondsLeft, setOtpSecondsLeft] = useState(272);
   const [otpError, setOtpError] = useState<string | null>(null);
@@ -146,32 +145,23 @@ export const SignUp: React.FC = () => {
   useEffect(() => {
     if (authMode !== 'google') return;
 
-    const prepareGoogleSignup = async () => {
-      setError(null);
-      setGoogleLoading(true);
+    setError(null);
+    const emailParam = searchParams.get('email');
+    const nameParam = searchParams.get('name');
+    const tokenParam = searchParams.get('token');
 
-      try {
-        const profile = await getSupabaseProfile();
-        if (profile) {
-          setEmail(profile.email);
-          setFullName((current) => current || profile.displayName);
-          setIsGoogleSignup(true);
-        }
+    if (emailParam) setEmail(emailParam);
+    if (nameParam) setFullName((current) => current || nameParam);
+    if (tokenParam) setSignupToken(tokenParam);
+    setIsGoogleSignup(true);
 
-        const loggedUser = await completeSupabaseLogin();
-        navigate(getRoleHomePath(loggedUser.role), { replace: true });
-      } catch (err: unknown) {
-        const authError = getErrorMetadata(err);
-        if (authError.status !== 404 && authError.code !== 'RMS_ACCOUNT_NOT_REGISTERED') {
-          setError(getErrorMessage(err, 'Google sign-up could not be completed.'));
-        }
-      } finally {
-        setGoogleLoading(false);
-      }
-    };
-
-    void prepareGoogleSignup();
-  }, [authMode, navigate]);
+    // Retrieve pending invite code from sessionStorage if any
+    const pendingInviteCode = sessionStorage.getItem('pending_invite_code');
+    if (pendingInviteCode) {
+      setOrganization(pendingInviteCode);
+      sessionStorage.removeItem('pending_invite_code');
+    }
+  }, [authMode, searchParams]);
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -344,13 +334,12 @@ export const SignUp: React.FC = () => {
 
     try {
       if (isGoogleSignup) {
-        const loggedUser = await registerWithSupabaseSession({
+        const loggedUser = await registerWithGoogle({
+          signupToken,
           displayName: normalizedFullName,
           invitationCode: organization.trim() || undefined,
         });
-        setEmail(loggedUser.email);
-        setOtpSecondsLeft(272);
-        setSubmitted(true);
+        navigate(getRoleHomePath(loggedUser.role), { replace: true });
         return;
       }
 

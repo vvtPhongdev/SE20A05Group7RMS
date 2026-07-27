@@ -37,6 +37,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<User>;
   signInWithGoogle: (redirectPath?: string, rememberMe?: boolean) => Promise<void>;
+  registerWithGoogle: (data: { signupToken: string; displayName: string; invitationCode?: string }) => Promise<User>;
   completeSupabaseLogin: (rememberMe?: boolean) => Promise<User>;
   registerWithSupabaseSession: (data: SupabaseRegisterData) => Promise<{ success: boolean; email: string }>;
   getSupabaseProfile: () => Promise<{ email: string; displayName: string } | null>;
@@ -413,18 +414,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithGoogle = async (redirectPath = '/login?auth=google', rememberMe = false) => {
     sessionStorage.setItem(PENDING_REMEMBER_ME_KEY, rememberMe.toString());
-    const redirectTo = `${window.location.origin}${redirectPath}`;
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo,
-        queryParams: { prompt: 'select_account' },
-      },
-    });
+    
+    // If the redirectPath includes an inviteCode parameter, let's store it in sessionStorage
+    // so we can retrieve it on signup redirection
+    if (redirectPath.includes('inviteCode=')) {
+      const inviteCodeMatch = redirectPath.match(/[?&]inviteCode=([^&]+)/);
+      if (inviteCodeMatch?.[1]) {
+        sessionStorage.setItem('pending_invite_code', decodeURIComponent(inviteCodeMatch[1]));
+      }
+    }
 
-    if (error) {
-      sessionStorage.removeItem(PENDING_REMEMBER_ME_KEY);
-      throw new Error(error.message);
+    const origin = window.location.origin;
+    window.location.href = `/api/v1/auth/google?redirect=${encodeURIComponent(origin)}`;
+  };
+
+  const registerWithGoogle = async (data: { signupToken: string; displayName: string; invitationCode?: string }) => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/v1/auth/google-register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw await readAuthError(response);
+      }
+
+      return await saveAuthResponse(await response.json());
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -552,6 +571,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading,
         login,
         signInWithGoogle,
+        registerWithGoogle,
         completeSupabaseLogin,
         registerWithSupabaseSession,
         getSupabaseProfile,

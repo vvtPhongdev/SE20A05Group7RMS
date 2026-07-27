@@ -1,0 +1,16 @@
+@startuml
+title Authentication and Account Lifecycle - Class Diagram
+class IdentityController { +login(payload) +register(payload) +refresh(payload) +logout(payload) }
+class AuthController { +login(data) +register(data) +refresh(data) +forgotPassword(data) +resetPassword(data) }
+class AuthService { +login(payload) +register(payload) +refresh(payload) +logout(payload) -issueRmsTokens(user) -storeRefreshToken(hash,userId) }
+class PrismaService
+class JwtService { +sign(payload) }
+class Redis { +set(key,value,EX,ttl) +get(key) +del(key) }
+class SupabaseClient
+IdentityController --> AuthController : ClientProxy.send()
+AuthController --> AuthService
+AuthService --> PrismaService : User / Invitation
+AuthService --> JwtService
+AuthService --> Redis : refresh token hash
+AuthService --> SupabaseClient : social identity
+@enduml

@@ -1,0 +1,20 @@
+@startuml
+title Login with RMS Credentials - Sequence Diagram
+actor User
+participant WebApp
+participant IdentityGateway as Gateway
+participant AuthController
+participant AuthService
+database PostgreSQL
+database Redis
+User -> WebApp : submit email and password
+WebApp -> Gateway : POST /api/auth/login
+Gateway -> AuthController : auth.login(payload)
+AuthController -> AuthService : login(payload)
+AuthService -> PostgreSQL : find User and verify password
+AuthService -> Redis : store SHA-256(refreshToken), TTL 30 days
+AuthService --> AuthController : accessToken, refreshToken, user
+AuthController --> Gateway : RPC response
+Gateway --> WebApp : 200 token response
+WebApp --> User : role-aware session starts
+@enduml

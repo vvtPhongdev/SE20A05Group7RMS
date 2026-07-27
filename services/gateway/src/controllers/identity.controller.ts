@@ -1,4 +1,4 @@
-﻿import {
+import {
   Controller,
   Get,
   Post,
@@ -574,6 +574,23 @@ export class CreateGoogleMeetDto {
   reminderMinutesBefore?: number;
 }
 
+export class GoogleRegisterDto {
+  @ApiProperty({ description: 'Signup token containing verified email' })
+  @IsString()
+  @IsNotEmpty()
+  signupToken!: string;
+
+  @ApiProperty({ example: 'John Doe', description: 'Display name' })
+  @IsString()
+  @IsNotEmpty()
+  displayName!: string;
+
+  @ApiProperty({ required: false, description: 'Invitation code' })
+  @IsOptional()
+  @IsString()
+  invitationCode?: string;
+}
+
 /**
  * Thin proxy controller for Identity service (auth + users).
  * All business logic lives in services/identity.
@@ -660,6 +677,83 @@ export class IdentityController {
   async login(@Body() body: LoginDto, @Res({ passthrough: true }) response: Response) {
     const result = await firstValueFrom(this.identityClient.send('auth.login', body));
     return this.sendAuthResponse(response, result, body.rememberMe === true);
+  }
+
+  @Get('auth/google')
+  @Public()
+  async googleLogin(@Query('redirect') redirect: string, @Res() response: Response) {
+    const redirectOrigin = redirect || 'http://localhost:3000';
+    const redirectUri = redirectOrigin.includes('localhost') 
+      ? 'http://localhost:3001/api/v1/auth/google/callback' 
+      : appConfig.GOOGLE_REDIRECT_URL;
+
+    const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${
+      appConfig.GOOGLE_CLIENT_ID
+    }&redirect_uri=${encodeURIComponent(
+      redirectUri,
+    )}&response_type=code&scope=email%20profile%20openid&state=${encodeURIComponent(
+      redirectOrigin,
+    )}&prompt=select_account`;
+    
+    return response.redirect(googleAuthUrl);
+  }
+
+  @Get('auth/google/callback')
+  @Public()
+  async googleCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Res({ passthrough: false }) response: Response,
+  ) {
+    if (!code) {
+      throw new BadRequestException('Authorization code is missing');
+    }
+
+    const redirectOrigin = state || 'http://localhost:3000';
+    const redirectUri = redirectOrigin.includes('localhost') 
+      ? 'http://localhost:3001/api/v1/auth/google/callback' 
+      : appConfig.GOOGLE_REDIRECT_URL;
+
+    try {
+      const result = await firstValueFrom(
+        this.identityClient.send('auth.google-login', { code, redirectOrigin: redirectUri }),
+      );
+
+      if (result.success && result.accessToken && result.user) {
+        this.setRefreshSession(response, result.refreshToken, true);
+        return response.redirect(
+          `${redirectOrigin}/login?token=${encodeURIComponent(result.accessToken)}&user=${encodeURIComponent(
+            JSON.stringify(result.user),
+          )}&rms_auth=google`,
+        );
+      }
+
+      if (result.email) {
+        return response.redirect(
+          `${redirectOrigin}/signup?auth=google&token=${encodeURIComponent(
+            result.signupToken || '',
+          )}&email=${encodeURIComponent(result.email)}&name=${encodeURIComponent(
+            result.displayName || '',
+          )}`,
+        );
+      }
+
+      throw new BadRequestException('Google authentication failed');
+    } catch (err: any) {
+      console.error('Google Callback Error:', err.message);
+      return response.redirect(`${redirectOrigin}/login?error=${encodeURIComponent(err.message || 'Google login failed')}`);
+    }
+  }
+
+  @Post('auth/google-register')
+  @Public()
+  @HttpCode(HttpStatus.CREATED)
+  async googleRegister(
+    @Body() body: GoogleRegisterDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await firstValueFrom(this.identityClient.send('auth.google-register', body));
+    return this.sendAuthResponse(response, result, true);
   }
 
   @Post('auth/supabase-login')

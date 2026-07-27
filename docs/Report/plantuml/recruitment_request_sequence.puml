@@ -1,0 +1,20 @@
+@startuml
+title Submit and Review a Recruitment Request - Sequence Diagram
+actor DepartmentHead as DeptHead
+participant WebApp
+participant Gateway
+participant RequestController
+participant RequestService
+database PostgreSQL
+participant NotificationService
+DeptHead -> WebApp : submit request
+WebApp -> Gateway : POST /recruitment-requests/{id}/submit
+Gateway -> RequestController : RPC command
+RequestController -> RequestService : submit(payload)
+RequestService -> PostgreSQL : validate owner and current status
+RequestService -> PostgreSQL : update request + create RequestLog
+RequestService -> NotificationService : notify HR/Admin
+RequestService --> RequestController : updated request
+RequestController --> Gateway : response
+Gateway --> WebApp : 200 / updated status
+@enduml

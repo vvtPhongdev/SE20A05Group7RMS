@@ -1,0 +1,16 @@
+@startuml
+title Recruitment Request Lifecycle - Class Diagram
+class RecruitmentRequestsController { +create(dto) +submit(id) +review(id) +approve(id) +reject(id) }
+class RecruitmentRequestsService { +create(payload) +submit(payload) +review(payload) +decide(payload) -writeLog(...) }
+class PrismaService
+class NotificationClient
+class AuditLogService
+class RecruitmentRequest
+class RequestLog
+RecruitmentRequestsController --> RecruitmentRequestsService
+RecruitmentRequestsService --> PrismaService
+RecruitmentRequestsService --> NotificationClient
+RecruitmentRequestsService --> AuditLogService
+RecruitmentRequestsService --> RecruitmentRequest
+RecruitmentRequestsService --> RequestLog
+@enduml
