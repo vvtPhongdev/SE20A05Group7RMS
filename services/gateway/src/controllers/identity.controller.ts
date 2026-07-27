@@ -586,8 +586,8 @@ export class IdentityController {
   private setRefreshSession(response: Response, refreshToken: string, rememberMe: boolean) {
     const options = {
       httpOnly: true,
-      secure: appConfig.NODE_ENV === 'production',
-      sameSite: 'lax' as const,
+      secure: appConfig.NODE_ENV === 'production' || appConfig.AUTH_COOKIE_SAME_SITE === 'none',
+      sameSite: appConfig.AUTH_COOKIE_SAME_SITE,
       path: '/api/v1/auth',
       ...(rememberMe ? { maxAge: REMEMBER_ME_MAX_AGE_MS } : {}),
     };
@@ -598,8 +598,8 @@ export class IdentityController {
     } else {
       response.clearCookie(RMS_REMEMBER_COOKIE, {
         httpOnly: true,
-        secure: appConfig.NODE_ENV === 'production',
-        sameSite: 'lax' as const,
+        secure: appConfig.NODE_ENV === 'production' || appConfig.AUTH_COOKIE_SAME_SITE === 'none',
+        sameSite: appConfig.AUTH_COOKIE_SAME_SITE,
         path: '/api/v1/auth',
       });
     }
@@ -608,8 +608,8 @@ export class IdentityController {
   private clearRefreshSession(response: Response) {
     const options = {
       httpOnly: true,
-      secure: appConfig.NODE_ENV === 'production',
-      sameSite: 'lax' as const,
+      secure: appConfig.NODE_ENV === 'production' || appConfig.AUTH_COOKIE_SAME_SITE === 'none',
+      sameSite: appConfig.AUTH_COOKIE_SAME_SITE,
       path: '/api/v1/auth',
     };
     response.clearCookie(RMS_REFRESH_COOKIE, options);

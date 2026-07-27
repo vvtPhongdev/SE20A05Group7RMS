@@ -1,0 +1,33 @@
+global:
+  imageRegistry: ""
+  imageTag: latest
+  imagePullPolicy: IfNotPresent
+  runtimeSecretName: rms-runtime-secrets
+
+services:
+  gateway:
+    port: 3001
+    replicas: 2
+    service: true
+    public: false
+    env:
+      IDENTITY_HOST: identity
+      RECRUITING_HOST: recruiting
+      PROFILES_HOST: profiles
+      NOTIFICATION_HOST: notification
+      CV_HOST: cv
+      INTERVIEW_HOST: interview
+  identity: { port: 3010, replicas: 1, service: true }
+  recruiting: { port: 3011, replicas: 1, service: true }
+  profiles: { port: 3012, replicas: 1, service: true }
+  notification: { port: 3013, replicas: 1, service: true }
+  cv: { port: 3014, replicas: 1, service: true }
+  interview: { port: 3015, replicas: 1, service: true }
+  worker: { replicas: 1, service: false }
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi

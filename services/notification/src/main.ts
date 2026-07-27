@@ -16,7 +16,7 @@ const PORT = appConfig.NOTIFICATION_PORT;
 async function bootstrap() {
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(NotificationModule, {
     transport: Transport.TCP,
-    options: { host: '127.0.0.1', port: PORT },
+    options: { host: '0.0.0.0', port: PORT },
     logger: new PinoLogger('notification', appConfig.LOG_LEVEL),
   });
 

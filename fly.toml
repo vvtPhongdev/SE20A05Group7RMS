@@ -1,0 +1,29 @@
+# fly.toml app configuration file generated for se20a05-group7-rms
+
+app = "se20a05-group7-rms"
+primary_region = "sin"
+
+[build]
+  dockerfile = "docker/Dockerfile.monolith"
+
+[env]
+  NODE_ENV = "production"
+  # Default hosts for internal microservices communication in the shared monolith container
+  IDENTITY_HOST = "127.0.0.1"
+  RECRUITING_HOST = "127.0.0.1"
+  PROFILES_HOST = "127.0.0.1"
+  NOTIFICATION_HOST = "127.0.0.1"
+  CV_HOST = "127.0.0.1"
+  INTERVIEW_HOST = "127.0.0.1"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "2gb" # Allocating 2GB RAM to safely accommodate the multi-process monolith backend

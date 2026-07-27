@@ -1,0 +1,6 @@
+Create the runtime secret before installing this chart:
+
+kubectl -n {{ .Release.Namespace }} create secret generic {{ .Values.global.runtimeSecretName }} \
+  --from-env-file=.env.production
+
+Expose the gateway through an Ingress or API Gateway, then set that public API URL in Vercel.

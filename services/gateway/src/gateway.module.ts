@@ -35,32 +35,32 @@ import { config as appConfig } from './config';
       {
         name: SERVICE_TOKENS.IDENTITY,
         customClass: CorrelationClientTCP as any,
-        options: { host: '127.0.0.1', port: SERVICE_PORTS.IDENTITY },
+        options: { host: appConfig.IDENTITY_HOST, port: SERVICE_PORTS.IDENTITY },
       },
       {
         name: SERVICE_TOKENS.RECRUITING,
         customClass: CorrelationClientTCP as any,
-        options: { host: '127.0.0.1', port: SERVICE_PORTS.RECRUITING },
+        options: { host: appConfig.RECRUITING_HOST, port: SERVICE_PORTS.RECRUITING },
       },
       {
         name: SERVICE_TOKENS.PROFILES,
         customClass: CorrelationClientTCP as any,
-        options: { host: '127.0.0.1', port: SERVICE_PORTS.PROFILES },
+        options: { host: appConfig.PROFILES_HOST, port: SERVICE_PORTS.PROFILES },
       },
       {
         name: SERVICE_TOKENS.NOTIFICATION,
         customClass: CorrelationClientTCP as any,
-        options: { host: '127.0.0.1', port: SERVICE_PORTS.NOTIFICATION },
+        options: { host: appConfig.NOTIFICATION_HOST, port: SERVICE_PORTS.NOTIFICATION },
       },
       {
         name: SERVICE_TOKENS.CV,
         customClass: CorrelationClientTCP as any,
-        options: { host: '127.0.0.1', port: SERVICE_PORTS.CV },
+        options: { host: appConfig.CV_HOST, port: SERVICE_PORTS.CV },
       },
       {
         name: SERVICE_TOKENS.INTERVIEW,
         customClass: CorrelationClientTCP as any,
-        options: { host: '127.0.0.1', port: SERVICE_PORTS.INTERVIEW },
+        options: { host: appConfig.INTERVIEW_HOST, port: SERVICE_PORTS.INTERVIEW },
       },
     ]),
   ],

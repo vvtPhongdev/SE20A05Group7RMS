@@ -16,7 +16,7 @@ const PORT = appConfig.IDENTITY_PORT;
 async function bootstrap() {
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(IdentityModule, {
     transport: Transport.TCP,
-    options: { host: '127.0.0.1', port: PORT },
+    options: { host: '0.0.0.0', port: PORT },
     logger: new PinoLogger('identity', appConfig.LOG_LEVEL),
   });
 
