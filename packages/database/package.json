@@ -11,7 +11,7 @@
     }
   },
   "scripts": {
-    "build": "tsc --build",
+    "build": "prisma generate && tsc --build",
     "clean": "rm -rf dist .turbo",
     "typecheck": "tsc --noEmit",
     "lint": "echo 'lint ok'",
