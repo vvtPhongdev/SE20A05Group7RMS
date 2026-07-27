@@ -104,3 +104,5 @@ docs/Report/AI_Evidence/*.md
 **/.codex-tmp/**
 **/.tmp/**
 **/CVSample/**
+.vercel
+.env*
