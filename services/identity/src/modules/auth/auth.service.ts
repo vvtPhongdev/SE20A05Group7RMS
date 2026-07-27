@@ -933,7 +933,7 @@ export class AuthService implements OnModuleDestroy {
       auth: userAuth && passAuth ? { user: userAuth, pass: passAuth } : undefined,
     });
 
-    const webappUrl = config.API_CORS_ORIGIN;
+    const webappUrl = (config.API_CORS_ORIGIN.split(',')[0] ?? '').trim().replace(/\/$/, '');
     const resetPath = parsed.redirectPath ?? '/reset-password';
     const resetLink = `${webappUrl}${resetPath}?email=${encodeURIComponent(email)}&token=${token}`;
 

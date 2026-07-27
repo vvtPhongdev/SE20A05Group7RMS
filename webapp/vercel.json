@@ -4,6 +4,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://se20a05-group7-rms.fly.dev/api/:path*"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
     }
   ]
 }
