@@ -77,6 +77,7 @@ const PROGRESS_BY_STATUS: Record<PlanStatus, number> = {
   DRAFT: 0,
   PENDING_APPROVAL: 10,
   APPROVED: 50,
+  ACTIVE: 60,
   REVISION_REQUIRED: 30,
   COMPLETED: 100,
 };

@@ -1,6 +1,7 @@
 export type PlanStatus =
   | 'PENDING_APPROVAL'
   | 'APPROVED'
+  | 'ACTIVE'
   | 'DRAFT'
   | 'REVISION_REQUIRED'
   | 'COMPLETED';

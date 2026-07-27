@@ -217,6 +217,11 @@ const statusConfig: Record<PlanStatus, { label: string; dot: string; badge: stri
     dot: 'bg-approved',
     badge: 'border-approved/20 bg-approved/10 text-approved',
   },
+  ACTIVE: {
+    label: 'ACTIVE',
+    dot: 'bg-teal-command',
+    badge: 'border-teal-command/20 bg-teal-command/10 text-teal-command',
+  },
   DRAFT: { label: 'DRAFT', dot: 'bg-draft', badge: 'border-draft/20 bg-draft/10 text-draft' },
   REVISION_REQUIRED: {
     label: 'REVISION_REQUIRED',
@@ -522,7 +527,9 @@ export const HRCampaignDetail: React.FC = () => {
       position: request.position,
       department: request.department?.name ?? 'Unassigned',
       headcount: request.headcount,
-      status: mapPlanStatus(plan),
+      // The plan remains APPROVED as the execution authorization, while the
+      // campaign itself becomes ACTIVE once its recruitment request starts.
+      status: request.status === 'ACTIVE' ? 'ACTIVE' : mapPlanStatus(plan),
       window: plan ? `${formatDate(plan.startDate)} - ${formatDate(plan.endDate)}` : 'TBD',
       owner: plan?.createdBy?.displayName ?? request.reviewedBy?.displayName ?? 'Unassigned',
       budget,
@@ -729,7 +736,14 @@ export const HRCampaignDetail: React.FC = () => {
     setActionSubmitting(true);
     setActionError('');
     try {
-      await apiRequest(`/overall-plan/${plan.id}/start-campaign`, token, { method: 'PATCH' });
+      const result = await apiRequest<{ requestStatus: string }>(
+        `/overall-plan/${plan.id}/start-campaign`,
+        token,
+        { method: 'PATCH' },
+      );
+      if (result.requestStatus !== 'ACTIVE') {
+        throw new Error('Campaign was not activated. Please try again.');
+      }
       await loadCampaign();
     } catch (startErr) {
       setActionError(startErr instanceof ApiError ? startErr.message : 'Unable to start campaign');

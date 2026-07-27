@@ -562,7 +562,7 @@ export class OverallPlanService {
       );
     }
 
-    const [, log] = await this.prisma.$transaction([
+    const [startedRequest, log] = await this.prisma.$transaction([
       this.prisma.recruitmentRequest.update({
         where: { id: plan.requestId },
         data: { status: RecruitmentRequestStatus.ACTIVE },
@@ -578,6 +578,10 @@ export class OverallPlanService {
         },
       }),
     ]);
+
+    if (startedRequest.status !== RecruitmentRequestStatus.ACTIVE) {
+      this.rpc(HttpStatus.INTERNAL_SERVER_ERROR, 'Campaign activation did not update the request status');
+    }
 
     for (const task of plan.tasks) {
       const dueDate = task.endDate!.toLocaleDateString('en-US', { dateStyle: 'long' });
@@ -621,6 +625,8 @@ export class OverallPlanService {
     return {
       success: true,
       requestId: plan.requestId,
+      requestStatus: startedRequest.status,
+      planStatus: plan.status,
       logId: log.id,
       notifiedRecruiters: plan.tasks.length,
     };
