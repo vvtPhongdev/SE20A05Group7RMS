@@ -472,7 +472,21 @@ export class OverallPlanService {
       include: {
         createdBy: { select: { id: true, displayName: true } },
         approvedBy: { select: { id: true, displayName: true } },
-        request: { select: { id: true, position: true, status: true } },
+        request: {
+          select: {
+            id: true,
+            position: true,
+            status: true,
+            headcount: true,
+            jobDescription: true,
+            skillRequirements: true,
+            justification: true,
+            urgency: true,
+            createdAt: true,
+            department: { select: { name: true } },
+            createdBy: { select: { displayName: true, email: true } },
+          },
+        },
         tasks: {
           include: {
             assignedTo: { select: { id: true, displayName: true, email: true, role: true } },
@@ -591,6 +605,88 @@ export class OverallPlanService {
 
     if (startedRequest.status !== RecruitmentRequestStatus.ACTIVE) {
       this.rpc(HttpStatus.INTERNAL_SERVER_ERROR, 'Campaign activation did not update the request status');
+    }
+
+    const campaignRequest = await this.prisma.recruitmentRequest.findUnique({
+      where: { id: plan.requestId },
+      select: {
+        position: true,
+        headcount: true,
+        jobDescription: true,
+        skillRequirements: true,
+        justification: true,
+        urgency: true,
+        createdAt: true,
+        department: { select: { name: true } },
+        createdBy: { select: { displayName: true, email: true } },
+      },
+    });
+    if (!campaignRequest) {
+      this.rpc(HttpStatus.INTERNAL_SERVER_ERROR, 'Campaign request was not found after activation');
+    }
+
+    const planStartDate = plan.startDate.toLocaleDateString('en-US', { dateStyle: 'long' });
+    const planEndDate = plan.endDate.toLocaleDateString('en-US', { dateStyle: 'long' });
+    const campaignTaskSummary = plan.tasks
+      .map((task, index) => {
+        const taskStart = task.startDate!.toLocaleDateString('en-US', { dateStyle: 'long' });
+        const taskEnd = task.endDate!.toLocaleDateString('en-US', { dateStyle: 'long' });
+        return `${index + 1}. ${task.taskType} — ${task.assignedTo.displayName} (${task.assignedTo.email}), ${taskStart} to ${taskEnd}`;
+      })
+      .join('\n');
+    const campaignEmailBody = [
+      'Dear Administrator,',
+      '',
+      'A recruitment campaign has been activated and its plan is now in progress.',
+      '',
+      'Campaign details',
+      `Position: ${campaignRequest.position}`,
+      `Department: ${campaignRequest.department.name}`,
+      `Headcount: ${campaignRequest.headcount}`,
+      `Urgency: ${campaignRequest.urgency}`,
+      `Requested by: ${campaignRequest.createdBy.displayName} (${campaignRequest.createdBy.email})`,
+      `Created: ${campaignRequest.createdAt.toLocaleDateString('en-US', { dateStyle: 'long' })}`,
+      `Plan window: ${planStartDate} to ${planEndDate}`,
+      `Job description: ${campaignRequest.jobDescription}`,
+      `Skill requirements: ${JSON.stringify(campaignRequest.skillRequirements)}`,
+      `Business justification: ${campaignRequest.justification}`,
+      '',
+      'Active plan tasks',
+      campaignTaskSummary,
+      '',
+      'You can track this campaign in Admin Annual Report → Recruitment Campaign Plan Tracking.',
+      '',
+      'Works Recruiter',
+    ].join('\n');
+    const administrators = await this.prisma.user.findMany({
+      where: { role: 'ADMIN', isActive: true },
+      select: { id: true, displayName: true, email: true },
+    });
+
+    for (const administrator of administrators) {
+      this.notificationClient
+        .send('notification.send_email', {
+          userId: administrator.id,
+          toEmail: administrator.email,
+          subject: `[Works Recruiter] Campaign activated: ${plan.request.position}`,
+          body: campaignEmailBody,
+        })
+        .subscribe({
+          error: (err) => console.error('Failed to send campaign activation email to Admin:', err),
+        });
+
+      this.notificationClient
+        .send('notification.create_notification', {
+          userId: administrator.id,
+          type: NotificationType.PLAN_UPDATE,
+          title: 'Campaign activated',
+          body: `${plan.request.position} is active and its recruitment plan is now in progress.`,
+          relatedEntityId: plan.requestId,
+          relatedEntityType: 'Campaign',
+        })
+        .subscribe({
+          error: (err) => console.error('Failed to notify Admin about campaign activation:', err),
+        });
     }
 
     for (const task of plan.tasks) {

@@ -70,6 +70,17 @@ interface LayoutProps {
   children: React.ReactNode;
 }
 
+type InAppNotification = {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  isRead: boolean;
+  createdAt: string;
+  relatedEntityId?: string | null;
+  relatedEntityType?: string | null;
+};
+
 type ProfileAvatarResponse = {
   structuredData?: {
     avatar?: unknown;
@@ -131,6 +142,8 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [avatar, setAvatar] = useState<string | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [loggingOut, setLoggingOut] = useState(false);
+  const [notifications, setNotifications] = useState<InAppNotification[]>([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const navItems = user ? sidebarNavigation[user.role] || [] : [];
 
@@ -217,6 +230,30 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     };
   }, [token, user]);
 
+  useEffect(() => {
+    if (!token || !user) {
+      setNotifications([]);
+      return;
+    }
+
+    let active = true;
+    const loadNotifications = async () => {
+      try {
+        const nextNotifications = await apiRequest<InAppNotification[]>('/notifications', token);
+        if (active) setNotifications(nextNotifications);
+      } catch {
+        // Notification delivery must not make the dashboard unusable.
+      }
+    };
+
+    void loadNotifications();
+    const refreshId = window.setInterval(() => void loadNotifications(), 30_000);
+    return () => {
+      active = false;
+      window.clearInterval(refreshId);
+    };
+  }, [token, user]);
+
   if (!user) return <>{children}</>;
 
   const isActivePath = (path?: string) => {
@@ -235,6 +272,50 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     await logout();
     window.location.replace('/login');
   };
+
+  const notificationDestination = (notification: InAppNotification) => {
+    if (notification.relatedEntityType === 'Campaign' && user.role === UserRole.ADMIN) {
+      return '/admin/reports';
+    }
+
+    if (notification.relatedEntityType === 'InterviewSchedule') {
+      if (user.role === UserRole.CANDIDATE) return '/candidate/interviews';
+      if (user.role === UserRole.HR_LEADER) return '/hr/interviews';
+      if (user.role === UserRole.DEPARTMENT_HEAD) return '/dept-head/interviews';
+      return '/admin/interview-results';
+    }
+
+    if (notification.relatedEntityType === 'OfferLetter' && user.role === UserRole.CANDIDATE) {
+      return notification.relatedEntityId
+        ? `/candidate/offer/${notification.relatedEntityId}`
+        : '/candidate/offers';
+    }
+
+    if (notification.relatedEntityType === 'RecruitmentRequest') {
+      if (user.role === UserRole.ADMIN) return '/admin/approval-queue';
+      if (user.role === UserRole.HR_LEADER) return '/hr/requests';
+      if (user.role === UserRole.DEPARTMENT_HEAD) return '/dept-head/requests';
+    }
+
+    return user.role === UserRole.CANDIDATE ? '/candidate/notifications' : '/dashboard';
+  };
+
+  const openNotification = (notification: InAppNotification) => {
+    setNotificationsOpen(false);
+    if (!notification.isRead) {
+      setNotifications((current) =>
+        current.map((item) => (item.id === notification.id ? { ...item, isRead: true } : item)),
+      );
+      void apiRequest(`/notifications/${notification.id}/read`, token, { method: 'PATCH' }).catch(() => {
+        setNotifications((current) =>
+          current.map((item) => (item.id === notification.id ? { ...item, isRead: false } : item)),
+        );
+      });
+    }
+    navigate(notificationDestination(notification));
+  };
+
+  const unreadNotifications = notifications.filter((notification) => !notification.isRead).length;
 
   return (
     <SidebarProvider>
@@ -407,9 +488,79 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
           </div>
 
-          <div className="hidden items-center gap-2 rounded-full border border-[var(--wr-border-subtle)] bg-[var(--wr-bg-surface)] px-3 py-1.5 text-xs font-medium text-[var(--wr-text-secondary)] sm:flex">
-            <span className="size-2 rounded-full bg-[var(--wr-success)]" />
-            Connected to gateway
+          <div className="relative flex items-center gap-3">
+            <div className="hidden items-center gap-2 rounded-full border border-[var(--wr-border-subtle)] bg-[var(--wr-bg-surface)] px-3 py-1.5 text-xs font-medium text-[var(--wr-text-secondary)] sm:flex">
+              <span className="size-2 rounded-full bg-[var(--wr-success)]" />
+              Connected to gateway
+            </div>
+            <button
+              aria-expanded={notificationsOpen}
+              aria-haspopup="menu"
+              aria-label={`Notifications${unreadNotifications ? `, ${unreadNotifications} unread` : ''}`}
+              className="relative inline-flex size-10 items-center justify-center rounded-full border border-[var(--wr-border-subtle)] bg-[var(--wr-bg-surface)] text-[var(--wr-text-secondary)] transition hover:bg-[var(--wr-bg-muted)] hover:text-[var(--wr-text-primary)]"
+              onClick={() => setNotificationsOpen((open) => !open)}
+              type="button"
+            >
+              <Bell className="size-5" />
+              {unreadNotifications > 0 && (
+                <span className="absolute -right-1 -top-1 flex min-w-5 items-center justify-center rounded-full bg-[var(--wr-error)] px-1 text-[10px] font-bold leading-5 text-white">
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                </span>
+              )}
+            </button>
+            {notificationsOpen && (
+              <section
+                aria-label="Notifications"
+                className="absolute right-0 top-12 z-50 w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-[var(--wr-border-default)] bg-[var(--wr-bg-surface)] shadow-xl"
+              >
+                <div className="flex items-center justify-between border-b border-[var(--wr-border-subtle)] px-4 py-3">
+                  <div>
+                    <h2 className="text-sm font-semibold text-[var(--wr-text-primary)]">Notifications</h2>
+                    <p className="text-xs text-[var(--wr-text-muted)]">Newest first</p>
+                  </div>
+                  {unreadNotifications > 0 && (
+                    <span className="text-xs font-medium text-[var(--wr-text-secondary)]">
+                      {unreadNotifications} unread
+                    </span>
+                  )}
+                </div>
+                <div className="max-h-[26rem] overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <p className="px-4 py-8 text-center text-sm text-[var(--wr-text-muted)]">
+                      You have no notifications.
+                    </p>
+                  ) : (
+                    notifications.slice(0, 12).map((notification) => (
+                      <button
+                        className={`block w-full border-b border-[var(--wr-border-subtle)] px-4 py-3 text-left transition last:border-b-0 hover:bg-[var(--wr-bg-muted)] ${
+                          notification.isRead ? '' : 'bg-[var(--wr-bg-muted)]'
+                        }`}
+                        key={notification.id}
+                        onClick={() => openNotification(notification)}
+                        type="button"
+                      >
+                        <div className="flex gap-2">
+                          {!notification.isRead && (
+                            <span aria-label="Unread" className="mt-1.5 size-2 shrink-0 rounded-full bg-[var(--wr-primary)]" />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-[var(--wr-text-primary)]">
+                              {notification.title}
+                            </p>
+                            <p className="mt-1 line-clamp-2 text-xs text-[var(--wr-text-secondary)]">
+                              {notification.body}
+                            </p>
+                            <time className="mt-1 block text-[11px] text-[var(--wr-text-muted)]">
+                              {new Date(notification.createdAt).toLocaleString()}
+                            </time>
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </section>
+            )}
           </div>
         </header>
 
