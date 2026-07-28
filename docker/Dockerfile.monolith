@@ -5,10 +5,6 @@ RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/
 WORKDIR /app
 
 COPY . .
-RUN test -s packages/ai-models/rms-embedding-model/config.json \
-  && test -s packages/ai-models/rms-embedding-model/tokenizer.json \
-  && test -s packages/ai-models/rms-embedding-model/tokenizer_config.json \
-  && test -s packages/ai-models/rms-embedding-model/onnx/model.onnx
 RUN find . -name "*.tsbuildinfo" -type f -delete || true
 RUN npm ci --fetch-retries=5 --fetch-retry-mintimeout=2000 --fetch-retry-maxtimeout=30000
 RUN NODE_OPTIONS="--max-old-space-size=2048" npx turbo run build --filter=!@wr/webapp --concurrency=1
@@ -31,6 +27,11 @@ COPY --from=build --chown=node:node /app/node_modules ./node_modules
 # Copy built packages and services
 COPY --from=build --chown=node:node /app/packages ./packages
 COPY --from=build --chown=node:node /app/services ./services
+
+# Production uses the dedicated embedding service via WR_EMBEDDING_API_URL.
+# Keep the large ONNX model out of the API image so it does not compete for
+# memory with the API and worker processes.
+RUN rm -rf ./packages/ai-models
 
 # Copy startup orchestrator script
 COPY --from=build --chown=node:node /app/docker/start-monolith.sh ./docker/start-monolith.sh

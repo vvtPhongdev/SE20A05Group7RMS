@@ -6,6 +6,7 @@ export const EMBEDDING_MODEL_NAME = process.env.WR_EMBEDDING_MODEL_NAME || 'rms-
 export const EMBEDDING_MODEL_VERSION = process.env.WR_EMBEDDING_MODEL_VERSION || 'rms-custom-e5-small-v1';
 export const EMBEDDING_API_URL = process.env.WR_EMBEDDING_API_URL?.replace(/\/+$/, '');
 export const EMBEDDING_API_TOKEN = process.env.WR_EMBEDDING_API_TOKEN;
+export const EMBEDDING_REQUEST_TIMEOUT_MS = Number(process.env.WR_EMBEDDING_TIMEOUT_MS || 8_000);
 
 type FeatureExtractor = (text: string, options: { pooling: 'mean'; normalize: boolean }) => Promise<{
   data: Float32Array | number[];
@@ -14,6 +15,7 @@ type FeatureExtractor = (text: string, options: { pooling: 'mean'; normalize: bo
 export type EmbeddingInputKind = 'query' | 'passage';
 
 let extractor: FeatureExtractor | null = null;
+let extractorPromise: Promise<FeatureExtractor> | null = null;
 
 function findRepoModelRoot(): string {
   if (process.env.WR_EMBEDDING_MODEL_PATH) {
@@ -38,14 +40,16 @@ function assertLocalModel(modelPath: string): void {
     join(modelPath, 'config.json'),
     join(modelPath, 'tokenizer.json'),
     join(modelPath, 'tokenizer_config.json'),
-    join(modelPath, 'onnx', 'model.onnx'),
   ];
   const missing = required.filter((file) => !existsSync(file));
-  if (missing.length > 0) {
+  const onnxDirectory = join(modelPath, 'onnx');
+  const hasOnnxModel = existsSync(join(onnxDirectory, 'model.onnx')) ||
+    existsSync(join(onnxDirectory, 'model_quantized.onnx'));
+  if (missing.length > 0 || !hasOnnxModel) {
     throw new Error(
       [
         `Local embedding model is incomplete at ${modelPath}.`,
-        `Missing: ${missing.join(', ')}`,
+        `Missing: ${[...missing, !hasOnnxModel ? `${onnxDirectory}/model.onnx or model_quantized.onnx` : ''].filter(Boolean).join(', ')}`,
         'Build it with: python ml/scripts/train.py && python ml/scripts/convert.py',
       ].join(' '),
     );
@@ -54,22 +58,31 @@ function assertLocalModel(modelPath: string): void {
 
 async function loadExtractor(): Promise<FeatureExtractor> {
   if (extractor) return extractor;
+  if (extractorPromise) return extractorPromise;
 
-  const modelPath = findRepoModelRoot();
-  assertLocalModel(modelPath);
+  extractorPromise = (async () => {
+    const modelPath = findRepoModelRoot();
+    assertLocalModel(modelPath);
 
-  const modelRoot = resolve(modelPath, '..');
-  const modelName = modelPath.split(/[\\/]/).pop() || EMBEDDING_MODEL_NAME;
-  const transformers = await import('@xenova/transformers');
-  transformers.env.allowRemoteModels = false;
-  transformers.env.allowLocalModels = true;
-  transformers.env.localModelPath = modelRoot;
+    const modelRoot = resolve(modelPath, '..');
+    const modelName = modelPath.split(/[\\/]/).pop() || EMBEDDING_MODEL_NAME;
+    const transformers = await import('@xenova/transformers');
+    transformers.env.allowRemoteModels = false;
+    transformers.env.allowLocalModels = true;
+    transformers.env.localModelPath = modelRoot;
 
-  extractor = (await transformers.pipeline('feature-extraction', modelName, {
-    local_files_only: true,
-  } as any)) as FeatureExtractor;
+    extractor = (await transformers.pipeline('feature-extraction', modelName, {
+      local_files_only: true,
+      quantized: existsSync(join(modelPath, 'onnx', 'model_quantized.onnx')),
+    } as any)) as FeatureExtractor;
+    return extractor;
+  })();
 
-  return extractor;
+  try {
+    return await extractorPromise;
+  } finally {
+    if (!extractor) extractorPromise = null;
+  }
 }
 
 /**
@@ -131,7 +144,7 @@ function normalizeEmbeddingInput(text: string, kind: EmbeddingInputKind): string
 
 async function getRemoteEmbedding(text: string, kind: EmbeddingInputKind): Promise<Float32Array> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30_000);
+  const timeout = setTimeout(() => controller.abort(), EMBEDDING_REQUEST_TIMEOUT_MS);
 
   try {
     const response = await fetch(`${EMBEDDING_API_URL}/embed`, {

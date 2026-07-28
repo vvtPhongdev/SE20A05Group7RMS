@@ -3,16 +3,10 @@
 # Trap any exit/error signals to clean up background processes
 trap 'kill $(jobs -p) 2>/dev/null' EXIT
 
-MODEL_PATH="${WR_EMBEDDING_MODEL_PATH:-/app/packages/ai-models/rms-embedding-model}"
-for model_file in config.json tokenizer.json tokenizer_config.json onnx/model.onnx; do
-  if [ ! -s "$MODEL_PATH/$model_file" ]; then
-    echo "❌ Local embedding model is incomplete: $MODEL_PATH/$model_file"
-    exit 1
-  fi
-done
-
-echo "Verifying local embedding model at $MODEL_PATH..."
-node -e "require('@wr/ai').getQueryEmbedding('embedding model startup check').then((embedding) => { if (embedding.length !== 384) throw new Error('Expected 384 dimensions'); console.log('✅ Local embedding model loaded'); }).catch((error) => { console.error('❌ Failed to load local embedding model:', error); process.exit(1); });"
+if [ -z "$WR_EMBEDDING_API_URL" ]; then
+  echo "❌ WR_EMBEDDING_API_URL must point to the dedicated embedding service in production."
+  exit 1
+fi
 
 # Start internal services
 echo "Starting Identity service on port 3010..."

@@ -1,0 +1,14 @@
+{
+  "name": "@wr/embedding",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "node -e \"console.log('embedding service ready')\"",
+    "start": "node server.mjs",
+    "typecheck": "node -e \"console.log('embedding service has no TypeScript sources')\"",
+    "lint": "node -e \"console.log('lint ok')\""
+  },
+  "dependencies": {
+    "@wr/ai": "*"
+  }
+}

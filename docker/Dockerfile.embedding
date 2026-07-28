@@ -1,0 +1,25 @@
+FROM node:22-bookworm-slim AS build
+
+WORKDIR /app
+COPY . .
+RUN npm ci --fetch-retries=5 --fetch-retry-mintimeout=2000 --fetch-retry-maxtimeout=30000
+RUN npx turbo run build --filter=@wr/ai --filter=@wr/embedding
+RUN npm prune --omit=dev
+
+FROM node:22-bookworm-slim AS runtime
+
+ENV NODE_ENV=production \
+    WR_EMBEDDING_MODEL_PATH=/app/packages/ai-models/rms-embedding-model
+WORKDIR /app
+
+COPY --from=build --chown=node:node /app/package.json /app/package-lock.json ./
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/packages ./packages
+COPY --from=build --chown=node:node /app/services/embedding ./services/embedding
+
+# Keep only the quantized model in the production AI image.
+RUN rm ./packages/ai-models/rms-embedding-model/onnx/model.onnx
+
+USER node
+EXPOSE 8000
+CMD ["node", "services/embedding/server.mjs"]
